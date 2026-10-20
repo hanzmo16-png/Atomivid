@@ -71,6 +71,7 @@ import { DocumentAssetRegistry, type AssetIdentity } from "./asset-identity";
 import { assertVisualQuality, buildVisualReport, LongFormVisualQualityError, type VisualReport } from "./visual-report";
 import { VerifiedAssetRegistry } from "./verified-assets";
 import { MAX_TEXT_FALLBACK_RATIO, visualReleasePreflight } from "./visual-release-preflight";
+import { datedEventEvidenceBlockers, LongFormDatedEventEvidenceError } from "./dated-event-preflight";
 import { usesImpactDirection } from "./production-plan-types";
 import { curatedSvgGraphic } from "./premium-composition";
 import type { LongFormCuratedSvgGraphic } from "../../../../remotion/LongFormDoc";
@@ -191,6 +192,28 @@ export class LongFormQualityError extends Error {
   }
 }
 
+/**
+ * Puerta FINAL de entrega: una escena con «Material pendiente» (carencia de material pertinente,
+ * TRUTHFUL_ABSTENTION con gap) nunca llega a un MP4 entregable, aunque el QA cinematográfico dé PASS
+ * y la proporción de tarjetas quede por debajo de MAX_TEXT_FALLBACK_RATIO. Se detiene antes del render.
+ */
+export class LongFormPendingMaterialError extends Error {
+  /** Escenas y subtítulos que se habrían renderizado (diagnóstico/pruebas; no enumerable para no inflar los logs). */
+  declare readonly prepared: { scenes: LongFormShotScene[]; captions: RenderLongFormDocInput["captions"] } | undefined;
+  constructor(
+    readonly pending: { sceneId: string; reason: string }[],
+    prepared?: { scenes: LongFormShotScene[]; captions: RenderLongFormDocInput["captions"] },
+  ) {
+    super(
+      `IMPEDIMENTO DE ENTREGA: ${pending.length} escena(s) quedarían con «Material pendiente» (${pending.map((s) => s.sceneId).join(", ")}). ` +
+        "No se entrega un documental con marcadores internos: hace falta material real/verificado o una adaptación editorial aprobada. " +
+        "El guion y los recursos ya obtenidos quedan guardados; un reintento no los vuelve a pagar.",
+    );
+    this.name = "LongFormPendingMaterialError";
+    Object.defineProperty(this, "prepared", { value: prepared, enumerable: false });
+  }
+}
+
 export { isLongFormScriptJson, type LongFormScriptBeatInput, type LongFormScriptJson } from "./script-json";
 import type { LongFormScriptBeatInput } from "./script-json";
 
@@ -246,6 +269,11 @@ export async function generateLongFormVideoFromScript({
     if (pre.blockers.length > 0) throw new LongFormVisualQualityError(pre.blockers);
     verifiedAssets = pre.verifiedAssets;
     sequences = pre.sequences;
+  } else if (usesAnchoredVisuals(plan)) {
+    // v3 (ruta por defecto): sin identidad ni pruebas verificadas, solo hay material ilustrativo. Un pasaje
+    // con fecha de calendario ilustrado así se tomaría por prueba del hecho: fallo cerrado ANTES de gastar.
+    const dated = datedEventEvidenceBlockers(beats);
+    if (dated.length > 0) throw new LongFormDatedEventEvidenceError(dated);
   }
 
   const resolvedProviders = providers ?? resolveLongFormProviders("real");
@@ -527,6 +555,10 @@ export async function generateLongFormVideoFromScript({
     ? captionsWithinScenes(timeline.words, shotScenes, (w) => buildCaptions(w, emphasisSet))
     : buildCaptions(timeline.words, emphasisSet);
   const narrationGaps = computeNarrationGaps(timeline.words);
+  // Puerta FINAL de entrega (v3+): ninguna escena con «Material pendiente» llega al render, a la música ni a la
+  // subida. El informe visual ya quedó guardado; nada se borra. Sin reintento automático ni gasto adicional.
+  const pendingScenes = (shotScenes as LongFormShotScene[]).filter((s) => s.pending).map((s) => ({ sceneId: s.id, reason: s.pending as string }));
+  if (pendingScenes.length > 0) throw new LongFormPendingMaterialError(pendingScenes, { scenes: shotScenes as LongFormShotScene[], captions });
 
   const fullNarrationText = beats.map((b) => b.narration).join(" ");
   const finalDurationSeconds = timeline.durationSeconds + VIDEO_TAIL_SECONDS;

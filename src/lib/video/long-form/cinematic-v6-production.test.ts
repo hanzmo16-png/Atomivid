@@ -192,7 +192,10 @@ test("confirm-production: v6 solo con cinematicV6 del servidor; sin él, v3; una
   const again = await confirmLongFormProduction(other.client, { requestId: "req-1", userId: "user-1", strategy: "balanced", cinematicV6: true, visualGate: async () => ready });
   assert.equal(again.ok && again.alreadyConfirmed && again.plan.version, 3);
   // Guion anterior (sin impacto) de una cuenta habilitada: v3.
-  const legacy = fakeService({ ...base, script_json: documentary180sFixture(), topic: documentary180sFixture().topic });
+  // P0 T-20261019-1553: sin la fecha de calendario (el caso fechado en v3 se rechaza; ver confirm-production.test.ts).
+  const legacyScript = documentary180sFixture();
+  legacyScript.beats = legacyScript.beats.map((b) => ({ ...b, narration: b.narration.replace("El 15 de agosto de 1914", "En agosto de 1914") }));
+  const legacy = fakeService({ ...base, script_json: legacyScript, topic: legacyScript.topic });
   const rl = await confirmLongFormProduction(legacy.client, { requestId: "req-1", userId: "user-1", strategy: "balanced", cinematicV6: true });
   assert.equal(rl.ok && rl.plan.version, 3);
 });

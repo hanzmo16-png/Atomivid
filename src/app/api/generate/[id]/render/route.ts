@@ -1,4 +1,4 @@
-import { usesVisualIdentity, type ProductionPlan } from "@/lib/video/long-form/production-plan-types";
+import { usesAnchoredVisuals, type ProductionPlan } from "@/lib/video/long-form/production-plan-types";
 import type { ProductionPlanBeatInput } from "@/lib/video/long-form/production-plan";
 import { providerCheck, visualBlockMessage, visualCheck } from "@/lib/video/long-form/production-preflight";
 import { isLongFormScriptJson } from "@/lib/video/long-form/script-json";
@@ -238,7 +238,8 @@ export async function POST(
 
     // Visual release gate of v4+ plans, BEFORE reserving anything or spending an attempt: the worker
     // would stop on it anyway (visual-release-preflight.ts), so a missing curation never burns an attempt.
-    if (videoRequest.mode === "long_form" && videoRequest.long_form_production_plan && usesVisualIdentity(videoRequest.long_form_production_plan)
+    // v3: the same pure dated-event check (no I/O) — visualCheck returns ready for undated v3 scripts.
+    if (videoRequest.mode === "long_form" && videoRequest.long_form_production_plan && usesAnchoredVisuals(videoRequest.long_form_production_plan)
         && isLongFormScriptJson(videoRequest.script_json)) {
       const sj = videoRequest.script_json as unknown as { topic: string; beats: ProductionPlanBeatInput[] };
       const visual = await visualCheck(service, { requestId: id, plan: videoRequest.long_form_production_plan, beats: sj.beats, topic: sj.topic || "" });

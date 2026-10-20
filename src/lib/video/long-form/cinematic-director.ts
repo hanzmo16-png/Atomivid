@@ -442,8 +442,11 @@ export type CinematicQa = {
   status: "PASS" | "LOW_MOTION_DENSITY" | "BLOCKED_CINEMATIC_QUALITY" | "FAIL" | "BLOCK";
   windows: CinematicWindow[];
   findings: CinematicFinding[];
-  /** Puerta de entrega: solo es entregable sin ningún bloqueante de DELIVERY_POLICY. */
-  release: { deliverable: boolean; blockers: CinematicReasonCode[] };
+  /**
+   * Puerta de entrega: solo es entregable sin ningún bloqueante de DELIVERY_POLICY y sin ninguna
+   * escena con «Material pendiente» (tarjeta por carencia, `gap`). `pendingMaterial` lista esas escenas.
+   */
+  release: { deliverable: boolean; blockers: CinematicReasonCode[]; pendingMaterial?: string[] };
   cards: { shotId: string; startSec: number; reason: CardReason }[];
 };
 
@@ -600,6 +603,7 @@ export function cinematicQa(scenes: CinematicQaScene[]): CinematicQa {
   }
 
   const blockers = [...new Set(findings.filter((f) => f.severity === "BLOCK").map((f) => f.code))];
+  const pendingMaterial = scenes.filter((s) => s.display === "card" && s.gap).map((s) => s.shotId);
   const verdict = blockers.length > 0 ? "BLOCK" : findings.length > 0 ? "FAIL" : "PASS";
   // BLOCKED_CINEMATIC_QUALITY: todo lo que falla lo impone la verdad (y la clasificación que falló cerrada).
   const truthOnly = findings.some((f) => f.blockedByTruth) && findings.every((f) => f.blockedByTruth || f.code === "CLASSIFICATION_INTEGRITY_GAP");
@@ -611,7 +615,9 @@ export function cinematicQa(scenes: CinematicQaScene[]): CinematicQa {
     status,
     windows,
     findings,
-    release: { deliverable: blockers.length === 0, blockers },
+    // Una carencia visible («Material pendiente») nunca es entregable, aunque el veredicto sea PASS:
+    // la política (DELIVERY_POLICY) no cambia; esto es la condición de entrega, no un hallazgo de calidad.
+    release: { deliverable: blockers.length === 0 && pendingMaterial.length === 0, blockers, ...(pendingMaterial.length > 0 ? { pendingMaterial } : {}) },
     cards: scenes.filter((s) => s.display === "card").map((s) => ({ shotId: s.shotId, startSec: s.startSec, reason: s.cardReason ?? "EDITORIAL_CARD" })),
   };
 }

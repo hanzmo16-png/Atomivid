@@ -18,7 +18,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { createdUrl, draftRequestId, intentFingerprint, requestIdForSubmission } from "@/lib/video/submission-key";
+import { createdUrl, intentFingerprint, intentRequestId, requestIdForSubmission } from "@/lib/video/submission-key";
 import { acquireDraftKey, DRAFT_KEY_LOCK, DRAFT_KEY_STORAGE, readOrCreateDraftKey, rotateDraftKey } from "@/app/dashboard/new/draft-key";
 import { CLAIM_MESSAGES, createAvatarOnce, isDuplicateUpload, photoClaimPath, STALE_CLAIM_MS, type NewPhotoClaimDeps } from "@/lib/video/avatar/new-photo-claim";
 import { AvatarProviderError } from "@/lib/providers/types";
@@ -47,7 +47,8 @@ function server() {
   } } as unknown as VoiceProvider;
   /** One submission, in the action's order. `beforeInsert` lets a test interleave two submits (the 23505 race). */
   async function submit(fd: FormData, o: { legacyId?: string; beforeInsert?: () => Promise<void> } = {}): Promise<string> {
-    const { requestId, draftKey } = o.legacyId ? { requestId: o.legacyId, draftKey: null } : (await requestIdForSubmission(USER, fd));
+    const r = o.legacyId ? { requestId: o.legacyId, draftKey: null } : (await requestIdForSubmission(USER, fd, async c => new Set(c.filter(id => rows.has(id)))));
+    const requestId = r.requestId!, draftKey = r.draftKey;
     const created = createdUrl(draftKey);
     const existing = rows.get(requestId);
     if (existing && existing.user_id === USER) return created;
@@ -99,13 +100,14 @@ test("VERDE: dos pestañas simultáneas del mismo borrador → 1 fila, 1 voz pag
   const a = tab(storage), b = tab(storage);
   assert.equal(a.key(), b.key(), "las pestañas comparten la llave del borrador");
   const [ra, rb] = await Promise.all([s.submit(avatarForm(a.key())), s.submit(avatarForm(b.key()))]);
-  // Both voices in flight at the same instant: the ledger sees the same paid operation twice and, by its audited
-  // conservative rule (T32), never calls again — ONE paid call. Neither tab can confirm it, so both are told to
-  // retry and no row exists yet (honest, not hidden)...
+  // Both voices in flight at the same instant. Before D-RACE (T-20261019-1602) the loser rewrote the winner's
+  // SUBMITTED row to RECONCILIATION_REQUIRED, so even the winner lost its paid result and both tabs were told to
+  // retry. Now the loser never touches the winner's row: ONE paid call, the winner creates the row, the loser
+  // (in flight) is told to retry and nothing is hidden.
   assert.equal(s.voiceCalls, 1);
-  assert.deepEqual([ra, rb], ["/dashboard/new?error=voz", "/dashboard/new?error=voz"]);
-  assert.equal(s.rows.size, 0);
-  // ...and the retry reuses the stored audio of that one call: 1 row, still 1 paid call.
+  assert.deepEqual([ra, rb].map((r) => r.replace(/draft=.*/, "draft=")).sort(), ["/dashboard/new?error=voz", "/dashboard?created=1&draft="]);
+  assert.equal(s.rows.size, 1);
+  // The loser's retry reuses the same row and the stored audio of that one call: still 1 row, 1 paid call.
   assert.match(await s.submit(avatarForm(b.key())), /^\/dashboard\?created=1&draft=/);
   assert.equal(s.rows.size, 1);
   assert.equal(s.voiceCalls, 1);
@@ -159,9 +161,23 @@ test("VERDE: una creación nueva deliberada (después del éxito confirmado) →
   assert.ok(land(storage, await s.submit(avatarForm(first))));
   const second = t.key();
   assert.notEqual(second, first, "el siguiente borrador tiene otra llave");
-  await s.submit(avatarForm(second)); // same text, deliberately a second video
+  // T46 D1: a new draft key alone is NOT a new intent; the same data maps to the same request…
+  await s.submit(avatarForm(second));
+  assert.equal(s.rows.size, 1);
+  assert.equal(s.voiceCalls, 1);
+  // …a second identical video is an explicit choice (repeat_intent), resolved on the server to the next free ordinal.
+  const again = avatarForm(second); again.set("repeat_intent", "on"); again.set("repeat_request_token", randomUUID());
+  await s.submit(again);
   assert.equal(s.rows.size, 2);
   assert.equal(s.voiceCalls, 2);
+  // D5: lost redirect after the committed explicit repeat; replaying exactly the same POST cannot select R2.
+  await s.submit(again);
+  assert.equal(s.rows.size, 2);
+  assert.equal(s.voiceCalls, 2);
+  const nextRepeat = avatarForm(second); nextRepeat.set("repeat_intent", "on"); nextRepeat.set("repeat_request_token", randomUUID());
+  await s.submit(nextRepeat);
+  assert.equal(s.rows.size, 3);
+  assert.equal(s.voiceCalls, 3);
 });
 
 test("VERDE: otra intención en otra pestaña con la misma llave → otra solicitud (nunca se descarta en silencio)", async () => {
@@ -190,13 +206,13 @@ test("sin almacenamiento (modo privado, datos bloqueados) cada pestaña usa su p
 
 test("el id lo decide el servidor: incluye al usuario y la intención; el navegador no puede elegirlo ni sondear otro", async () => {
   const key = randomUUID(), fd = reelForm(key);
-  const mine = (await requestIdForSubmission(USER, fd)).requestId;
+  const mine = (await requestIdForSubmission(USER, fd)).requestId!;
   assert.notEqual(mine, key, "la llave del navegador no es el id");
   assert.notEqual((await requestIdForSubmission("22222222-2222-4222-8222-222222222222", fd)).requestId, mine);
-  assert.equal(draftRequestId(USER, key.toUpperCase(), await intentFingerprint(fd)), mine, "mayúsculas no cambian la llave");
+  assert.equal(intentRequestId(USER, await intentFingerprint(fd), 0), mine, "id = usuario + intención (ordinal 0)");
   assert.match(mine, /^[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   const legacy = new FormData(); legacy.set("submission_id", "x");
-  assert.equal((await requestIdForSubmission(USER, legacy)).draftKey, null, "sin llave válida: id nuevo como antes");
+  assert.equal((await requestIdForSubmission(USER, legacy)).draftKey, null, "sin llave válida: draftKey nulo, pero el id sigue siendo el del servidor");
 });
 
 // ---------------------------------------------------------------- Residual C: archivos por sus bytes
@@ -328,6 +344,9 @@ test("residual A — resultado incierto y recuperación: nunca se repite createA
   assert.equal((await createAvatarOnce(r.deps(), p2)).kind, "provider_failed");
   assert.equal(r.objects.size, 0);
   assert.match(CLAIM_MESSAGES.stale, /No se repitió/);
+  assert.match(CLAIM_MESSAGES.stale, /permanece bloqueada/);
+  assert.doesNotMatch(CLAIM_MESSAGES.stale, /vuelv[ea]s? a enviar|solicitud nueva/i,
+    "un resultado incierto nunca invita a crear otra intención pagada");
   assert.doesNotMatch(Object.values(CLAIM_MESSAGES).join(" "), /no se (cobró|ha cobrado)/i, "nunca promete que no hubo cobro");
 });
 
@@ -359,7 +378,7 @@ test("CORRECCIÓN-3: solo el rechazo definitivo libera la reserva", async () => 
 
 test("la acción y el formulario siguen exactamente ese orden (fuente)", () => {
   const actions = fs.readFileSync(path.join(ROOT, "src/app/dashboard/new/actions.ts"), "utf8");
-  const id = actions.indexOf("const { requestId, draftKey } = await requestIdForSubmission(user.id, formData);");
+  const id = actions.indexOf("const resolved = await requestIdForSubmission(user.id, formData, lookup);");
   const existing = actions.indexOf('.from("video_requests").select("id").eq("id", requestId).eq("user_id", user.id).maybeSingle();');
   const visual = actions.indexOf('if (mode === "visual") {'), voice = actions.indexOf("const voiceResult = await gatedVoiceSynthesize({ requestId,");
   assert.ok(id > 0 && id < existing && existing < visual && visual < voice, "id → fila existente → ramas → voz pagada");
@@ -368,9 +387,16 @@ test("la acción y el formulario siguen exactamente ese orden (fuente)", () => {
   assert.match(actions, /if \(error\.code === "23505"\) redirect\(created\);\n    if \(audioPath\) await/, "la carrera perdida nunca borra el audio de la ganadora");
   // Residual A: the photo's claim is derived from the request id and taken before the provider is called.
   const claim = actions.indexOf("const photoPath = photoClaimPath(user.id, requestId, format);");
+  const repeatPhotoBlock = actions.indexOf("if (blocksRepeatWithNewAvatarPhoto(");
+  assert.ok(id < repeatPhotoBlock && repeatPhotoBlock < claim,
+    "un POST directo de repetición con foto se bloquea en servidor antes del claim y del proveedor");
   assert.ok(id < claim && claim < actions.indexOf("await provider.createAvatar(") && claim < actions.indexOf("const voiceResult = await gatedVoiceSynthesize"));
   assert.doesNotMatch(actions, /\$\{user\.id\}\/\$\{randomUUID\(\)\}/, "ya no hay ruta aleatoria por envío");
   assert.equal(actions.match(/provider\.createAvatar\(/g)?.length, 1, "createAvatar solo dentro de createAvatarOnce");
+  assert.match(actions, /claim\.kind === "stale"\) redirect\(formErrorUrl\(CLAIM_MESSAGES\.stale, \{ blockAvatarReconciliation: true \}\)\)/,
+    "stale vuelve al mismo borrador y bloquea otra creación hasta conciliar");
+  assert.doesNotMatch(actions, /formErrorUrl\(CLAIM_MESSAGES\.stale,\s*draftKey\)/,
+    "stale no convierte una respuesta incierta en otra intención");
   const form = fs.readFileSync(path.join(ROOT, "src/app/dashboard/new/NewVideoForm.tsx"), "utf8");
   assert.doesNotMatch(form, /useState\(\(\) => \(typeof crypto/, "ya no hay un id por pestaña");
   assert.match(form, /acquireDraftKey\(browserStorage\(\), submissionIdRef\.current\)/, "la llave se toma bajo el candado entre pestañas");
@@ -379,9 +405,19 @@ test("la acción y el formulario siguen exactamente ese orden (fuente)", () => {
   assert.ok(form.includes("const [draftReady, setDraftReady] = useState(false)"), "formulario bloqueado desde el primer render");
   assert.ok(form.includes("setDraftReady(Boolean(k))"), "solo se habilita después de obtener clave");
   assert.ok(form.includes('!draftReady ? "Sincronizando borrador'), "botón bloqueado mientras no hay clave");
-  assert.ok(form.includes("onSubmit={event => { if (!draftReady) event.preventDefault(); }}"), "Enter no envía el formulario temprano");
+  assert.ok(form.includes("onSubmit={event => { if (!draftReady || reconciliationBlocked) event.preventDefault(); }}"),
+    "Enter no envía el formulario temprano ni durante conciliación");
   assert.ok(form.includes("disabled={!draftReady}"), "hidden draft key deshabilitada hasta adquirirla");
   assert.ok(form.includes("const version = ++syncVersion.current"), "no sobrescribir con adquisiciones antiguas");
+  assert.doesNotMatch(form, /searchParams\.get\(["']reset["']\)/,
+    "el cliente no rota el borrador por una respuesta de error");
+  assert.match(form, /disabled=\{reconciliationBlocked \|\| repeatBlockedByNewAvatarPhoto\}/,
+    "conciliación o una foto nueva deshabilitan la repetición explícita");
+  assert.match(form, /onExistingAvatarChange=\{usesExisting =>/,
+    "la UI sólo habilita repetir cuando reutiliza un avatar confirmado");
+  const runbook = fs.readFileSync(path.join(ROOT, "docs/runbooks/avatar-uncertain-claims.md"), "utf8");
+  assert.match(runbook, /Crear otro video igual[^\n]*only reuse an existing, confirmed avatar/,
+    "la guía operativa no autoriza otro activo pagado con la misma foto");
   const page = fs.readFileSync(path.join(ROOT, "src/app/dashboard/page.tsx"), "utf8");
   assert.match(page, /\{created && <DraftKeyRotation draft=\{draft\} \/>\}/, "solo una creación confirmada rota la llave");
 });

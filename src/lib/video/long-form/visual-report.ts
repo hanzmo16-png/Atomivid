@@ -311,7 +311,7 @@ export class LongFormVisualQualityError extends Error {
 /**
  * Control previo al render (solo planes v3): ninguna repetición de recurso
  * sin justificación y ninguna tarjeta que repita el título. Las carencias
- * no fallan aquí (ya las limita el guard de tarjetas de produce.ts), pero
+ * no fallan aquí (las limitan el guard de tarjetas y la puerta «Material pendiente» de produce.ts), pero
  * quedan en el informe.
  */
 export function assertVisualQuality(report: VisualReport): void {

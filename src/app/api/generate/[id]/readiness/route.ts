@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
  * production's providers may be refreshed with the provider's billing GET (no generation), exactly as the
  * start endpoints do. Stage: before the script when there is none yet, otherwise before the render.
  */
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -30,6 +30,15 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const stage = hasRenderableScript(row.script_json) || row.recorded_audio_path ? "before_render" as const : "before_script" as const;
   const draft = isOwnScriptDraft(row.script_json) ? row.script_json : null;
   const check = await checkProductionForRequest({ service, user, ownerId: user.id, stage, request: row, requestId: stage === "before_script" ? id : null,
-    fit: draft ? draftFit(draft, row.duration_seconds, row.language) : null });
+    fit: draft ? draftFit(draft, row.duration_seconds, row.language) : null,
+    // F40: the material ceiling typed in the review is checked here too (read-only); the render route re-checks it.
+    directorMaterialUsd: materialFromQuery(request) });
   return NextResponse.json({ ...checkResponseBody(check), stage, status: row.status }, { headers: { "Cache-Control": "no-store" } });
+}
+
+/** ?materialUsd= from the review: finite, ≥ 0, capped at 4 decimals; anything else is ignored (0). */
+function materialFromQuery(request: Request): number {
+  const raw = new URL(request.url).searchParams.get("materialUsd");
+  const n = raw === null ? 0 : Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 10_000) / 10_000 : 0;
 }

@@ -48,3 +48,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Arnés E2E local (T-20261019-1553): binarios, BD, secretos aleatorios y salidas generados por setup.sh
+.e2e-local/
+__pycache__/
+*.pyc
+.render-attempt.json

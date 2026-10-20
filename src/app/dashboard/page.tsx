@@ -22,9 +22,9 @@ import { DraftKeyRotation } from "./DraftKeyRotation";
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ created?: string; draft?: string; script_job?: string }>;
+  searchParams: Promise<{ created?: string; draft?: string; existing?: string; script_job?: string }>;
 }) {
-  const { created, draft, script_job } = await searchParams;
+  const { created, draft, existing, script_job } = await searchParams;
   const supabase = await createClient();
 
   const {
@@ -132,7 +132,13 @@ export default async function DashboardPage({
 
         {script_job && <Alert tone="info">La preparación está guardada. Puedes salir; el progreso aparecerá en tu historial.</Alert>}
         {created && <DraftKeyRotation draft={draft} />}
-        {created && (
+        {created && existing && (
+          <Alert tone="info">
+            Ya tenías una solicitud con exactamente estos datos, así que no se creó otra ni se cobró nada nuevo. Si quieres
+            otro video igual, marca «Crear otro video igual» en el formulario.
+          </Alert>
+        )}
+        {created && !existing && (
           <Alert tone="success">
             Tu solicitud se guardó correctamente. Pulsa &quot;Generar guion&quot; para
             crear el guion — podrás revisarlo y editarlo antes de generar el video final.

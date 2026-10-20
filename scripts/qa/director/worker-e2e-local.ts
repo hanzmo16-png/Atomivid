@@ -47,6 +47,7 @@ import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { VIDEO_TAIL_SECONDS } from "../../../src/lib/video/script-pacing";
 
 const arg = (name: string) => process.argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
 const OUT = path.resolve(arg("out-dir") ?? path.join(os.tmpdir(), `atomivid-worker-e2e-${Date.now()}`));
@@ -104,7 +105,7 @@ function seedFor(id: string, script: unknown, over: Record<string, unknown> = {}
     video_requests: [{ id, user_id: OWNER.id, mode: "visual", status: "processing", render_attempts: 1, progress_stage: null, script_json: script,
       style: "documental, sobrio", topic: "Prueba local del worker con Director", language: "es", duration_seconds: 35, avatar_id: null, avatar_voice_id: null,
       avatar_provider_video_job_id: null, recorded_audio_path: null, avatar_narration_source: null, long_form_production_plan: null, long_form_confirmed_at: null,
-      director_requested: true, video_path: null, error_message: null, supply_wait_started_at: null, supply_not_before: null, created_at: new Date().toISOString(), ...over }],
+      director_requested: true, provider_spend_cap_usd: 1.5, video_path: null, error_message: null, supply_wait_started_at: null, supply_not_before: null, created_at: new Date().toISOString(), ...over }],
     auth_users: owner ? [owner] : [],
     pi_supply_policies: [], pi_paid_operations: [], pi_supply_job_reservations: [], generation_costs: [],
   } };
@@ -160,6 +161,7 @@ async function main() {
   };
 
   let positiveObjects: Record<string, string> = {};
+  let positiveStoredObjects: Record<string, string> = {};
   const idPos = randomUUID();
   if (want("positive")) {
     const r = runWorker("positive", seedFor(idPos, script), {}, idPos);
@@ -169,6 +171,7 @@ async function main() {
       { name: "worker exit 0", ok: r.exit === 0, detail: r.stderr.slice(-300) },
       { name: "row completed with video_path of this attempt", ok: v.status === "completed" && v.video_path === `${idPos}/attempt-1/final.mp4`, detail: { status: v.status, video_path: v.video_path, error: v.error_message } },
       { name: "final.mp4 and director.json stored next to each other (same attempt)", ok: fs.existsSync(mp4) && fs.existsSync(dj), detail: r.objects },
+      { name: "worker preserves the persisted provider cap", ok: v.provider_spend_cap_usd === 1.5 },
       { name: "claim + reservation RPCs went through the supply guard", ok: r.rpc.some((x) => x.name === "pi_claim_render_supply") && r.rpc.some((x) => x.name === "pi_reserve_job_supply"), detail: r.rpc.map((x) => x.name) },
       { name: "traceability + simulated cost: one generation_costs row for this request with a numeric estimate, reservation released, no paid operation", ok: (r.tables.generation_costs ?? []).filter((c) => c.request_id === idPos && typeof c.estimated_cost_usd === "number").length === 1 && reservations(r).every((x) => x.status === "released") && (r.tables.pi_paid_operations ?? []).length === 0,
         detail: { costs: (r.tables.generation_costs ?? []).map((c) => ({ request_id: c.request_id, estimated_cost_usd: c.estimated_cost_usd, voice_provider: c.voice_provider, footage_provider: c.footage_provider, render_ms: c.render_ms, storage_bytes: c.storage_bytes })), reservations: reservations(r), paid: (r.tables.pi_paid_operations ?? []).length } },
@@ -176,9 +179,14 @@ async function main() {
     let artifacts: Record<string, unknown> = {};
     if (fs.existsSync(mp4) && fs.existsSync(dj)) {
       const ev = ffprobe(mp4);
-      const d = JSON.parse(fs.readFileSync(dj, "utf8")) as { ok: boolean; applied?: { shotId: string; recipeId: string | null; planned: { movement: string }; applied: { motion: string; transitionIn: string; transitionOut: string; startSeconds: number; endSeconds: number } }[]; plan?: { shots?: unknown[] } };
+      const d = JSON.parse(fs.readFileSync(dj, "utf8")) as { ok: boolean; durationSeconds?: number; applied?: { shotId: string; recipeId: string | null; planned: { movement: string }; applied: { motion: string; transitionIn: string; transitionOut: string; startSeconds: number; endSeconds: number } }[]; plan?: { totalSeconds?: number; shots?: unknown[] } };
       checks.push({ name: "MP4 H264/AAC 1080x1920 ≥ 25 s", ok: ev.video?.codec === "h264" && ev.audio?.codec === "aac" && ev.video.width === 1080 && ev.video.height === 1920 && ev.durationSeconds >= 25, detail: ev });
       checks.push({ name: "director.json ok=true with applied shots = plan shots", ok: d.ok === true && (d.applied?.length ?? 0) > 0 && d.applied?.length === d.plan?.shots?.length, detail: { ok: d.ok, applied: d.applied?.length, planned: d.plan?.shots?.length } });
+      const decoded = spawnSync("ffmpeg", ["-v", "error", "-xerror", "-i", mp4, "-f", "null", "-"], { encoding: "utf8", timeout: 120000 });
+      checks.push({ name: "complete MP4 decodes and matches Director output within 250 ms, including the explicit video tail",
+        ok: decoded.status === 0 && typeof d.durationSeconds === "number" && typeof d.plan?.totalSeconds === "number"
+          && Math.abs(ev.durationSeconds - d.durationSeconds) <= .25 && Math.abs(d.durationSeconds - d.plan.totalSeconds - VIDEO_TAIL_SECONDS) <= .001,
+        detail: { decodeExit: decoded.status, decodeError: decoded.stderr, planSeconds: d.plan?.totalSeconds, outputSeconds: d.durationSeconds, tailSeconds: VIDEO_TAIL_SECONDS, mp4Seconds: ev.durationSeconds } });
       const work = fs.mkdtempSync(path.join(os.tmpdir(), "frames-"));
       const rows = (d.applied ?? []).map((a) => {
         const len = a.applied.endSeconds - a.applied.startSeconds, m = Math.min(0.6, len / 4);
@@ -191,6 +199,7 @@ async function main() {
       checks.push({ name: "applied recipes match the plan's shot movements (no silent downgrade of a move on a still)", ok: (d.applied ?? []).every((a) => !(a.planned.movement === "push_in_still" || a.planned.movement === "pan") || a.applied.motion !== "static"), detail: (d.applied ?? []).map((a) => [a.planned.movement, a.applied.motion]) });
       artifacts = { mp4: { path: mp4, sha256: sha256(mp4), bytes: fs.statSync(mp4).size, ...ev }, directorJson: { path: dj, sha256: sha256(dj) }, shots: rows };
       positiveObjects = Object.fromEntries(r.objects.map((o) => [o, sha256(path.join(r.dump, "objects", o))]));
+      positiveStoredObjects = Object.fromEntries(r.objects.map((o) => [o, fs.readFileSync(path.join(r.dump, "objects", o)).toString("base64")]));
       fs.copyFileSync(mp4, path.join(OUT, "positive-director.mp4"));
       fs.copyFileSync(dj, path.join(OUT, "positive-director.json"));
     }
@@ -244,12 +253,13 @@ async function main() {
   if (want("double") && want("positive")) {
     // The same request, already completed by the positive run, dispatched again for the same attempt.
     const seed = seedFor(idPos, script, { status: "completed", video_path: `${idPos}/attempt-1/final.mp4`, progress_stage: null });
+    seed.objects = positiveStoredObjects;
     const r = runWorker("double", seed, {}, idPos);
     const v = row(r, idPos);
     finish("double", r, [
       { name: "worker skips (exit 0) a request that is no longer processing", ok: r.exit === 0 && v.status === "completed" },
-      { name: "no new objects, no RPC, no reservation", ok: r.objects.length === 0 && r.rpc.length === 0 && reservations(r).length === 0, detail: { rpc: r.rpc.map((x) => x.name), objects: r.objects } },
-      { name: "positive artifacts unchanged (hashes recorded)", ok: Object.keys(positiveObjects).length > 0, detail: Object.keys(positiveObjects) },
+      { name: "no new objects, no RPC, no reservation", ok: r.objects.length === Object.keys(positiveObjects).length && r.rpc.length === 0 && reservations(r).length === 0, detail: { rpc: r.rpc.map((x) => x.name), objects: r.objects } },
+      { name: "every stored positive artifact is still present and byte-identical after duplicate dispatch", ok: Object.keys(positiveObjects).length > 0 && Object.entries(positiveObjects).every(([o,h]) => r.objects.includes(o) && sha256(path.join(r.dump, "objects", o)) === h), detail: Object.keys(positiveObjects) },
     ]);
   }
 

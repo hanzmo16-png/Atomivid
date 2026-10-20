@@ -160,3 +160,22 @@ test("B2-8: run-job.ts acquires the hold after the attempt claim and before any 
   assert.match(src, /error instanceof SupplyUnavailableError/);
   assert.match(src, /supply_wait_started_at/, "a denied reservation saves a durable waiting state");
 });
+
+// QA-20261019-1337 (auditoría ChatGPT): un importe inválido se rechaza ANTES de leer saldo o escribir cualquier hold.
+for (const bad of [-1, -0.0001, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, 1e8]) {
+  test(`acquireCapacityHolds usd=${bad} → rechazo antes de cualquier hold (0 lecturas de saldo, 0 filas)`, async () => {
+    const store = memoryCapacityHoldStore(); let reads = 0;
+    const balance = { async read(p: string) { reads++; return fakeBalancePort({ elevenlabs: { available: 100, checkedAt: SNAPSHOT_AT } }).read(p); } };
+    const r = await acquireCapacityHolds({ store, balance, now: later }, { requestId: "req-bad", demands: [{ provider: "elevenlabs", units: 1, usd: 0.5 }, { provider: "elevenlabs", units: 1, usd: bad }] });
+    assert.equal(r.acquired, false);
+    if (!r.acquired) assert.match(r.reason, /Importe de ledger no representable/);
+    assert.equal(reads, 0);
+    assert.equal(store.rows.size, 0);
+  });
+}
+test("acquireCapacityHolds guarda el usd normalizado (0.00010000001 → 0.0002, nunca por debajo)", async () => {
+  const rows: number[] = []; const store = memoryCapacityHoldStore();
+  const spy = { ...store, insertHold: async (row: Parameters<typeof store.insertHold>[0]) => { rows.push(row.usd); return store.insertHold(row); } };
+  const r = await acquireCapacityHolds({ store: spy, balance: fakeBalancePort({ elevenlabs: { available: 3, checkedAt: SNAPSHOT_AT } }), now: later }, { requestId: "req-n", demands: [{ provider: "elevenlabs", units: 1, usd: 0.00010000001 }] });
+  assert.equal(r.acquired, true); assert.deepEqual(rows, [0.0002]);
+});

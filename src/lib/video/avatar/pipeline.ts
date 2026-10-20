@@ -18,6 +18,8 @@ import { PaidResultUnavailableError } from "@/lib/paid-calls/errors";
 import { gatedVoiceSynthesize, type PaidCallDeps } from "@/lib/paid-calls/gated-providers";
 import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
 import { supabaseResultStore } from "@/lib/paid-calls/result-store";
+import { ledgerGuardedCreateAvatar } from "./create-avatar-ledger";
+import { createHash } from "node:crypto";
 
 /** Rechazos del proveedor de avatar anteriores a aceptar un trabajo (nada cobrado); el resto es incierto. */
 function classifyAvatarError(err: unknown): PaidCallClassification {
@@ -294,21 +296,23 @@ export async function generateAvatarVideo({
     }
 
     if (heygenPhoto) {
-      const created = (
-        await guardPaidCall<{ providerAvatarId: string }>(
-          gate.ledger,
-          { projectId: requestId, shotId: "avatar:create", provider: provider.name, model: provider.name, method: "create_avatar", inputFingerprint: { avatarId, bytes: heygenPhoto.photoBuffer.byteLength, mimeType: heygenPhoto.mimeType }, reservedUsd: 0 },
-          {
-            call: async () => {
-              const r = await provider.createAvatar(heygenPhoto);
-              return { result: { providerAvatarId: r.providerAvatarId }, costUsd: 0, resultRef: `provider-avatar:${r.providerAvatarId}`, providerJobId: r.providerJobId };
-            },
-            load: async (ref) => (ref.startsWith("provider-avatar:") ? { providerAvatarId: ref.slice("provider-avatar:".length) } : null),
-            classify: classifyAvatarError,
-            maxRejectedRetries: 0,
-          },
-        )
-      ).result;
+      // T46 D6: the render pipeline uses the same fail-closed economic admission as dashboard/new.
+      // No verified positive rate or no atomic supply hook means zero provider calls.
+      const created = await ledgerGuardedCreateAvatar(
+        gate.ledger,
+        requestId,
+        provider.name,
+        createHash("sha256").update(heygenPhoto.photoBuffer).digest("hex"),
+        async () => {
+          const r = await provider.createAvatar(heygenPhoto);
+          return {
+            providerAvatarId: r.providerAvatarId,
+            providerJobId: r.providerJobId,
+            status: r.status,
+            providerName: provider.name,
+          };
+        },
+      );
       providerAvatarId = created.providerAvatarId;
       const { error } = await supabase.from("avatars").update({ provider_avatar_id: providerAvatarId, status: "ready" }).eq("id", avatarId).eq("user_id", userId);
       if (error) throw new AvatarPipelineError("No se pudo guardar el recurso de fotografía.", "provider_error");

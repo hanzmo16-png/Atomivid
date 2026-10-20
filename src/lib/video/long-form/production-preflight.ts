@@ -8,7 +8,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { jobSupplyDemands } from "@/lib/supply/job";
 import { ensureJobSupplyReady, type ProviderReadiness } from "@/lib/supply/readiness";
 import { getLongFormBudget } from "./cost";
-import { usesVisualIdentity } from "./production-plan-types";
+import { usesAnchoredVisuals, usesVisualIdentity } from "./production-plan-types";
+import { DATED_EVENT_EVIDENCE_REQUIRED, datedEventBlockMessage, datedEventEvidenceBlockers } from "./dated-event-preflight";
 import type { ProductionPlan, ProductionPlanBeatInput, VisualStrategy } from "./production-plan";
 import { MAX_TEXT_FALLBACK_RATIO, visualReleasePreflight } from "./visual-release-preflight";
 
@@ -122,6 +123,10 @@ const shortCode = (b: string) => b.replace(/^HERO_COVERAGE\s+/, "").split(":")[0
 
 /** Visual verdict of v4+ plans; identical to the worker's pre-spend gate. */
 export async function visualCheck(service: SupabaseClient, input: { requestId: string; plan: ProductionPlan; beats: ProductionPlanBeatInput[]; topic: string }): Promise<VisualCheck> {
+  if (!usesVisualIdentity(input.plan) && usesAnchoredVisuals(input.plan) && datedEventEvidenceBlockers(input.beats).length > 0) {
+    // v3: mismo fallo cerrado que el worker (dated-event-preflight.ts), visible ANTES de confirmar o iniciar.
+    return { applies: true, ready: false, codes: [DATED_EVENT_EVIDENCE_REQUIRED], missingHeroIdentities: 0, missingHeroEvidence: 0, textCardRatio: null, maxTextCardRatio: MAX_TEXT_FALLBACK_RATIO, verifiedAssets: 0 };
+  }
   if (!usesVisualIdentity(input.plan)) return { applies: false, ready: true, codes: [], missingHeroIdentities: 0, missingHeroEvidence: 0, textCardRatio: null, maxTextCardRatio: MAX_TEXT_FALLBACK_RATIO, verifiedAssets: 0 };
   const pre = await visualReleasePreflight({ supabase: service, ...input });
   return {
@@ -138,6 +143,7 @@ export async function visualCheck(service: SupabaseClient, input: { requestId: s
 
 /** One user-facing sentence for a visual block (used by the server guards and the page). */
 export function visualBlockMessage(v: VisualCheck): string {
+  if (v.codes.includes(DATED_EVENT_EVIDENCE_REQUIRED)) return datedEventBlockMessage(1);
   const parts: string[] = [];
   if (v.missingHeroIdentities) parts.push(`${v.missingHeroIdentities} identidad(es) de la apertura sin material verificado`);
   if (v.missingHeroEvidence) parts.push(`${v.missingHeroEvidence} prueba(s) de la apertura sin material verificado`);

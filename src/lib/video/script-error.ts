@@ -1,4 +1,5 @@
 import { ScriptPersistenceError } from "./script-persistence";
+import { ReelBudgetExceededError } from "@/lib/supply/reel-budget";
 import { ScriptOutputError } from "./script-output";
 import Anthropic from "@anthropic-ai/sdk";
 import { ProviderConfigurationError } from "@/lib/providers/production";
@@ -39,12 +40,14 @@ export type ScriptErrorCode =
   | "anthropic_server_error"
   | "anthropic_api_error"
   | "script_in_flight"
+  | "reel_budget_exceeded"
   | "script_reconciliation_required"
   | "script_output_limit"
   | "script_missing_output"
   | "unknown";
 
 export function scriptErrorCode(error: unknown): ScriptErrorCode {
+  if (error instanceof ReelBudgetExceededError) return "reel_budget_exceeded";
   if (error instanceof ScriptOutputError) return error.reason === "output_limit" ? "script_output_limit" : "script_missing_output";
   if (error instanceof ScriptReconciliationRequiredError) return error.state === "in_flight" ? "script_in_flight" : "script_reconciliation_required";
   if (error instanceof ReconciliationRequiredError) return "script_reconciliation_required";
@@ -92,6 +95,7 @@ export function scriptErrorCode(error: unknown): ScriptErrorCode {
 export function classifyScriptError(error: unknown, diagnosticId: string = generateDiagnosticId()): string {
   if (error instanceof ScriptPersistenceError) return error.message;
   const suffix = ` (Código: ${diagnosticId})`;
+  if (error instanceof ReelBudgetExceededError) return error.customerMessage + suffix;
 
   if (error instanceof ProviderConfigurationError) return error.message + suffix;
   if (error instanceof MissingEnvVarError) {

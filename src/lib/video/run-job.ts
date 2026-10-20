@@ -1,4 +1,5 @@
 import { supplyGuardRequired } from "@/lib/supply/server";
+import { classifyPaidFailure, isRenderEngineFailure, RENDER_ENGINE_CUSTOMER_MESSAGE } from "./render-engine-error";
 import { isInternalProductionOwner } from "@/lib/billing/internal-production";
 import { MAX_DIRECTOR_MATERIAL_USD } from "@/lib/video/director/material-fill";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
@@ -9,6 +10,7 @@ import { editorialApprovalError } from "./long-form/editorial";
 import { jobSupplyDemands, reserveJobSupply, releaseUnusedJobSupply, JobEnvelopeMismatchError, JobEnvelopeExhaustedError } from "@/lib/supply/job";
 import { withSupplyContext } from "@/lib/supply/anthropic";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
+import { ReelBudgetExceededError } from "@/lib/supply/reel-budget";
 import { createServiceClient } from "@/lib/supabase/service";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { recordMarketingEvent } from "@/lib/marketing/events";
@@ -282,7 +284,14 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
     // Configuration errors name environment variables: the customer gets a plain explanation, the log keeps the cause.
     const configError = !safe && isServiceConfigurationError(error);
     if (configError) console.error(`[atomivid:config] (Código: ${diagnosticId}) ${(error as Error).name}: ${(error as Error).message}`);
+    // F2-B: a render-engine failure (Remotion/Chromium/FFmpeg) never reaches the customer verbatim; the log keeps it.
+    const engineFailure = !safe && !configError && error instanceof Error && isRenderEngineFailure(error.message);
+    if (engineFailure) console.error(`[atomivid:render-engine] (Código: ${diagnosticId}) ${(error as Error).name}: ${(error as Error).message}`);
+    // F40 caos: un fallo de llamada de pago incierta (RR) o en curso nunca llega crudo; el log conserva la causa.
+    const paidFailure = !safe && !configError && !engineFailure ? classifyPaidFailure(error) : null;
+    if (paidFailure) console.error(`[atomivid:paid-uncertain] (Código: ${diagnosticId}) ${(error as Error)?.name}: ${(error as Error)?.message}`);
     const detail = safe ? safe.customerMessage : configError ? SERVICE_CONFIGURATION_MESSAGE
+      : engineFailure ? RENDER_ENGINE_CUSTOMER_MESSAGE : paidFailure ? paidFailure
       : error instanceof Error ? scrubInternalNames(error.message) : "Error desconocido";
     const rawMessage = mode === "long_form" ? scrubInternalPaths(detail) : detail;
     const message = `${rawMessage} (Código: ${diagnosticId})`;
@@ -302,7 +311,7 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
     // Typed action stored with the text: a configuration failure needs support, not an immediate retry.
     // Control de costos (2026-10-18): an envelope that does not match or is used up never fixes itself by retrying
     // (a retry would only spend attempts, and possibly money): support reviews it first.
-    const action = configError || error instanceof ProviderConfigurationError
+    const action = configError || error instanceof ProviderConfigurationError || error instanceof ReelBudgetExceededError
       || error instanceof JobEnvelopeMismatchError || error instanceof JobEnvelopeExhaustedError || error instanceof DeliverableUnverifiedError
       || (error instanceof DirectorUnavailableError && error.reason !== "owner_lookup_failed") ? "support" : "retry";
     // A measured duration mismatch happens before footage/render and after the

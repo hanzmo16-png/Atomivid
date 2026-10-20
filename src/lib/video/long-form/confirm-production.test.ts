@@ -8,6 +8,16 @@ import { editorialScriptHash } from "./editorial";
 type RowState = Record<string, unknown>;
 
 /**
+ * P0 T-20261019-1553: el fixture del Canal narra «El 15 de agosto de 1914 …» con visuales de stock, que la
+ * ruta v3 ahora rechaza (dated-event-preflight.ts). Estas pruebas miden la confirmación (CAS, estrategia,
+ * presentación), no la veracidad: usan el mismo guion con la fecha generalizada. El caso fechado se prueba aparte.
+ */
+function undatedDocumentary() {
+  const script = documentary180sFixture();
+  return { ...script, beats: script.beats.map((b) => ({ ...b, narration: b.narration.replace("El 15 de agosto de 1914", "En agosto de 1914") })) };
+}
+
+/**
  * Fake mínimo de SupabaseClient con semántica de UPDATE condicional (CAS):
  * los filtros se evalúan contra el estado ACTUAL de la fila en el momento
  * en que se ejecuta el UPDATE — igual que Postgres serializa dos UPDATE
@@ -58,7 +68,7 @@ function fakeService(initial: RowState) {
 }
 
 function baseRow(overrides: RowState = {}): RowState {
-  const script = documentary180sFixture();
+  const script = undatedDocumentary();
   return {
     id: "req-1",
     mode: "long_form",
@@ -197,4 +207,17 @@ test("presentación: se revalida en el servidor y se guarda en el plan confirmad
   const forged = fakeService(baseRow());
   const f = await confirmLongFormProduction(forged.client, { requestId: "req-1", userId: "user-1", strategy: "balanced", packaging: { cover: { enabled: true, style: "neón", title: "Hola mundo" }, thumbnail: option(false) } });
   assert.equal(f.ok, false);
+});
+
+test("P0-01 (T-20261019-1553): v3 con acontecimiento fechado ilustrado con stock → 409 IMPEDIMENTO DE ENTREGA, plan sin fijar", async () => {
+  const dated = documentary180sFixture();
+  const fake = fakeService(baseRow({ script_json: dated, topic: dated.topic }));
+  const result = await confirmLongFormProduction(fake.client, { requestId: "req-1", userId: "user-1", strategy: "balanced" });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.status, 409);
+    assert.match(result.error, /IMPEDIMENTO DE ENTREGA/);
+    assert.match(result.error, /No se inició, reservó ni cobró nada/);
+  }
+  assert.equal(fake.appliedUpdates(), 0);
 });

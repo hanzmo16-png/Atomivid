@@ -1,0 +1,247 @@
+TAP version 13
+# Subtest: [2] concurrencia feliz: 1 llamada, el ganador liquida, perdedores «en curso» SIN mutar la fila, reintento reutiliza
+not ok 1 - [2] concurrencia feliz: 1 llamada, el ganador liquida, perdedores «en curso» SIN mutar la fila, reintento reutiliza
+  ---
+  duration_ms: 129.408226
+  location: '/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:16:2499'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'ReconciliationRequiredError'
+    - 'SubmissionInFlightError'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'SubmissionInFlightError'
+  actual: 'ReconciliationRequiredError'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:133:40)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:935:9)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: [2] respuesta perdida tras aceptación del proveedor → RECONCILIATION_REQUIRED; 2 reintentos concurrentes: 0 envíos; evidencia del proveedor → COMMITTED; reutiliza
+not ok 2 - [2] respuesta perdida tras aceptación del proveedor → RECONCILIATION_REQUIRED; 2 reintentos concurrentes: 0 envíos; evidencia del proveedor → COMMITTED; reutiliza
+  ---
+  duration_ms: 19.541492
+  location: '/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:16:3528'
+  failureType: 'testCodeFailure'
+  error: 'reconcileWithProviderEvidence not in PR161'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    reconcileWithProviderEvidence (/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:22:109)
+    TestContext.<anonymous> (/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:154:11)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:935:9)
+    async Test.processPendingSubtests (node:internal/test_runner/test:633:7)
+  ...
+# Subtest: [2] caída ANTES del envío al proveedor (fila SUBMITTED huérfana): 2 reintentos → 0 envíos, fila intacta; marca explícita sólo tras la antigüedad, nunca vuelve a RESERVED
+not ok 3 - [2] caída ANTES del envío al proveedor (fila SUBMITTED huérfana): 2 reintentos → 0 envíos, fila intacta; marca explícita sólo tras la antigüedad, nunca vuelve a RESERVED
+  ---
+  duration_ms: 160.86264
+  location: '/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:16:4907'
+  failureType: 'testCodeFailure'
+  error: 'flagStaleSubmission not in PR161'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    flagStaleSubmission (/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:21:89)
+    TestContext.<anonymous> (/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:174:24)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:935:9)
+    async Test.processPendingSubtests (node:internal/test_runner/test:633:7)
+  ...
+# Subtest: [5] concurrencia feliz: 1 llamada, el ganador liquida, perdedores «en curso» SIN mutar la fila, reintento reutiliza
+not ok 4 - [5] concurrencia feliz: 1 llamada, el ganador liquida, perdedores «en curso» SIN mutar la fila, reintento reutiliza
+  ---
+  duration_ms: 104.259835
+  location: '/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:16:2499'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'ReconciliationRequiredError'
+    - 'SubmissionInFlightError'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'SubmissionInFlightError'
+  actual: 'ReconciliationRequiredError'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:133:40)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:935:9)
+    async Test.processPendingSubtests (node:internal/test_runner/test:633:7)
+  ...
+# Subtest: [5] respuesta perdida tras aceptación del proveedor → RECONCILIATION_REQUIRED; 5 reintentos concurrentes: 0 envíos; evidencia del proveedor → COMMITTED; reutiliza
+not ok 5 - [5] respuesta perdida tras aceptación del proveedor → RECONCILIATION_REQUIRED; 5 reintentos concurrentes: 0 envíos; evidencia del proveedor → COMMITTED; reutiliza
+  ---
+  duration_ms: 14.596264
+  location: '/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:16:3528'
+  failureType: 'testCodeFailure'
+  error: 'reconcileWithProviderEvidence not in PR161'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    reconcileWithProviderEvidence (/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:22:109)
+    TestContext.<anonymous> (/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:154:11)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:935:9)
+    async Test.processPendingSubtests (node:internal/test_runner/test:633:7)
+  ...
+# Subtest: [5] caída ANTES del envío al proveedor (fila SUBMITTED huérfana): 5 reintentos → 0 envíos, fila intacta; marca explícita sólo tras la antigüedad, nunca vuelve a RESERVED
+not ok 6 - [5] caída ANTES del envío al proveedor (fila SUBMITTED huérfana): 5 reintentos → 0 envíos, fila intacta; marca explícita sólo tras la antigüedad, nunca vuelve a RESERVED
+  ---
+  duration_ms: 160.562773
+  location: '/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:16:4907'
+  failureType: 'testCodeFailure'
+  error: 'flagStaleSubmission not in PR161'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    flagStaleSubmission (/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:21:89)
+    TestContext.<anonymous> (/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:174:24)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:935:9)
+    async Test.processPendingSubtests (node:internal/test_runner/test:633:7)
+  ...
+# Subtest: [10] concurrencia feliz: 1 llamada, el ganador liquida, perdedores «en curso» SIN mutar la fila, reintento reutiliza
+not ok 7 - [10] concurrencia feliz: 1 llamada, el ganador liquida, perdedores «en curso» SIN mutar la fila, reintento reutiliza
+  ---
+  duration_ms: 104.997015
+  location: '/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:16:2499'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'ReconciliationRequiredError'
+    - 'SubmissionInFlightError'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'SubmissionInFlightError'
+  actual: 'ReconciliationRequiredError'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:133:40)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:935:9)
+    async Test.processPendingSubtests (node:internal/test_runner/test:633:7)
+  ...
+# Subtest: [10] respuesta perdida tras aceptación del proveedor → RECONCILIATION_REQUIRED; 10 reintentos concurrentes: 0 envíos; evidencia del proveedor → COMMITTED; reutiliza
+not ok 8 - [10] respuesta perdida tras aceptación del proveedor → RECONCILIATION_REQUIRED; 10 reintentos concurrentes: 0 envíos; evidencia del proveedor → COMMITTED; reutiliza
+  ---
+  duration_ms: 18.494228
+  location: '/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:16:3528'
+  failureType: 'testCodeFailure'
+  error: 'reconcileWithProviderEvidence not in PR161'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    reconcileWithProviderEvidence (/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:22:109)
+    TestContext.<anonymous> (/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:154:11)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:935:9)
+    async Test.processPendingSubtests (node:internal/test_runner/test:633:7)
+  ...
+# Subtest: [10] caída ANTES del envío al proveedor (fila SUBMITTED huérfana): 10 reintentos → 0 envíos, fila intacta; marca explícita sólo tras la antigüedad, nunca vuelve a RESERVED
+not ok 9 - [10] caída ANTES del envío al proveedor (fila SUBMITTED huérfana): 10 reintentos → 0 envíos, fila intacta; marca explícita sólo tras la antigüedad, nunca vuelve a RESERVED
+  ---
+  duration_ms: 164.431311
+  location: '/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:16:4907'
+  failureType: 'testCodeFailure'
+  error: 'flagStaleSubmission not in PR161'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    flagStaleSubmission (/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:21:89)
+    TestContext.<anonymous> (/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:174:24)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:935:9)
+    async Test.processPendingSubtests (node:internal/test_runner/test:633:7)
+  ...
+# Subtest: ganador en vuelo marcado como huérfano a mitad de llamada → registra su job y liquida desde RECONCILIATION_REQUIRED (el pago no se pierde)
+not ok 10 - ganador en vuelo marcado como huérfano a mitad de llamada → registra su job y liquida desde RECONCILIATION_REQUIRED (el pago no se pierde)
+  ---
+  duration_ms: 151.997935
+  location: '/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:16:6508'
+  failureType: 'testCodeFailure'
+  error: 'flagStaleSubmission not in PR161'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    flagStaleSubmission (/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:21:89)
+    TestContext.<anonymous> (/workspace/tmp/wt161/scripts/harness/adversarial/ledger-adversarial.pg.test.ts:192:22)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:935:9)
+    async Test.processPendingSubtests (node:internal/test_runner/test:633:7)
+  ...
+# Subtest: caída DESPUÉS de aceptar y antes de COMMIT (PROVIDER_JOB_RECORDED): el reintento reanuda el job sin reenviar; 1 sola liquidación
+ok 11 - caída DESPUÉS de aceptar y antes de COMMIT (PROVIDER_JOB_RECORDED): el reintento reanuda el job sin reenviar; 1 sola liquidación
+  ---
+  duration_ms: 9.09532
+  ...
+# Subtest: fallo del proveedor: 429 rate_limited → RECONCILIATION_REQUIRED; 5 reintentos concurrentes → 0 envíos nuevos
+ok 12 - fallo del proveedor: 429 rate_limited → RECONCILIATION_REQUIRED; 5 reintentos concurrentes → 0 envíos nuevos
+  ---
+  duration_ms: 13.720461
+  ...
+# Subtest: fallo del proveedor: timeout → RECONCILIATION_REQUIRED; 5 reintentos concurrentes → 0 envíos nuevos
+ok 13 - fallo del proveedor: timeout → RECONCILIATION_REQUIRED; 5 reintentos concurrentes → 0 envíos nuevos
+  ---
+  duration_ms: 12.374096
+  ...
+# Subtest: fallo del proveedor: 5xx upstream_error → RECONCILIATION_REQUIRED; 5 reintentos concurrentes → 0 envíos nuevos
+ok 14 - fallo del proveedor: 5xx upstream_error → RECONCILIATION_REQUIRED; 5 reintentos concurrentes → 0 envíos nuevos
+  ---
+  duration_ms: 10.395272
+  ...
+# Subtest: fallo del proveedor: moderación (rechazo final, sin cobro) → REFUNDED; 5 reintentos concurrentes → 0 envíos nuevos
+ok 15 - fallo del proveedor: moderación (rechazo final, sin cobro) → REFUNDED; 5 reintentos concurrentes → 0 envíos nuevos
+  ---
+  duration_ms: 11.164296
+  ...
+# Subtest: [2] saldo insuficiente (RPC real) → 0 llamadas, fila RESERVED sin mutar
+ok 16 - [2] saldo insuficiente (RPC real) → 0 llamadas, fila RESERVED sin mutar
+  ---
+  duration_ms: 22.455976
+  ...
+# Subtest: [5] saldo insuficiente (RPC real) → 0 llamadas, fila RESERVED sin mutar
+ok 17 - [5] saldo insuficiente (RPC real) → 0 llamadas, fila RESERVED sin mutar
+  ---
+  duration_ms: 33.528489
+  ...
+# Subtest: [10] saldo insuficiente (RPC real) → 0 llamadas, fila RESERVED sin mutar
+ok 18 - [10] saldo insuficiente (RPC real) → 0 llamadas, fila RESERVED sin mutar
+  ---
+  duration_ms: 68.22201
+  ...
+# Subtest: capacidad no verificable: saldo caducado (>5 min) → 0 llamadas; sin snapshot (UNKNOWN) → 0 llamadas; proveedor DOWN → 0 llamadas
+ok 19 - capacidad no verificable: saldo caducado (>5 min) → 0 llamadas; sin snapshot (UNKNOWN) → 0 llamadas; proveedor DOWN → 0 llamadas
+  ---
+  duration_ms: 74.290279
+  ...
+# Subtest: bloqueo por proyecto: con una operación en RECONCILIATION_REQUIRED el RPC real no admite otra del mismo proveedor (0 llamadas)
+ok 20 - bloqueo por proyecto: con una operación en RECONCILIATION_REQUIRED el RPC real no admite otra del mismo proveedor (0 llamadas)
+  ---
+  duration_ms: 5.324125
+  ...
+# Subtest: fronteras numeric(12,4) en el ledger real: positivos diminutos nunca 0; inválidos rechazados antes de escribir
+ok 21 - fronteras numeric(12,4) en el ledger real: positivos diminutos nunca 0; inválidos rechazados antes de escribir
+  ---
+  duration_ms: 16.32114
+  ...
+# Subtest: egreso: ningún intento de salida no-loopback durante toda la suite
+ok 22 - egreso: ningún intento de salida no-loopback durante toda la suite
+  ---
+  duration_ms: 0.13248
+  ...
+1..22
+# tests 22
+# suites 0
+# pass 12
+# fail 10
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1617.580182

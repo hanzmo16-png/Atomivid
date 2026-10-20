@@ -1,4 +1,5 @@
 import { persistScriptChange, ScriptPersistenceError } from "@/lib/video/script-persistence";
+import { ReelBudgetExceededError } from "@/lib/supply/reel-budget";
 import { loadScriptOperations, withScriptGenerationContext } from "@/lib/supply/anthropic";
 import { supplyGuardRequired } from "@/lib/supply/server";
 import { runScriptGeneration } from "@/lib/video/script-generation";
@@ -190,7 +191,7 @@ export async function POST(
   } catch (error) {
     const diagnosticId = generateDiagnosticId();
     logScriptError("POST /script (inesperado)", error, diagnosticId);
-    return NextResponse.json({ error: classifyScriptError(error, diagnosticId) }, { status: error instanceof ScriptPersistenceError ? error.status : 500 });
+    return NextResponse.json({ error: classifyScriptError(error, diagnosticId) }, { status: error instanceof ScriptPersistenceError ? error.status : error instanceof ReelBudgetExceededError ? 409 : 500 });
   }
 }
 

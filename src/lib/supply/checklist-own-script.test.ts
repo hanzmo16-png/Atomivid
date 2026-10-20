@@ -175,7 +175,7 @@ test("la misma función valida el formulario en vivo y la acción del servidor; 
 // with row and paid-call counters for each case, is proven in draft-idempotency.test.ts.
 test("el id del envío se resuelve antes de la rama Reel y el Reel inserta con él", () => {
   const actions = src("src/app/dashboard/new/actions.ts");
-  const id = actions.indexOf("requestIdForSubmission(user.id, formData)"), visual = actions.indexOf('if (mode === "visual") {');
+  const id = actions.indexOf("requestIdForSubmission(user.id, formData, lookup)"), visual = actions.indexOf('if (mode === "visual") {');
   assert.ok(id > 0 && id < visual, "el id del envío se resuelve antes de la rama Reel");
   assert.match(actions, /id: requestId,\n      user_id: user\.id,/);
   assert.match(actions, /if \(error\.code === "23505"\) redirect\(created\);/);

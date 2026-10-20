@@ -81,8 +81,11 @@ test("historial: el avatar fallido muestra «Reintentar» solo si el ledger lo p
   assert.match(card({ avatar_provider_video_job_id: "job-1" }, decideAvatarRecovery({ ...REAL, avatar_provider_video_job_id: "job-1" }, [])), />Recuperar video</);
   // No decision computed (e.g. not loaded): no button — never a guess.
   assert.doesNotMatch(card({}), />Reintentar</);
-  // Other modes unchanged.
-  assert.match(card({ mode: "visual" }), />Reintentar</);
+  // Visual Reel (contrato PR158 1ede8cb/a8a3955): el reintento pasa por la revisión explícita del tope,
+  // nunca un POST directo de reintento desde el historial.
+  const visual = card({ mode: "visual" });
+  assert.match(visual, /href="\/dashboard\/review\/6dad04ec-c77f-4df7-9391-73382ac8d9f5">Revisar tope y reintentar</);
+  assert.doesNotMatch(visual, />Reintentar</);
 });
 
 const review = (recovery?: Parameters<typeof ScriptReview>[0]["recovery"]) => wrap(<ScriptReview requestId="r" status="failed" initialScript={{ segments: [{ text: "hola", visualQuery: "x" }] } as never}

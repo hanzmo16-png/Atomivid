@@ -13,6 +13,12 @@ test("formulario Avatar muestra el límite real de 45s y solo ofrece el objetivo
   for (const seconds of [30, 60, 90]) assert.ok(reel.includes(`>${seconds}s</button>`));
 });
 
+test("Avatar con fotografía nueva no ofrece repetir como si autorizara otro activo pagado", () => {
+  const html = renderToStaticMarkup(<NewVideoForm action={() => {}} avatarModeEnabled existingAvatars={[{ id: "a1", name: "Confirmado" }]} initialMode="avatar" />);
+  assert.match(html, /Para crear otro video igual, primero selecciona un avatar ya confirmado/);
+  assert.match(html, /<input(?=[^>]*name="repeat_intent")(?=[^>]*disabled)[^>]*>/);
+});
+
 /**
  * Regresión del QA blocker real (2026-09-25): "Video con avatar" desapareció
  * del selector "¿Qué quieres crear?" en Production para la cuenta beta

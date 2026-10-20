@@ -282,8 +282,10 @@ test("31-35, 41-42: simulación Gucci por la ruta productiva v4 — pies, botone
   // Nunca un Maurizio generado.
   assert.ok(!sim.prompts.some((p) => /maurizio/i.test(p)), "ninguna generación para la identidad");
   assert.ok(!sim.report.scenes.some((s, i) => s.provenance === "ai_recreation" && sim.report.cinematic!.scenes[i].identityRequired));
-  // QA: sin bloqueantes; la puerta de entrega deja pasar.
-  assert.deepEqual(sim.report.cinematic!.qa.release, { deliverable: true, blockers: [] }, JSON.stringify(sim.report.cinematic!.qa.findings.filter((f) => f.severity === "BLOCK")));
+  // QA: sin bloqueantes de política. P0 T-20261019-1553: una ausencia con «Material pendiente» (gap) ya no es entregable; la política (blockers) no cambia.
+  assert.deepEqual(sim.report.cinematic!.qa.release.blockers, [], JSON.stringify(sim.report.cinematic!.qa.findings.filter((f) => f.severity === "BLOCK")));
+  // Las dos ausencias honestas (prueba/identidad sin material verificado) quedan como «Material pendiente»: no entregable.
+  assert.deepEqual(sim.report.cinematic!.qa.release, { deliverable: false, blockers: [], pendingMaterial: ["b3-shot-2", "b3-shot-3"] });
   assert.equal(sim.gateError, null);
   // El render usa EXACTAMENTE la cámara que midió el QA.
   sim.rendered.forEach((scene, i) => assert.equal(scene.direction?.camera, sim.report.cinematic!.scenes[i].camera));

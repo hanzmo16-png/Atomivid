@@ -9,7 +9,7 @@ import { availableVideoDurations } from "@/lib/video/avatar/duration";
 import { fitForDuration, fitForMaximum, MAX_NARRATION_CHARS, narrationStats } from "@/lib/video/narration-fit";
 import { NarrationFitMeter } from "@/components/video/NarrationFitMeter";
 import { ChecklistView, useProductionCheck } from "@/components/video/ProductionChecklist";
-import { acquireDraftKey, browserStorage, DRAFT_KEY_STORAGE, newKey, rotateDraftKey } from "./draft-key";
+import { acquireDraftKey, browserStorage, DRAFT_KEY_STORAGE, newKey } from "./draft-key";
 
 const STYLES = [
   "Motivacional",
@@ -42,6 +42,7 @@ export function NewVideoForm({
   avatarModeEnabled,
   existingAvatars,
   initialMode = "visual",
+  blockAvatarReconciliation = false,
   maxAvatarDurationSeconds = 45,
 }: {
   action: (formData: FormData) => void;
@@ -49,6 +50,7 @@ export function NewVideoForm({
   existingAvatars: { id: string; name: string }[];
   /** Preselecciona "Video con avatar" cuando se llega desde ese tipo en el selector "¿Qué quieres crear?" (ContentTypeStep) — solo tiene efecto si avatarModeEnabled también es true. */
   initialMode?: VideoMode;
+  blockAvatarReconciliation?: boolean;
   maxAvatarDurationSeconds?: number;
 }) {
   const [mode, setMode] = useState<VideoMode>(avatarModeEnabled ? initialMode : "visual");
@@ -69,10 +71,15 @@ export function NewVideoForm({
   // second tab or a re-submit after a lost response sends the same key, and the server maps the same key and
   // intent to the same request (submission-key.ts). It rotates only after the server confirmed the creation.
   // Without storage each tab keeps its own key (the first value), as before.
-  // The key is taken under the browser's cross-tab lock (acquireDraftKey). `?reset=<key>` (a stale claim, see
-  // new-photo-claim.ts) starts a new draft, and only if that key is still the stored one.
+  // The key is taken under the browser's cross-tab lock (acquireDraftKey). Uncertain/stale provider outcomes never
+  // rotate it: a reload or resend must remain pinned to the same server-side claim.
   const [submissionId, setSubmissionId] = useState(newKey);
   const [draftReady, setDraftReady] = useState(false);
+  // D5: one stable token per deliberate repeat action. Never rotate it on a failed/lost response.
+  // The next visit to the form creates a NEW token; a resend of the same POST preserves the original.
+  const [repeatIntent, setRepeatIntent] = useState(false);
+  const [repeatToken, setRepeatToken] = useState("");
+  const [avatarUsesExisting, setAvatarUsesExisting] = useState(false);
   const submissionIdRef = useRef(submissionId);
   const syncVersion = useRef(0);
   useEffect(() => {
@@ -88,7 +95,6 @@ export function NewVideoForm({
         }
       }).catch(() => { if (alive && version === syncVersion.current) setDraftReady(false); });
     };
-    try { rotateDraftKey(browserStorage(), new URLSearchParams(window.location.search).get("reset")); } catch { /* no URL access: nothing to reset */ }
     sync();
     const onStorage = (e: StorageEvent) => { if (e.key === null || e.key === DRAFT_KEY_STORAGE) sync(); };
     window.addEventListener("storage", onStorage);
@@ -117,14 +123,16 @@ export function NewVideoForm({
     : avatarNarrationSource === "tts_text" ? fitForMaximum(narrationStats(ttsText, language, "avatar"), maxAvatarDurationSeconds) : null;
   const submitPays = mode === "avatar" && avatarNarrationSource === "tts_text";
   const check = checkState.status === "done" ? checkState.check : null;
-  const disabledReason = !draftReady ? "Sincronizando borrador entre pestañas…" : localFit && !localFit.allowed ? "Corrige el texto o la duración antes de continuar; no se ha gastado nada."
+  const reconciliationBlocked = mode === "avatar" && blockAvatarReconciliation;
+  const repeatBlockedByNewAvatarPhoto = mode === "avatar" && !avatarUsesExisting;
+  const disabledReason = reconciliationBlocked ? "Esta solicitud de avatar necesita conciliación antes de permitir otra creación." : !draftReady ? "Sincronizando borrador entre pestañas…" : repeatIntent && !repeatToken ? "No se puede identificar esta nueva solicitud de forma segura; actualiza el formulario." : localFit && !localFit.allowed ? "Corrige el texto o la duración antes de continuar; no se ha gastado nada."
     : mode === "visual" && scriptChoice === "adapt" && !adaptAccepted ? "Acepta el costo de adaptar tu texto con IA o elige otra opción."
     : checkEnabled && checkState.status === "checking" ? "Comprobando datos, plan y recursos…"
     : check && check.outcome !== "ready" && (check.responsible === "cliente" || submitPays) ? check.next
     : null;
 
   return (
-    <form action={action} onSubmit={event => { if (!draftReady) event.preventDefault(); }} className="space-y-5">
+    <form action={action} onSubmit={event => { if (!draftReady || reconciliationBlocked) event.preventDefault(); }} className="space-y-5">
       <input type="hidden" name="submission_id" value={draftReady ? submissionId : ""} disabled={!draftReady} />
       {mode === "visual" && (
         <fieldset className="space-y-2.5">
@@ -272,7 +280,10 @@ export function NewVideoForm({
                     name="mode"
                     value={option.value}
                     checked={mode === option.value}
-                    onChange={() => setMode(option.value)}
+                    onChange={() => {
+                      setMode(option.value);
+                      if (option.value !== "avatar") setAvatarUsesExisting(false);
+                    }}
                     className="size-4 accent-accent"
                   />
                   {option.title}
@@ -294,6 +305,13 @@ export function NewVideoForm({
             onNarrationSourceChange={setAvatarNarrationSource}
             ttsText={ttsText}
             onTtsTextChange={setTtsText}
+            onExistingAvatarChange={usesExisting => {
+              setAvatarUsesExisting(usesExisting);
+              if (!usesExisting) {
+                setRepeatIntent(false);
+                setRepeatToken("");
+              }
+            }}
             maxAvatarDurationSeconds={maxAvatarDurationSeconds}
           />
         </>
@@ -318,6 +336,14 @@ export function NewVideoForm({
         )}
       </section>
 
+      {/* T46 D1: the server treats the same data as the same request. A second identical video is an explicit choice. */}
+      <label className="flex items-start gap-2 text-sm text-ink-muted">
+        <input type="checkbox" name="repeat_intent" className="mt-1" checked={repeatIntent} disabled={reconciliationBlocked || repeatBlockedByNewAvatarPhoto} onChange={e => { setRepeatIntent(e.target.checked); if (e.target.checked && !repeatToken) setRepeatToken(newKey()); }} />
+        <input type="hidden" name="repeat_request_token" value={repeatToken} disabled={!repeatIntent || !repeatToken} />
+        <span>{repeatBlockedByNewAvatarPhoto
+          ? "Para crear otro video igual, primero selecciona un avatar ya confirmado. Una fotografía nueva crea una intención distinta."
+          : "Crear otro video igual aunque ya exista una solicitud con exactamente estos datos."}</span>
+      </label>
       <SubmitButton disabledReason={disabledReason} />
     </form>
   );

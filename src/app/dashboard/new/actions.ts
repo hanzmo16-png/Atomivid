@@ -1,5 +1,6 @@
 "use server";
 import { gatedVoiceSynthesize } from "@/lib/paid-calls/gated-providers";
+import { reelProviderSpendCap } from "@/lib/supply/reel-budget";
 import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
 import { supabaseResultStore } from "@/lib/paid-calls/result-store";
 import { getVoiceIdentity } from "@/lib/ai/voice";
@@ -9,9 +10,11 @@ import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { recordingFormat, recordingPath, RECORDING_BUCKET, MAX_AVATAR_PHOTO_BYTES, MAX_RECORDING_BYTES } from "@/lib/video/avatar/recording";
 import { measureNarrationSeconds } from "@/lib/video/avatar/measure-narration";
 import { avatarDurationError } from "@/lib/video/avatar/duration";
-import { randomUUID } from "node:crypto";
-import { createdUrl, formErrorUrl, requestIdForSubmission } from "@/lib/video/submission-key";
+import { createHash, randomUUID } from "node:crypto";
+import { ledgerGuardedCreateAvatar } from "@/lib/video/avatar/create-avatar-ledger";
+import { blocksRepeatWithNewAvatarPhoto, createdUrl, formErrorUrl, requestIdForSubmission } from "@/lib/video/submission-key";
 import { CLAIM_MESSAGES, createAvatarOnce, isDuplicateUpload, photoClaimPath } from "@/lib/video/avatar/new-photo-claim";
+import { insertCanonicalAvatar } from "@/lib/video/avatar/canonical-row";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { redirect } from "next/navigation";
 import { checkProductionForRequest } from "@/lib/supply/production-check";
@@ -102,14 +105,29 @@ export async function createVideoRequest(formData: FormData) {
   // The request id comes from the draft key the browser shares between its tabs, the verified user and the
   // intent (submission-key.ts): a double click, a resend, a second tab or a re-submit after a lost response is
   // recognised here, before any paid call, and the primary key stays the authority on a race (23505).
-  const { requestId, draftKey } = await requestIdForSubmission(user.id, formData);
+  const lookup = async (candidates: string[]) => {
+    const { data, error } = await createServiceClient().from("video_requests").select("id").eq("user_id", user.id).in("id", candidates);
+    // Fail closed: if existing ids cannot be read, an explicit repeat cannot pick a free ordinal safely.
+    if (error) redirect("/dashboard/new?error=No+se+pudo+comprobar+si+ya+existe+una+solicitud+igual.+No+se+ha+creado+nada.");
+    return new Set((data ?? []).map(r => r.id as string));
+  };
+  const resolved = await requestIdForSubmission(user.id, formData, lookup);
+  if (!resolved.requestId) redirect("/dashboard/new?error=No+se+pudo+verificar+la+identidad+de+esta+repetici%C3%B3n.+Actualiza+el+formulario+y+vuelve+a+revisarlo.");
+  const requestId: string = resolved.requestId;
+  const draftKey = resolved.draftKey;
   const created = createdUrl(draftKey);
   {
     const { data: existing } = await createServiceClient().from("video_requests").select("id").eq("id", requestId).eq("user_id", user.id).maybeSingle();
-    if (existing) redirect(created);
+    if (existing) redirect(createdUrl(draftKey, true));
   }
 
   if (mode === "visual") {
+    // Persist the server's total provider limit before any script, voice or image can be paid.
+    // Invalid configuration or an absent schema must stop creation, never silently drop the cap.
+    let providerSpendCap: number;
+    try { providerSpendCap = reelProviderSpendCap(); } catch {
+      redirect("/dashboard/new?error=No+se+pudo+verificar+el+presupuesto+del+Reel.+No+se+ha+creado+ni+cobrado+nada.+Contacta+al+soporte.");
+    }
     // Only the server can insert requests. Never let a browser write output paths,
     // paid-production approvals or worker state through the Data API.
     // «Usar mi propio guion»: the text is stored now, split into scenes without changing a word; the first
@@ -123,12 +141,14 @@ export async function createVideoRequest(formData: FormData) {
       language,
       mode: "visual",
       status: "pending",
+      provider_spend_cap_usd: providerSpendCap,
       script_json: form.draft,
     });
 
     if (error) {
       // A concurrent identical submit lost the insert race: the request exists, nothing was paid.
       if (error.code === "23505") redirect(created);
+      if (error.code === "42703" || error.code === "PGRST204") redirect("/dashboard/new?error=El+control+de+presupuesto+necesita+una+actualizaci%C3%B3n.+No+se+ha+creado+ni+cobrado+nada.+Contacta+al+soporte.");
       redirect(`/dashboard/new?error=${encodeURIComponent(error.message)}`);
     }
 
@@ -228,6 +248,21 @@ export async function createVideoRequest(formData: FormData) {
 
   const existingAvatarId = String(formData.get("existing_avatar_id") ?? "").trim();
 
+  // T46 D4 server authority: repeat_intent authorizes another VIDEO only. It must never create another paid
+  // avatar asset from the same photo, even if a crafted/direct POST omits the client-side reconciliation flag.
+  // A genuinely different photo is already a different canonical intent and does not need repeat_intent. After
+  // reconciliation, the confirmed avatar can be selected through existing_avatar_id and the repeat remains valid.
+  if (blocksRepeatWithNewAvatarPhoto(
+    resolved.repeat,
+    Boolean(existingAvatarId),
+    photoFileForSizeCheck instanceof File && photoFileForSizeCheck.size > 0,
+  )) {
+    redirect(formErrorUrl(
+      "No se creó otro avatar. Concilia la creación anterior y selecciona el avatar confirmado antes de repetir el video.",
+      { blockAvatarReconciliation: true },
+    ));
+  }
+
   let avatarId: string;
 
   if (existingAvatarId) {
@@ -239,6 +274,7 @@ export async function createVideoRequest(formData: FormData) {
       .from("avatars")
       .select("id, status, provider")
       .eq("id", existingAvatarId)
+      .eq("user_id", user.id)
       .maybeSingle<{ id: string; status: string; provider: string }>();
 
     if (!avatar || avatar.status !== "ready") {
@@ -304,25 +340,34 @@ export async function createVideoRequest(formData: FormData) {
       async createAvatar() {
         const provider = getAvatarProvider();
         if (!provider.isAvailable() || provider.name !== flags.avatarProvider) throw new Error("El proveedor de avatar no está configurado.");
-        const result = await provider.createAvatar({ photoBuffer, mimeType: file.type, consentGiven: true });
-        return { providerAvatarId: result.providerAvatarId, providerJobId: result.providerJobId, status: result.status, providerName: provider.name };
+        // T46 D2: at most one provider call per request, enforced by the Postgres ledger (not only by the Storage 409).
+        return ledgerGuardedCreateAvatar(supabaseLedgerStore(service), requestId, provider.name,
+          createHash("sha256").update(photoBuffer).digest("hex"), async () => {
+            const result = await provider.createAvatar({ photoBuffer, mimeType: file.type, consentGiven: true });
+            return { providerAvatarId: result.providerAvatarId, providerJobId: result.providerJobId, status: result.status, providerName: provider.name };
+          });
       },
       // Server-owned write (migration 20261009040743 revokes client-role writes on avatars);
       // user_id comes from the verified session above, never from the form.
       async insertAvatar(p, path) {
-        const { data } = await service.from("avatars").insert({
-          user_id: user.id,
-          name: avatarName,
-          provider: p.providerName,
-          provider_avatar_id: p.providerAvatarId,
-          provider_job_id: p.providerJobId ?? null,
-          source_photo_path: path,
-          status: avatarStatusFromProviderStatus(p.status as AvatarJobStatus),
-          consent_given: true,
-          consent_given_at: new Date().toISOString(),
-          consent_policy_version: AVATAR_CONSENT_POLICY_VERSION,
-        }).select("id, status").single<{ id: string; status: string }>();
-        return data ?? null;
+        return insertCanonicalAvatar(
+          () => service.from("avatars").insert({
+            user_id: user.id,
+            name: avatarName,
+            provider: p.providerName,
+            provider_avatar_id: p.providerAvatarId,
+            provider_job_id: p.providerJobId ?? null,
+            source_photo_path: path,
+            status: avatarStatusFromProviderStatus(p.status as AvatarJobStatus),
+            consent_given: true,
+            consent_given_at: new Date().toISOString(),
+            consent_policy_version: AVATAR_CONSENT_POLICY_VERSION,
+          }).select("id, status").single<{ id: string; status: string }>(),
+          // A late contender may arrive after the paid-call ledger is COMMITTED. The additive unique index rejects
+          // its duplicate row; load and reuse the winner instead of treating this as a missing/uncertain avatar.
+          () => service.from("avatars").select("id, status")
+            .eq("user_id", user.id).eq("source_photo_path", path).maybeSingle<{ id: string; status: string }>(),
+        );
       },
     }, photoPath);
 
@@ -330,8 +375,9 @@ export async function createVideoRequest(formData: FormData) {
     if (claim.kind === "provider_failed") redirect(formErrorUrl(claim.message));
     if (claim.kind === "uncertain") redirect(formErrorUrl(CLAIM_MESSAGES.uncertain));
     if (claim.kind === "in_flight" || claim.kind === "not_recorded") redirect(formErrorUrl(CLAIM_MESSAGES[claim.kind]));
-    // Stale: only a NEW draft (the form rotates the key on `reset`) can create another avatar, by a deliberate submit.
-    if (claim.kind === "stale") redirect(formErrorUrl(CLAIM_MESSAGES.stale, draftKey));
+    // Stale is an uncertain provider outcome, not permission for a new paid intent. Keep the draft identity so a
+    // reload/resend remains pinned to the existing claim until an operator reconciles it.
+    if (claim.kind === "stale") redirect(formErrorUrl(CLAIM_MESSAGES.stale, { blockAvatarReconciliation: true }));
     if (claim.avatar.status !== "ready") {
       // Limitación conocida (documentada en docs/AVATAR_MODE.md): esta
       // primera versión no encola un seguimiento en segundo plano del
