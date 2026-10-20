@@ -49,7 +49,7 @@ const AVOID_STOCK_TEXT_CLICHES =
   "en vez de eso una persona/objeto/acción concreta y real (ej. en vez de " +
   "'success', usa 'entrepreneur smiling at laptop screen' o 'hands shaking after a deal').";
 
-const ScriptSchema = z.object({
+export const ScriptSchema = z.object({
   title: z.string().describe("Título corto y llamativo para el video"),
   segments: z
     .array(

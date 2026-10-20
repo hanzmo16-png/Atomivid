@@ -41,7 +41,7 @@ test('script/route.ts POST sigue permitiendo generar/regenerar el guion desde "p
 
 test("script/route.ts sigue marcando la solicitud como failed (con mensaje clasificado) si la generación real falla, nunca la deja en un estado indefinido", () => {
   // Persisted through runScriptGeneration (script-generation.ts) with the route's persistScriptChange.
-  assert.match(fs.readFileSync(ROUTE_PATH, "utf-8"), /persist: \(patch\) => persistScriptChange\(service, videoRequest, patch\)/);
+  assert.match(fs.readFileSync(ROUTE_PATH, "utf-8"), /persist: \(patch\) => persistScriptChange\(service, videoRequest, lengthNote && patch.status === "script_ready" \? \{ \.\.\.patch, error_message: lengthNote \} : patch\)/);
   const source = fs.readFileSync(path.join(__dirname, "script-generation.ts"), "utf-8");
   assert.match(
     source,

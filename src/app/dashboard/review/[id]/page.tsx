@@ -141,6 +141,7 @@ export default async function ReviewPage({
         errorMessage={data.error_message ? renderFailureMessage(data.error_message) : null}
         usesRecording={Boolean(data.recorded_audio_path)}
         maxAvatarDurationSeconds={data.mode === "avatar" && !data.avatar_provider_video_job_id ? getFeatureFlags().maxAvatarDurationSeconds : undefined}
+        targetDurationSeconds={data.duration_seconds}
         recordingDurationSeconds={data.duration_seconds}
         entitlementBlockedReason={avatarEntitlementBlockedReason}
         recovery={recovery}

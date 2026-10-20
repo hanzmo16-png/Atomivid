@@ -31,6 +31,8 @@ export type ScriptScene = {
 };
 
 export type GeneratedScript = {
+  /** Complete draft awaiting a length edit; server blocks render until saved within range. */
+  lengthReviewRequired?: boolean;
   title: string;
   segments: ScriptScene[];
 };
