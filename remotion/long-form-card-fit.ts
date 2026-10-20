@@ -51,7 +51,13 @@ export function fitLargeCard(title: string, body: string): CardFit {
 
 export type SceneProvenance = "stock_illustrative" | "ai_recreation" | "archival_documentary" | "data_graphic";
 
-/** Rótulo obligatorio por procedencia (nunca se presenta una recreación como imagen auténtica). */
+/**
+ * Rótulo obligatorio por procedencia. El stock es ilustrativo, no evidencia
+ * del hecho narrado; se identifica siempre para que v3 no lo presente como
+ * imagen auténtica de un evento o una fecha concreta.
+ */
 export function provenanceLabel(provenance: SceneProvenance | undefined): string | null {
-  return provenance === "ai_recreation" ? "Recreación IA" : null;
+  if (provenance === "ai_recreation") return "Recreación IA";
+  if (provenance === "stock_illustrative") return "Imagen ilustrativa";
+  return null;
 }
