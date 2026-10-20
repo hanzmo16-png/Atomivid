@@ -9,6 +9,6 @@ export async function POST(request: Request) {
   if ("error" in user) return NextResponse.json({ error: user.error }, { status: user.status });
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "Cuerpo de la solicitud inválido" }, { status: 400 });
-  const out = await createEpisode(createServiceClient(), user.id, { title: body.title, script: body.script, language: body.language, voiceId: body.voiceId, source: body.source === "upload" ? "upload" : "tts" });
+  const out = await createEpisode(createServiceClient(), user.id, { title: body.title, script: body.script, language: body.language, voiceId: body.voiceId, source: body.source === "upload" ? "upload" : "tts" }, user);
   return "error" in out ? NextResponse.json({ error: out.error }, { status: out.status }) : NextResponse.json(out);
 }

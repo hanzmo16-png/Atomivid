@@ -15,6 +15,7 @@ import type { VoiceProvider } from "@/lib/providers/types";
 import { narrateEpisode, NarrationCapError } from "./narrate";
 import { estimatePodcast, podcastDemand, normalizeScript, PODCAST_STALE_RUN_MS, validateScript, type PodcastEpisode } from "./episode";
 import { listAccountVoices, VoicesUnavailableError } from "./voices";
+import { visibleVoices, type VoiceViewer } from "@/lib/voices/private-voices";
 
 const BUCKET = "videos";
 export const EPISODE_COLUMNS = "id,user_id,title,language,source,script,voice_id,voice_name,characters,estimated_usd,status,run_token,run_started_at,audio_path,audio_mime,duration_seconds,audio_sha256,audio_bytes,loudness,cost_usd,error,created_at,updated_at,video_status,video_stage,video_attempts,video_run_token,video_requested_at,video_heartbeat_at,video_path,video_bytes,video_sha256,video_duration_seconds,video_error,budget_usd,scheduled_at,video_checks,review_status,review_note,reviewed_at,publish_status,retry_count";
@@ -32,7 +33,7 @@ export async function loadOwnedEpisode(service: SupabaseClient, userId: string, 
 
 export type CreateInput = { title: unknown; script?: unknown; language?: unknown; voiceId?: unknown; source: "tts" | "upload" };
 
-export async function createEpisode(service: SupabaseClient, userId: string, input: CreateInput): Promise<{ id: string } | { error: string; status: number }> {
+export async function createEpisode(service: SupabaseClient, userId: string, input: CreateInput, viewer: VoiceViewer = null): Promise<{ id: string } | { error: string; status: number }> {
   const title = typeof input.title === "string" ? input.title.trim().slice(0, 200) : "";
   if (!title) return { error: "Escribe un título.", status: 400 };
   const language = input.language === "en" ? "en" : "es";
@@ -46,7 +47,7 @@ export async function createEpisode(service: SupabaseClient, userId: string, inp
   const voiceId = typeof input.voiceId === "string" ? input.voiceId.trim() : "";
   let voices;
   try { voices = await listAccountVoices(); } catch (e) { return { error: e instanceof VoicesUnavailableError ? e.customerMessage : "No se pudieron consultar las voces.", status: 503 }; }
-  const voice = voices.find((v) => v.voiceId === voiceId);
+  const voice = visibleVoices(voices, viewer).find((v) => v.voiceId === voiceId);
   if (!voice) return { error: "Elige una de las voces disponibles en tu cuenta.", status: 400 };
   const e = estimatePodcast(script);
   const { data, error } = await service.from("podcast_episodes").insert({ user_id: userId, title, language, source: "tts", script, voice_id: voice.voiceId, voice_name: voice.name, characters: e.characters, estimated_usd: e.usd }).select("id").single();

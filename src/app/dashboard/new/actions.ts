@@ -124,7 +124,7 @@ export async function createVideoRequest(formData: FormData) {
 
   if (mode === "visual") {
     let reelVoiceId: string | null;
-    try { reelVoiceId = await resolveReelVoiceSelection(formData.get("reel_voice_id"), language === "en" ? "en" : "es"); }
+    try { reelVoiceId = await resolveReelVoiceSelection(formData.get("reel_voice_id"), language === "en" ? "en" : "es", user); }
     catch {
       redirect(formErrorUrl("No se pudo confirmar la voz seleccionada. Vuelve a elegirla o usa la voz predeterminada; no se ha creado ni cobrado nada."));
     }

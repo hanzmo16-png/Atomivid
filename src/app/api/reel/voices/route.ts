@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   const language = new URL(request.url).searchParams.get("language");
   if (language !== "es" && language !== "en") return NextResponse.json({ error: "Idioma no válido" }, { status: 400 });
   try {
-    return NextResponse.json(await getReelVoiceCatalog(language), { headers: { "Cache-Control": "private, no-store" } });
+    return NextResponse.json(await getReelVoiceCatalog(language, user), { headers: { "Cache-Control": "private, no-store" } });
   } catch {
     return NextResponse.json({ error: "No pudimos cargar las voces. Puedes continuar con la voz predeterminada." }, { status: 503 });
   }

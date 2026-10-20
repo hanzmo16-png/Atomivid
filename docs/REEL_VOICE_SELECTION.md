@@ -47,3 +47,16 @@ node scripts/verify-reel-voice-action.mjs
 To stop new selections, disable the web flag and redeploy that configuration. Keep the new worker/column until queued custom-voice jobs finish or are explicitly cancelled. Reverting the worker early would ignore the stored choice. Keep the additive column and trigger on rollback; dropping them is unnecessary and destroys intent.
 
 Prepared only: no production migration, flags, merge, deploy, balances or existing requests changed; generation spend USD 0.
+
+## Voces privadas (clones) — p. ej. «El Duro» (`duro hans`)
+
+- Los clones que la cuenta de ElevenLabs posee (`category` `cloned` o `professional` con `is_owner: true`) son **privados**:
+  solo se muestran y aceptan para las cuentas confirmadas a las que el servidor se los concede.
+- Configuración de servidor (no es un secreto, pero no vive en el código):
+  `PRIVATE_VOICE_GRANTS="<voiceId>=<email>[|<email>];<voiceId2>=<email>"`.
+  Para El Duro: `PRIVATE_VOICE_GRANTS=CeFSZuaHs4SxcBxb9nCr=hanzmo16@gmail.com` (Production en Vercel).
+- Requisitos: `REEL_VOICE_SELECTION_ENABLED=true`; la voz debe estar entrenada para `eleven_multilingual_v2`
+  (`high_quality_base_model_ids` o `fine_tuning.state`). Si no, no se ofrece.
+- El Duro no tiene `preview_url` en el proveedor: la UI dice «Sin muestra gratuita» y **no** genera muestras (costaría créditos).
+- El mismo filtro se aplica al catálogo y a la creación de Podcast (antes listaba todos los clones a cualquier usuario beta).
+- Diagnóstico gratuito: workflow `diag-elevenlabs-voices.yml` (GET /v1/voices; imprime id/nombre/categoría y compatibilidad; nunca la clave ni URLs de muestras).

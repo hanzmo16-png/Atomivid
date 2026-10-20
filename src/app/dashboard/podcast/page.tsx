@@ -1,3 +1,4 @@
+import { visibleVoices } from "@/lib/voices/private-voices";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -23,7 +24,7 @@ export default async function PodcastPage() {
   const { data: noticeRows } = await service.from("production_notices").select("id,episode_id,kind,message,created_at,delivered_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5);
   const notices = (noticeRows ?? []) as { id: string; episode_id: string; kind: "delivered" | "blocked" | "budget"; message: string; created_at: string; delivered_at: string | null }[];
   let voices: AccountVoice[] = [], voicesError: string | null = null;
-  try { voices = await listAccountVoices(); } catch (e) { voicesError = e instanceof VoicesUnavailableError ? e.customerMessage : "No se pudieron consultar las voces."; }
+  try { voices = visibleVoices(await listAccountVoices(), user); } catch (e) { voicesError = e instanceof VoicesUnavailableError ? e.customerMessage : "No se pudieron consultar las voces."; }
 
   return (
     <div className="mx-auto w-full max-w-2xl">

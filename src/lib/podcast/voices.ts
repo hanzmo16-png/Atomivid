@@ -2,9 +2,11 @@
  * Voices actually available to the configured ElevenLabs account (GET /v1/voices: read-only, free, no
  * audio generated). Only these can be chosen; the server re-checks the choice before any paid call.
  */
-export type AccountVoice = { voiceId: string; name: string; category: string | null; language: string | null; accent: string | null; gender: string | null; previewUrl: string | null };
+export type AccountVoice = { voiceId: string; name: string; category: string | null; language: string | null; accent: string | null; gender: string | null; previewUrl: string | null;
+  /** Provider says this account owns the voice (clones). */ isOwner?: boolean | null;
+  /** TTS models the voice is trained for (professional clones / library voices); empty when the provider does not say. */ models?: string[] };
 
-type Raw = { voice_id?: unknown; name?: unknown; category?: unknown; preview_url?: unknown; labels?: Record<string, unknown> | null; verified_languages?: { language?: unknown }[] | null };
+type Raw = { voice_id?: unknown; name?: unknown; category?: unknown; preview_url?: unknown; labels?: Record<string, unknown> | null; verified_languages?: { language?: unknown }[] | null; is_owner?: unknown; high_quality_base_model_ids?: unknown; fine_tuning?: { state?: Record<string, unknown> | null } | null };
 const s = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
 
 export class VoicesUnavailableError extends Error {
@@ -14,6 +16,12 @@ export class VoicesUnavailableError extends Error {
 let cache: { at: number; voices: AccountVoice[] } | null = null;
 const TTL_MS = 5 * 60_000;
 
+function modelsOf(v: Raw): string[] {
+  const hq = Array.isArray(v.high_quality_base_model_ids) ? v.high_quality_base_model_ids.filter((m): m is string => typeof m === "string") : [];
+  const tuned = Object.entries(v.fine_tuning?.state ?? {}).filter(([, st]) => st === "fine_tuned").map(([m]) => m);
+  return [...new Set([...hq, ...tuned])];
+}
+
 export function parseVoices(body: unknown): AccountVoice[] {
   const list = (body as { voices?: Raw[] } | null)?.voices;
   if (!Array.isArray(list)) return [];
@@ -22,7 +30,8 @@ export function parseVoices(body: unknown): AccountVoice[] {
     if (!voiceId || !name || !/^[A-Za-z0-9]{8,64}$/.test(voiceId)) return [];
     const labels = v.labels ?? {};
     return [{ voiceId, name, category: s(v.category), language: s(labels.language) ?? s(v.verified_languages?.[0]?.language), accent: s(labels.accent), gender: s(labels.gender),
-      previewUrl: s(v.preview_url)?.startsWith("https://") ? s(v.preview_url) : null }];
+      previewUrl: s(v.preview_url)?.startsWith("https://") ? s(v.preview_url) : null,
+      isOwner: typeof v.is_owner === "boolean" ? v.is_owner : null, models: modelsOf(v) }];
   }).sort((a, b) => a.name.localeCompare(b.name, "es"));
 }
 
