@@ -43,3 +43,11 @@ Subir el dossier final a Drive Entregas; que un humano revise antes de cualquier
 - Arnés (commit 4a08238): worker-receiver.mjs emula el paso `if: failure()` de render.yml (mark-render-failed.ts tras salida ≠0/SIGKILL); worker-images.ts escribe .render-attempt.json como worker-cli.ts; start.sh aborta si los puertos fijos están ocupados por otro checkout; .render-attempt.json en .gitignore. Revisado: correcto, se conserva.
 - F2 (reel-images-e2e.cjs) en 4a08238, BD nueva: 30 PASS · 0 FAIL (exit 0). RED: 26 PASS · 4 FAIL (exit 1, detectado: D1 tope de material).
 - Evidencia: /workspace/tmp/f40-evidence/3b493f0/f3-f40v3/, /workspace/tmp/f40-evidence/4a08238/f2/.
+
+## v5 (2026-10-19 ~22:50 America/Cancun) — aislamiento del arnés F3, F3 en BD nueva, RED
+- Defecto de arnés (v4) corregido en 4b555b0/79ae7d4: antes de cada escenario `resetSpendBaseline` archiva (f3/fire-harness-spend-reset.jsonl) y borra el ledger mock local (pi_paid_operations append-only ⇒ `session_replication_role=replica` sólo en esa transacción; también pi_supply_job_reservations), siembra la base pedida y exige que pi_supply_spend la refleje (check por escenario). Se eligió reiniciar el gasto mock, no BD por escenario. El tope del producto (seed 5 USD/día) NO se tocó.
+- Escenario nuevo capx30: base 4.28 USD openai COMMITTED hoy + 2 USD pedidos ⇒ exige 503 con error humano (sin HTTP/rutas/op_), solicitud sigue en script_ready, 0 llamadas a imágenes y 0 operaciones openai.
+- Defecto de setup.sh corregido: la marca 0023.done vivía en $E2E_HOME/run y sobrevivía a una BD nueva (fallaba la migración provider_supply_controls); ahora vive en $PGDATA.
+- F3 en 79ae7d4, BD nueva (`E2E_SCRIPT=director-fire-e2e.cjs run-e2e.sh f3`): 117 PASS · 0 FAIL, exit 0. short30 28/0, long60 28/0, uneven90 28/0, imgx30 28/0 (2 llamadas de imagen = ops COMMITTED), capx30 4/0. Egreso: 0 salidas reales (5 intentos bloqueados).
+- RED media_qa (`qa-red/run-qa-red.sh <final.mp4> <director.json> <dur> <out>`) sobre los 4 MP4: 12/12 mutaciones detectadas en cada uno (rc 0).
+- Evidencia: /workspace/tmp/f40-evidence/79ae7d4/f3/ (la corrida 4b555b0 con 116/1 por cuerpo truncado en el arnés: f40-evidence/4b555b0-superseded/).
