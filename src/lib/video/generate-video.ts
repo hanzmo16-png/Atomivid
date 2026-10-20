@@ -224,6 +224,9 @@ export async function generateVideoFromScript({
     providerDescription?: string;
     providerPageUrl?: string;
     openingRelevance?: import("./opening-relevance").OpeningRelevance;
+    intentId?: string | null;
+    metadataFacets?: string[];
+    metadataMatch?: "metadata" | "none" | "unchecked";
   }> = [];
   // Planificador visual (imagen generada vs. stock) — ver
   // visual-resource-planner.ts para la política completa. Con
@@ -379,6 +382,7 @@ export async function generateVideoFromScript({
         state: footageState,
         isOpening: i === 0,
         excludedTerms: segment.excludedTerms,
+        narration: segment.text,
       });
 
       footageSelections.push({
@@ -393,6 +397,9 @@ export async function generateVideoFromScript({
         providerDescription: outcome.providerDescription,
         providerPageUrl: outcome.providerPageUrl,
         openingRelevance: outcome.openingRelevance,
+        intentId: outcome.intentId,
+        metadataFacets: outcome.metadataFacets,
+        metadataMatch: outcome.metadataMatch,
       });
 
       // T36 C1: the licence travels with the beat. Under the Director a non-cleared result stops the render now,

@@ -1,0 +1,115 @@
+{
+  "source": "OFFLINE FIXTURE — no es una búsqueda real de Pexels",
+  "rows": [
+    {
+      "scene": "cierre",
+      "narration": "Hoy empieza tu transformación: camina con confianza hacia la persona que quieres ser.",
+      "concepts": [
+        "new life change",
+        "self improvement journey"
+      ],
+      "intent": "confianza profesional: ropa ejecutiva, postura erguida, caminar decidido, entorno profesional",
+      "before": {
+        "sourceId": "px-sad-window",
+        "description": "sad person looking out window rain",
+        "query": "new life change",
+        "metadataMatch": "(no existía)",
+        "facets": [],
+        "searches": 2
+      },
+      "after": {
+        "sourceId": "px-exec-walk",
+        "description": "confident businessperson in suit walking downtown city street",
+        "query": "confident professional walking city",
+        "metadataMatch": "metadata",
+        "facets": [
+          "action",
+          "setting",
+          "wardrobe",
+          "emotion"
+        ],
+        "searches": 3
+      }
+    },
+    {
+      "scene": "disciplina",
+      "narration": "La disciplina es entrenar incluso cuando no tienes ganas.",
+      "concepts": [
+        "morning routine"
+      ],
+      "intent": "disciplina: entrenamiento o esfuerzo físico repetido, entorno de gimnasio/exterior",
+      "before": {
+        "sourceId": "px-coffee",
+        "description": "coffee cup on kitchen table morning",
+        "query": "morning routine",
+        "metadataMatch": "(no existía)",
+        "facets": [],
+        "searches": 1
+      },
+      "after": {
+        "sourceId": "px-gym",
+        "description": "person training workout in gym lifting weights focused",
+        "query": "person training workout gym",
+        "metadataMatch": "metadata",
+        "facets": [
+          "action",
+          "setting",
+          "emotion"
+        ],
+        "searches": 2
+      }
+    },
+    {
+      "scene": "duda",
+      "narration": "Todos sentimos miedo y dudas antes de dar el salto.",
+      "concepts": [
+        "uncertain future"
+      ],
+      "intent": "duda/dificultad: persona pensativa o abatida, entorno sobrio",
+      "before": {
+        "sourceId": "px-fog",
+        "description": "foggy road landscape",
+        "query": "uncertain future",
+        "metadataMatch": "(no existía)",
+        "facets": [],
+        "searches": 1
+      },
+      "after": {
+        "sourceId": "px-think-2",
+        "description": "pensive person thinking alone near window",
+        "query": "person thinking alone window",
+        "metadataMatch": "metadata",
+        "facets": [
+          "action",
+          "setting",
+          "emotion"
+        ],
+        "searches": 2
+      }
+    },
+    {
+      "scene": "control",
+      "narration": "Pide tu café y observa a la gente a tu alrededor.",
+      "concepts": [
+        "coffee shop"
+      ],
+      "intent": null,
+      "before": {
+        "sourceId": "px-cafe-1",
+        "description": "barista pouring latte art",
+        "query": "coffee shop",
+        "metadataMatch": "(no existía)",
+        "facets": [],
+        "searches": 1
+      },
+      "after": {
+        "sourceId": "px-cafe-2",
+        "description": "coffee shop interior with customers",
+        "query": "coffee shop",
+        "metadataMatch": "metadata",
+        "facets": [],
+        "searches": 1
+      }
+    }
+  ]
+}
