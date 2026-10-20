@@ -4,23 +4,23 @@ import { useEffect, useRef, useState } from "react";
 import type { ReelVoice, ReelVoiceCatalog } from "@/lib/video/reel-voices";
 import { INPUT_CLASS } from "@/components/ui/Field";
 
-/** Remembered per language in this browser (survives navigation, back/forward and reloads). Only an id, never audio. */
-export const REEL_VOICE_STORAGE = (language: string) => `atomivid.reelVoice.v1.${language}`;
+/** Remembered per authenticated account and language in this browser (survives navigation, back/forward and reloads). Only an id, never audio. */
+export const REEL_VOICE_STORAGE = (language: string, scope: string) => `atomivid.reelVoice.v2.${scope}.${language}`;
 type Remembered = { voiceId: string; name: string };
 
 const KIND_LABEL: Record<ReelVoice["kind"], string> = { private: "Tu voz clonada", library: "Biblioteca", stock: "Estándar" };
 const categoryLabel = (v: ReelVoice) => v.kind === "private" ? (v.category === "professional" ? "Clon profesional · privada" : "Clon · privada") : KIND_LABEL[v.kind];
 
-function readRemembered(language: string): Remembered | null {
+function readRemembered(language: string, scope: string): Remembered | null {
   try {
-    const raw = JSON.parse(window.localStorage.getItem(REEL_VOICE_STORAGE(language)) ?? "null") as Partial<Remembered> | null;
+    const raw = JSON.parse(window.localStorage.getItem(REEL_VOICE_STORAGE(language, scope)) ?? "null") as Partial<Remembered> | null;
     return raw && typeof raw.voiceId === "string" && /^[A-Za-z0-9]{8,64}$/.test(raw.voiceId) ? { voiceId: raw.voiceId, name: String(raw.name ?? "") } : null;
   } catch { return null; }
 }
-function remember(language: string, value: Remembered | null) {
+function remember(language: string, scope: string, value: Remembered | null) {
   try {
-    if (value) window.localStorage.setItem(REEL_VOICE_STORAGE(language), JSON.stringify(value));
-    else window.localStorage.removeItem(REEL_VOICE_STORAGE(language));
+    if (value) window.localStorage.setItem(REEL_VOICE_STORAGE(language, scope), JSON.stringify(value));
+    else window.localStorage.removeItem(REEL_VOICE_STORAGE(language, scope));
   } catch { /* storage unavailable: the choice still lives in this form */ }
 }
 
@@ -32,7 +32,7 @@ export function ReelVoicePicker({ language }: { language: "es" | "en" }) {
   const [selected, setSelected] = useState("");
   const [error, setError] = useState("");
   const [unavailable, setUnavailable] = useState<Remembered | null>(null);
-  const [pending, setPending] = useState<Remembered | null>(null);
+  const [pending, setPending] = useState(false);
   const [playback, setPlayback] = useState<Playback>("idle");
   const audio = useRef<HTMLAudioElement>(null);
 
@@ -40,21 +40,21 @@ export function ReelVoicePicker({ language }: { language: "es" | "en" }) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 12000);
     let alive = true;
-    const stored = readRemembered(language);
     void fetch(`/api/reel/voices?language=${language}`, { signal: controller.signal })
       .then(async response => {
         if (!response.ok) throw new Error("catalog");
         const data: ReelVoiceCatalog = await response.json();
         if (!alive) return;
         setCatalog(data);
+        const stored = data.storageScope ? readRemembered(language, data.storageScope) : null;
         if (stored && data.enabled) {
           if (data.voices.some(v => v.voiceId === stored.voiceId)) setSelected(stored.voiceId);
-          else { setUnavailable(stored); remember(language, null); }
+          else { setUnavailable(stored); remember(language, data.storageScope!, null); }
         }
       }).catch(() => {
         if (!alive) return;
         setError("No pudimos cargar las voces. Puedes continuar con la voz predeterminada.");
-        if (stored) setPending(stored);
+        setPending(true);
       }).finally(() => clearTimeout(timer));
     return () => { alive = false; clearTimeout(timer); controller.abort(); };
   }, [language]);
@@ -68,7 +68,7 @@ export function ReelVoicePicker({ language }: { language: "es" | "en" }) {
     audio.current?.pause(); setPlayback("idle"); setUnavailable(null);
     setSelected(id);
     const v = catalog?.voices.find(x => x.voiceId === id);
-    remember(language, v ? { voiceId: v.voiceId, name: v.name } : null);
+    if (catalog?.storageScope) remember(language, catalog.storageScope, v ? { voiceId: v.voiceId, name: v.name } : null);
   };
   // One element, one existing provider URL: repeated clicks only toggle it, nothing is generated or charged.
   const toggle = async () => {
@@ -121,7 +121,7 @@ export function ReelVoicePicker({ language }: { language: "es" | "en" }) {
       {unavailable && <p role="alert" className="text-xs text-danger">La voz que elegiste antes{unavailable.name ? ` («${unavailable.name}»)` : ""} ya no está disponible. Elige otra voz; mientras tanto está marcada la predeterminada.</p>}
       {!catalog && !error && <p role="status" className="text-xs text-ink-muted">Cargando muestras de voz… Puedes continuar con la voz predeterminada.</p>}
       {error && <p role="status" className="text-xs text-ink-muted">{error}</p>}
-      {pending && <p role="alert" className="text-xs text-danger">No pudimos confirmar tu voz guardada{pending.name ? ` («${pending.name}»)` : ""}. Si continúas ahora se usará la voz predeterminada; recarga para reintentar.</p>}
+      {pending && <p role="alert" className="text-xs text-danger">No pudimos confirmar tu voz guardada. Si continúas ahora se usará la voz predeterminada; recarga para reintentar.</p>}
     </fieldset>
   );
 }

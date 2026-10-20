@@ -60,3 +60,9 @@ Prepared only: no production migration, flags, merge, deploy, balances or existi
 - El Duro no tiene `preview_url` en el proveedor: la UI dice «Sin muestra gratuita» y **no** genera muestras (costaría créditos).
 - El mismo filtro se aplica al catálogo y a la creación de Podcast (antes listaba todos los clones a cualquier usuario beta).
 - Diagnóstico gratuito: workflow `diag-elevenlabs-voices.yml` (GET /v1/voices; imprime id/nombre/categoría y compatibilidad; nunca la clave ni URLs de muestras).
+
+### Revisión PR167
+
+- La preferencia local se separa por cuenta autenticada e idioma; no se importa la antigua clave compartida.
+- La compatibilidad del catálogo se comprueba con el modelo configurado en el adaptador de narración.
+- Regresiones reproducidas antes de corregir: preferencia privada visible al cambiar de cuenta en el mismo navegador y rechazo de un clon compatible con un modelo configurado distinto.

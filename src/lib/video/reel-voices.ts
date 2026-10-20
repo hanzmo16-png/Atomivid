@@ -7,7 +7,7 @@ export type ReelVoice = {
   voiceId: string; name: string; accent: string | null; previewUrl: string | null; nativeLanguage: string | null;
   kind: ReelVoiceKind; /** Provider category as reported (premade / professional / cloned). */ category: string | null;
 };
-export type ReelVoiceCatalog = { enabled: boolean; voices: ReelVoice[]; defaultPreviewUrl: string | null; defaultName?: string | null };
+export type ReelVoiceCatalog = { storageScope?: string; enabled: boolean; voices: ReelVoice[]; defaultPreviewUrl: string | null; defaultName?: string | null };
 
 // Public Voice Library voices already approved for this product. Private clones need an explicit server grant.
 const APPROVED_LIBRARY_VOICES = new Set(["uYlzyj2kIZo3HfBB21vF", "TbvhqFC7AApJv7hnNvmY"]);

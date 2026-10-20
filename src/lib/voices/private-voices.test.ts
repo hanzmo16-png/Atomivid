@@ -79,15 +79,15 @@ test("Podcast list/creation hide private clones from non-granted accounts", () =
 });
 
 test("server resolution uses the signed-in viewer (mocked provider list, no network)", async () => {
-  const { resolveReelVoiceSelection } = await import("@/lib/video/reel-voices-server");
   const saved = { ...process.env }; const savedFetch = globalThis.fetch;
   let calls = 0;
   try {
-    Object.assign(process.env, { REEL_VOICE_SELECTION_ENABLED: "true", ELEVENLABS_API_KEY: "test-not-a-key", PRIVATE_VOICE_GRANTS: env.PRIVATE_VOICE_GRANTS });
+    Object.assign(process.env, { REEL_VOICE_SELECTION_ENABLED: "true", ELEVENLABS_API_KEY: "test-not-a-key", PRIVATE_VOICE_GRANTS: env.PRIVATE_VOICE_GRANTS, ELEVENLABS_MODEL_ID: "eleven_flash_v2_5" });
+    const { resolveReelVoiceSelection } = await import("@/lib/video/reel-voices-server");
     resetVoiceCache();
     globalThis.fetch = (async (url: string) => { calls++; assert.equal(String(url), "https://api.elevenlabs.io/v1/voices");
       return Response.json({ voices: [{ voice_id: "PrivClone001", name: "duro", category: "professional", is_owner: true, preview_url: null,
-        high_quality_base_model_ids: ["eleven_multilingual_v2"] }] }); }) as typeof fetch;
+        high_quality_base_model_ids: ["eleven_flash_v2_5"] }] }); }) as typeof fetch;
     assert.equal(await resolveReelVoiceSelection("PrivClone001", "es", OWNER), "PrivClone001");
     await assert.rejects(resolveReelVoiceSelection("PrivClone001", "es", OTHER), /ya no está disponible/);
     assert.equal(await resolveReelVoiceSelection("", "es", OTHER), null);

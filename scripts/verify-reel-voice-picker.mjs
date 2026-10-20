@@ -21,7 +21,7 @@ const { ReelVoicePicker, REEL_VOICE_STORAGE } = createRequire(import.meta.url)(f
 
 const mine = { voiceId: 'PrivClone001', name: 'duro fixture', accent: null, nativeLanguage: 'es', previewUrl: null, kind: 'private', category: 'professional' };
 const stock = { voiceId: 'StockEs0001', name: 'Estándar', accent: 'latino', nativeLanguage: 'es', previewUrl: 'https://example.test/s.mp3', kind: 'stock', category: 'premade' };
-let catalogue = { enabled: true, voices: [mine, stock], defaultPreviewUrl: 'https://example.test/d.mp3', defaultName: 'Default' };
+let catalogue = { enabled: true, storageScope: 'owner-a', voices: [mine, stock], defaultPreviewUrl: 'https://example.test/d.mp3', defaultName: 'Default' };
 let fail = false, fetches = 0, plays = 0, resolvePlay;
 globalThis.fetch = async () => { fetches++; return fail ? new Response('', { status: 503 }) : Response.json(catalogue); };
 window.HTMLMediaElement.prototype.play = function () { plays++; return new Promise(r => { resolvePlay = r; }); };
@@ -45,9 +45,17 @@ try {
   ok(box.textContent.includes('Clon profesional · privada'), 'kind label');
   ok(box.textContent.includes('Sin muestra gratuita'), 'no preview → no generation, explicit note');
   ok(!box.querySelector('audio'), 'no audio for clone without preview');
-  ok(JSON.parse(localStorage.getItem(REEL_VOICE_STORAGE('es'))).voiceId === 'PrivClone001', 'persisted');
+  ok(JSON.parse(localStorage.getItem(REEL_VOICE_STORAGE('es', 'owner-a'))).voiceId === 'PrivClone001', 'persisted');
   await unmount(); await mount();                                   // reload / back-forward
   ok(hidden() === 'PrivClone001', 'restored after reload');
+  await unmount();
+  catalogue = { ...catalogue, storageScope: 'other-b', voices: [stock] };
+  await mount();
+  ok(hidden() === null && !box.textContent.includes('duro fixture'), 'other account never sees or restores owner preference');
+  await unmount();
+  catalogue = { ...catalogue, storageScope: 'owner-a', voices: [mine, stock] };
+  await mount();
+  ok(hidden() === 'PrivClone001', 'owner preference survives another account');
   await choose('StockEs0001');
   ok(box.querySelector('audio').getAttribute('preload') === 'none', 'no preload');
   await act(async () => { button().dispatchEvent(new window.MouseEvent('click', { bubbles: true })); });
@@ -64,11 +72,11 @@ try {
   catalogue = { ...catalogue, voices: [stock] };                    // clone revoked / deleted
   await mount();
   ok(box.querySelector('[role=alert]')?.textContent.includes('(«duro fixture») ya no está disponible'), 'unavailable message');
-  ok(hidden() === null && localStorage.getItem(REEL_VOICE_STORAGE('es')) === null, 'stale id not submitted');
+  ok(hidden() === null && localStorage.getItem(REEL_VOICE_STORAGE('es', 'owner-a')) === null, 'stale id not submitted');
   await unmount();
-  localStorage.setItem(REEL_VOICE_STORAGE('es'), JSON.stringify({ voiceId: 'StockEs0001', name: 'Estándar' }));
+  localStorage.setItem(REEL_VOICE_STORAGE('es', 'owner-a'), JSON.stringify({ voiceId: 'StockEs0001', name: 'Estándar' }));
   fail = true; await mount();
-  ok(box.textContent.includes('No pudimos confirmar tu voz guardada («Estándar»)'), 'catalogue failure is explicit about the saved voice');
+  ok(box.textContent.includes('No pudimos confirmar tu voz guardada'), 'catalogue failure is explicit about the saved voice');
   ok(hidden() === null, 'unconfirmed voice never submitted');
   await unmount(); fail = false;
   catalogue = { enabled: true, voices: [], defaultPreviewUrl: null, defaultName: null };

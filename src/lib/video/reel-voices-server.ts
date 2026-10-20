@@ -8,9 +8,9 @@ import { reelVoiceChoices, validateReelVoiceSelection, validVoiceId, type ReelVo
 export async function getReelVoiceCatalog(language: "es" | "en", viewer: VoiceViewer = null): Promise<ReelVoiceCatalog> {
   if (!getFeatureFlags().reelVoiceSelectionEnabled) return { enabled: false, voices: [], defaultPreviewUrl: null };
   const voices = await listAccountVoices({ fetchImpl: (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(8000) }) });
-  const defaultId = getVoiceIdentity(language).voiceId;
+  const { voiceId: defaultId, modelId } = getVoiceIdentity(language);
   const def = voices.find(v => v.voiceId === defaultId);
-  return { enabled: true, voices: reelVoiceChoices(voices, language, defaultId, { viewer }),
+  return { enabled: true, storageScope: viewer?.id ?? undefined, voices: reelVoiceChoices(voices, language, defaultId, { viewer, model: modelId }),
     defaultPreviewUrl: def?.previewUrl ?? null, defaultName: def?.name ?? null };
 }
 
