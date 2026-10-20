@@ -20,5 +20,11 @@ Actualizado: 2026-10-19 ~18:35 (America/Cancun, UTC-5). Claim T-20261019-1602-ha
 - RPC de suministro real: no se ejecuta; esquema por migraciones en PG local, proveedores simulados, sin salida a proveedores reales.
 - 6 tests unitarios preexistentes en rojo en la base (fuera de alcance).
 
+## v2 (2026-10-19 ~19:30 America/Cancun) — cierre de brechas en df8c7d4 → HEAD
+- Re-verificado en df8c7d4 (Node 22.23.3): test:unit 1976/1976, test:spend 293/293, tsc 0, eslint --quiet 0, next build 0.
+- Adversarial PG17 2/5/10: 22/22 GREEN; RED baseline 7, lease-repay 4, no-cas-check 1 (detectados). CSV exportado (ledger_ops 27 filas, ledger_transitions 80).
+- Diagnóstico de los 6 tests: NO es defecto del código. (a) attempt-state x2/x3: la prueba no era hermética; claim() usa la RPC pi_claim_render_supply si isProductionRuntime()||SUPPLY_GUARD_ENFORCED=true y la shell las heredaba (NODE_ENV=production tras build/arnés). Reproducido en a8a3955 y HEAD. Arreglo: la prueba fija el entorno y añade un caso que exige la ruta RPC (dueño+intento, error visible). Pasa con NODE_ENV=production, VERCEL=1, SUPPLY_GUARD_ENFORCED=true. (b) avatar/recovery «historial» x1: prueba obsoleta frente al contrato PR158 (a1b5994). (c) recovery-flow x2: no reproducible en Node 20.19.2 ni 22.23.3 sobre a8a3955 ni HEAD; .nvmrc=22 lo fija.
+- GitHub Actions: no hay disparador push/pull_request para esta rama/base; se usó workflow_dispatch de e2e-fixture-evidence (sin secretos, contents:read, proveedores fixture) con sha=df8c7d4: run 39346075525.
+
 ## Siguiente paso
 Subir el dossier final a Drive Entregas; que un humano revise antes de cualquier prueba beta.
