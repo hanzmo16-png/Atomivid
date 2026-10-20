@@ -8,7 +8,7 @@ import { tierSeconds } from "./cinematic-director";
 import { EXECUTABLE_PLAN_VERSIONS, PRODUCTION_PLAN_VERSION } from "./production-plan-types";
 import { planShotsFromScript, computeProductionPlan, REAL_LONG_FORM_PROVIDER_NAMES } from "./production-plan";
 import { heroCoverage } from "./verified-assets";
-import { MAX_TEXT_FALLBACK_RATIO } from "./produce";
+import { LongFormPendingMaterialError, MAX_TEXT_FALLBACK_RATIO } from "./produce";
 import { emptyCurationFile } from "./asset-curation";
 import { containsFixtureOnlyMaterial } from "./fixture-only";
 import { HUMAN_STAND_IN_TERMS, PLAN_ESTIMATE_AVAILABILITY, registryAvailability, resolveSequences, validateSequenceIntents, type SequenceIntent, type SlotAvailability } from "./sequence-intent";
@@ -53,6 +53,19 @@ const adversarialPool = () => poolProvider([...gucciAdversarial, ...truthfulPool
 // --------------------------------------------------------------------------
 // Contrato de secuencia
 // --------------------------------------------------------------------------
+
+
+/**
+ * P0 T-20261019-1553: con alguna escena «Material pendiente» el worker se niega a entregar ANTES del render
+ * (LongFormPendingMaterialError); las escenas dirigidas siguen observables en `prepared` para estas pruebas.
+ */
+function preparedOrRendered<T>(run: { error: unknown }, rendered: T | null): T {
+  if (run.error === null) return rendered as T;
+  assert.ok(run.error instanceof LongFormPendingMaterialError, String(run.error));
+  assert.equal(rendered, null, "nunca se renderiza con material pendiente");
+  assert.ok(run.error.prepared, "escenas preparadas disponibles");
+  return run.error.prepared as unknown as T;
+}
 
 test("contrato: roles cerrados, escala con razón, DETAIL solo sobre una región curada de un plano anterior; CONTEXT nunca es una persona", () => {
   assert.deepEqual(validateSequenceIntents(showcaseSequences, showcaseBeats).errors, []);
@@ -224,11 +237,12 @@ test("HONEST-GUCCI B (registro del fixture v4): pies, botones, ejecutivo, perió
     onReport: (r) => (report = r as never),
     onRender: (i) => (input = i as never),
   });
-  assert.equal(run.error, null, String(run.error));
+  // La prueba que falta queda como ausencia («Material pendiente»): no entregable (P0 T-20261019-1553).
+  assert.ok(run.error instanceof LongFormPendingMaterialError, String(run.error));
   const shown = report!.scenes.map((s) => s.candidateDescription);
   for (const adv of FORBIDDEN) assert.ok(!shown.includes(adv.description), `${adv.id} ausente`);
   assert.ok(!run.events.includes("image"), "ninguna persona generada");
-  const scenes = input!.scenes;
+  const scenes = preparedOrRendered(run, input as { scenes: LongFormShotScene[] } | null).scenes;
   assert.ok(scenes.every((s) => s.direction?.shot), "toda escena v5 lleva rol y escala");
   const cards = scenes.filter((s) => s.asset.kind === "graphic");
   assert.ok(cards.length > 0 && cards.every((s) => s.direction?.shot?.card), "ausencias dirigidas (no plantilla)");
@@ -251,8 +265,8 @@ async function showcase(sequences?: SequenceIntent[]) {
     footageProvider: showcaseFootageProvider(BASE, async (u) => (downloaded.add(u), Buffer.from(`bytes:${u}`))),
     onRender: (i) => (input = i as never),
   });
-  assert.equal(run.error, null, String(run.error));
-  return { ...input!, downloaded: [...downloaded].sort() };
+  const prepared = preparedOrRendered(run, input as { scenes: LongFormShotScene[]; captions: unknown[] } | null);
+  return { ...prepared, downloaded: [...downloaded].sort() };
 }
 
 test("SHOWCASE: BEFORE (v4) y AFTER (v5) usan EXACTAMENTE los mismos cuatro recursos y la misma duración", async () => {

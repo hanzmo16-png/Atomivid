@@ -5,7 +5,7 @@ import type { LongFormShotScene } from "../../../../remotion/LongFormDoc";
 import { EXECUTABLE_PLAN_VERSIONS } from "./production-plan-types";
 import { tierSeconds } from "./cinematic-director";
 import { heroCoverage } from "./verified-assets";
-import { MAX_TEXT_FALLBACK_RATIO } from "./produce";
+import { LongFormPendingMaterialError, MAX_TEXT_FALLBACK_RATIO } from "./produce";
 import { PLAN_ESTIMATE_AVAILABILITY, registryAvailability, resolveSequences, validateImpactIntents, type SequenceIntent } from "./sequence-intent";
 import { planSequenceShots } from "./sequence-direction";
 import { directImpactScenes, futureAtmosphereRequests, hookStatus, plannedHookStatus } from "./impact-direction";
@@ -58,6 +58,19 @@ async function showcase(sequences?: SequenceIntent[]) {
   });
   assert.equal(run.error, null, String(run.error));
   return input!;
+}
+
+
+/**
+ * P0 T-20261019-1553: con alguna escena «Material pendiente» el worker se niega a entregar ANTES del render
+ * (LongFormPendingMaterialError); las escenas dirigidas siguen observables en `prepared` para estas pruebas.
+ */
+function preparedOrRendered<T>(run: { error: unknown }, rendered: T | null): T {
+  if (run.error === null) return rendered as T;
+  assert.ok(run.error instanceof LongFormPendingMaterialError, String(run.error));
+  assert.equal(rendered, null, "nunca se renderiza con material pendiente");
+  assert.ok(run.error.prepared, "escenas preparadas disponibles");
+  return run.error.prepared as unknown as T;
 }
 
 test("versión: v6 solo si la intención declara impacto; v5 sigue siendo v5; el worker ejecuta v6 (con cuenta habilitada)", () => {
@@ -174,7 +187,9 @@ test("HONEST-GUCCI v6 B: pies, botones, ejecutivo, periódico equivocado y perso
   let report: { scenes: { candidateDescription?: string }[] } | null = null;
   let input: { scenes: LongFormShotScene[] } | null = null;
   const run = await produceOffline(gucciBeats, planFor(gucciBeats, "economical", gucciSequencesV6()), { verifiedAssets: gucciRegistry(), footageProvider: adversarial(), onReport: (r) => (report = r as never), onRender: (i) => (input = i as never) });
-  assert.equal(run.error, null, String(run.error));
+  // La prueba que falta queda como ausencia («Material pendiente»): no entregable (P0 T-20261019-1553).
+  assert.ok(run.error instanceof LongFormPendingMaterialError, String(run.error));
+  input = preparedOrRendered(run, input as { scenes: LongFormShotScene[] } | null);
   for (const adv of [FEET, BELLBOY, BUSINESSMAN, WRONG_NEWSPAPER]) assert.ok(!report!.scenes.some((s) => s.candidateDescription === adv.description), adv.id);
   assert.ok(!run.events.includes("image"), "ninguna persona generada");
   assert.equal(hookStatus(input!.scenes).status, "HOOK_FILLED");

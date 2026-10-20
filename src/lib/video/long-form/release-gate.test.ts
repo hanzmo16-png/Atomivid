@@ -128,7 +128,10 @@ test("M1: los diagnósticos permitidos NO bloquean (movimiento bajo por verdad, 
   const premiumStill = scene({ shotId: "s", startSec: 120, endSec: 180, display: "image", camera: "still", motionClass: "STATIC" });
   const eraMiss = scene({ shotId: "e", startSec: 180, endSec: 185, display: "video", executedType: "ai_video", provenance: "ai_recreation", era: "early_photographic" });
   const qa = cinematicQa([portrait, absent, video("v", 60, 120), premiumStill, eraMiss]);
-  assert.deepEqual(qa.release, { deliverable: true, blockers: [] }, JSON.stringify(qa.findings));
+  // P0 T-20261019-1553: una ausencia con «Material pendiente» (gap) ya no es entregable; la política (blockers) no cambia.
+  assert.deepEqual(qa.release, { deliverable: false, blockers: [], pendingMaterial: ["x"] }, JSON.stringify(qa.findings));
+  // Los diagnósticos por sí solos siguen sin bloquear: sin la carencia, la misma secuencia es entregable.
+  assert.deepEqual(cinematicQa([portrait, { ...absent, gap: false }, video("v", 60, 120), premiumStill, eraMiss]).release, { deliverable: true, blockers: [] });
   assert.ok(qa.findings.some((f) => f.code === "LOW_MOTION_DENSITY"));
   assert.ok(qa.findings.some((f) => f.code === "ERA_MISMATCH" && f.severity === "FAIL"));
 });
@@ -327,7 +330,8 @@ test("M8/M11: Gucci por la ruta productiva v4 PASA la puerta de entrega (verdad 
     assert.ok(!qa.findings.some((f) => f.code === code), code);
   }
   assert.deepEqual(sim.preflightBlockers, []);
-  assert.deepEqual(qa.release, { deliverable: true, blockers: [] });
+  // P0 T-20261019-1553: una ausencia con «Material pendiente» (gap) ya no es entregable; la política (blockers) no cambia.
+  assert.deepEqual(qa.release, { deliverable: false, blockers: [], pendingMaterial: ["b3-shot-2", "b3-shot-3"] });
   assert.equal(sim.gateError, null);
   assert.ok(sim.textFallbackRatio <= 0.25, `guarda existente de tarjetas (${sim.textFallbackRatio})`);
   // La prueba correcta de la deuda (0.33) ocupa la escena donde antes entraba el periódico del tiroteo.
