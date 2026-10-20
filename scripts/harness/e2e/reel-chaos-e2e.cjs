@@ -73,7 +73,15 @@ async function userView(p, id, tag) {
 const stored = (id) => { const d = path.join(STORE, "videos", id); return fs.existsSync(d) ? execFileSync("find", [d, "-type", "f"]).toString().trim().split("\n").filter(Boolean).map((f) => path.relative(STORE, f)) : []; };
 const billable = (entries) => entries.filter((e) => e.sha256); // cada imagen servida (incluida la «drop», que se registra con sha256 antes de cortar) = 1 llamada cobrable; 500/429 no
 const matrix = [];
+// Aislamiento entre casos: las operaciones inciertas (RR) de casos ANTERIORES cuentan contra max_concurrent del proveedor
+// por diseño (fail-closed) y, acumuladas, dejan los casos siguientes en «espera de suministro». En la BD LOCAL con mocks el
+// arnés las concilia explícitamente (evidencia: el mock-openai registra cada envío) y lo deja en el log; nunca en producción.
+async function reconcileEarlierHarnessOps(caseId) {
+  const r = await db.query("update public.pi_paid_operations set status='REFUNDED', updated_at=now() where provider='openai' and status in ('RECONCILIATION_REQUIRED','RESERVED') returning idempotency_key");
+  fs.appendFileSync(path.join(OUT, "chaos-harness-reconcile.jsonl"), JSON.stringify({ before: caseId, reconciled: r.rows.map((x) => x.idempotency_key) }) + "\n");
+}
 async function runCase(S, c, run) {
+  await reconcileEarlierHarnessOps(c.id);
   setFaults({}); setWorkerOverride({ ...WORKER_IMG, ...(c.override ?? {}) });
   const id = await createImgx(S.p, `Caos ${c.id} [imgx] ${run}`, c.id);
   setFaults(c.faults ?? {}); const o0 = OPENAI_LOG().length;
