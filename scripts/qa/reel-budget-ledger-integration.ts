@@ -34,6 +34,15 @@ async function main() {
     const base = await readFile("scripts/qa/fixtures/0023-production-intelligence.sql", "utf8");
     assert.equal(createHash("sha256").update(base).digest("hex"), "0b49d9a4752d19c1b6f6f24df6c3f0c6fbdbd39136a41832f5a6189aa7fa8131");
     await sql.query(base);
+    const seedPolicies = async () => {
+      // A later migration compares numerical before/after supply states. Seed a known state
+      // before its verification (UNKNOWN intentionally has no activeCalls field).
+      await sql.query(`update pi_supply_policies set enabled=true,baseline=100,unit_cost_usd=1,
+        daily_forecast=1,daily_cap_usd=100000,monthly_cap_usd=100000,max_concurrent=1000,
+        max_daily_calls=10000,evidence='SYNTHETIC disposable integration test';
+        insert into pi_capacity_snapshots(provider,unit,available,health,reliability,status,checked_at)
+        select provider,unit,100000,'OK','provider_api','GREEN',clock_timestamp() from pi_supply_policies where provider<>'__global__';`);
+    };
     const migrations = [
       "20261005143935_provider_supply_controls.sql",
       "20261005145807_provider_supply_settlement_clock.sql",
@@ -50,14 +59,9 @@ async function main() {
       await sql.query("begin");
       try { await sql.query(await readFile(`supabase/migrations/${file}`, "utf8")); await sql.query("commit"); }
       catch (error) { await sql.query("rollback"); throw new Error(`Migration ${file} failed`, { cause: error }); }
+      if (file === "20261005152850_provider_supply_worker_slots.sql") await seedPolicies();
     }
     console.log(`Actual ledger DDL + ${migrations.length} unchanged supply migrations loaded`);
-    // Deliberately synthetic funded balances. These are NOT observations of production accounts.
-    await sql.query(`update pi_supply_policies set enabled=true,baseline=100,unit_cost_usd=1,
-      daily_forecast=1,daily_cap_usd=100000,monthly_cap_usd=100000,max_concurrent=1000,
-      max_daily_calls=10000,evidence='SYNTHETIC disposable integration test';
-      insert into pi_capacity_snapshots(provider,unit,available,health,reliability,status,checked_at)
-      select provider,unit,100000,'OK','provider_api','GREEN',clock_timestamp() from pi_supply_policies where provider<>'__global__';`);
     const newSql = await readFile("supabase/migrations/20261020150535_reel_provider_spend_cap.sql", "utf8");
     const split = newSql.indexOf("-- Keep the documentary");
     assert.ok(split > 0);

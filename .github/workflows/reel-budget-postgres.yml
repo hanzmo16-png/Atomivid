@@ -9,6 +9,7 @@ on:
       - 'supabase/migrations/**'
       - 'scripts/qa/reel-budget-*.ts'
       - 'scripts/qa/fixtures/0023-production-intelligence.sql'
+      - 'scripts/qa/director/**'
       - '.github/workflows/reel-budget-postgres.yml'
 permissions:
   contents: read
@@ -36,6 +37,8 @@ jobs:
       MUSIC_PROVIDER: fixture
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -48,3 +51,42 @@ jobs:
       - run: npx next typegen
       - run: npx tsc --noEmit
       - run: npx eslint .
+  director-output:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SCRIPT_PROVIDER: fixture
+      VOICE_PROVIDER: fixture
+      FOOTAGE_PROVIDER: fixture
+      IMAGE_PROVIDER: fixture
+      MUSIC_PROVIDER: fixture
+      PREMIUM_CLIPS_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prepare bundled media tools and browser
+        run: |
+          chmod +x node_modules/@ffprobe-installer/linux-x64/ffprobe
+          chmod +x node_modules/@ffmpeg-installer/linux-x64/ffmpeg
+          echo "$PWD/node_modules/@ffprobe-installer/linux-x64" >> "$GITHUB_PATH"
+          echo "$PWD/node_modules/@ffmpeg-installer/linux-x64" >> "$GITHUB_PATH"
+          npx remotion browser ensure
+      - name: Produce and verify Director output without paid providers
+        run: |
+          mkdir -p worker-evidence
+          git rev-parse HEAD > worker-evidence/COMMIT.txt
+          node --import tsx scripts/qa/director/worker-e2e-local.ts --only=positive,divergence,no-budget,double,in-flight,voice-503 --out-dir="$PWD/worker-evidence"
+      - name: Retain MP4, Director plan and scenario results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reel-director-fixture-${{ github.run_id }}
+          path: worker-evidence/
+          if-no-files-found: error
+          retention-days: 14
