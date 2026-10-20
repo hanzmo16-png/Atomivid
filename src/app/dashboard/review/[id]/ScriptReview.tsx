@@ -1,5 +1,6 @@
 "use client";
 
+import { scriptLengthReview } from "@/lib/video/script-length-review";
 import { ProductionReadinessNotice } from "@/components/video/ProductionReadinessNotice";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -23,6 +24,7 @@ export function ScriptReview({
   recovery,
   maxAvatarDurationSeconds,
   recordingDurationSeconds,
+  targetDurationSeconds,
   directorMaterialOffer,
 }: {
   requestId: string;
@@ -35,6 +37,7 @@ export function ScriptReview({
   reelRetryEligible?: boolean;
   maxAvatarDurationSeconds?: number;
   recordingDurationSeconds?: number;
+  targetDurationSeconds?: number;
   /**
    * QA blocker real (2026-09-25): "Generar video final" quedaba
    * visualmente habilitado para avatar aunque el plan del usuario no
@@ -86,7 +89,9 @@ export function ScriptReview({
   // A recovery reuses exactly what was approved: no edits (they would change paid inputs).
   const editable = canGenerate && !usesRecording && !recoveryAction && !reelRetryEligible;
   const entitlementBlocked = Boolean(entitlementBlockedReason);
-  const durationBlockedReason = maxAvatarDurationSeconds === undefined ? null : avatarDurationError(
+  const durationBlockedReason = initialScript.lengthReviewRequired && targetDurationSeconds
+    ? scriptLengthReview(script, targetDurationSeconds)
+    : maxAvatarDurationSeconds === undefined ? null : avatarDurationError(
     usesRecording ? (recordingDurationSeconds ?? Number.NaN) : estimateAvatarNarrationSeconds(script.segments.map(scene => scene.text).join(" ")),
     maxAvatarDurationSeconds,
   );

@@ -1,3 +1,7 @@
+import { ScriptSchema } from "@/lib/ai/script";
+import { scriptLengthReview } from "@/lib/video/script-length-review";
+import { scriptBlockState } from "@/lib/supply/script-intent";
+import { recoverPaidScript } from "@/lib/video/script-paid-recovery";
 import { persistScriptChange, ScriptPersistenceError } from "@/lib/video/script-persistence";
 import { ReelBudgetExceededError } from "@/lib/supply/reel-budget";
 import { loadScriptOperations, withScriptGenerationContext } from "@/lib/supply/anthropic";
@@ -36,6 +40,7 @@ type VideoRequestRow = {
   style: string;
   duration_seconds: number;
   status: string;
+  error_message: string | null;
   language: ScriptLanguage;
   render_attempts: number;
   script_json: GeneratedScript | OwnScriptDraft | null;
@@ -58,7 +63,7 @@ async function loadOwnedRequest(id: string, userId: string) {
 
   const { data: videoRequest, error } = await service
     .from("video_requests")
-    .select("id, user_id, mode, topic, style, duration_seconds, status, language, recorded_audio_path, render_attempts, script_json")
+    .select("id, user_id, mode, topic, style, duration_seconds, status, language, recorded_audio_path, render_attempts, script_json, error_message")
     .eq("id", id)
     .single<VideoRequestRow>();
 
@@ -122,6 +127,27 @@ export async function POST(
       );
     }
 
+    // Recover only a settled, request-owned paid draft rejected solely for length.
+    // This runs BEFORE any new provider admission and never falls back to another charge.
+    if (videoRequest.status === "failed" && !videoRequest.script_json &&
+        videoRequest.error_message?.startsWith("El guion no corresponde a la duración solicitada.")) {
+      const rows = await loadScriptOperations(id);
+      if (scriptBlockState(rows, Date.now())) return NextResponse.json({ error: "El intento anterior sigue en revisión. No se hizo otra llamada." }, { status: 409 });
+      const { data: op, error } = await service.from("pi_paid_operations")
+        .select("result_ref").eq("project_id", id).eq("provider", "anthropic").eq("method", "generate_script")
+        .eq("status", "COMMITTED").order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (error) throw new Error("PAID_SCRIPT_LOOKUP_FAILED");
+      const script = await recoverPaidScript(id, op?.result_ref, async ref => {
+        const { data, error: readError } = await service.storage.from("videos").download(ref);
+        if (readError || !data) throw new Error("PAID_SCRIPT_READ_FAILED");
+        return JSON.parse(await data.text());
+      }, value => ScriptSchema.parse(value), videoRequest.topic);
+      const note = scriptLengthReview(script, videoRequest.duration_seconds);
+      const draft = { ...script, ...(note ? { lengthReviewRequired: true } : {}) };
+      await persistScriptChange(service, videoRequest, { status: "script_ready", script_json: draft, error_message: note });
+      return NextResponse.json({ status: "script_ready", script: draft });
+    }
+
     // Control de costos (2026-10-18): plan, prices and Atomivid's provider capacity for the WHOLE
     // production are checked here, before the script — the first paid call. A foreseeable blocker stops
     // now, with who must act; nothing is reserved by this check (the script call is still admitted
@@ -141,6 +167,7 @@ export async function POST(
       return NextResponse.json(checkResponseBody(check), { status: checkHttpStatus(check) });
     }
 
+    let lengthNote: string | null = null;
     const outcome = await runScriptGeneration({
       generate: async () => {
         if (draft?.source === "own") {
@@ -167,11 +194,13 @@ export async function POST(
           providerName: result.providerName,
         });
         if (!quality.ok) {
-          throw new ScriptQualityError(quality);
+          if (quality.issue !== "word_count_out_of_range") throw new ScriptQualityError(quality);
+          lengthNote = scriptLengthReview(result.script, videoRequest.duration_seconds);
+          result.script = { ...result.script, lengthReviewRequired: true };
         }
         return draft?.source === "adapt" ? { ...result.script, source: "adapt" } as GeneratedScript : result.script;
       },
-      persist: (patch) => persistScriptChange(service, videoRequest, patch),
+      persist: (patch) => persistScriptChange(service, videoRequest, lengthNote && patch.status === "script_ready" ? { ...patch, error_message: lengthNote } : patch),
       guard: supplyGuardRequired(),
       loadRows: () => loadScriptOperations(id),
       // The customer's text is never lost: a failed planning or adaptation keeps what was stored (the draft,
@@ -254,6 +283,12 @@ export async function PATCH(
     }
   }
 
+  if ((videoRequest.script_json as GeneratedScript | null)?.lengthReviewRequired) {
+    const note = scriptLengthReview(body, videoRequest.duration_seconds);
+    if (note) return NextResponse.json({ error: note }, { status: 422 });
+  }
+  // A client cannot unset the marker without passing the check against the stored draft.
+  delete body.lengthReviewRequired;
   const service = createServiceClient();
   try {
     await persistScriptChange(service, videoRequest, { script_json: body, error_message: null });

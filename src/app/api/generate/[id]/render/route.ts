@@ -1,3 +1,4 @@
+import { scriptLengthReview } from "@/lib/video/script-length-review";
 import { usesAnchoredVisuals, type ProductionPlan } from "@/lib/video/long-form/production-plan-types";
 import type { ProductionPlanBeatInput } from "@/lib/video/long-form/production-plan";
 import { providerCheck, visualBlockMessage, visualCheck } from "@/lib/video/long-form/production-preflight";
@@ -140,6 +141,10 @@ export async function POST(
         { error: "Todavía no hay un guion generado para esta solicitud" },
         { status: 409 },
       );
+    }
+    if (videoRequest.script_json.lengthReviewRequired) {
+      return NextResponse.json({ error: scriptLengthReview(videoRequest.script_json, videoRequest.duration_seconds)
+        ?? "Guarda el guion ajustado antes de generar la voz." }, { status: 409 });
     }
     if (videoRequest.mode === "long_form" && isLongFormScriptJson(videoRequest.script_json)) {
       const editorialError = editorialApprovalError(videoRequest.script_json);
