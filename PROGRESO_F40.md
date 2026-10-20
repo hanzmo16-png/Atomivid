@@ -28,3 +28,11 @@ Actualizado: 2026-10-19 ~18:35 (America/Cancun, UTC-5). Claim T-20261019-1602-ha
 
 ## Siguiente paso
 Subir el dossier final a Drive Entregas; que un humano revise antes de cualquier prueba beta.
+
+## v3 (2026-10-19 ~20:15 America/Cancun) — fuga de BDs adv_* corregida
+- scripts/harness/adversarial/run.sh: se quitó `exec node` (reemplazaba la shell y el trap EXIT nunca corría → 23 BDs adv_* filtradas en el PG17 local, ya borradas). Ahora node corre como hijo y se conserva su código de salida; restauración del esquema con ON_ERROR_STOP=1 (sin `|| true`).
+- Prueba: lista de BDs antes/después de la suite GREEN idéntica; tras GREEN+CSV y los 3 RED (que salen ≠0) quedan 0 adv_*.
+- PG17 2/5/10: 22/22 GREEN; RED baseline 7, lease-repay 4, no-cas-check 1 (detectados). CSV: ledger_ops 27 filas, ledger_transitions 80.
+- Node 22.23.3: tsc 0, eslint --quiet 0, test:spend 293/293, test:unit 1977/1977. Los 6 tests históricos (recovery-flow, attempt-state, avatar/recovery: 14 casos en esos 3 archivos) pasan también con NODE_ENV=production VERCEL=1 SUPPLY_GUARD_ENFORCED=true.
+- Nota: test:unit completo con ese entorno hostil da 74 fallos en otros archivos (selección de proveedores fixture vs producción); es comportamiento esperado de producción, no se tocó.
+- Evidencia: /workspace/tmp/f40-evidence/<HEAD>/ (en la caja del agente).
