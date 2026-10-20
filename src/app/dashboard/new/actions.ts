@@ -1,5 +1,6 @@
 "use server";
 import { gatedVoiceSynthesize } from "@/lib/paid-calls/gated-providers";
+import { reelProviderSpendCap } from "@/lib/supply/reel-budget";
 import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
 import { supabaseResultStore } from "@/lib/paid-calls/result-store";
 import { getVoiceIdentity } from "@/lib/ai/voice";
@@ -121,6 +122,12 @@ export async function createVideoRequest(formData: FormData) {
   }
 
   if (mode === "visual") {
+    // Persist the server's total provider limit before any script, voice or image can be paid.
+    // Invalid configuration or an absent schema must stop creation, never silently drop the cap.
+    let providerSpendCap: number;
+    try { providerSpendCap = reelProviderSpendCap(); } catch {
+      redirect("/dashboard/new?error=No+se+pudo+verificar+el+presupuesto+del+Reel.+No+se+ha+creado+ni+cobrado+nada.+Contacta+al+soporte.");
+    }
     // Only the server can insert requests. Never let a browser write output paths,
     // paid-production approvals or worker state through the Data API.
     // «Usar mi propio guion»: the text is stored now, split into scenes without changing a word; the first
@@ -134,12 +141,14 @@ export async function createVideoRequest(formData: FormData) {
       language,
       mode: "visual",
       status: "pending",
+      provider_spend_cap_usd: providerSpendCap,
       script_json: form.draft,
     });
 
     if (error) {
       // A concurrent identical submit lost the insert race: the request exists, nothing was paid.
       if (error.code === "23505") redirect(created);
+      if (error.code === "42703" || error.code === "PGRST204") redirect("/dashboard/new?error=El+control+de+presupuesto+necesita+una+actualizaci%C3%B3n.+No+se+ha+creado+ni+cobrado+nada.+Contacta+al+soporte.");
       redirect(`/dashboard/new?error=${encodeURIComponent(error.message)}`);
     }
 
