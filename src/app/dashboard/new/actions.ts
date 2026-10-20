@@ -1,6 +1,7 @@
 "use server";
 import { gatedVoiceSynthesize } from "@/lib/paid-calls/gated-providers";
 import { reelProviderSpendCap } from "@/lib/supply/reel-budget";
+import { resolveReelVoiceSelection } from "@/lib/video/reel-voices-server";
 import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
 import { supabaseResultStore } from "@/lib/paid-calls/result-store";
 import { getVoiceIdentity } from "@/lib/ai/voice";
@@ -122,6 +123,11 @@ export async function createVideoRequest(formData: FormData) {
   }
 
   if (mode === "visual") {
+    let reelVoiceId: string | null;
+    try { reelVoiceId = await resolveReelVoiceSelection(formData.get("reel_voice_id"), language === "en" ? "en" : "es"); }
+    catch {
+      redirect(formErrorUrl("No se pudo confirmar la voz seleccionada. Vuelve a elegirla o usa la voz predeterminada; no se ha creado ni cobrado nada."));
+    }
     // Persist the server's total provider limit before any script, voice or image can be paid.
     // Invalid configuration or an absent schema must stop creation, never silently drop the cap.
     let providerSpendCap: number;
@@ -142,6 +148,7 @@ export async function createVideoRequest(formData: FormData) {
       mode: "visual",
       status: "pending",
       provider_spend_cap_usd: providerSpendCap,
+      ...(reelVoiceId ? { reel_voice_id: reelVoiceId } : {}),
       script_json: form.draft,
     });
 

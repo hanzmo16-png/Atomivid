@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Field, INPUT_CLASS } from "@/components/ui/Field";
 import { AvatarFields } from "./AvatarFields";
+import { ReelVoicePicker } from "./ReelVoicePicker";
 import { SubmitButton } from "./SubmitButton";
 import { avatarDurationSelectorApplies } from "./validation";
 import { availableVideoDurations } from "@/lib/video/avatar/duration";
@@ -44,6 +45,7 @@ export function NewVideoForm({
   initialMode = "visual",
   blockAvatarReconciliation = false,
   maxAvatarDurationSeconds = 45,
+  reelVoiceSelectionEnabled = false,
 }: {
   action: (formData: FormData) => void;
   avatarModeEnabled: boolean;
@@ -52,6 +54,7 @@ export function NewVideoForm({
   initialMode?: VideoMode;
   blockAvatarReconciliation?: boolean;
   maxAvatarDurationSeconds?: number;
+  reelVoiceSelectionEnabled?: boolean;
 }) {
   const [mode, setMode] = useState<VideoMode>(avatarModeEnabled ? initialMode : "visual");
   const [language, setLanguage] = useState<"es" | "en">("es");
@@ -209,6 +212,8 @@ export function NewVideoForm({
           <option value="en">English</option>
         </select>
       </Field>
+
+      {mode === "visual" && reelVoiceSelectionEnabled && <ReelVoicePicker key={language} language={language} />}
 
       <Field id="style" label="Estilo / tono">
         <select id="style" name="style" required value={style} onChange={(e) => setStyle(e.target.value)} className={INPUT_CLASS}>
