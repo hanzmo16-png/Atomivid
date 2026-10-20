@@ -160,9 +160,10 @@ async function main() {
       await sql.query("update pi_capacity_snapshots set health='DOWN' where provider='openai'");
       try { assert.equal((await admit(await operation(await project(),.1))).submitted,false); }
       finally { await sql.query("update pi_capacity_snapshots set health='OK' where provider='openai'"); }
-      await sql.query("update pi_capacity_snapshots set reliability='none' where provider='openai'");
+      await assert.rejects(sql.query("update pi_capacity_snapshots set reliability='none' where provider='openai'"),/pi_capacity_green_needs_balance/);
+      await sql.query("update pi_capacity_snapshots set reliability='none',status='UNKNOWN' where provider='openai'");
       try { assert.equal((await admit(await operation(await project(),.1))).reason,"balance unverified or stale"); }
-      finally { await sql.query("update pi_capacity_snapshots set reliability='provider_api' where provider='openai'"); }
+      finally { await sql.query("update pi_capacity_snapshots set reliability='provider_api',status='GREEN' where provider='openai'"); }
     });
     await check("same-provider uncertain consumption still requires reconciliation", async () => {
       const id = await project(); await operation(id,.1,"openai","RECONCILIATION_REQUIRED");

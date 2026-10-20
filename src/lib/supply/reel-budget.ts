@@ -18,7 +18,7 @@ export class ReelBudgetExceededError extends Error {
     this.customerMessage = (reason === "reel budget exceeded"
       ? `El siguiente paso superaría el presupuesto total de este Reel${cap}. `
       : reason === "reel budget: project id noncanonical"
-        ? "No se pudo verificar la identidad presupuestaria de este Reel. "
+        ? "No se pudo verificar el presupuesto de esta solicitud. "
         : "No se pudo verificar el costo del siguiente paso de este Reel. ")
       + "No se hizo ninguna llamada nueva. El guion, los archivos y los gastos anteriores se conservan; contacta al soporte antes de continuar.";
   }
