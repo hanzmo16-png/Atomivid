@@ -1,5 +1,5 @@
 /**
- * Concurrencia/respuesta perdida (defecto D-RACE abierto: este archivo queda ROJO a propósito hasta corregir la causa raíz en ledger.ts) contra Postgres REAL con los tipos de la migración 0023
+ * Concurrencia/respuesta perdida (D-RACE corregido en T-20261019-1602; antes este archivo quedaba ROJO) contra Postgres REAL con los tipos de la migración 0023
  * (reserved_usd/committed_usd numeric(12,4)). USD 0: todos los proveedores son mocks.
  * Ejecutar: HARNESS_PG_URL=postgres://postgres@/x?host=/tmp&port=55432 node --import tsx --test scripts/harness/ledger-precision.pg.test.ts
  * Sin HARNESS_PG_URL el test FALLA (no se salta en silencio).
@@ -98,9 +98,9 @@ for (const n of [2, 5, 10]) {
       const ok = results.filter((r) => r.status === "fulfilled").length;
       const losers = results.filter((r) => r.status === "rejected").map((r) => (r as PromiseRejectedResult).reason?.constructor?.name);
       assert.ok(ok >= 1);
-      // Los perdedores de la carrera reciben ReconciliationRequiredError ("concurrent submission detected") aunque
-      // NO hay nada que reconciliar: defecto de UX/clasificación documentado (bloquea al cliente, recuperable con reintento).
-      for (const name of losers) assert.equal(name, "ReconciliationRequiredError");
+      // Los perdedores reciben SubmissionInFlightError («en curso», subclase de ReconciliationRequiredError): no hay
+      // nada que reconciliar y la fila del ganador no se toca.
+      for (const name of losers) assert.equal(name, "SubmissionInFlightError");
       // Reintento posterior de un perdedor: reutiliza sin llamar.
       await ledgerGuardedCreateAvatar(pgLedgerStore(db), "req-cc", "heygen", "sha-cc", async () => { calls++; return {} as never; }, { verifiedCostUsd: 0.000001 });
       assert.equal(calls, 1);

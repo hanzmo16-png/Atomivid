@@ -144,22 +144,37 @@ export async function fillDirectorMaterial(a: {
   directed: DirectedReel; approvedUsd: number; spentUsd?: number;
   beatsBySegment: ResolvedBeat[][]; sceneTimings: { start: number; end: number }[];
   generate: (shot: FillShot, sceneIndex: number, maxUsd: number) => Promise<{ url: string; costUsd: number }>;
-}): Promise<{ beatsBySegment: ResolvedBeat[][]; spentUsd: number; shots: FillShot[] } | { skipped: string }> {
+  /**
+   * D-RETRY-CEILING (T-20261019-1602): true when this shot's image is ALREADY stored (paid in an earlier attempt).
+   * Stored shots cost nothing on a retry, so they never count against the ceiling, and they are generated with a
+   * 0 USD allowance: if the object vanished, the call cannot spend outside the confirmed ceiling.
+   */
+  isStored?: (shot: FillShot, sceneIndex: number) => Promise<boolean>;
+}): Promise<{ beatsBySegment: ResolvedBeat[][]; spentUsd: number; shots: FillShot[]; reusedShots: string[] } | { skipped: string }> {
   const plan = fillPlan(a.directed);
   if (!plan.ok) return { skipped: plan.reason };
-  const remaining = Math.max(0, Math.round((a.approvedUsd - (a.spentUsd ?? 0)) * 10000) / 10000);
-  if (plan.totalUsd > remaining + 1e-9) throw new DirectorMaterialBudgetError(plan.totalUsd, remaining);
   const segmentIds = (a.directed.input?.segments ?? []).map(s => s.id);
-  const filled: { shot: FillShot; url: string }[] = [];
-  let spent = 0;
-  for (const shot of plan.shots) {
+  const indexed = plan.shots.map(shot => {
     const sceneIndex = segmentIds.indexOf(shot.segmentId);
     if (sceneIndex < 0) throw new Error(`plano ${shot.shotId} sin escena`);
-    const r = await a.generate(shot, sceneIndex, shot.estimatedMaxUsd);
+    return { shot, sceneIndex };
+  });
+  const stored = new Set<string>();
+  if (a.isStored) for (const { shot, sceneIndex } of indexed) if (await a.isStored(shot, sceneIndex)) stored.add(shot.shotId);
+  const newUsd = Math.round(indexed.filter(x => !stored.has(x.shot.shotId)).reduce((t, x) => t + x.shot.estimatedMaxUsd, 0) * 10000) / 10000;
+  const remaining = Math.max(0, Math.round((a.approvedUsd - (a.spentUsd ?? 0)) * 10000) / 10000);
+  // Only NEW material is compared with the confirmed ceiling; the ceiling never grows from a new estimate.
+  if (newUsd > remaining + 1e-9) throw new DirectorMaterialBudgetError(newUsd, remaining);
+  const filled: { shot: FillShot; url: string }[] = [];
+  let spent = 0;
+  for (const { shot, sceneIndex } of indexed) {
+    const reuse = stored.has(shot.shotId);
+    const r = await a.generate(shot, sceneIndex, reuse ? 0 : shot.estimatedMaxUsd);
+    if (reuse && r.costUsd > 0) throw new Error(`plano ${shot.shotId}: material guardado no reutilizado (cobro inesperado USD ${r.costUsd})`);
     spent += r.costUsd;
     filled.push({ shot, url: r.url });
   }
-  return { beatsBySegment: fillBeats(a.beatsBySegment, a.sceneTimings, segmentIds, filled), spentUsd: Math.round(spent * 10000) / 10000, shots: plan.shots };
+  return { beatsBySegment: fillBeats(a.beatsBySegment, a.sceneTimings, segmentIds, filled), spentUsd: Math.round(spent * 10000) / 10000, shots: plan.shots, reusedShots: [...stored] };
 }
 
 /** Customer-facing stop when the approved ceiling is not enough: before any new paid call, with the delta. */

@@ -30,6 +30,9 @@ async function main() {
   if (row.error || !row.data) throw new Error("REQUEST_READ_FAILED");
   if (row.data.status !== "processing") { console.log("SKIPPED not processing"); return; }
   if (process.env.RENDER_ATTEMPT && Number(process.env.RENDER_ATTEMPT) !== row.data.render_attempts) { console.log("SKIPPED other attempt"); return; }
+  // Igual que worker-cli.ts: el paso `if: failure()` de render.yml (mark-render-failed.ts) sólo cierra el intento que este
+  // archivo nombra; sin él la red de seguridad no hace nada tras un SIGKILL.
+  fs.writeFileSync(".render-attempt.json", JSON.stringify({ requestId, attempt: row.data.render_attempts }), { mode: 0o600 });
   const { runRenderJob } = await import("@/lib/video/run-job");
   await runRenderJob(requestId, row.data.render_attempts as number);
   console.log("RAN");

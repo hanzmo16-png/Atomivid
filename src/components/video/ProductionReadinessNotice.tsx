@@ -10,17 +10,19 @@ import { ChecklistView, type CheckView } from "./ProductionChecklist";
  * Read-only: GET /api/generate/[id]/readiness never reserves, generates or calls a generative provider.
  * The start endpoints run the same check again on the server; this notice never authorises spend.
  */
-export function ProductionReadinessNotice({ requestId }: { requestId: string }) {
+export function ProductionReadinessNotice({ requestId, materialUsd = 0 }: { requestId: string; materialUsd?: number }) {
   const [check, setCheck] = useState<CheckView | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let alive = true;
-    fetch(`/api/generate/${requestId}/readiness`, { cache: "no-store" })
+    // F40: re-checked when the Director material ceiling changes, so the verdict covers what «Generar» will reserve.
+    const q = materialUsd > 0 ? `?materialUsd=${encodeURIComponent(String(materialUsd))}` : "";
+    const t = setTimeout(() => { if (alive) { setCheck(null); setFailed(false); } return fetch(`/api/generate/${requestId}/readiness${q}`, { cache: "no-store" })
       .then(async (res) => (await res.json()) as { check?: CheckView })
       .then((body) => { if (alive) { if (body.check) setCheck(body.check); else setFailed(true); } })
-      .catch(() => { if (alive) setFailed(true); });
-    return () => { alive = false; };
-  }, [requestId]);
+      .catch(() => { if (alive) setFailed(true); }); }, materialUsd > 0 ? 400 : 0);
+    return () => { alive = false; clearTimeout(t); };
+  }, [requestId, materialUsd]);
 
   if (failed) {
     return (

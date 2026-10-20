@@ -17,5 +17,8 @@ export function canReviewReelRetry(row: ReviewableReelRow, nowMs: number): boole
   if (row.mode !== "visual" || !hasRenderableScript(row.script_json)) return false;
   if (row.status !== "failed" && !isRenderStale(row, nowMs)) return false;
   if (row.status === "failed" && row.error_message && describeStoredFailure(row.error_message).action === "support") return false;
+  // F40 caos: con un cobro incierto pendiente de verificación (o una llamada en curso) no se ofrece reintentar: el
+  // servidor no reenviaría y el usuario quemaría un intento sin resultado.
+  if (row.error_message && /verificación de cobro pendiente|llamada de pago en curso/.test(row.error_message)) return false;
   return evaluateRenderStart(row, nowMs).allowed;
 }

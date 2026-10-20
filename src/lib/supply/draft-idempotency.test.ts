@@ -100,13 +100,14 @@ test("VERDE: dos pestañas simultáneas del mismo borrador → 1 fila, 1 voz pag
   const a = tab(storage), b = tab(storage);
   assert.equal(a.key(), b.key(), "las pestañas comparten la llave del borrador");
   const [ra, rb] = await Promise.all([s.submit(avatarForm(a.key())), s.submit(avatarForm(b.key()))]);
-  // Both voices in flight at the same instant: the ledger sees the same paid operation twice and, by its audited
-  // conservative rule (T32), never calls again — ONE paid call. Neither tab can confirm it, so both are told to
-  // retry and no row exists yet (honest, not hidden)...
+  // Both voices in flight at the same instant. Before D-RACE (T-20261019-1602) the loser rewrote the winner's
+  // SUBMITTED row to RECONCILIATION_REQUIRED, so even the winner lost its paid result and both tabs were told to
+  // retry. Now the loser never touches the winner's row: ONE paid call, the winner creates the row, the loser
+  // (in flight) is told to retry and nothing is hidden.
   assert.equal(s.voiceCalls, 1);
-  assert.deepEqual([ra, rb], ["/dashboard/new?error=voz", "/dashboard/new?error=voz"]);
-  assert.equal(s.rows.size, 0);
-  // ...and the retry reuses the stored audio of that one call: 1 row, still 1 paid call.
+  assert.deepEqual([ra, rb].map((r) => r.replace(/draft=.*/, "draft=")).sort(), ["/dashboard/new?error=voz", "/dashboard?created=1&draft="]);
+  assert.equal(s.rows.size, 1);
+  // The loser's retry reuses the same row and the stored audio of that one call: still 1 row, 1 paid call.
   assert.match(await s.submit(avatarForm(b.key())), /^\/dashboard\?created=1&draft=/);
   assert.equal(s.rows.size, 1);
   assert.equal(s.voiceCalls, 1);
