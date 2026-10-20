@@ -5,6 +5,8 @@ HERE=$(cd "$(dirname "$0")" && pwd); REPO=$(git -C "$HERE" rev-parse --show-topl
 . "$E2E_HOME/paths.env"; NODE_DIR="$E2E_HOME/bin/node-v22.12.0-linux-x64"; [ -x "$NODE_DIR/bin/node" ] && export PATH="$NODE_DIR/bin:$PATH"
 set -a; . "$E2E_HOME/secrets/jwt.env"; set +a
 L="$E2E_HOME/logs"; for p in "next dev -p 3100" worker-receiver.mjs mock-anthropic.mjs mock-openai.mjs gateway.mjs "postgrest $E2E_HOME"; do pkill -f "$p" || true; done; sleep 1
+# Puertos fijos: si otro checkout (otro $E2E_HOME) aún los ocupa, abortar en vez de hablar con su PostgREST (JWT distinto).
+for port in 3001 3100 54321 54400 54500 54600; do ss -ltn "sport = :$port" | grep -q LISTEN && { echo "Puerto $port ocupado por otro proceso (¿otro checkout del arnés?): detenlo antes"; exit 1; }; done
 "$PG_BIN/pg_ctl" -D "$E2E_HOME/pg" status >/dev/null 2>&1 || "$PG_BIN/pg_ctl" -D "$E2E_HOME/pg" -o "-p $PGPORT -k $E2E_HOME/run -c listen_addresses=localhost" -l "$L/pg.log" -w start >/dev/null
 nohup "$E2E_HOME/bin/postgrest" "$E2E_HOME/secrets/pgrst.conf" > "$L/postgrest.log" 2>&1 &
 GW_STORAGE_DIR="$E2E_HOME/storage" GW_LOG="$L/gateway.jsonl" GW_USERS="$HERE/users.json" nohup node "$HERE/gateway.mjs" > "$L/gateway.log" 2>&1 &

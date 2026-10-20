@@ -14,7 +14,14 @@ http.createServer((req, res) => {
     const out = fs.openSync(path.join(LOGDIR, `worker-${tag}.log`), "a");
     const script = env.WORKER_SCRIPT || "scripts/render-worker.ts";
     const ch = spawn(process.execPath, ["--import", "tsx", "--require", path.join(path.dirname(new URL(import.meta.url).pathname), "worker-preload.cjs"), script], { cwd: ROOT, env, stdio: ["ignore", out, out] });
-    ch.on("exit", (code) => fs.appendFileSync(REG, JSON.stringify({ at: new Date().toISOString(), kind: "worker_exit", tag, code }) + "\n"));
+    ch.on("exit", (code, signal) => {
+      fs.appendFileSync(REG, JSON.stringify({ at: new Date().toISOString(), kind: "worker_exit", tag, code, signal }) + "\n");
+      // Fidelidad con render.yml: el paso «Marcar como fallido si el render no terminó» corre con `if: failure()` tras
+      // cualquier salida ≠ 0 (incluido SIGKILL del paso). Mismo script productivo, mismo REQUEST_ID/RENDER_ATTEMPT.
+      if (code === 0 || env.WORKER_SCRIPT_NO_FAILURE_STEP === "1") return;
+      const mf = spawn(process.execPath, ["--import", "tsx", "--require", path.join(path.dirname(new URL(import.meta.url).pathname), "worker-preload.cjs"), "scripts/mark-render-failed.ts"], { cwd: ROOT, env, stdio: ["ignore", out, out] });
+      mf.on("exit", (c2) => fs.appendFileSync(REG, JSON.stringify({ at: new Date().toISOString(), kind: "failure_step_exit", tag, code: c2 }) + "\n"));
+    });
     res.writeHead(202); res.end("accepted");
   });
 }).listen(54400, "127.0.0.1", () => console.log("worker receiver 54400"));
