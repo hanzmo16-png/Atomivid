@@ -3,6 +3,56 @@ import assert from "node:assert/strict";
 import { FORBIDDEN_SCORING_TERMS, metadataMatch, sceneVisualIntent } from "./scene-visual-intent";
 import { buildFallbackQuery, createFootageSelectionState, selectFootageForScene } from "./footage-select";
 import { fixtureFootageProvider, SAMPLE_SCENES } from "./footage-intent.fixture";
+import type { FootageCandidate } from "@/lib/providers/types";
+
+const auditClip = (sourceId: string, description: string): FootageCandidate => ({
+  sourceId, description, url: `https://fixture.test/${sourceId}.mp4`, mediaType: "video",
+  mimeType: "video/mp4", extension: "mp4", width: 1080, height: 1920, durationSeconds: 6,
+});
+
+test("regresión: la narración no añade un veto emocional a una apertura válida", async () => {
+  const provider = fixtureFootageProvider({ "phone recording": [auditClip("hook", "tired person recording phone")] });
+  const out = await selectFootageForScene({ provider, concepts: ["phone recording"],
+    narration: "¿Te falta confianza al grabar?", isOpening: true,
+    minimumDurationSeconds: 3, state: createFootageSelectionState() });
+  assert.equal(out.sourceId, "hook");
+  assert.equal(out.openingRelevance?.accepted, true);
+});
+
+test("regresión: evolución natural y hábitos animales no son superación o gimnasio", () => {
+  assert.equal(sceneVisualIntent("La evolución de las aves transformó sus alas.", ["bird evolution wings"]), null);
+  assert.equal(sceneVisualIntent("Los hábitos nocturnos de los búhos.", ["owl hunting night"]), null);
+  assert.equal(sceneVisualIntent("La luz entra por la ventana.", ["window sunlight"]), null);
+});
+
+test("regresión: un resultado sin relación no evita buscar una alternativa pertinente", async () => {
+  const provider = fixtureFootageProvider({
+    "confident professional walking city": [auditClip("fog", "foggy landscape aerial")],
+    "business walking": [auditClip("fit", "confident person in suit walking office")],
+  });
+  const out = await selectFootageForScene({ provider, concepts: ["new life"], narration: "Camina con confianza",
+    minimumDurationSeconds: 3, state: createFootageSelectionState() });
+  assert.equal(out.sourceId, "fit");
+});
+
+test("regresión: el respaldo contradictorio no se anuncia como coincidencia", async () => {
+  const provider = fixtureFootageProvider({});
+  provider.searchImageCandidates = async () => [{ ...auditClip("sad", "sad tired person in suit walking office"), mediaType: "image", mimeType: "image/jpeg", extension: "jpg" }];
+  const out = await selectFootageForScene({ provider, concepts: ["new life"], narration: "Camina con confianza",
+    minimumDurationSeconds: 3, state: createFootageSelectionState() });
+  assert.equal(out.metadataMatch, "none");
+});
+
+test("regresión: una foto contradictoria no gana a una foto coherente por resolución", async () => {
+  const provider = fixtureFootageProvider({});
+  provider.searchImageCandidates = async () => [
+    { ...auditClip("sad", "sad confident professional in suit walking city upright"), mediaType: "image", mimeType: "image/jpeg", extension: "jpg" },
+    { ...auditClip("fit", "person walking city"), mediaType: "image", width: 720, height: 1280, mimeType: "image/jpeg", extension: "jpg" },
+  ];
+  const out = await selectFootageForScene({ provider, concepts: ["new life"], narration: "Camina con confianza",
+    minimumDurationSeconds: 3, state: createFootageSelectionState() });
+  assert.equal(out.sourceId, "fit");
+});
 
 const pick = async (scene: (typeof SAMPLE_SCENES)[number], withNarration: boolean) => {
   const provider = fixtureFootageProvider();

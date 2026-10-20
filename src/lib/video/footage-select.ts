@@ -96,7 +96,9 @@ async function collectScored(
       if (openingRelevance) result.reasons.push(openingRelevance.reason);
       const match = metadataMatch(candidate.description, intent, query);
       const technicalScore = result.score;
-      result.score += match.points;
+      // Preserve the established opening gate AND ranking. Narrative heuristics
+      // must not veto an otherwise valid hook or change its technical threshold.
+      if (!opening) result.score += match.points;
       result.reasons.push(match.reason);
       scored.push({ ...result, tier, query, openingRelevance, facets: match.matchedFacets, described: !!candidate.description?.trim(), contradicted: match.contradicted.length > 0, technicalScore });
     }
@@ -106,7 +108,8 @@ async function collectScored(
 }
 
 /** Con intención, un clip cuyos metadatos CONTRADICEN la escena no es aceptable en video (se reformula). */
-const acceptable = (c: TieredScoredCandidate) => c.score >= MIN_ACCEPTABLE_SCORE && !c.contradicted;
+const acceptable = (c: TieredScoredCandidate, intent: SceneVisualIntent | null) =>
+  c.score >= MIN_ACCEPTABLE_SCORE && !c.contradicted && (!intent || c.facets.length >= 2);
 
 function rankTiered(scored: TieredScoredCandidate[]): TieredScoredCandidate[] {
   return [...scored].sort((a, b) =>
@@ -139,7 +142,7 @@ function commit(
     candidatesConsidered,
     intentId: intent?.id ?? null,
     metadataFacets: best.facets,
-    metadataMatch: !best.described ? "unchecked" : (intent ? best.facets.length > 0 : best.reasons.some((r) => /palabras del concepto en metadatos: (?!ninguna)/.test(r))) ? "metadata" : "none",
+    metadataMatch: !best.described ? "unchecked" : !best.contradicted && (intent ? best.facets.length >= 2 : best.reasons.some((r) => /palabras del concepto en metadatos: (?!ninguna)/.test(r))) ? "metadata" : "none",
     ...(best.openingRelevance ? { openingRelevance: best.openingRelevance } : {}),
   };
 }
@@ -163,7 +166,7 @@ export async function selectFootageForScene({
   /** Texto narrado de la escena: de él sale la intención observable (acción, entorno, postura, vestuario, emoción). */
   narration?: string;
 }): Promise<FootageSelectionOutcome> {
-  const intent = sceneVisualIntent(narration, concepts);
+  const intent = isOpening ? null : sceneVisualIntent(narration, concepts);
   // Búsquedas ACOTADAS: como máximo 3 consultas por tipo de medio (+1 reformulación de video), igual que antes.
   // Con intención (y fuera de la apertura, que tiene su propia regla de pertinencia), la consulta enriquecida va primero.
   const baseConcepts = concepts.length > 0 ? concepts : ["b-roll motivational"];
@@ -207,8 +210,9 @@ export async function selectFootageForScene({
       intent,
     );
     const ranked = rankTiered(isOpening ? scored.filter(c => c.score >= MIN_ACCEPTABLE_SCORE) : scored);
-    const best = ranked.find(acceptable);
-    lastResortVideo = ranked.find((c) => c.technicalScore >= MIN_ACCEPTABLE_SCORE);
+    const best = ranked.find((c) => acceptable(c, intent));
+    lastResortVideo = ranked.find((c) => c.technicalScore >= MIN_ACCEPTABLE_SCORE && !c.contradicted)
+      ?? ranked.find((c) => c.technicalScore >= MIN_ACCEPTABLE_SCORE);
     if (best) {
       return commit(best, state, false, totalCandidates, intent);
     }
@@ -224,9 +228,12 @@ export async function selectFootageForScene({
       intent,
     );
     const fallbackRanked = rankTiered(isOpening ? fallback.scored.filter(c => c.score >= MIN_ACCEPTABLE_SCORE) : fallback.scored);
-    const fallbackBest = fallbackRanked.find(acceptable);
-    const fallbackResort = fallbackRanked.find((c) => c.technicalScore >= MIN_ACCEPTABLE_SCORE);
-    if (fallbackResort && (!lastResortVideo || fallbackResort.score > lastResortVideo.score)) lastResortVideo = fallbackResort;
+    const fallbackBest = fallbackRanked.find((c) => acceptable(c, intent));
+    const fallbackResort = fallbackRanked.find((c) => c.technicalScore >= MIN_ACCEPTABLE_SCORE && !c.contradicted)
+      ?? fallbackRanked.find((c) => c.technicalScore >= MIN_ACCEPTABLE_SCORE);
+    if (fallbackResort && (!lastResortVideo ||
+      (lastResortVideo.contradicted && !fallbackResort.contradicted) ||
+      (lastResortVideo.contradicted === fallbackResort.contradicted && fallbackResort.score > lastResortVideo.score))) lastResortVideo = fallbackResort;
     if (fallbackBest) {
       console.warn(
         `[atomivid:footage] fallback de consulta: "${effectiveConcepts[0]}" → "${fallbackQuery}" ` +
@@ -237,6 +244,7 @@ export async function selectFootageForScene({
   }
 
   // 3) Último recurso: imagen, con los conceptos originales.
+  let lastResortImage: TieredScoredCandidate | undefined;
   if (searchImage) {
     const { scored, totalCandidates } = await collectScored(
       effectiveConcepts,
@@ -247,7 +255,8 @@ export async function selectFootageForScene({
       intent,
     );
     const ranked = rankTiered(isOpening ? scored.filter(c => c.score >= MIN_ACCEPTABLE_SCORE) : scored);
-    const best = ranked[0];
+    const best = isOpening || !intent ? ranked[0] : ranked.find((c) => acceptable(c, intent));
+    lastResortImage = ranked.find((c) => !c.contradicted) ?? ranked[0];
     if (best && (!isOpening || best.score >= MIN_ACCEPTABLE_SCORE)) {
       console.warn(
         `[atomivid:footage] sin video aprovechable para [${effectiveConcepts.join(" | ")}] — se usa una imagen`,
@@ -256,11 +265,13 @@ export async function selectFootageForScene({
     }
   }
 
-  // Sólo quedaban videos técnicamente válidos que la pertinencia por metadatos descartó, y ninguna imagen: el selector
-  // anterior los habría aceptado, así que se usa el mejor (metadataMatch=none) en vez de fallar. Sin revisión manual.
-  if (!isOpening && lastResortVideo) {
-    console.warn(`[atomivid:footage] sólo había video contradictorio en metadatos para [${effectiveConcepts.join(" | ")}] — se usa el mejor técnico`);
-    return commit({ ...lastResortVideo, facets: [] }, state, true, 0, intent);
+  // Exhaust the bounded search before a compatibility fallback. Prefer an
+  // unverified/weak match to an explicit contradiction, regardless of media type.
+  const lastResort = [lastResortVideo, lastResortImage].find((c) => c && !c.contradicted)
+    ?? lastResortVideo ?? lastResortImage;
+  if (!isOpening && lastResort) {
+    console.warn(`[atomivid:footage] sin coincidencia suficiente en metadatos para [${effectiveConcepts.join(" | ")}] — respaldo técnico sin pertinencia comprobada`);
+    return commit({ ...lastResort, facets: [] }, state, true, 0, intent);
   }
   if (isOpening) throw new OpeningFootageUnavailableError();
   throw new FootageSelectionError(effectiveConcepts);

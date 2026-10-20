@@ -60,7 +60,7 @@ const RULES: IntentRule[] = [
   {
     id: "personal_transformation",
     label: "transformación personal: avanzar hacia adelante, amanecer/camino, gesto decidido",
-    triggers: /\b(transforma\w*|cambi(a|o|ar|aste) tu vida|nueva versi[oó]n|renac\w*|empez(ar|ó) de nuevo|nuevo comienzo|evoluci\w*|crec(er|imiento) personal|transform\w*|new beginning|fresh start|reinvent\w*|become who)\b/,
+    triggers: /\b(transformacion personal|tu transformacion|transformar tu vida|cambi(a|o|ar|aste) tu vida|nueva versi[oó]n|renac\w*|empez(ar|ó) de nuevo|nuevo comienzo|evolucion personal|crec(er|imiento) personal|personal transformation|self transformation|new beginning|fresh start|reinvent\w*|become who)\b/,
     query: "person walking forward sunrise",
     fallbackQuery: "walking forward",
     facets: {
@@ -74,7 +74,7 @@ const RULES: IntentRule[] = [
   {
     id: "discipline_training",
     label: "disciplina: entrenamiento o esfuerzo físico repetido, entorno de gimnasio/exterior",
-    triggers: /\b(disciplin\w*|entren\w*|constancia|esfuerzo diario|h[aá]bito\w*|workout|training|consisten\w*)\b/,
+    triggers: /\b(disciplin\w*|entren\w*|constancia|esfuerzo diario|tus habitos|habitos personales|workout|training|consisten\w*)\b/,
     query: "person training workout gym",
     fallbackQuery: "workout training",
     facets: {
@@ -113,7 +113,7 @@ const RULES: IntentRule[] = [
   {
     id: "success_celebration",
     label: "logro: gesto de celebración, brazos en alto, cumbre o meta",
-    triggers: /\b([eé]xito\w*|logr\w*|ganar|victoria|celebra\w*|success\w*|achiev\w*|win\w*|victory)\b/,
+    triggers: /\b([eé]xito\w*|logr\w*|ganar|victoria|celebra\w*|success\w*|achiev\w*|win|wins|winning|victory)\b/,
     query: "person celebrating success arms raised",
     fallbackQuery: "celebrating success",
     facets: {
@@ -140,13 +140,13 @@ const RULES: IntentRule[] = [
 
 /** Intención observable de la escena según su narración (y sus conceptos); null si no hay una regla clara. */
 export function sceneVisualIntent(narration: string | undefined, concepts: readonly string[] = []): SceneVisualIntent | null {
-  const text = fold(`${narration ?? ""} ${concepts.join(" ")}`);
+  const text = fold(narration?.trim() || concepts.join(" "));
   if (!text.trim()) return null;
   // Primera regla que coincide (el orden refleja especificidad: confianza profesional antes que transformación).
   const rule = RULES.find((r) => r.triggers.test(text));
   if (!rule) return null;
-  const { triggers: _t, ...intent } = rule;
-  return intent;
+  const { id, label, query, fallbackQuery, facets, contradicts } = rule;
+  return { id, label, query, fallbackQuery, facets, contradicts };
 }
 
 const STOP = new Set(["a", "an", "the", "of", "and", "or", "in", "on", "at", "to", "with", "for", "from", "by", "b", "roll", "stock", "video"]);
