@@ -36,3 +36,10 @@ Subir el dossier final a Drive Entregas; que un humano revise antes de cualquier
 - Node 22.23.3: tsc 0, eslint --quiet 0, test:spend 293/293, test:unit 1977/1977. Los 6 tests históricos (recovery-flow, attempt-state, avatar/recovery: 14 casos en esos 3 archivos) pasan también con NODE_ENV=production VERCEL=1 SUPPLY_GUARD_ENFORCED=true.
 - Nota: test:unit completo con ese entorno hostil da 74 fallos en otros archivos (selección de proveedores fixture vs producción); es comportamiento esperado de producción, no se tocó.
 - Evidencia: /workspace/tmp/f40-evidence/<HEAD>/ (en la caja del agente).
+
+## v4 (2026-10-19 ~21:45 America/Cancun) — F3, arnés if: failure(), F2 en BD nueva
+- F3 (director-fire-e2e.cjs, f40v3 sobre 3b493f0 + cambios de arnés SIN COMMIT): 83 PASS · 2 FAIL. short30 27/27, long60 27/27, uneven90 27/27, imgx30 1 PASS/2 FAIL (503 tope de gasto OpenAI + 0 llamadas de relleno, consecuencia). Egreso: 0 salidas reales (3 intentos bloqueados).
+- Diagnóstico del 503 («2.00 USD necesarios»): configuración/seed, NO defecto. seed-config.sql fija openai daily_cap 5 / monthly 20 USD; la BD de f40v3 acumulaba 4.28 USD (gasto mock) de los escenarios previos en la misma BD → 4.28+2.00 > 5 ⇒ readiness.ts marca correctamente «provider funded spend ceiling». En BD nueva (gasto 0) F2 D2/D3 pasan.
+- Arnés (commit 4a08238): worker-receiver.mjs emula el paso `if: failure()` de render.yml (mark-render-failed.ts tras salida ≠0/SIGKILL); worker-images.ts escribe .render-attempt.json como worker-cli.ts; start.sh aborta si los puertos fijos están ocupados por otro checkout; .render-attempt.json en .gitignore. Revisado: correcto, se conserva.
+- F2 (reel-images-e2e.cjs) en 4a08238, BD nueva: 30 PASS · 0 FAIL (exit 0). RED: 26 PASS · 4 FAIL (exit 1, detectado: D1 tope de material).
+- Evidencia: /workspace/tmp/f40-evidence/3b493f0/f3-f40v3/, /workspace/tmp/f40-evidence/4a08238/f2/.
