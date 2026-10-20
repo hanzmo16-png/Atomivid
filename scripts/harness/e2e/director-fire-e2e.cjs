@@ -54,6 +54,8 @@ const CASES = [
   { id: "long60", tag: "[long]", dur: 60, label: "párrafos largos", usd: 0 },
   { id: "uneven90", tag: "[uneven]", dur: 90, label: "escenas desiguales", usd: 0 },
   { id: "imgx30", tag: "[imgx]", dur: 30, label: "material insuficiente → relleno IA con tope aprobado", usd: 2 },
+  // Escenario explícito del tope: base de gasto controlada de 4.28 USD openai hoy (como el 503 observado en v4) + 2 USD pedidos > 5 USD/día.
+  { id: "capx30", tag: "[imgx]", dur: 30, label: "tope diario openai excedido → error humano, 0 llamadas", usd: 2, capBaselineUsd: 4.28 },
 ].filter((c) => !process.env.FIRE_CASES || process.env.FIRE_CASES.split(",").includes(c.id));
 async function createReelD(p, topic, tag, dur) {
   await p.goto(`${BASE}/dashboard/new`); await skipTour(p);
@@ -69,11 +71,39 @@ async function createReelD(p, topic, tag, dur) {
   return id;
 }
 const summary = [];
+// AISLAMIENTO ENTRE ESCENARIOS (defecto v4: el gasto mock se acumulaba en la misma BD hasta el tope de 5 USD/día del seed).
+// Antes de cada escenario el arnés fija una base de gasto controlada en la BD LOCAL de mocks: archiva (jsonl en E2E_OUT) y
+// borra las filas del ledger de escenarios anteriores (pi_paid_operations, append-only ⇒ session_replication_role=replica sólo
+// en esta transacción local) y sus reservas de trabajo; luego siembra la base pedida (0 salvo capx30) y exige que
+// pi_supply_spend la refleje exactamente. El tope del producto (seed-config.sql) NO se toca. Nunca en producción.
+async function resetSpendBaseline(c) {
+  if (!/localhost|127\.0\.0\.1/.test(process.env.HARNESS_PG_URL ?? "")) throw new Error("reset de gasto sólo en PG local");
+  await db.query("begin");
+  try {
+    const ops = (await db.query("select * from public.pi_paid_operations")).rows, res = (await db.query("select * from public.pi_supply_job_reservations")).rows;
+    await db.query("set local session_replication_role = replica");
+    await db.query("delete from public.pi_paid_operations"); await db.query("delete from public.pi_supply_job_reservations");
+    if (c.capBaselineUsd) await db.query("insert into public.pi_paid_operations(idempotency_key,project_id,shot_id,provider,model,method,attempt_kind,reserved_usd,committed_usd,status,provider_job_id) values ($1,'harness-cap-baseline','baseline','openai','gpt-image-1','generate_image','initial',$2,$2,'COMMITTED','sync:harness')", [`harness-baseline-${c.id}`, c.capBaselineUsd]);
+    await db.query("commit");
+    const sp = (await db.query("select public.pi_supply_spend('openai','1970-01-01') o, public.pi_supply_spend(null,'1970-01-01') g")).rows[0];
+    fs.appendFileSync(path.join(OUT, "fire-harness-spend-reset.jsonl"), JSON.stringify({ before: c.id, archivedOps: ops, archivedReservations: res, baseline: sp }) + "\n");
+    check(`[${c.id}] arnés: base de gasto controlada openai=${c.capBaselineUsd ?? 0} global=${c.capBaselineUsd ?? 0}`, Number(sp.o) === (c.capBaselineUsd ?? 0) && Number(sp.g) === (c.capBaselineUsd ?? 0), sp);
+  } catch (e) { await db.query("rollback").catch(() => {}); throw e; }
+}
 (async () => {
   db = new Client({ connectionString: process.env.HARNESS_PG_URL }); await db.connect();
   browser = await chromium.launch({ executablePath: process.env.E2E_CHROME || undefined });
   const run = Date.now(); const S = await session(OWNER, "F3-fire"); setWorkerOverride(WORKER_IMG);
   for (const c of CASES) {
+    await resetSpendBaseline(c);
+    if (c.capBaselineUsd) { // caso de tope: la confirmación debe rechazarse con texto humano, sin llamadas ni operaciones openai
+      const id = await createReelD(S.p, `F3 fuego ${c.label} ${c.tag} ${run}`, c.id, c.dur);
+      const calls0 = OPENAI_LOG().length; const cf = await confirmWithMaterial(S.p, c.usd); await sleep(5000);
+      const v = await row(id); const calls = OPENAI_LOG().length - calls0; const ops = await paidOps(id); let err = null; try { err = JSON.parse(cf.body).error; } catch {}
+      check(`[${c.id}] tope excedido ⇒ 503 con error humano (sin HTTP/rutas/op_), producción no iniciada`, cf.status === 503 && /No se inició la producción ni se generó ningún cargo/.test(err ?? "") && !/HTTP|\/api\/|op_|\b5\d\d\b/.test(err ?? "") && !["processing", "completed"].includes(v.status), { cf, status: v.status });
+      check(`[${c.id}] tope excedido ⇒ 0 llamadas al proveedor de imágenes y 0 operaciones openai`, calls === 0 && ops.every((o) => o.provider !== "openai"), { calls, ops });
+      await shot(S.p, `${c.id}-tope`); summary.push({ case: c, id, status: v.status, cf, imageCalls: calls, ledger: ops }); continue;
+    }
     const id = await createReelD(S.p, `F3 fuego ${c.label} ${c.tag} ${run}`, c.id, c.dur);
     const calls0 = OPENAI_LOG().length; const cf = await confirmWithMaterial(S.p, c.usd);
     const v = await waitTerminal(id, 20 * 60000); const calls = OPENAI_LOG().length - calls0; const ops = await paidOps(id);

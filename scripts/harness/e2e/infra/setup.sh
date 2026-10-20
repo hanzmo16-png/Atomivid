@@ -76,7 +76,7 @@ if [ ! -f "$PGDATA/PG_VERSION" ]; then
   # Fallos conocidos y aceptados (no afectan al Reel): pg_net no existe en PG local; podcast image slot (json) — ver cierre.
   KNOWN="20261011020000_pilot_scheduler.sql 20261014183400_finished_podcast_image_slot.sql"
   for f in $(ls "$REPO"/supabase/migrations/*.sql | sort); do
-    b=$(basename "$f"); [ "$b" \> "0019_long_form_production_plan.sql" ] && [ ! -f "$E2E_HOME/run/0023.done" ] && { $PSQL -d atomivid -f "$E2E_HOME/run/0023.sql"; touch "$E2E_HOME/run/0023.done"; }
+    b=$(basename "$f"); [ "$b" \> "0019_long_form_production_plan.sql" ] && [ ! -f "$PGDATA/.0023.done" ] && { $PSQL -d atomivid -f "$E2E_HOME/run/0023.sql"; touch "$PGDATA/.0023.done"; }
     if ! $PSQL -d atomivid -f "$f" > "$E2E_HOME/logs/mig-$b.log" 2>&1; then
       case " $KNOWN " in *" $b "*) echo "AVISO migración conocida no aplicable en local: $b";; *) echo "FALLO migración $b"; cat "$E2E_HOME/logs/mig-$b.log"; exit 1;; esac
     fi
