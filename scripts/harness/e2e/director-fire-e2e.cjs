@@ -46,7 +46,7 @@ const APPROVED_USD = 2, IMAGE_UNIT_USD_MAX = 0.07; // tope aprobado en la UI; co
 async function confirmWithMaterial(p, usd) {
   const inp = p.locator("#director-material-usd"); await inp.waitFor({ timeout: 30000 }); await inp.fill(String(usd));
   const [resp] = await Promise.all([p.waitForResponse((r) => /\/render$/.test(r.url()) && r.request().method() === "POST"), p.getByRole("button", { name: "Generar video final" }).click()]);
-  return { status: resp.status(), body: (await resp.text()).slice(0, 400) };
+  return { status: resp.status(), body: (await resp.text()).slice(0, 4000) };
 }
 let browser;
 const CASES = [
