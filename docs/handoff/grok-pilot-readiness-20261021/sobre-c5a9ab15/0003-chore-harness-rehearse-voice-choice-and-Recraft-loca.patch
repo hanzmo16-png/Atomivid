@@ -1,0 +1,209 @@
+From 95e2f24583cb167c2422d9ac1320b92de2d28b2b Mon Sep 17 00:00:00 2001
+From: grok-bot <grok-bot@users.noreply.github.com>
+Date: Wed, 21 Oct 2026 09:27:39 -0500
+Subject: [PATCH 3/6] chore(harness): rehearse voice choice and Recraft locally
+ (synthetic voices catalogue, fal queue/billing mocks, Marco Aurelio beats)
+
+---
+ .../e2e/infra/mock-longform-providers.mjs     | 16 ++++-
+ scripts/harness/e2e/infra/next-intercept.cjs  |  4 ++
+ .../e2e/longform-rehearsal/b-inject.ts        |  7 +-
+ .../harness/e2e/longform-rehearsal/e-run.cjs  |  4 +-
+ .../e2e/longform-rehearsal/marco-beats.json   | 68 +++++++++++++++++++
+ .../e2e/longform-rehearsal/marco-meta.json    |  1 +
+ scripts/harness/e2e/worker-longform.ts        |  3 +
+ 7 files changed, 98 insertions(+), 5 deletions(-)
+ create mode 100644 scripts/harness/e2e/longform-rehearsal/marco-beats.json
+ create mode 100644 scripts/harness/e2e/longform-rehearsal/marco-meta.json
+
+diff --git a/scripts/harness/e2e/infra/mock-longform-providers.mjs b/scripts/harness/e2e/infra/mock-longform-providers.mjs
+index 2d537c49..3b26ed56 100644
+--- a/scripts/harness/e2e/infra/mock-longform-providers.mjs
++++ b/scripts/harness/e2e/infra/mock-longform-providers.mjs
+@@ -8,7 +8,10 @@ const MEDIA = process.env.MEDIA_DIR, LOG = process.env.MOCK_LOG, PIPER = process
+ const FAULTS = process.env.FAULTS_FILE; // {"el":{"mode":"500","remaining":1}} · {"pexels":{"mode":"503"|"empty","remaining":N}}
+ const log = (o) => LOG && fs.appendFileSync(LOG, JSON.stringify({ at: new Date().toISOString(), ...o }) + "\n");
+ const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
+-let img = 0, ttsN = 0;
++let img = 0, ttsN = 0, falN = 0; const falJobs = new Map();
++// Catálogo SINTÉTICO de voces (GET /v1/voices): un clon privado con el id de «El Duro» y una voz estándar. Solo metadatos.
++const VOICES = [{ voice_id: "CeFSZuaHs4SxcBxb9nCr", name: "El Duro (simulado)", category: "cloned", is_owner: true, preview_url: null, labels: { language: "es", accent: "latin american" }, high_quality_base_model_ids: ["eleven_multilingual_v2"] },
++  { voice_id: "uYlzyj2kIZo3HfBB21vF", name: "Predeterminada (simulada)", category: "premade", is_owner: false, preview_url: null, labels: { language: "es" }, high_quality_base_model_ids: ["eleven_multilingual_v2"] }];
+ function fault(k) { if (!FAULTS) return null; try { const a = JSON.parse(fs.readFileSync(FAULTS, "utf8")); if (a[k]?.remaining > 0) { a[k].remaining--; fs.writeFileSync(FAULTS, JSON.stringify(a)); return a[k].mode; } } catch {} return null; }
+ function tts(text) {
+   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tts-")); const wav = path.join(dir, "a.wav"), mp3 = path.join(dir, "a.mp3");
+@@ -51,6 +54,17 @@ http.createServer((req, res) => { const c = []; req.on("data", (d) => c.push(d))
+       log({ kind: "tts", n: ttsN, voice: p.split("/")[4], model: b.model_id, chars: b.text.length, words: b.text.split(/\s+/).length, seconds: r.dur, sha256: sha(r.buf) });
+       return json(200, { audio_base64: r.buf.toString("base64"), alignment: r.alignment, normalized_alignment: r.alignment });
+     }
++    if (p === "/el/v1/voices") { log({ kind: "el_voices" }); return json(200, { voices: VOICES }); }
++    // fal.ai cola Recraft V4 Styles (simulada): POST → request_id; status → COMPLETED; resultado → imagen 1536x1024 + style_id.
++    if (p === "/fal/recraft/v4/style/text-to-image" && req.method === "POST") { const b = JSON.parse(Buffer.concat(c).toString() || "{}"); const id = `mockreq-${String(++falN).padStart(6, "0")}`;
++      const styleId = b.style_id || "mock-style-0001-recraft"; falJobs.set(id, { styleId, n: falN, created: !b.style_id });
++      log({ kind: "fal_submit", request_id: id, style_id: b.style_id ?? null, refs: (b.image_urls ?? []).length, image_size: b.image_size, prompt: String(b.prompt ?? "").slice(0, 160) });
++      return json(200, { request_id: id, status_url: `https://queue.fal.run/recraft/v4/requests/${id}/status`, response_url: `https://queue.fal.run/recraft/v4/requests/${id}` }); }
++    { const m = /^\/fal\/recraft\/v4\/requests\/([\w-]+)(\/status)?$/.exec(p); if (m) { const j = falJobs.get(m[1]); if (!j) return json(404, { detail: "unknown request" });
++      if (m[2]) { log({ kind: "fal_status", request_id: m[1] }); return json(200, { status: "COMPLETED" }); }
++      const f = path.basename(gen("ai", `r${j.n}`)); log({ kind: "fal_result", request_id: m[1], style_id: j.styleId, style_created: j.created, file: f });
++      return json(200, { images: [{ url: `https://v3.fal.media/files/mock/${f}`, content_type: "image/png", file_name: f }], style_id: j.styleId }); } }
++    if (p === "/falapi/v1/account/billing") { log({ kind: "fal_billing" }); return json(200, { credits: { current_balance: 25, currency: "USD" } }); }
+     if (p.startsWith("/pexels/")) { const pf = fault("pexels"); // {"pexels":{"mode":"503"|"empty","remaining":N}}
+       if (pf === "503") { log({ kind: "pexels_fault", fault: 503, path: p }); return json(503, { error: "mock temporary fault" }); }
+       if (pf === "empty") { log({ kind: "pexels_fault", fault: "empty", path: p, q: u.searchParams.get("query") }); return json(200, { page: 1, per_page: 0, total_results: 0, videos: [], photos: [] }); } }
+diff --git a/scripts/harness/e2e/infra/next-intercept.cjs b/scripts/harness/e2e/infra/next-intercept.cjs
+index 7170a8f4..8ba07e0a 100644
+--- a/scripts/harness/e2e/infra/next-intercept.cjs
++++ b/scripts/harness/e2e/infra/next-intercept.cjs
+@@ -12,6 +12,10 @@ globalThis.fetch = async function (input, init = {}) {
+     const r = await orig("http://127.0.0.1:54400/dispatch", { method: "POST", body: init.body, headers: { "content-type": "application/json" } });
+     return new Response(null, { status: r.ok ? 204 : 502 });
+   }
++  // Ensayo Long Form: catálogo de voces y saldo fal → mock local (solo metadatos; nunca síntesis ni gasto).
++  const M = process.env.MOCK_LF_URL;
++  if (M && /^https:\/\/api\.elevenlabs\.io\/v1\/voices/.test(url)) return orig(url.replace(/^https:\/\/api\.elevenlabs\.io\//, `${M}/el/`), init);
++  if (M && /^https:\/\/api\.fal\.ai\//.test(url)) return orig(url.replace(/^https:\/\/api\.fal\.ai\//, `${M}/falapi/`), init);
+   if (!["127.0.0.1", "localhost", "::1", ""].includes(host) && !url.startsWith("data:")) {
+     LOG && fs.appendFileSync(LOG, JSON.stringify({ at: new Date().toISOString(), kind: "egress_refused", host }) + "\n");
+     throw new Error(`E2E: salida no loopback rechazada (${host})`);
+diff --git a/scripts/harness/e2e/longform-rehearsal/b-inject.ts b/scripts/harness/e2e/longform-rehearsal/b-inject.ts
+index 2155abca..12b50344 100644
+--- a/scripts/harness/e2e/longform-rehearsal/b-inject.ts
++++ b/scripts/harness/e2e/longform-rehearsal/b-inject.ts
+@@ -3,15 +3,16 @@ import fs from "node:fs"; import { randomUUID } from "node:crypto";
+ import { editorialScriptHash, editorialApprovalError } from "@/lib/video/long-form/editorial";
+ import pg from "pg";
+ const map: Record<string,string> = { context: "setup", tension: "escalation", reflection: "insight" };
+-const raw = JSON.parse(fs.readFileSync("/workspace/atomivid-mission/lf/script-beats.json","utf8"));
++const raw = JSON.parse(fs.readFileSync(process.env.SCRIPT_FILE ?? "/workspace/atomivid-mission/lf/script-beats.json","utf8"));
++const meta = process.env.SCRIPT_META ? JSON.parse(fs.readFileSync(process.env.SCRIPT_META, "utf8")) : null;
+ const beats = raw.map((b: any) => ({ type: map[b.type] ?? b.type, purpose: b.purpose, narration: b.narration, claims: [], emotionalTone: "curious", visuals: [{ description: b.visual, motion: false }] }));
+-const storyPlan = { centralQuestion: "¿Por qué flotan las nubes y cuándo llueve?", openingPromise: "Seguir el viaje de una gota de agua.", firstAnswer: "El vapor invisible sube con el aire caliente.",
++const storyPlan = meta?.storyPlan ? { ...meta.storyPlan, sections: beats.map((b: any, i: number) => ({ beatIndex: i, newInformation: b.purpose, consequence: "Avanza el argumento.", tension: i % 3 === 2 ? "reflection" : "rise" })) } : { centralQuestion: "¿Por qué flotan las nubes y cuándo llueve?", openingPromise: "Seguir el viaje de una gota de agua.", firstAnswer: "El vapor invisible sube con el aire caliente.",
+   endingAnswer: "Flota repartida en gotitas; llueve cuando se unen o crecen como hielo.", sections: beats.map((b: any, i: number) => ({ beatIndex: i, newInformation: b.purpose, consequence: "Avanza el viaje de la gota.", tension: i % 3 === 2 ? "reflection" : "rise" })) };
+ const ev = (i: number) => ({ beatIndex: i, quote: beats[i].narration.split(" ").slice(0, 7).join(" ") });
+ const review = { sections: beats.map((_: any, i: number) => ({ ...ev(i), contribution: `Aportación ${i + 1}`, function: i === beats.length - 1 ? "resolution" : "new_information" })),
+   firstAnswer: { delivered: true, evidence: ev(1), explanation: "Primera respuesta concreta (crítico sintético del ensayo)." },
+   ending: { resolvesPromise: true, evidence: ev(beats.length - 1), explanation: "Resolución fundamentada (crítico sintético del ensayo)." }, findings: [] };
+-const editorial = { version: "editorial-v1", status: "approved", scriptHash: editorialScriptHash(beats), model: "ensayo-sintetico-sin-llm", corrected: false, storyPlan, reviews: [review], publicationTitle: "Cómo se forman las nubes y por qué llueve" };
++const editorial = { version: "editorial-v1", status: "approved", scriptHash: editorialScriptHash(beats), model: "ensayo-sintetico-sin-llm", corrected: false, storyPlan, reviews: [review], publicationTitle: meta?.title ?? "Cómo se forman las nubes y por qué llueve" };
+ const ids = JSON.parse(fs.readFileSync("/workspace/atomivid-mission/lf/out/ids.json","utf8"));
+ const script = { topic: process.env.TOPIC ?? "Cómo se forman las nubes y por qué llueve — ensayo 1080p", beats: beats.map((b: any, i: number) => ({ id: `beat-${i + 1}`, ...b })), editorial, sources: [] };
+ const gate = editorialApprovalError({ beats, editorial } as any); console.log("editorialApprovalError:", gate); if (gate || process.argv[2] === "check") process.exit(gate ? 1 : 0);
+diff --git a/scripts/harness/e2e/longform-rehearsal/e-run.cjs b/scripts/harness/e2e/longform-rehearsal/e-run.cjs
+index a461d346..ee864b36 100644
+--- a/scripts/harness/e2e/longform-rehearsal/e-run.cjs
++++ b/scripts/harness/e2e/longform-rehearsal/e-run.cjs
+@@ -9,10 +9,12 @@ const TOPIC=process.env.TOPIC;const TAG=process.env.TAG||"R";
+  const j=(await c.query("select id,request_id,status from documentary_script_jobs where user_id=$1 and input->'fields'->>'topic'=$2",[OWNER.id,TOPIC])).rows[0];
+  fs.writeFileSync(OUT+"/ids.json",JSON.stringify({jobId:j.id,requestId:j.request_id}));log(TAG,"UI: solicitud creada por formulario",j);const R0=j.request_id;
+  // B. Guion sintético por RPC productivas (NO UI, NO LLM)
+- log(TAG,"NO-UI: guion sintético inyectado por RPC claim/finish",execFileSync("npx",["tsx",".e2e-local/lf/b-inject.ts"],{cwd:"/workspace/atomivid-recraft",env:{...process.env,TOPIC}}).toString().trim());
++ log(TAG,"NO-UI: guion sintético inyectado por RPC claim/finish",execFileSync("npx",["tsx","scripts/harness/e2e/longform-rehearsal/b-inject.ts"],{cwd:"/workspace/atomivid-recraft",env:{...process.env,TOPIC}}).toString().trim());
+  // C. Revisar/configurar/confirmar por UI
+  await p.goto(`${BASE}/dashboard/long-form/configure/${R0}`);await skipTour(p);
+  for (const t of ["Revisar el guion","Ver estructura narrativa"]) await p.getByText(t).first().click().catch(()=>log("no expand",t));
++ if(process.env.VOICE_ID){await p.locator("#reel_voice_picker").selectOption(process.env.VOICE_ID,{timeout:60000});log(TAG,"UI: voz elegida",await p.getByTestId("reel-voice-selected").innerText());}
++ if(process.env.RECRAFT_REF){await p.locator("input[type=radio][value=recraft]").check();await p.locator("input[name=recraft_style_refs]").setInputFiles(process.env.RECRAFT_REF);if(process.env.RECRAFT_NOTE)await p.fill("input[name=recraft_style_note]",process.env.RECRAFT_NOTE);log(TAG,"UI: Recraft elegido con referencia",process.env.RECRAFT_REF);}
+  await shot(p,`${TAG}-C01-revisar-plan`);fs.writeFileSync(`${OUT}/${TAG}-C01.txt`,await p.locator("main").innerText());
+  log(TAG,"UI: controles de edición de guion en configurar (textarea):",await p.locator("main textarea").count());
+  await p.getByRole("button",{name:"Confirmar y generar video"}).click();await p.waitForTimeout(8000);await shot(p,`${TAG}-C02-confirmado`);
+diff --git a/scripts/harness/e2e/longform-rehearsal/marco-beats.json b/scripts/harness/e2e/longform-rehearsal/marco-beats.json
+new file mode 100644
+index 00000000..6922fef8
+--- /dev/null
++++ b/scripts/harness/e2e/longform-rehearsal/marco-beats.json
+@@ -0,0 +1,68 @@
++[
++ {
++  "type": "hook",
++  "purpose": "Gancho",
++  "visual": "tienda de campaña romana de noche, lámpara de aceite y tablillas de escritura, recreación",
++  "narration": "Imagina que eres el hombre más poderoso del mundo. Y aun así, cada mañana, todo se complica: una epidemia vacía ciudades enteras, en la frontera del Danubio la guerra no termina, y uno de tus generales de confianza se proclama emperador en tu lugar. Eso no es una hipótesis. Fue la vida de Marco Aurelio. Y en medio de todo eso, de noche, en una tienda de campaña, escribía notas para sí mismo sobre cómo no perder la calma. Hoy vamos a abrir esas notas."
++ },
++ {
++  "type": "context",
++  "purpose": "Quién era y qué escribió",
++  "visual": "busto de mármol de Marco Aurelio en un museo",
++  "narration": "Marco Aurelio gobernó Roma entre los años 161 y 180. No escribió un libro para publicar. Escribió en griego, para él mismo, apuntes que hoy llamamos *Meditaciones*. Algunos cuadernos llevan una nota de lugar: uno se escribió entre los cuados, junto al río Gran; otro, en Carnuntum, un campamento junto al Danubio. Conviene entender el contexto. Desde mediados de la década de 160, una epidemia que hoy llamamos peste antonina recorrió el Imperio; los historiadores todavía discuten cuántas personas murieron, pero coinciden en que golpeó ciudades y ejércitos durante años. Al mismo tiempo, pueblos germánicos cruzaron el Danubio y Marco tuvo que pasar buena parte de su reinado en el frente, lejos de Roma. Gobernar, para él, fue sobre todo gestionar crisis encadenadas. Es decir: no son reflexiones de biblioteca. Son ejercicios de alguien que necesitaba mantenerse en pie mientras su mundo temblaba. Por eso funcionan como un manual práctico. Veamos seis de esos ejercicios."
++ },
++ {
++  "type": "discovery",
++  "purpose": "Ejercicio 1: prepararse al amanecer",
++  "visual": "amanecer frío sobre un campamento romano junto al río Danubio, recreación",
++  "narration": "El libro dos empieza con una instrucción curiosa. Al despertar, dice, recuérdate que hoy te encontrarás con gente entrometida, ingrata, insolente o deshonesta (libro 2, sección 1). Suena pesimista, pero no lo es. Marco no se prepara para odiar a nadie; se prepara para que la sorpresa no le robe el juicio. Y añade que esas personas actúan así porque no distinguen el bien del mal, y que él no puede ser dañado por ellas si no se lo permite. La calma, aquí, empieza antes del problema: es anticipar lo probable para no reaccionar desde el susto."
++ },
++ {
++  "type": "discovery",
++  "purpose": "Ejercicio 2: separar el hecho de la opinión",
++  "visual": "calle de ciudad romana vacía en penumbra durante una epidemia, recreación",
++  "narration": "La idea central de las *Meditaciones* cabe en una frase. En el libro ocho, sección cuarenta y siete, escribe que si algo externo te angustia, no es la cosa la que te perturba, sino tu juicio sobre ella, y que ese juicio puedes borrarlo ahora mismo. En el libro cuatro, sección siete, lo resume aún más: quita la opinión y desaparece el «me han hecho daño»; quita el «me han hecho daño» y desaparece el daño. No significa negar los hechos. La peste era real. La guerra era real. Lo que Marco distingue es el hecho —lo que pasó— del relato que añadimos —«esto es una catástrofe, esto no debería pasarme a mí»—. Sobre el hecho a veces no mandamos. Sobre el relato, casi siempre."
++ },
++ {
++  "type": "discovery",
++  "purpose": "Ejercicio 3: el obstáculo como camino",
++  "visual": "legionarios romanos detenidos ante un camino bloqueado por árboles caídos, recreación",
++  "narration": "Cuando un plan se rompe, lo natural es pensar que el día está perdido. Marco propone otra lectura. En el libro cinco, sección veinte, escribe que el impedimento a la acción hace avanzar la acción, y que lo que se interpone en el camino se convierte en el camino. Si alguien bloquea lo que querías hacer, todavía puedes actuar con paciencia, con justicia o con inteligencia frente a ese bloqueo. El objetivo cambia de forma, pero no desaparece. Para un emperador que pasó años en campaña en lugar de en Roma, esto no era una frase motivadora: era la única manera de seguir gobernando."
++ },
++ {
++  "type": "discovery",
++  "purpose": "Ejercicio 4: ser el promontorio",
++  "visual": "promontorio rocoso golpeado por olas en tormenta",
++  "narration": "Hay una imagen que Marco usa para describir la calma. En el libro cuatro, sección cuarenta y nueve, se compara con un promontorio contra el que rompen las olas sin descanso: él permanece firme y el agua furiosa se aquieta a su alrededor. Y se corrige a sí mismo: no digas «qué desgracia que me haya pasado esto», sino «qué suerte que, habiéndome pasado esto, sigo sin quebrarme». La calma no es ausencia de olas. Es no convertirse en ola."
++ },
++ {
++  "type": "discovery",
++  "purpose": "Ejercicio 5: el refugio interior",
++  "visual": "hombre romano sentado en silencio con los ojos cerrados al amanecer, recreación",
++  "narration": "En el libro cuatro, sección tres, Marco observa que la gente busca retiros en el campo, en la costa o en la montaña, y que él mismo los desea. Pero se responde que eso es poco sabio, porque en cualquier momento uno puede retirarse dentro de sí. Ningún lugar es más tranquilo que la propia mente, sobre todo si uno tiene ideas claras a las que volver. Propone hacerlo a menudo y con frases breves, como quien vuelve a casa a recuperar fuerzas. Para alguien que no podía irse de vacaciones de un imperio en guerra, el retiro tenía que ser portátil. Para nosotros, ese retiro puede durar un minuto: cerrar los ojos, respirar y repasar qué depende de mí y qué no."
++ },
++ {
++  "type": "discovery",
++  "purpose": "Ejercicio 6: un problema cada vez",
++  "visual": "mesa con mapas militares romanos iluminada por velas, recreación",
++  "narration": "Hay otra trampa que Marco conocía bien: imaginar de golpe todo lo que podría salir mal. En el libro ocho, sección treinta y seis, se pide no perturbarse imaginando la vida entera, ni acumulando en la mente todas las dificultades que pueden llegar. En su lugar, propone preguntarse ante lo que ocurre ahora: ¿qué hay aquí que sea insoportable? Casi siempre, la respuesta honesta es que lo de hoy se puede llevar. Lo que aplasta es la suma imaginada de mañana."
++ },
++ {
++  "type": "reflection",
++  "purpose": "Por qué le hacía falta: el poder como prueba",
++  "visual": "estatua ecuestre de bronce de Marco Aurelio en Roma",
++  "narration": "Hay un detalle que hace más creíble todo esto. Marco no escribe como alguien que ya ha llegado. Escribe como alguien que se vigila. En el libro seis, sección treinta, se advierte a sí mismo que tenga cuidado de no «cesarizarse», de no teñirse del color del poder. Y se pide seguir siendo sencillo, bueno, íntegro, serio, sin afectación, amigo de la justicia, afectuoso y firme en su deber. En el libro siete, sección sesenta y nueve, describe su ideal de carácter: vivir cada día como si fuera el último, sin agitación, sin apatía y sin fingimiento. Son notas de alguien que sabía que la calma no se hereda con el cargo. Se entrena, todos los días, y se pierde en cuanto uno deja de entrenarla. Ese es, quizá, el mensaje más honesto del libro: incluso el emperador tenía que recordárselo por escrito."
++ },
++ {
++  "type": "tension",
++  "purpose": "La prueba real: la traición de 175",
++  "visual": "mensajero romano a caballo entregando una carta sellada, recreación",
++  "narration": "En el año 175, Avidio Casio, uno de sus generales más capaces, se proclamó emperador en Oriente. La revuelta terminó pronto: el propio Casio fue asesinado por sus hombres. Las fuentes antiguas cuentan que Marco trató a los implicados con una moderación poco habitual en Roma. No sabemos qué sintió exactamente. Pero sí sabemos qué se pedía a sí mismo en sus notas. En el libro once, sección dieciocho, hace una lista de recordatorios para cuando alguien le ofende, y uno de ellos es que las consecuencias de la ira suelen ser mucho más dolorosas que las cosas que la provocan. Otro es que la amabilidad, cuando es sincera, resulta difícil de vencer. Es fácil escribirlo. Aplicarlo con alguien que acaba de intentar quitarte el trono es otra cosa."
++ },
++ {
++  "type": "payoff",
++  "purpose": "Cierre práctico",
++  "visual": "mar en calma al amanecer después de una tormenta",
++  "narration": "Resumamos los seis ejercicios para la próxima vez que todo se complique. Uno: anticipa lo probable para que no te robe el juicio. Dos: separa lo que pasó del relato que le pones. Tres: pregúntate qué acción sigue siendo posible precisamente gracias al obstáculo. Cuatro: sé el promontorio, no la ola. Cinco: ten un refugio interior al que volver en un minuto. Seis: resuelve el problema de hoy, no la suma imaginada de mañana. Y una advertencia del propio Marco, en el libro diez, sección dieciséis: basta de discutir cómo debe ser una buena persona; hay que serlo. Marco Aurelio no tenía una vida tranquila. Tenía un método para estar tranquilo dentro de una vida difícil. Y ese método, casi dos mil años después, sigue cabiendo en una libreta."
++ }
++]
+\ No newline at end of file
+diff --git a/scripts/harness/e2e/longform-rehearsal/marco-meta.json b/scripts/harness/e2e/longform-rehearsal/marco-meta.json
+new file mode 100644
+index 00000000..d01b056a
+--- /dev/null
++++ b/scripts/harness/e2e/longform-rehearsal/marco-meta.json
+@@ -0,0 +1 @@
++{"title": "Marco Aurelio: cómo conservar la calma cuando todo se complica", "storyPlan": {"centralQuestion": "¿Cómo conservaba la calma Marco Aurelio cuando todo se complicaba?", "openingPromise": "Abrir sus notas personales y extraer ejercicios prácticos.", "firstAnswer": "Prepararse al amanecer para que la sorpresa no robe el juicio.", "endingAnswer": "Seis ejercicios verificables en las Meditaciones, con libro y sección."}}
+\ No newline at end of file
+diff --git a/scripts/harness/e2e/worker-longform.ts b/scripts/harness/e2e/worker-longform.ts
+index c32022f2..8d30252c 100644
+--- a/scripts/harness/e2e/worker-longform.ts
++++ b/scripts/harness/e2e/worker-longform.ts
+@@ -15,6 +15,9 @@ const MAP: [RegExp, string][] = [
+   [/^https:\/\/api\.pexels\.com\/v1\//, `${M}/pexels/v1/`],
+   [/^https:\/\/commons\.wikimedia\.org\/w\/api\.php/, `${M}/commons`],
+   [/^https:\/\/api\.openai\.com\/v1\/images\/generations$/, `${M}/openai/v1/images/generations`],
++  [/^https:\/\/queue\.fal\.run\//, `${M}/fal/`],
++  [/^https:\/\/api\.fal\.ai\//, `${M}/falapi/`],
++  [/^https:\/\/v3\.fal\.media\/files\/mock\//, `${M}/media/gen/`],
+ ];
+ globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+   const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+-- 
+2.47.3
+

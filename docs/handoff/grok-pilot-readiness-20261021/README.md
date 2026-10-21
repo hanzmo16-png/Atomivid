@@ -13,3 +13,7 @@ Por eso los commits van aquí como parches `git am`, en orden, sobre bd94dcaa (p
 
 Aplicar: `git checkout claude/recraft-integration && git am docs/handoff/grok-pilot-readiness-20261021/000*.patch`.
 - 0006: coverVideoTail (gap_at_end float, R8) + f-player.cjs.
+
+## Rebasados sobre PR176 c5a9ab15 (10:50 UTC-5)
+`sobre-c5a9ab15/0001–0006`: `git am -3` limpio sobre c5a9ab15. Conflictos resueltos solo en imports/estado (route.ts, ConfigureProduction.tsx, produce.ts); se conserva el default Recraft-first de Claude.
+Tests sobre el resultado: request-budget 9/9, long-form-voice 3/3, confirm-production 14/14, confirm-production-route 3/3, video-tail 3/3, produce 5/5. tsc: solo LayoutProps (tipos .next no generados, ambiental).

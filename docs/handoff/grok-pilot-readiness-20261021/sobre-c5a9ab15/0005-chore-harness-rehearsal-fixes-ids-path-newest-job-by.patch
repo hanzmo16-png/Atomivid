@@ -1,0 +1,47 @@
+From 44d177cfb7a3fd300f0e07d4dc6dbe9aa1209dbf Mon Sep 17 00:00:00 2001
+From: grok-bot <grok-bot@users.noreply.github.com>
+Date: Wed, 21 Oct 2026 09:33:48 -0500
+Subject: [PATCH 5/6] chore(harness): rehearsal fixes (ids path, newest job by
+ topic, recraft policy unit cost = 1 for a usd unit)
+
+---
+ scripts/harness/e2e/longform-rehearsal/e-run.cjs              | 4 ++--
+ scripts/harness/e2e/longform-rehearsal/seed-recraft-local.sql | 3 ++-
+ 2 files changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/scripts/harness/e2e/longform-rehearsal/e-run.cjs b/scripts/harness/e2e/longform-rehearsal/e-run.cjs
+index ee864b36..a2216e1c 100644
+--- a/scripts/harness/e2e/longform-rehearsal/e-run.cjs
++++ b/scripts/harness/e2e/longform-rehearsal/e-run.cjs
+@@ -6,7 +6,7 @@ const TOPIC=process.env.TOPIC;const TAG=process.env.TAG||"R";
+  await p.goto(BASE+"/dashboard/long-form/new");await skipTour(p);
+  await p.fill("input[name=topic]",TOPIC);await p.selectOption("select[name=language]","es");await p.fill("input[name=duration_minutes]","10");await shot(p,`${TAG}-A01-formulario`);
+  await p.getByRole("button",{name:"Crear y revisar guion"}).click();await p.waitForURL(u=>!String(u).includes("/long-form/new"));
+- const j=(await c.query("select id,request_id,status from documentary_script_jobs where user_id=$1 and input->'fields'->>'topic'=$2",[OWNER.id,TOPIC])).rows[0];
++ const j=(await c.query("select id,request_id,status from documentary_script_jobs where user_id=$1 and input->'fields'->>'topic'=$2 order by created_at desc limit 1",[OWNER.id,TOPIC])).rows[0];
+  fs.writeFileSync(OUT+"/ids.json",JSON.stringify({jobId:j.id,requestId:j.request_id}));log(TAG,"UI: solicitud creada por formulario",j);const R0=j.request_id;
+  // B. Guion sintético por RPC productivas (NO UI, NO LLM)
+  log(TAG,"NO-UI: guion sintético inyectado por RPC claim/finish",execFileSync("npx",["tsx","scripts/harness/e2e/longform-rehearsal/b-inject.ts"],{cwd:"/workspace/atomivid-recraft",env:{...process.env,TOPIC}}).toString().trim());
+@@ -19,7 +19,7 @@ const TOPIC=process.env.TOPIC;const TAG=process.env.TAG||"R";
+  log(TAG,"UI: controles de edición de guion en configurar (textarea):",await p.locator("main textarea").count());
+  await p.getByRole("button",{name:"Confirmar y generar video"}).click();await p.waitForTimeout(8000);await shot(p,`${TAG}-C02-confirmado`);
+  }
+- const R=require("./out/ids.json").requestId;
++ const R=JSON.parse(fs.readFileSync(OUT+"/ids.json","utf8")).requestId;
+  if(process.env.RESUME){await p.goto(`${BASE}/dashboard/videos/${R}`);await skipTour(p);await shot(p,`${TAG}-D01-antes-iniciar`);await p.getByRole("button",{name:process.env.BTN||"Iniciar producción"}).click();await p.waitForTimeout(8000);await shot(p,`${TAG}-D02-tras-iniciar`);log(TAG,"UI: pulsado Iniciar producción");}
+  const t0=Date.now();let last="";
+  for(;;){const r=(await c.query("select status,render_attempts,long_form_stage,long_form_progress,video_path,error_message from video_requests where id=$1",[R])).rows[0];
+diff --git a/scripts/harness/e2e/longform-rehearsal/seed-recraft-local.sql b/scripts/harness/e2e/longform-rehearsal/seed-recraft-local.sql
+index 78c76e7a..2db48b38 100644
+--- a/scripts/harness/e2e/longform-rehearsal/seed-recraft-local.sql
++++ b/scripts/harness/e2e/longform-rehearsal/seed-recraft-local.sql
+@@ -1,4 +1,5 @@
++-- unit=usd ⇒ unit_cost_usd=1 (con 0.04 cada imagen consumiría 1 «unidad» de un sobre medido en USD → SUPPLY_ENVELOPE_EXHAUSTED en la 2.ª imagen; visto en R7).
+ -- SOLO arnés local (127.0.0.1): abre la política «recraft» con topes LOCALES para el ensayo simulado. Nunca producción.
+ insert into public.pi_supply_policies(provider, unit, evidence) values ('recraft','usd','arnés local') on conflict (provider) do nothing;
+-update public.pi_supply_policies set enabled=true, baseline=25, unit_cost_usd=0.04, daily_forecast=1, daily_cap_usd=20, monthly_cap_usd=50, max_concurrent=4, max_daily_calls=500, evidence='arnés local E2E USD 0 (fal simulado)' where provider='recraft';
++update public.pi_supply_policies set enabled=true, baseline=25, unit_cost_usd=1, daily_forecast=1, daily_cap_usd=20, monthly_cap_usd=50, max_concurrent=4, max_daily_calls=500, evidence='arnés local E2E USD 0 (fal simulado)' where provider='recraft';
+ insert into public.pi_capacity_snapshots(provider,unit,available,reserved,pending,health,reliability,status,checked_at) values ('recraft','usd',25,0,0,'OK','manual_entry','GREEN',now());
+-- 
+2.47.3
+
