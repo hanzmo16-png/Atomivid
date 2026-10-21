@@ -9,10 +9,12 @@ const TOPIC=process.env.TOPIC;const TAG=process.env.TAG||"R";
  const j=(await c.query("select id,request_id,status from documentary_script_jobs where user_id=$1 and input->'fields'->>'topic'=$2",[OWNER.id,TOPIC])).rows[0];
  fs.writeFileSync(OUT+"/ids.json",JSON.stringify({jobId:j.id,requestId:j.request_id}));log(TAG,"UI: solicitud creada por formulario",j);const R0=j.request_id;
  // B. Guion sintético por RPC productivas (NO UI, NO LLM)
- log(TAG,"NO-UI: guion sintético inyectado por RPC claim/finish",execFileSync("npx",["tsx",".e2e-local/lf/b-inject.ts"],{cwd:"/workspace/atomivid-recraft",env:{...process.env,TOPIC}}).toString().trim());
+ log(TAG,"NO-UI: guion sintético inyectado por RPC claim/finish",execFileSync("npx",["tsx","scripts/harness/e2e/longform-rehearsal/b-inject.ts"],{cwd:"/workspace/atomivid-recraft",env:{...process.env,TOPIC}}).toString().trim());
  // C. Revisar/configurar/confirmar por UI
  await p.goto(`${BASE}/dashboard/long-form/configure/${R0}`);await skipTour(p);
  for (const t of ["Revisar el guion","Ver estructura narrativa"]) await p.getByText(t).first().click().catch(()=>log("no expand",t));
+ if(process.env.VOICE_ID){await p.locator("#reel_voice_picker").selectOption(process.env.VOICE_ID,{timeout:60000});log(TAG,"UI: voz elegida",await p.getByTestId("reel-voice-selected").innerText());}
+ if(process.env.RECRAFT_REF){await p.locator("input[type=radio][value=recraft]").check();await p.locator("input[name=recraft_style_refs]").setInputFiles(process.env.RECRAFT_REF);if(process.env.RECRAFT_NOTE)await p.fill("input[name=recraft_style_note]",process.env.RECRAFT_NOTE);log(TAG,"UI: Recraft elegido con referencia",process.env.RECRAFT_REF);}
  await shot(p,`${TAG}-C01-revisar-plan`);fs.writeFileSync(`${OUT}/${TAG}-C01.txt`,await p.locator("main").innerText());
  log(TAG,"UI: controles de edición de guion en configurar (textarea):",await p.locator("main textarea").count());
  await p.getByRole("button",{name:"Confirmar y generar video"}).click();await p.waitForTimeout(8000);await shot(p,`${TAG}-C02-confirmado`);
