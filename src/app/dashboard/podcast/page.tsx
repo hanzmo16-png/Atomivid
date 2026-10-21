@@ -1,3 +1,4 @@
+import { podcastV2Enabled } from "@/lib/podcast/server";
 import { visibleVoices } from "@/lib/voices/private-voices";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -44,7 +45,7 @@ export default async function PodcastPage() {
           </ul>
         </section>
       )}
-      <NewEpisode voices={voices} voicesError={voicesError} usdPer1kChars={getPricingConfig().elevenLabsUsdPer1kChars} maxChars={PODCAST_MAX_CHARS} />
+      <NewEpisode voices={voices} voicesError={voicesError} usdPer1kChars={getPricingConfig().elevenLabsUsdPer1kChars} maxChars={PODCAST_MAX_CHARS} v2Enabled={podcastV2Enabled()} />
       <h2 className="mt-8 text-lg font-semibold text-ink">Tus episodios</h2>
       {episodes.length === 0 ? <p className="mt-2 text-sm text-ink-muted">Todavía no hay episodios.</p> : (
         <ul className="mt-2 grid gap-2">

@@ -35,3 +35,11 @@ export function musicIssues(cues: MusicCue[], licensed: Set<string>): string[] {
   });
   return out;
 }
+
+/** Biblioteca por defecto (Kevin MacLeod, incompetech, CC BY 4.0 — atribución obligatoria). Solo se usa si el
+ * archivo y su entrada en LICENSES.md existen en PODCAST_MUSIC_DIR. */
+export const PODCAST_MUSIC_LIBRARY: MusicTrack[] = [
+  { file: "Volatile_Reaction.mp3", title: "Volatile Reaction", artist: "Kevin MacLeod", license: "CC BY 4.0", source_url: "https://incompetech.com", moods: ["suspense", "revelation"] },
+  { file: "Heroic_Age.mp3", title: "Heroic Age", artist: "Kevin MacLeod", license: "CC BY 4.0", source_url: "https://incompetech.com", moods: ["enthusiasm"] },
+  { file: "Crusade.mp3", title: "Crusade", artist: "Kevin MacLeod", license: "CC BY 4.0", source_url: "https://incompetech.com", moods: ["calm", "reflection"] },
+];

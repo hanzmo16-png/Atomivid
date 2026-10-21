@@ -51,7 +51,9 @@ const VOICE_SETTINGS = {
  * caché por beat: si cambia cualquiera de estos valores, debe tratarse
  * como una síntesis nueva, nunca reutilizar audio de una voz distinta.
  */
-export function getVoiceIdentity(language: "es" | "en" = "es", voiceIdOverride?: string): {
+export function getVoiceIdentity(language: "es" | "en" = "es", voiceIdOverride?: string,
+  /** Podcast 2.0: per-segment direction (stability/style). Absent → identical identity to before (same cache keys). */
+  settingsOverride?: VoiceSettingsOverride): {
   voiceId: string;
   modelId: string;
   voiceSettingsJson: string;
@@ -63,9 +65,23 @@ export function getVoiceIdentity(language: "es" | "en" = "es", voiceIdOverride?:
     similarity_boost: VOICE_SETTINGS.similarity_boost,
     style: VOICE_SETTINGS.style,
     use_speaker_boost: VOICE_SETTINGS.use_speaker_boost,
+    ...clampOverride(settingsOverride),
   };
   return { voiceId, modelId: MODEL_ID, voiceSettingsJson: JSON.stringify(identitySettings) };
 }
+
+export type VoiceSettingsOverride = { stability?: number; similarity_boost?: number; style?: number };
+/** Only documented voice_settings, clamped to [0,1]; unknown keys are dropped (never sent). */
+export function clampOverride(o?: VoiceSettingsOverride): VoiceSettingsOverride {
+  const out: VoiceSettingsOverride = {};
+  for (const k of ["stability", "similarity_boost", "style"] as const) {
+    const v = o?.[k];
+    if (typeof v === "number" && Number.isFinite(v)) out[k] = Math.min(1, Math.max(0, v));
+  }
+  return out;
+}
+/** The model this deployment synthesizes with (needed to validate direction against its real capabilities). */
+export const TTS_MODEL_ID = MODEL_ID;
 
 type ElevenLabsAlignment = {
   characters: string[];
@@ -125,6 +141,8 @@ export async function synthesizeVoice(
   speed?: number,
   /** Voz elegida por el usuario de su propia cuenta (podcast). Sin ella, la voz configurada del producto. */
   voiceIdOverride?: string,
+  /** Podcast 2.0 emotional direction; absent → exactly the previous request. */
+  settingsOverride?: VoiceSettingsOverride,
 ): Promise<{
   audioBuffer: Buffer;
   durationSeconds: number;
@@ -135,10 +153,11 @@ export async function synthesizeVoice(
   }
 
   const voiceId = voiceIdOverride?.trim() || VOICE_ID_BY_LANGUAGE[language] || DEFAULT_VOICE_ID;
+  const base = { ...VOICE_SETTINGS, ...clampOverride(settingsOverride) };
   const voiceSettings =
     speed === undefined
-      ? VOICE_SETTINGS
-      : { ...VOICE_SETTINGS, speed: Math.min(MAX_SPEED, Math.max(MIN_SPEED, speed)) };
+      ? base
+      : { ...base, speed: Math.min(MAX_SPEED, Math.max(MIN_SPEED, speed)) };
 
   const request = buildTtsRequest({ text, voiceId, modelId: MODEL_ID, voiceSettings, apiKey: ELEVENLABS_API_KEY });
   const res = await fetch(request.url, request.init);
