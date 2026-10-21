@@ -26,6 +26,14 @@ jobs:
           CAND_VAR_PILOT: ${{ vars.RECRAFT_PILOT_OWNER_USER_ID }}
           CAND_FAL_ADMIN: ${{ secrets.FAL_ADMIN_KEY }}
           CAND_FAL_KEY: ${{ secrets.FAL_KEY }}
+          SEC_ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
+          SEC_ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          SEC_LONG_FORM_REAL_RUN_CONFIRM: ${{ secrets.LONG_FORM_REAL_RUN_CONFIRM }}
+          SEC_MUSIC_PROVIDER: ${{ secrets.MUSIC_PROVIDER }}
+          SEC_MUSIC_TRACK_URLS: ${{ secrets.MUSIC_TRACK_URLS }}
+          SEC_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SEC_PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          SEC_VEO_API_KEY: ${{ secrets.VEO_API_KEY }}
           RECRAFT_REEL_ENABLED: ${{ vars.RECRAFT_REEL_ENABLED }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           PRIVATE_VOICE_GRANTS: ${{ secrets.PRIVATE_VOICE_GRANTS || vars.PRIVATE_VOICE_GRANTS }}
