@@ -101,7 +101,9 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       await db.query("update podcast_episodes set run_started_at = now() - interval '1 hour' where id=$1", [id2]); // simula función muerta (stale)
       const r2 = await worker(id2, "narration"); const after = await ep(id2); const total = ttsCalls().length - m0; const turns = after.production.turns.length;
       // Diseño: la llamada que estaba en vuelo al matar el proceso es ambigua (pudo cobrarse). NO se reenvía; el episodio queda en revisión con mensaje claro.
-      ok("c4: worker matado → reanudación no reenvía la llamada ambigua (0 cobros dobles)", total === killedAt && after.status === "failed" && /incierto/i.test(after.error ?? ""), `llamadas=${total} matado tras ${killedAt} estado=${after.status} «${after.error}»`);
+      // Dos desenlaces válidos según dónde cae el SIGKILL: (a) entre llamadas → reanuda y termina con 1 llamada por turno exacta;
+      // (b) con una llamada en vuelo → no la reenvía, queda «incierto» para revisión. Cualquier otro = doble cobro o pérdida.
+      ok("c4: worker matado → reanudación sin cobro doble", (after.status === "ready" && total === turns) || (after.status === "failed" && total === killedAt && /incierto/i.test(after.error ?? "")), `llamadas=${total} matado tras ${killedAt} estado=${after.status} «${after.error}»`);
       const held = (await db.query("select status, count(*)::int n from pi_paid_operations where idempotency_key like 'op_%' and updated_at > now() - interval '10 minutes' group by 1")).rows;
       ok("c4: lo pagado antes del corte queda guardado (no se pierde)", held.some((r) => r.status === "COMMITTED"), JSON.stringify(held));
       summary.c4 = { id2, killedAt, total, turns };
