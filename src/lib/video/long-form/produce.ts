@@ -752,7 +752,7 @@ export async function generateLongFormVideoFromScript({
     audioUrl: audioUpload.url,
     musicUrl: runtime.soundCues ? undefined : musicUrl,
     soundCues: runtime.soundCues,
-    scenes: shotScenes,
+    scenes: coverVideoTail(shotScenes, finalDurationSeconds),
     captions,
     narrationGaps,
     durationSeconds: finalDurationSeconds,
@@ -912,6 +912,18 @@ export function directAnchoredScenes(
       pending: gap ? `carencia de material pertinente: ${gap.reason}` : undefined,
     };
   });
+}
+
+/**
+ * La última escena cubre la cola del video (VIDEO_TAIL_SECONDS tras la última palabra). Las escenas se planifican hasta el
+ * final de la voz; sin esto quedaban ~0,5 s sin imagen al final y, por redondeo binario (p. ej. 474.27200000000005 − 473.772),
+ * el preflight del render rechazaba el documental entero DESPUÉS de pagar voz e imágenes (ensayo R8).
+ */
+export function coverVideoTail<T extends { endSeconds: number }>(scenes: T[], durationSeconds: number): T[] {
+  if (scenes.length === 0) return scenes;
+  const last = scenes[scenes.length - 1];
+  if (last.endSeconds >= durationSeconds) return scenes;
+  return [...scenes.slice(0, -1), { ...last, endSeconds: durationSeconds }];
 }
 
 /** Proyecto(s) del ledger del guion/investigación de este pedido (documentary_script_jobs.request_id = video_requests.id). */
