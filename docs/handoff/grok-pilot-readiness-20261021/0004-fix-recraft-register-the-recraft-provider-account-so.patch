@@ -1,0 +1,42 @@
+From eb773a921b2aa5b2b61bdab1145261a2c95a433d Mon Sep 17 00:00:00 2001
+From: grok-bot <grok-bot@users.noreply.github.com>
+Date: Wed, 21 Oct 2026 09:28:32 -0500
+Subject: [PATCH 4/5] fix(recraft): register the recraft provider account so
+ its balance snapshots can be stored
+
+pi_capacity_snapshots.provider references pi_provider_accounts; without a 'recraft' row every fal balance
+reading is refused (SUPPLY_MONITOR_RECRAFT_SNAPSHOT_UNAVAILABLE) and Recraft can never pass the capacity
+pre-flight. Secret NAME only; no balance/plan invented. RED/GREEN on local PG (m3/recraft-fk.log).
+---
+ .../harness/e2e/longform-rehearsal/seed-recraft-local.sql  | 4 ++++
+ .../migrations/20261021170000_recraft_provider_account.sql | 7 +++++++
+ 2 files changed, 11 insertions(+)
+ create mode 100644 scripts/harness/e2e/longform-rehearsal/seed-recraft-local.sql
+ create mode 100644 supabase/migrations/20261021170000_recraft_provider_account.sql
+
+diff --git a/scripts/harness/e2e/longform-rehearsal/seed-recraft-local.sql b/scripts/harness/e2e/longform-rehearsal/seed-recraft-local.sql
+new file mode 100644
+index 00000000..78c76e7a
+--- /dev/null
++++ b/scripts/harness/e2e/longform-rehearsal/seed-recraft-local.sql
+@@ -0,0 +1,4 @@
++-- SOLO arnés local (127.0.0.1): abre la política «recraft» con topes LOCALES para el ensayo simulado. Nunca producción.
++insert into public.pi_supply_policies(provider, unit, evidence) values ('recraft','usd','arnés local') on conflict (provider) do nothing;
++update public.pi_supply_policies set enabled=true, baseline=25, unit_cost_usd=0.04, daily_forecast=1, daily_cap_usd=20, monthly_cap_usd=50, max_concurrent=4, max_daily_calls=500, evidence='arnés local E2E USD 0 (fal simulado)' where provider='recraft';
++insert into public.pi_capacity_snapshots(provider,unit,available,reserved,pending,health,reliability,status,checked_at) values ('recraft','usd',25,0,0,'OK','manual_entry','GREEN',now());
+diff --git a/supabase/migrations/20261021170000_recraft_provider_account.sql b/supabase/migrations/20261021170000_recraft_provider_account.sql
+new file mode 100644
+index 00000000..69b55243
+--- /dev/null
++++ b/supabase/migrations/20261021170000_recraft_provider_account.sql
+@@ -0,0 +1,7 @@
++-- Registro del proveedor «recraft» (fal.ai) para que el observador de saldo pueda guardar sus lecturas.
++-- Sin esta fila, pi_capacity_snapshots.provider (FK → pi_provider_accounts) rechaza toda lectura de Recraft y el monitor falla con
++-- SUPPLY_MONITOR_RECRAFT_SNAPSHOT_UNAVAILABLE: la capacidad queda sin verificar y Recraft no puede pasar la comprobación previa.
++-- Solo el NOMBRE del secreto; no inventa saldo, plan ni estado. Requiere 20261021090000_reel_recraft_images.sql.
++insert into public.pi_provider_accounts(provider, production_account_label, plan, secret_reference_name, status, balance_source)
++values ('recraft', 'ATOMIVID fal.ai account (account verification pending)', 'unverified', 'FAL_ADMIN_KEY', 'unknown', 'provider_api')
++on conflict (provider) do nothing;
+-- 
+2.47.3
+
