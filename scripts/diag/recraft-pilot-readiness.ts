@@ -13,6 +13,7 @@ async function main() {
   const ownerId = env.INTERNAL_PRODUCTION_OWNER_USER_ID?.trim().toLowerCase() ?? "";
   const { data: owner } = UUID.test(ownerId) ? await db.auth.admin.getUserById(ownerId) : { data: null };
   const ownerEmail = owner?.user?.email?.toLowerCase() ?? null;
+  log("PRESENCE", Object.fromEntries(["INTERNAL_PRODUCTION_OWNER_USER_ID", "CAND_VAR_OWNER", "CAND_SECRET_PILOT", "CAND_VAR_PILOT", "CAND_FAL_ADMIN", "CAND_FAL_KEY"].map((k) => [k, !!env[k]?.trim()])));
   log("OWNER", { secretPresent: !!ownerId, wellFormed: UUID.test(ownerId), accountExists: !!owner?.user, emailConfirmed: !!owner?.user?.email_confirmed_at });
   // Recraft gate as the worker evaluates it (recraft-access.ts): open to everyone only when RECRAFT_REEL_ENABLED is true.
   log("RECRAFT_GATE", { RECRAFT_REEL_ENABLED: env.RECRAFT_REEL_ENABLED ?? null, openToAllUsers: (env.RECRAFT_REEL_ENABLED ?? "").trim().toLowerCase() === "true",
