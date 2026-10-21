@@ -136,7 +136,7 @@ const plan3 = (b: ProductionPlanBeatInput[]) => planOf(b, 3);
 const SCRIPT_SCOPE = "documentary:user-1:script-hash";
 const authStore = () => {
   const rows = new Map<string, unknown>();
-  return { rows, async read(id: string) { return (rows.get(id) as never) ?? null; }, async create(a: { requestId: string }) { if (rows.has(a.requestId)) return false; rows.set(a.requestId, a); return true; } };
+  return { rows, async read(id: string) { return (rows.get(id) as never) ?? null; }, async create(a: { requestId: string } & Record<string, unknown>) { if (rows.has(a.requestId)) return false; rows.set(a.requestId, a); return true; } };
 };
 const voiceOps = (sh: Shared) => [...sh.ledger.ops.values()].filter((o) => o.projectId === "req-total-budget");
 const exposure = (sh: Shared, scopes: string[]) =>

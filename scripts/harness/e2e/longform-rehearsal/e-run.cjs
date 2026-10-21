@@ -1,4 +1,4 @@
-const {BASE,db,login,log,shot,skipTour,fs,OUT,OWNER}=require("./common.cjs");const {execFileSync}=require("child_process");
+const {BASE,db,login,log,shot,skipTour,fs,OUT,OWNER}=require("./common.cjs");const {REPO}=require("./common.cjs");const {execFileSync}=require("child_process");
 const TOPIC=process.env.TOPIC;const TAG=process.env.TAG||"R";
 (async()=>{let {b,p}=await login();const c=await db();
  if(!process.env.RESUME){
@@ -9,7 +9,7 @@ const TOPIC=process.env.TOPIC;const TAG=process.env.TAG||"R";
  const j=(await c.query("select id,request_id,status from documentary_script_jobs where user_id=$1 and input->'fields'->>'topic'=$2 order by created_at desc limit 1",[OWNER.id,TOPIC])).rows[0];
  fs.writeFileSync(OUT+"/ids.json",JSON.stringify({jobId:j.id,requestId:j.request_id}));log(TAG,"UI: solicitud creada por formulario",j);const R0=j.request_id;
  // B. Guion sintético por RPC productivas (NO UI, NO LLM)
- log(TAG,"NO-UI: guion sintético inyectado por RPC claim/finish",execFileSync("npx",["tsx","scripts/harness/e2e/longform-rehearsal/b-inject.ts"],{cwd:"/workspace/atomivid-recraft",env:{...process.env,TOPIC}}).toString().trim());
+ log(TAG,"NO-UI: guion sintético inyectado por RPC claim/finish",execFileSync("npx",["tsx","scripts/harness/e2e/longform-rehearsal/b-inject.ts"],{cwd:REPO,env:{...process.env,TOPIC}}).toString().trim());
  // C. Revisar/configurar/confirmar por UI
  await p.goto(`${BASE}/dashboard/long-form/configure/${R0}`);await skipTour(p);
  for (const t of ["Revisar el guion","Ver estructura narrativa"]) await p.getByText(t).first().click().catch(()=>log("no expand",t));

@@ -1,8 +1,8 @@
 // Ensayo: reproducción, seek y «Actualizar enlaces» SIN re-producir (PR170/PR175). Lee ids de OUT/ids.json. USD 0.
-const {BASE,db,login,log,shot,skipTour,fs,OUT}=require("./common.cjs");const TAG=process.env.TAG||"F";
+const {BASE,db,login,log,shot,skipTour,fs,OUT}=require("./common.cjs");const {REPO}=require("./common.cjs");const TAG=process.env.TAG||"F";
 (async()=>{const {b,p}=await login();const c=await db();const R=JSON.parse(fs.readFileSync(OUT+"/ids.json","utf8")).requestId;
  const row=async()=>(await c.query("select status,render_attempts,video_path,render_started_at from video_requests where id=$1",[R])).rows[0];
- const disp=()=>fs.readFileSync("/workspace/atomivid-recraft/.e2e-local/logs/dispatches.jsonl","utf8").split("\n").filter(l=>l.includes(R)).length;
+ const disp=()=>fs.readFileSync(E+"/logs/dispatches.jsonl","utf8").split("\n").filter(l=>l.includes(R)).length;
  const before=await row();const d0=disp();
  await p.goto(`${BASE}/dashboard/videos/${R}`);await skipTour(p);await p.waitForTimeout(3000);
  const v=p.locator("video").first();

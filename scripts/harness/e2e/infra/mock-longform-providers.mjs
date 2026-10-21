@@ -15,7 +15,9 @@ const VOICES = [{ voice_id: "CeFSZuaHs4SxcBxb9nCr", name: "El Duro (simulado)", 
 function fault(k) { if (!FAULTS) return null; try { const a = JSON.parse(fs.readFileSync(FAULTS, "utf8")); if (a[k]?.remaining > 0) { a[k].remaining--; fs.writeFileSync(FAULTS, JSON.stringify(a)); return a[k].mode; } } catch {} return null; }
 function tts(text) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tts-")); const wav = path.join(dir, "a.wav"), mp3 = path.join(dir, "a.mp3");
-  execFileSync(PIPER, ["-m", VOICE, "-f", wav], { input: text, stdio: ["pipe", "ignore", "ignore"] });
+  if (PIPER) execFileSync(PIPER, ["-m", VOICE, "-f", wav], { input: text, stdio: ["pipe", "ignore", "ignore"] });
+  // Without Piper: a modulated tone lasting ~14 characters/second (exercises timing/mixing, not voice quality).
+  else execFileSync("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i", `sine=frequency=180:sample_rate=44100:duration=${Math.max(0.6, [...text].length / 14).toFixed(2)}`, "-af", "volume=0.3,tremolo=f=4:d=0.6", wav]);
   execFileSync("ffmpeg", ["-v", "error", "-y", "-i", wav, "-ar", "44100", "-c:a", "libmp3lame", "-b:a", "128k", mp3]);
   const dur = Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", wav]).toString());
   const buf = fs.readFileSync(mp3); fs.rmSync(dir, { recursive: true });
@@ -27,10 +29,11 @@ function tts(text) {
 // bajo demanda y en caché, un patrón distinto (autómata celular con semilla + degradado con colores derivados del id).
 let uid = 0; const GEN = path.join(MEDIA, "gen"); fs.mkdirSync(GEN, { recursive: true });
 function gen(kind, id) {
-  const ext = kind === "clip" ? "mp4" : kind === "ai" ? "png" : "jpg"; const f = path.join(GEN, `${kind}-${id}.${ext}`); if (fs.existsSync(f)) return f;
-  const h = sha(`${kind}${id}`); const col = (i) => "0x" + h.slice(i, i + 6); const [w, hh] = kind === "ai" ? [1536, 1024] : kind === "photo" ? [1920, 1280] : [1920, 1080];
+  const ext = kind === "clip" ? "mp4" : kind === "ai" || kind === "rc" ? "png" : "jpg"; const f = path.join(GEN, `${kind}-${id}.${ext}`); if (fs.existsSync(f)) return f;
+  // rc = Recraft landscape_16_9 (16:9; exact fal size unconfirmed, ~1792x1024 per third-party docs); ai = OpenAI 1536x1024.
+  const h = sha(`${kind}${id}`); const col = (i) => "0x" + h.slice(i, i + 6); const [w, hh] = kind === "ai" ? [1536, 1024] : kind === "rc" ? [1792, 1024] : kind === "photo" ? [1920, 1280] : [1920, 1080];
   const src = `cellauto=s=${w / 8}x${hh / 8}:rule=${30 + (parseInt(h.slice(0, 2), 16) % 90)}:random_seed=${parseInt(h.slice(2, 8), 16)}:full=1:r=30,scale=${w}:${hh}:flags=neighbor,format=rgb24`;
-  const label = { clip: "VIDEO SINTETICO", photo: "FOTO SINTETICA", ai: "IMAGEN IA SINTETICA" }[kind];
+  const label = { clip: "VIDEO SINTETICO", photo: "FOTO SINTETICA", ai: "IMAGEN IA SINTETICA", rc: "RECRAFT SINTETICO" }[kind];
   // Bloques grandes en posiciones/colores derivados del id: estructura de baja frecuencia distinta ⇒ hash perceptual distinto.
   const n = (i, m) => parseInt(h.slice(i, i + 4), 16) % m;
   const boxes = [0, 1, 2, 3].map((k) => `drawbox=x=${n(32 + k * 8, w - w / 3)}:y=${n(36 + k * 8, hh - hh / 3)}:w=${w / 4 + n(40 + k * 4, w / 4)}:h=${hh / 4 + n(44 + k * 4, hh / 4)}:c=0x${h.slice(48 + k * 4, 54 + k * 4).padEnd(6, "8")}:t=fill`).join(",");
@@ -62,7 +65,7 @@ http.createServer((req, res) => { const c = []; req.on("data", (d) => c.push(d))
       return json(200, { request_id: id, status_url: `https://queue.fal.run/recraft/v4/requests/${id}/status`, response_url: `https://queue.fal.run/recraft/v4/requests/${id}` }); }
     { const m = /^\/fal\/recraft\/v4\/requests\/([\w-]+)(\/status)?$/.exec(p); if (m) { const j = falJobs.get(m[1]); if (!j) return json(404, { detail: "unknown request" });
       if (m[2]) { log({ kind: "fal_status", request_id: m[1] }); return json(200, { status: "COMPLETED" }); }
-      const f = path.basename(gen("ai", `r${j.n}`)); log({ kind: "fal_result", request_id: m[1], style_id: j.styleId, style_created: j.created, file: f });
+      const f = path.basename(gen("rc", `r${j.n}`)); log({ kind: "fal_result", request_id: m[1], style_id: j.styleId, style_created: j.created, file: f });
       return json(200, { images: [{ url: `https://v3.fal.media/files/mock/${f}`, content_type: "image/png", file_name: f }], style_id: j.styleId }); } }
     if (p === "/falapi/v1/account/billing") { log({ kind: "fal_billing" }); return json(200, { credits: { current_balance: 25, currency: "USD" } }); }
     if (p.startsWith("/pexels/")) { const pf = fault("pexels"); // {"pexels":{"mode":"503"|"empty","remaining":N}}
@@ -79,7 +82,7 @@ http.createServer((req, res) => { const c = []; req.on("data", (d) => c.push(d))
     if (p === "/openai/v1/images/generations") { const b = JSON.parse(Buffer.concat(c).toString() || "{}"); const f = path.basename(gen("ai", `x${++img}`)); const buf = fs.readFileSync(path.join(GEN, f));
       log({ kind: "openai_image", idx: img - 1, file: f, size: b.size, quality: b.quality, sha256: sha(buf), prompt: String(b.prompt ?? "").slice(0, 160) });
       return json(200, { created: Math.floor(Date.now() / 1000), data: [{ b64_json: buf.toString("base64") }], usage: { input_tokens: 50, output_tokens: 1056, input_tokens_details: { text_tokens: 50, image_tokens: 0 } } }); }
-    if (p.startsWith("/media/gen/")) { const m = /^(clip|photo|ai)-(\w+)\./.exec(path.basename(p)); if (m) gen(m[1], m[2]); }
+    if (p.startsWith("/media/gen/")) { const m = /^(clip|photo|ai|rc)-(\w+)\./.exec(path.basename(p)); if (m) gen(m[1], m[2]); }
     if (p.startsWith("/media/")) { const f = p.startsWith("/media/gen/") ? path.join(GEN, path.basename(p)) : path.join(MEDIA, path.basename(p)); if (!fs.existsSync(f)) return json(404, {}); const buf = fs.readFileSync(f);
       log({ kind: "media", file: path.basename(f) }); res.writeHead(200, { "content-type": f.endsWith(".mp4") ? "video/mp4" : f.endsWith(".mp3") ? "audio/mpeg" : f.endsWith(".png") ? "image/png" : "image/jpeg", "content-length": buf.length }); return res.end(buf); }
     log({ kind: "unknown", path: p }); json(404, { error: "mock: unknown" });
