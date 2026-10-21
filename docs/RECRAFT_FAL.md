@@ -104,11 +104,19 @@ El saldo de USD 9,96 en fal **no** es autorización.
 - Alternativa ya autorizada por el dueño (2026-10-05): una fila `manual_entry` en `pi_capacity_snapshots`, válida 30 minutos. Debe tener procedencia (quién y cuándo leyó el panel de fal) y no reemplaza la política ni los topes.
 
 ## Activación (orden)
-1. Migraciones: `20261021090000_reel_recraft_images.sql` y después `20261021160000_long_form_recraft_images.sql`.
+1. Migraciones, en este orden, con `apply-supabase-migration.yml` (input `migration_file`, una por ejecución). Todas son aditivas y compatibles con la versión desplegada antes del merge, así que van ANTES del merge:
+   - `20261020200444_reel_voice_selection.sql` es requisito de la 180000. Si ya está registrada, la ejecución no hace nada.
+   - `20261021090000_reel_recraft_images.sql` se aplicó el 2026-10-21 a las 14:32 UTC (ejecución 39617623458). Queda registrada en `public._migrations_applied`, no en el historial de la CLI de Supabase.
+   - `20261021160000_long_form_recraft_images.sql`
+   - `20261021170000_recraft_provider_account.sql`: fila `recraft` en `pi_provider_accounts`. Solo guarda el nombre del secreto; no crea saldo ni plan.
+   - `20261021180000_long_form_voice_selection.sql`: la voz de Long Form se fija junto con la confirmación.
+   - **Nunca** en producción: `scripts/harness/e2e/longform-rehearsal/seed-recraft-local.sql` (solo arnés local, con saldo simulado).
+   - Verificación local en un PG desechable: `supabase/migrations/verify/recraft_image_source.sql` y `supabase/migrations/verify/long_form_voice_selection.sql`.
 2. Merge y despliegue: Vercel despliega la web. El worker es `render.yml` en la rama por defecto.
 3. Secretos de GitHub Actions: `FAL_KEY` (ya reportado) y `FAL_ADMIN_KEY` (clave Admin de fal, para leer el saldo). En Vercel, `FAL_ADMIN_KEY` para el chequeo de saldo en Configurar y en el arranque.
 4. Política `recraft` en `pi_supply_policies`: `enabled=true`, `baseline`, `unit_cost_usd=1`, `max_concurrent`, `max_daily_calls`, `daily_cap_usd` y `monthly_cap_usd` **financiados y aprobados por Hans**, con su evidencia. Hasta entonces, toda producción con Recraft espera en «esperando disponibilidad» sin gastar.
-5. Piloto: lo ejecuta Hans desde la interfaz, dentro del tope aprobado.
+5. Voz en Long Form: la web (Vercel) necesita `REEL_VOICE_SELECTION_ENABLED=true`, y `PRIVATE_VOICE_GRANTS` con la concesión de «El Duro» a la cuenta de Hans. El worker no las usa: narra con la voz validada y guardada al confirmar.
+6. Piloto: lo ejecuta Hans desde la interfaz, dentro del tope aprobado.
 
 ## Reversión
 - **Desactivar sin desplegar:** poner `enabled=false` en la política `recraft`. Las producciones con Recraft quedan en espera y nada se cobra.
