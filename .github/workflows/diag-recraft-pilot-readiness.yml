@@ -1,0 +1,26 @@
+name: Read-only Recraft pilot readiness (no writes, no generation)
+on:
+  push:
+    branches: [claude/hola-sn3dxy]
+    paths: [scripts/diag/recraft-pilot-readiness.ts, .github/workflows/diag-recraft-pilot-readiness.yml]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/diag/recraft-pilot-readiness.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          INTERNAL_PRODUCTION_OWNER_USER_ID: ${{ secrets.INTERNAL_PRODUCTION_OWNER_USER_ID }}
+          RECRAFT_REEL_ENABLED: ${{ vars.RECRAFT_REEL_ENABLED }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          PRIVATE_VOICE_GRANTS: ${{ secrets.PRIVATE_VOICE_GRANTS || vars.PRIVATE_VOICE_GRANTS }}
