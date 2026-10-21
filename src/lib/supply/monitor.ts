@@ -3,6 +3,7 @@ import { elevenLabsSnapshot } from "@/lib/production-intelligence/capacity/adapt
 import { assessCapacity } from "@/lib/production-intelligence/capacity/capacity";
 import { heygenApiSnapshot } from "./heygen";
 import { runwayApiSnapshot } from "./runway";
+import { falApiSnapshot, falBillingKey } from "./fal";
 import type { SupplyState } from "./policy";
 
 /** Alerts remain in the private owner/admin panel. No outbound messages or payment API. */
@@ -33,7 +34,7 @@ export async function monitorSupply(service: SupabaseClient, opts: {
   return { states, pendingAlerts: pending?.length ?? 0 };
 }
 
-export const REFRESHABLE_PROVIDERS = ["elevenlabs", "runway", "heygen"] as const;
+export const REFRESHABLE_PROVIDERS = ["elevenlabs", "runway", "heygen", "recraft"] as const;
 export type RefreshableProvider = (typeof REFRESHABLE_PROVIDERS)[number];
 
 /** One official balance observation (billing GET only, never generation) persisted
@@ -53,6 +54,11 @@ export async function refreshProviderSnapshot(service: SupabaseClient, provider:
   } else if (provider === "runway") {
     if (!(env.RUNWAY_API_KEY || env.RUNWAYML_API_SECRET)) return false;
     const snapshot = await runwayApiSnapshot(fetchImpl, env, checkedAt);
+    row = { provider: snapshot.provider, unit: snapshot.unit, available: snapshot.available, reserved: 0, pending: 0, renewal_date: null,
+      health: snapshot.health, reliability: snapshot.reliability, status: assessCapacity(snapshot).status, checked_at: checkedAt };
+  } else if (provider === "recraft") {
+    if (!falBillingKey(env)) return false;
+    const snapshot = await falApiSnapshot(fetchImpl, env, checkedAt);
     row = { provider: snapshot.provider, unit: snapshot.unit, available: snapshot.available, reserved: 0, pending: 0, renewal_date: null,
       health: snapshot.health, reliability: snapshot.reliability, status: assessCapacity(snapshot).status, checked_at: checkedAt };
   } else {

@@ -14,6 +14,7 @@ import { defaultPackaging, isOwnChannelAccount } from "@/lib/video/long-form/pac
 import { PRODUCT_DEFAULT_PLAN_VERSION, usesAnchoredVisuals } from "@/lib/video/long-form/production-plan-types";
 import { configurePlans } from "@/lib/video/long-form/product-plan";
 import { cinematicV6Enabled } from "@/lib/video/long-form/cinematic-v6-access";
+import { recraftAllowedFor } from "@/lib/video/recraft-access";
 import { createServiceClient } from "@/lib/supabase/service";
 import { canCurateAssets } from "@/lib/video/long-form/asset-curation";
 import type { ProductionPlanBeatInput } from "@/lib/video/long-form/production-plan";
@@ -56,6 +57,13 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
   const service = createServiceClient();
   const preflight = Object.fromEntries(await Promise.all(VISUAL_STRATEGIES.map(async (strategy) =>
     [strategy, await strategyPreflight(service, { strategy, plan: plans[strategy], scriptJson: script })]))) as Record<VisualStrategy, StrategyPreflight>;
+  // «Imágenes IA con Recraft» (pilot account or general release): the same plans priced/pinned for Recraft, and their
+  // own pre-flight (Recraft supply) — shown only when the creator picks it; confirm-production recomputes server-side.
+  const recraftAllowed = recraftAllowedFor(user);
+  const recraftPlans = recraftAllowed ? Object.fromEntries(Object.entries(configurePlans({ script, topic: data.topic, durationSeconds: data.duration_seconds, cinematicV6, imageProvider: "recraft" }))
+    .map(([s, r]) => [s, r.plan])) as Record<VisualStrategy, ProductionPlan> : undefined;
+  const recraftPreflight = recraftPlans ? Object.fromEntries(await Promise.all(VISUAL_STRATEGIES.map(async (strategy) =>
+    [strategy, await strategyPreflight(service, { strategy, plan: recraftPlans[strategy], scriptJson: script })]))) as Record<VisualStrategy, StrategyPreflight> : undefined;
   const visual = await visualCheck(service, { requestId: id, plan: plans.balanced, beats: beats as ProductionPlanBeatInput[], topic: script.topic || data.topic })
     .catch((): VisualCheck => ({ applies: true, ready: false, codes: ["VISUAL_CHECK_UNAVAILABLE"], missingHeroIdentities: 0, missingHeroEvidence: 0, textCardRatio: null, maxTextCardRatio: 0.25, verifiedAssets: 0 }));
   const summary = {
@@ -136,6 +144,8 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
         requestId={id}
         plans={plans}
         preflight={preflight}
+        recraftPlans={recraftPlans}
+        recraftPreflight={recraftPreflight}
         visual={visual}
         summary={summary}
         visualBlockText={visual.ready ? null : visualBlockMessage(visual)}

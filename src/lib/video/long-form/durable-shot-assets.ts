@@ -73,6 +73,8 @@ export type ShotAssetRecord = {
   identity?: AssetIdentity;
   provenance?: AssetProvenance;
   selection?: AssetSelectionTrace;
+  /** Chosen image provider only: zero-charge refusals so far (each later try uses a new ledger key). */
+  noChargeFailures?: number;
 };
 
 export interface ShotAssetStore {

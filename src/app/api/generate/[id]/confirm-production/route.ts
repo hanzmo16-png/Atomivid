@@ -5,12 +5,19 @@ import { confirmLongFormProduction } from "@/lib/video/long-form/confirm-product
 import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
 import { cinematicV6Enabled } from "@/lib/video/long-form/cinematic-v6-access";
 import { generateDiagnosticId, logRenderError } from "@/lib/video/render-error";
+import { recraftAllowedFor } from "@/lib/video/recraft-access";
+import { parseRecraftSelection, RECRAFT_MAX_REFERENCE_BYTES, RECRAFT_MAX_REFERENCES, RECRAFT_REFERENCE_TYPES, type ReelRecraftStyle } from "@/lib/video/recraft-reel";
+import { imageDimensions } from "@/lib/providers/image/recraft";
 
 /**
  * Paso 9/10 del contrato de Long Form: fija el plan confirmado (ver
  * confirm-production.ts). Deliberadamente NO dispara el render — el
  * cliente llama a /render solo si esto responde 200, y cada paso conserva
  * su propia guarda atómica.
+ *
+ * Cuerpo JSON {strategy, packaging?} como siempre, o multipart (FormData) cuando el creador elige «Imágenes IA con
+ * Recraft»: strategy, packaging (JSON), image_source, recraft_style_id, recraft_style_match, recraft_style_note y
+ * recraft_style_refs (archivos). Nada se envía a fal.ai ni se cobra aquí.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -22,20 +29,62 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!user) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   if (!canAccessLongFormBeta(user)) return NextResponse.json({ error: "Long Form no está disponible para tu cuenta." }, { status: 403 });
 
-  let body: unknown;
+  let strategy: unknown, packaging: unknown, form: FormData | null = null;
   try {
-    body = await request.json();
+    if ((request.headers.get("content-type") ?? "").toLowerCase().startsWith("multipart/form-data")) {
+      form = await request.formData();
+      strategy = form.get("strategy");
+      const rawPackaging = form.get("packaging");
+      packaging = typeof rawPackaging === "string" && rawPackaging.trim() ? JSON.parse(rawPackaging) : undefined;
+    } else {
+      const body = (await request.json()) as { strategy?: unknown; packaging?: unknown } | null;
+      strategy = body?.strategy;
+      packaging = body?.packaging;
+    }
   } catch {
     return NextResponse.json({ error: "Cuerpo de la solicitud inválido" }, { status: 400 });
   }
 
   try {
+    const service = createServiceClient();
+    let recraft: ReelRecraftStyle | undefined;
+    if (form && String(form.get("image_source") ?? "default") !== "default") {
+      const refs = form.getAll("recraft_style_refs").filter((f): f is File => typeof f !== "string" && f.size > 0);
+      const choice = parseRecraftSelection({ source: form.get("image_source"), styleId: form.get("recraft_style_id"), match: form.get("recraft_style_match"),
+        styleNote: form.get("recraft_style_note"), referenceCount: refs.length }, recraftAllowedFor(user));
+      if ("error" in choice) return NextResponse.json({ error: choice.error }, { status: 400 });
+      if (choice.source === "recraft") {
+        // Ownership and state BEFORE writing anything into this request's folder (the confirmation re-checks both).
+        const { data: row } = await service.from("video_requests").select("user_id, mode, long_form_confirmed_at").eq("id", id)
+          .maybeSingle<{ user_id: string; mode: string; long_form_confirmed_at: string | null }>();
+        if (!row) return NextResponse.json({ error: "Solicitud no encontrada" }, { status: 404 });
+        if (row.user_id !== user.id) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+        const referencePaths: string[] = [];
+        // Already confirmed: the stored choice wins (idempotent); nothing is uploaded again.
+        if (!row.long_form_confirmed_at && !choice.styleId) {
+          for (const [n, f] of refs.slice(0, RECRAFT_MAX_REFERENCES).entries()) {
+            const buf = Buffer.from(await f.arrayBuffer());
+            const dim = imageDimensions(buf);
+            const ext = RECRAFT_REFERENCE_TYPES[f.type];
+            if (!ext || buf.byteLength > RECRAFT_MAX_REFERENCE_BYTES || !dim || dim.type !== f.type) {
+              return NextResponse.json({ error: "Las imágenes de referencia deben ser PNG, JPG o WEBP válidas de hasta 5 MB. No se confirmó ni cobró nada." }, { status: 400 });
+            }
+            const path = `${id}/recraft-style/ref-${n}.${ext}`;
+            const up = await service.storage.from("videos").upload(path, buf, { contentType: f.type, upsert: true });
+            if (up.error) return NextResponse.json({ error: "No se pudieron guardar las imágenes de referencia. No se confirmó ni cobró nada." }, { status: 502 });
+            referencePaths.push(path);
+          }
+        }
+        recraft = { styleId: choice.styleId, referencePaths, match: choice.match, styleNote: choice.styleNote };
+      }
+    }
     const result = await confirmLongFormProduction(createServiceClient(), {
       requestId: id,
       userId: user.id,
-      strategy: (body as { strategy?: unknown } | null)?.strategy,
-      packaging: (body as { packaging?: unknown } | null)?.packaging,
+      strategy,
+      packaging,
       cinematicV6: cinematicV6Enabled(user),
+      ...(recraft ? { recraft } : {}),
     });
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
     return NextResponse.json({ plan: result.plan, confirmedAt: result.confirmedAt, alreadyConfirmed: result.alreadyConfirmed });

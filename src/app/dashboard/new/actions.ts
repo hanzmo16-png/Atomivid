@@ -20,6 +20,7 @@ import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { redirect } from "next/navigation";
 import { parseRecraftSelection, RECRAFT_MAX_REFERENCE_BYTES, RECRAFT_MAX_REFERENCES, RECRAFT_REFERENCE_TYPES } from "@/lib/video/recraft-reel";
 import { imageDimensions } from "@/lib/providers/image/recraft";
+import { recraftAllowedFor } from "@/lib/video/recraft-access";
 import { checkProductionForRequest } from "@/lib/supply/production-check";
 import { formProduction, type ScriptChoice } from "@/lib/video/form-production";
 import { MAX_NARRATION_CHARS } from "@/lib/video/narration-fit";
@@ -134,7 +135,7 @@ export async function createVideoRequest(formData: FormData) {
     // Reference images are stored in our bucket; nothing is sent to fal.ai and nothing is paid at creation.
     const refFiles = formData.getAll("recraft_style_refs").filter((f): f is File => typeof f !== "string" && f.size > 0);
     const recraftChoice = parseRecraftSelection({ source: formData.get("reel_image_source"), styleId: formData.get("recraft_style_id"),
-      match: formData.get("recraft_style_match"), styleNote: formData.get("recraft_style_note"), referenceCount: refFiles.length }, flags.recraftReelEnabled);
+      match: formData.get("recraft_style_match"), styleNote: formData.get("recraft_style_note"), referenceCount: refFiles.length }, recraftAllowedFor(user));
     if ("error" in recraftChoice) redirect(formErrorUrl(recraftChoice.error));
     let recraftColumns: Record<string, unknown> = {};
     if (recraftChoice.source === "recraft") {

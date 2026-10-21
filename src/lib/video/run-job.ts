@@ -9,6 +9,7 @@ import { getVoiceProvider } from "@/lib/providers/voice";
 import { editorialApprovalError } from "./long-form/editorial";
 import { loadReelRecraft, recraftDemandUsd, signReferenceUrls, persistReelStyleId } from "@/lib/video/recraft-reel-server";
 import { getRecraftImageProvider } from "@/lib/providers/image";
+import { recraftAllowedFor } from "@/lib/video/recraft-access";
 import { jobSupplyDemands, reserveJobSupply, releaseUnusedJobSupply, JobEnvelopeMismatchError, JobEnvelopeExhaustedError } from "@/lib/supply/job";
 import { withSupplyContext } from "@/lib/supply/anthropic";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
@@ -201,11 +202,22 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
       const preflight = directorReelPreflight(row.script_json as GeneratedScript);
       if (preflight.blockers.length) throw new DirectorPreflightBlockedError(preflight.blockers);
     }
-    // «Imágenes IA con Recraft»: read in its own query (works before the migration), FAL_KEY checked BEFORE any
-    // reservation or paid voice; a Recraft Reel never falls back to stock/fixture images.
-    const recraft = mode === "visual" ? await loadReelRecraft(service, requestId) : null;
-    if (recraft) getRecraftImageProvider();
-    await reserveJobSupply(service, requestId, row.render_attempts, jobSupplyDemands(row, getVoiceProvider().name, undefined, { recraftUsd: recraftDemandUsd(recraft, row.script_json) }));
+    // «Imágenes IA con Recraft» (Reel and Long Form): read in its own query (works before the migration), revalidated
+    // here against the DB row, the confirmed plan and the owning account, with FAL_KEY checked BEFORE any reservation
+    // or paid voice. A Recraft video never falls back to stock/fixture/other-provider images.
+    const recraft = mode === "visual" || mode === "long_form" ? await loadReelRecraft(service, requestId) : null;
+    if (mode === "long_form" && (longFormPlan?.providers.image === "recraft") !== Boolean(recraft)) {
+      throw new Error("La elección de imágenes de este documental no coincide con su plan confirmado. No se inició la producción ni se cobró nada.");
+    }
+    if (recraft) {
+      const { data: ownerData, error: ownerError } = await service.auth.admin.getUserById(row.user_id);
+      if (ownerError) throw ownerError;
+      if (!recraftAllowedFor(ownerData.user)) {
+        throw new Error("Las imágenes IA con Recraft no están habilitadas para la cuenta de este video. No se inició la producción ni se cobró nada.");
+      }
+      getRecraftImageProvider();
+    }
+    await reserveJobSupply(service, requestId, row.render_attempts, jobSupplyDemands(row, getVoiceProvider().name, undefined, { recraftUsd: mode === "visual" ? recraftDemandUsd(recraft, row.script_json) : 0 }));
     const { videoPath } =
       mode === "avatar"
         ? await generateAvatarVideo({
@@ -231,7 +243,14 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
               language: row.language ?? undefined,
               plan: longFormPlan as ProductionPlan,
               onProgress: onLongFormProgress,
-              runtime: { attempt: row.render_attempts },
+              runtime: { attempt: row.render_attempts,
+                ...(recraft ? { recraftStyle: {
+                  styleId: recraft.styleId,
+                  // A documentary may reach its first AI image hours after start: references stay signed for 6 h.
+                  referenceImageUrls: recraft.styleId ? [] : await signReferenceUrls(service, recraft.style.referencePaths, 6 * 3600),
+                  match: recraft.style.match, styleNote: recraft.style.styleNote,
+                  onStyleId: (styleId: string) => persistReelStyleId(service, requestId, styleId),
+                } } : {}) },
             })
           : await generateVideoFromScript({
               supabase: service,

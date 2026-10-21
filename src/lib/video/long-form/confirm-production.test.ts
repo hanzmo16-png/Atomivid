@@ -221,3 +221,27 @@ test("P0-01 (T-20261019-1553): v3 con acontecimiento fechado ilustrado con stock
   }
   assert.equal(fake.appliedUpdates(), 0);
 });
+
+test("Recraft: el plan fija image=recraft (precio Recraft) y la elección se escribe en el MISMO UPDATE de la confirmación", async () => {
+  const fake = fakeService(baseRow());
+  const style = { styleId: null, referencePaths: ["req-1/recraft-style/ref-0.png"], match: "precise" as const, styleNote: "luz de vela" };
+  const result = await confirmLongFormProduction(fake.client, { requestId: "req-1", userId: "user-1", strategy: "balanced", recraft: style });
+  assert.ok(result.ok);
+  if (!result.ok) return;
+  assert.equal(result.plan.providers.image, "recraft");
+  if (result.plan.aiImageCount > 0) assert.ok(Math.abs((result.plan.estimatedImageCostUsd ?? 0) - result.plan.aiImageCount * 0.04) < 1e-6);
+  assert.equal(fake.appliedUpdates(), 1);
+  assert.equal(fake.row.reel_image_source, "recraft");
+  assert.deepEqual(fake.row.reel_recraft_style, style);
+  // A stale tab cannot change the source afterwards: the confirmed plan (and its choice) is returned unchanged.
+  const stale = await confirmLongFormProduction(fake.client, { requestId: "req-1", userId: "user-1", strategy: "balanced" });
+  assert.ok(stale.ok && stale.alreadyConfirmed && stale.plan.providers.image === "recraft");
+  assert.equal(fake.appliedUpdates(), 1);
+});
+
+test("sin Recraft: el plan y la fila quedan exactamente como antes (OpenAI, sin columnas de imagen)", async () => {
+  const fake = fakeService(baseRow());
+  const result = await confirmLongFormProduction(fake.client, { requestId: "req-1", userId: "user-1", strategy: "balanced" });
+  assert.ok(result.ok && result.plan.providers.image === "openai");
+  assert.equal("reel_image_source" in fake.row, false);
+});

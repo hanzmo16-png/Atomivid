@@ -119,8 +119,17 @@ jobs:
           # the server reserved for this attempt's image envelope after the owner approved a ceiling.
           IMAGE_PROVIDER: ${{ ((github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') || vars.DIRECTOR_MATERIAL_ENABLED == 'true') && 'openai' || '' }}
           OPENAI_API_KEY: ${{ ((github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') || vars.DIRECTOR_MATERIAL_ENABLED == 'true') && secrets.OPENAI_API_KEY || '' }}
-          # Recraft is selected per Reel; Long Form does not receive this credential.
-          FAL_KEY: ${{ (github.event.client_payload.mode != 'long_form' && inputs.mode != 'long_form') && secrets.FAL_KEY || '' }}
+          # Recraft (fal.ai) is chosen per video, for Reels and Long Form. The worker only calls fal when the request row
+          # in the database says so (never from this payload); the key alone neither selects nor funds anything.
+          FAL_KEY: ${{ secrets.FAL_KEY }}
+          # Admin-scoped key for the GET-only balance read (api.fal.ai/v1/account/billing); optional if FAL_KEY is Admin.
+          FAL_ADMIN_KEY: ${{ secrets.FAL_ADMIN_KEY }}
+          # Who may use a chosen Recraft source, re-checked by the worker from the request's owner (recraft-access.ts):
+          # the internal owner account (controlled pilot), or everyone when the repository variable is "true".
+          # Recraft-only name on purpose: exposing INTERNAL_PRODUCTION_OWNER_USER_ID here would also switch on other
+          # owner-only paths of this worker (Director material) that were never enabled in it.
+          RECRAFT_PILOT_OWNER_USER_ID: ${{ secrets.INTERNAL_PRODUCTION_OWNER_USER_ID }}
+          RECRAFT_REEL_ENABLED: ${{ vars.RECRAFT_REEL_ENABLED }}
           # Video IA: en el worker se encienden para Long Form y el ÚNICO
           # control es la allocation del plan confirmado (calculada en Vercel
           # con sus propias flags y mostrada al usuario antes de confirmar):

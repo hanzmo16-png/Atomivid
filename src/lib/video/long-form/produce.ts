@@ -42,6 +42,7 @@ import { getVideoProvider } from "@/lib/providers/video-gen";
 import { getVoiceIdentity } from "@/lib/ai/voice";
 import type { MusicResult, ScriptLanguage, VideoProvider } from "@/lib/providers/types";
 import { resolveLongFormProviders, type LongFormProviderSet } from "./mode";
+import { getRecraftImageProvider } from "@/lib/providers/image";
 import { buildLongFormTimeline, type BeatSynthesizer } from "./timeline";
 import { shotsForSpan } from "./shots";
 import { assertOpeningValid, CoverValidationError, renderLongFormDoc, renderLongFormThumbnail, type RenderLongFormDocInput } from "./render";
@@ -88,7 +89,7 @@ import { getPricingConfig } from "@/lib/billing/pricing";
 import { getLongFormBudget } from "./cost";
 import { conservativeUnits, conservativeWorstCaseUsd, loadObservedMax, productionHardCap, type ObservedMax } from "./spend-cap";
 import { supabaseShotAssetStore, type ShotAssetStore } from "./durable-shot-assets";
-import { executeShot, type ShotExecution } from "./shot-executor";
+import { createImageStyleContext, executeShot, type ImageStyleContext, type ShotExecution } from "./shot-executor";
 import { type LongFormStage } from "./stages";
 import {
   finalizeLongFormOutput,
@@ -181,6 +182,13 @@ export type LongFormRuntime = {
    * Si se pasa, REEMPLAZA la música de fondo única (nunca se suman: música doble).
    */
   soundCues?: RenderLongFormDocInput["soundCues"];
+  /**
+   * «Imágenes IA con Recraft» chosen for THIS documentary (stored on the request, revalidated by run-job.ts). Required
+   * exactly when the confirmed plan pins image provider "recraft"; AI images then use Recraft with this style and
+   * never fall back to stock, a text card or another provider (shot-executor.ts ChosenImageProviderError).
+   */
+  recraftStyle?: { styleId: string | null; referenceImageUrls: string[]; match: "precise" | "flexible" | null; styleNote: string | null;
+    onStyleId: (styleId: string) => Promise<void> };
 };
 
 export class LongFormReplayError extends Error {
@@ -291,14 +299,25 @@ export async function generateLongFormVideoFromScript({
     if (dated.length > 0) throw new LongFormDatedEventEvidenceError(dated);
   }
 
-  const resolvedProviders = providers ?? resolveLongFormProviders("real");
+  const chosenRecraft = plan.providers.image === "recraft";
+  if (chosenRecraft !== Boolean(runtime.recraftStyle)) {
+    throw new Error("La elección de imágenes de este documental no coincide con su plan confirmado. No se ha iniciado la generación.");
+  }
+  const baseProviders = providers ?? resolveLongFormProviders("real");
+  // The plan pins Recraft: the per-video provider replaces the environment's image provider (FAL_KEY checked here,
+  // before narration or any reservation). Injected test providers must already be "recraft".
+  const resolvedProviders: LongFormProviderSet = chosenRecraft && !providers ? { ...baseProviders, imageProvider: getRecraftImageProvider() } : baseProviders;
+  if (chosenRecraft && resolvedProviders.imageProvider.name !== "recraft") {
+    throw new Error("El plan confirmado usa imágenes de Recraft, pero el proveedor de imágenes resuelto es otro. No se ha iniciado la generación.");
+  }
+  const imageStyle: ImageStyleContext | undefined = runtime.recraftStyle ? createImageStyleContext(runtime.recraftStyle) : undefined;
   const requireReal = !providers;
   const store = runtime.store ?? supabaseShotAssetStore(supabase, requestId, STORAGE_BUCKET);
   const allocation = executionAllocation(plan);
   const anchored0 = usesAnchoredVisuals(plan);
   // Abrir el presupuesto (gratis) ANTES de cualquier llamada pagada: si el
   // storage no responde, el trabajo falla aquí con $0 gastado.
-  const units = getGenerativeUnitCosts(plan.providers.aiVideo);
+  const units = getGenerativeUnitCosts(plan.providers.aiVideo, plan.providers.image);
   // Hard cap BEFORE any paid call: conservative prices (never below the highest
   // cost already billed for the same call) applied to the confirmed allocation.
   const conservative = conservativeUnits({ imageUsd: units.imageUsd, clipUsd: units.veoClipUsd, voiceUsdPer1kChars: getPricingConfig().elevenLabsUsdPer1kChars },
@@ -354,7 +373,9 @@ export async function generateLongFormVideoFromScript({
     const stages: PilotStageEstimate[] = [
       { stage: "research", ceilingUsd: 0, retryPolicy: "reuse_paid_results", note: "incluida en «script»: mismo proyecto del ledger del guion" },
       { stage: "script", ceilingUsd: scriptSpent, retryPolicy: "reuse_paid_results", note: "gasto ya registrado (comprometido + pendiente/ambiguo) del guion e investigación" },
-      { stage: "style", ceilingUsd: 0, retryPolicy: "reuse_paid_results", note: "Long Form no crea estilo (Recraft fuera de alcance)" },
+      { stage: "style", ceilingUsd: 0, retryPolicy: "reuse_paid_results", note: chosenRecraft
+        ? "creación del estilo Recraft (USD 0.005) incluida en «images»: cada imagen se estima como si creara el estilo"
+        : "Long Form sin estilo propio: imágenes del proveedor por defecto" },
       { stage: "voice", ceilingUsd: narrationUsd, retryPolicy: "reuse_paid_results" },
       { stage: "images", ceilingUsd: conservative.imageUsd * allocation.maxAiImageGenerations, retryPolicy: "reuse_paid_results" },
       { stage: "video", ceilingUsd: conservative.clipUsd * allocation.maxAiVideoClips, retryPolicy: "reuse_paid_results" },
@@ -536,6 +557,7 @@ export async function generateLongFormVideoFromScript({
         topic,
         footageProvider: resolvedProviders.footageProvider,
         imageProvider: resolvedProviders.imageProvider,
+        ...(imageStyle ? { imageStyle } : {}),
         videoProvider,
         store,
         budget,

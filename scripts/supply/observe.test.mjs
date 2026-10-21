@@ -58,3 +58,28 @@ test('missing credentials never trigger a provider call and a database failure a
   const failed = fixture(false, true); await assert.rejects(observe(env, failed.request, now), /MONITOR_DATABASE/);assert.equal(failed.gets.length, 0);
   await assert.rejects(observe({ ...env, SUPABASE_URL: 'https://wrong.example' }, f.request, now), /NOT_CONFIGURED/);
 });
+
+test('fal.ai (Recraft): GET-only billing read with the Admin key, USD credits persisted as provider_api; no key ⇒ not observed', async () => {
+  const writes = [], gets = [];
+  const request = async (url, init) => {
+    if (!url.startsWith(env.SUPABASE_URL)) {
+      assert.equal(init.method, 'GET'); gets.push({ url, auth: init.headers.Authorization });
+      if (url.startsWith('https://api.fal.ai/v1/account/billing')) return Response.json({ credits: { current_balance: 9.96, currency: 'USD' } });
+      if (url.includes('runwayml')) return Response.json({ creditBalance: 250 });
+      if (url.includes('elevenlabs')) return Response.json({ character_limit: 63002, character_count: 45546 });
+      return Response.json({ data: { billing_type: 'wallet', wallet: { currency: 'usd', remaining_balance: 1.5 } } });
+    }
+    if (init.method === 'GET') return Response.json(url.includes('pi_supply_policies') ? [] : [{ notes: '' }]);
+    writes.push({ url, body: JSON.parse(init.body) }); assert.ok(!init.body.includes('fal-admin-secret'));
+    return new Response(null, { status: 204 });
+  };
+  const result = await observe({ ...env, FAL_ADMIN_KEY: 'fal-admin-secret' }, request, now);
+  const fal = gets.find(g => g.url.includes('api.fal.ai'));
+  assert.equal(fal.url, 'https://api.fal.ai/v1/account/billing?expand=credits'); assert.equal(fal.auth, 'Key fal-admin-secret');
+  const snap = writes.find(w => w.url.endsWith('pi_capacity_snapshots') && w.body.provider === 'recraft').body;
+  assert.deepEqual([snap.unit, snap.available, snap.reliability], ['usd', 9.96, 'provider_api']);
+  assert.equal(result.find(r => r.provider === 'recraft').verified, true);
+  for (const bad of [{ credits: { current_balance: 5, currency: 'EUR' } }, { credits: { current_balance: '9' , currency: 'USD' } }, {}]) assert.equal(parseBalance('recraft', bad), null);
+  const none = await observe(env, request, now);
+  assert.equal(none.some(r => r.provider === 'recraft'), false);
+});

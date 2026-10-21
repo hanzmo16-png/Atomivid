@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/Card";
 import { Alert } from "@/components/ui/Alert";
 import { ContentTypeStep } from "./ContentTypeStep";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
+import { recraftAllowedFor } from "@/lib/video/recraft-access";
 import { createClient } from "@/lib/supabase/server";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
@@ -76,7 +77,7 @@ export default async function NewVideoPage({
             avatarModeEnabled={avatarModeUiEnabled}
             maxAvatarDurationSeconds={flags.maxAvatarDurationSeconds}
             reelVoiceSelectionEnabled={flags.reelVoiceSelectionEnabled}
-            recraftReelEnabled={flags.recraftReelEnabled}
+            recraftReelEnabled={recraftAllowedFor(user)}
             existingAvatars={existingAvatars}
             // La tarjeta "Video con avatar" se ofrece a la cuenta beta
             // (privateAvatarAccess) sola — igual que siempre funcionó para

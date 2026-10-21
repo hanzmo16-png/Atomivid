@@ -58,7 +58,7 @@ export async function materialAvailabilityPreflight(input: {
   const { plan } = input;
   const anchored = usesAnchoredVisuals(plan);
   const { shots, narrationSeconds } = planShotsFromScript(input.beats, input.topic, plan.strategy, anchored, usesVisualIdentity(plan));
-  const units = getGenerativeUnitCosts(plan.providers.aiVideo);
+  const units = getGenerativeUnitCosts(plan.providers.aiVideo, plan.providers.image);
   const limits = {
     ...limitsWithinAllocation(strategyLimits(plan.strategy, plan.estimatedVoiceCostUsd ?? 0, { aiVideoEnabled: input.aiVideoEnabled, units }), input.allocation),
     cinematic: usesVisualIdentity(plan),

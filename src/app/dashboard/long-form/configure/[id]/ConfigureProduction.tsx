@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ReelImageSourcePicker } from "@/app/dashboard/new/ReelImageSourcePicker";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -165,8 +166,10 @@ export function PlanSummary({ plan }: { plan: ProductionPlan }) {
  */
 export function ConfigureProduction({
   requestId,
-  plans,
-  preflight,
+  plans: defaultPlans,
+  preflight: defaultPreflight,
+  recraftPlans,
+  recraftPreflight,
   visual,
   summary,
   visualBlockText = null,
@@ -176,6 +179,9 @@ export function ConfigureProduction({
   requestId: string;
   plans: Record<VisualStrategy, ProductionPlan>;
   preflight?: Record<VisualStrategy, StrategyPreflight>;
+  /** Present only when this account may choose «Imágenes IA con Recraft» (decided on the server). */
+  recraftPlans?: Record<VisualStrategy, ProductionPlan>;
+  recraftPreflight?: Record<VisualStrategy, StrategyPreflight>;
   visual?: VisualCheck;
   summary?: PreflightSummary;
   visualBlockText?: string | null;
@@ -184,13 +190,19 @@ export function ConfigureProduction({
   ownChannel?: boolean;
 }) {
   const router = useRouter();
+  const [imageSource, setImageSource] = useState<"default" | "recraft">("default");
+  const useRecraft = imageSource === "recraft" && !!recraftPlans;
+  const plans = useRecraft ? recraftPlans : defaultPlans;
+  const imageForm = useRef<HTMLFormElement>(null);
   const [strategy, setStrategy] = useState<VisualStrategy>("balanced");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [packaging, setPackaging] = useState<LongFormPackaging | undefined>(defaultPackaging);
   const [packagingValid, setPackagingValid] = useState(true);
   const onValidityChange = useCallback((valid: boolean) => setPackagingValid(valid), []);
-  const [livePreflight, setLivePreflight] = useState(preflight);
+  const [liveDefault, setLiveDefault] = useState(defaultPreflight);
+  const [liveRecraft, setLiveRecraft] = useState(recraftPreflight);
+  const livePreflight = useRecraft ? liveRecraft : liveDefault;
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [checkedAt, setCheckedAt] = useState<string | null>(null);
@@ -213,9 +225,10 @@ export function ConfigureProduction({
     setNowMs(started);
     try {
       const res = await fetch(`/api/generate/${requestId}/refresh-capacity`, { method: "POST" });
-      const result = await safeParseJsonResponse<{ preflight: Record<VisualStrategy, StrategyPreflight>; checkedAt: string }>(res);
+      const result = await safeParseJsonResponse<{ preflight: Record<VisualStrategy, StrategyPreflight>; recraftPreflight?: Record<VisualStrategy, StrategyPreflight>; checkedAt: string }>(res);
       if (!result.ok) throw new Error(result.error);
-      setLivePreflight(result.data.preflight);
+      setLiveDefault(result.data.preflight);
+      if (result.data.recraftPreflight) setLiveRecraft(result.data.recraftPreflight);
       setCheckedAt(result.data.checkedAt);
     } catch (err) {
       setRefreshError(`No se pudo actualizar la disponibilidad: ${classifyClientFetchError(err)}`);
@@ -240,11 +253,17 @@ export function ConfigureProduction({
     setError(null);
     let confirmed = false;
     try {
-      const confirmRes = await fetch(`/api/generate/${requestId}/confirm-production`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(packaging ? { strategy, packaging } : { strategy }),
-      });
+      let confirmInit: RequestInit;
+      if (useRecraft && imageForm.current) {
+        // Recraft choice (+ optional reference images) travels as multipart; the server validates and stores it.
+        const body = new FormData(imageForm.current);
+        body.set("strategy", strategy);
+        if (packaging) body.set("packaging", JSON.stringify(packaging));
+        confirmInit = { method: "POST", body };
+      } else {
+        confirmInit = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(packaging ? { strategy, packaging } : { strategy }) };
+      }
+      const confirmRes = await fetch(`/api/generate/${requestId}/confirm-production`, confirmInit);
       const confirmResult = await safeParseJsonResponse(confirmRes);
       if (!confirmResult.ok) throw new Error(confirmResult.error);
       confirmed = true;
@@ -307,6 +326,14 @@ export function ConfigureProduction({
           );
         })}
       </fieldset>
+
+      {recraftPlans && (
+        <Card className="mt-4 p-4">
+          <form ref={imageForm} onSubmit={(e) => e.preventDefault()}>
+            <ReelImageSourcePicker format="long_form" disabled={loading} onSourceChange={setImageSource} />
+          </form>
+        </Card>
+      )}
 
       <Card className="mt-4 p-4">
         <h2 className="text-sm font-medium text-ink">Plan de producción</h2>
