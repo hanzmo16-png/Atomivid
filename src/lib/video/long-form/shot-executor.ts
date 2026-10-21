@@ -87,8 +87,12 @@ export function createImageStyleContext(choice: { styleId: string | null; refere
 /** Customer-safe stop of a production whose chosen image provider could not deliver an image. */
 export class ChosenImageProviderError extends Error {
   readonly customerMessage: string;
-  constructor(readonly shotId: string, readonly reason: string, readonly paidUncertain: boolean, readonly resumable = false) {
-    const customer = resumable
+  constructor(readonly shotId: string, readonly reason: string, readonly paidUncertain: boolean, readonly resumable = false,
+    /** false when retrying cannot clear the cause (e.g. the confirmed image budget is used up): support reviews it. */
+    readonly retryable = true) {
+    const customer = !retryable
+      ? `La producción se detuvo: ${reason}. Reintentar no lo resuelve; tus avances y lo ya pagado se conservan y soporte revisa el caso. No se sustituyó ninguna imagen.`
+      : resumable
       ? `Recraft no terminó a tiempo una imagen (${reason}). Se detuvo la producción; al reintentar se recupera la misma imagen sin reenviarla ni volver a cobrarla. Tus avances se conservan.`
       : paidUncertain
         ? `No se pudo confirmar una imagen de Recraft (${reason}). Se detuvo la producción sin reenviar ni volver a cobrar esa imagen; tus avances se conservan y el cobro se revisa antes de continuar.`
@@ -415,17 +419,20 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
   }
   // Chosen provider: a refusal with KNOWN zero charge (e.g. no fal credit) may be tried again on a later attempt,
   // under a new ledger key (the refused one is REFUNDED and never reused).
-  const noChargeRetry = existing?.status === "FAILED_NO_CHARGE" ? (existing.noChargeFailures ?? 1) : 0;
+  // The counter survives the STARTED record of a later try, so a resumed image keeps the key that holds its request id.
+  const noChargeRetry = existing?.status === "FAILED_NO_CHARGE" ? (existing.noChargeFailures ?? 1) : (existing?.noChargeFailures ?? 0);
   if (existing?.status === "FAILED_NO_CHARGE" && !strict) {
     return { unavailable: "el proveedor ya rechazó esta imagen antes" };
   }
+  // Read BEFORE reserving: a poisoned style context stops here without holding a budget slot.
+  const style = strict?.current();
   const realUsd = Math.max(deps.units.imageUsd, deps.conservativeImageUsd ?? deps.units.imageUsd);
   if (!resuming && !(await deps.budget.reserveAiImage(deps.units.imageUsd, realUsd))) {
-    if (strict) stop("el presupuesto confirmado de imágenes IA se agotó");
+    // The durable budget never widens: retrying cannot clear this, so it is a support stop, not a retry.
+    if (strict) throw new ChosenImageProviderError(shot.id, "se alcanzó el presupuesto confirmado de imágenes IA", false, false, false);
     return { unavailable: "presupuesto confirmado de imágenes IA agotado" };
   }
 
-  const style = strict?.current();
   const basePrompt = deps.visualPipeline === "anchored_v1" ? aiImagePromptFor(shot) : documentaryImagePrompt(shot.visualIntent);
   const request: ImageGenerationRequest = {
     prompt: strict?.styleNote ? `${basePrompt} ${strict.styleNote}` : basePrompt,
@@ -463,7 +470,8 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
   const markStarted = async () => {
     // Supply admission happens in guardPaidCall BEFORE this hook. A refused
     // admission is resumable and must not leave an uncertain STARTED asset.
-    await deps.store.write({ shotId: shot.id, kind: "ai_image", status: "STARTED", provider: deps.imageProvider.name, updatedAtIso: new Date().toISOString() });
+    await deps.store.write({ shotId: shot.id, kind: "ai_image", status: "STARTED", provider: deps.imageProvider.name, updatedAtIso: new Date().toISOString(),
+      ...(noChargeRetry > 0 ? { noChargeFailures: noChargeRetry } : {}) });
     providerStarted = true;
   };
   const generate = async () => {
@@ -475,6 +483,7 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
   // storage failure still commits the row (the provider charged) and then fails the shot as before.
   let persisted: MediaOutcome | undefined;
   let persistError: unknown;
+  const twoStep = Boolean(strict && deps.imageProvider.submitImage && deps.imageProvider.resumeImage);
   const accept = async (a: GenerativeAsset) => {
     // Same contract as Reel generated images: never trust "the call did not throw" as "the
     // file is usable". An invalid file is paid but unusable: the gate treats it as uncertain
@@ -492,9 +501,9 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
       if (err instanceof SupplyUnavailableError) throw err;
       persistError = err;
     }
-    return { result: a, costUsd: a.costUsd, resultRef: `shot-asset:${shot.id}:ai_image` };
+    // The provider's job id travels in the ledger result so a later attempt can re-read a paid result (GET only).
+    return { result: a, costUsd: a.costUsd, resultRef: `shot-asset:${shot.id}:ai_image${twoStep && a.providerJobId ? `:job=${a.providerJobId}` : ""}` };
   };
-  const twoStep = Boolean(strict && deps.imageProvider.submitImage && deps.imageProvider.resumeImage);
   try {
     if (deps.imageProvider.name === "fixture") {
       asset = await generate();
@@ -525,7 +534,22 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
             },
             resume: async (providerJobId: string) => accept(await deps.imageProvider.resumeImage!(providerJobId, request)),
           } : {}),
-          load: async () => null,
+          // A COMMITTED image whose object was lost (upload failed after the charge): with a queue provider the paid
+          // result is read again by its request id — a GET, never a new submission or charge. Otherwise unavailable.
+          load: async (resultRef: string) => {
+            const job = twoStep ? /:job=([A-Za-z0-9-]{8,64})$/.exec(resultRef)?.[1] : undefined;
+            if (!job) return null;
+            try {
+              const a = await deps.imageProvider.resumeImage!(job, request);
+              const validation = validateVisualAssetBuffer(a.buffer, a.mimeType);
+              if (!validation.valid) return null;
+              persisted = await persistImage(a);
+              return a;
+            } catch (err) {
+              if (err instanceof SupplyUnavailableError) throw err;
+              return null;
+            }
+          },
           // El proveedor ya reintenta una vez por su cuenta ante un rechazo explícito (openai.ts).
           maxRejectedRetries: 0,
         },

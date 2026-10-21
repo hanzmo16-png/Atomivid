@@ -26,6 +26,5 @@ jobs:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           RUNWAY_API_KEY: ${{ secrets.RUNWAY_API_KEY }}
           HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
-          # fal.ai balance for Recraft images (Admin-scoped key; FAL_KEY only if it is itself Admin-scoped).
+          # fal.ai balance for Recraft images (Admin-scoped key, GET /v1/account/billing only).
           FAL_ADMIN_KEY: ${{ secrets.FAL_ADMIN_KEY }}
-          FAL_KEY: ${{ secrets.FAL_KEY }}

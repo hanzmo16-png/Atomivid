@@ -182,15 +182,36 @@ test("5xx/medio inválido al recuperar el resultado: imagen pagada no usable, de
   assert.equal(fal.submitted.length, 1);
 });
 
-test("fallo de subida tras pagar: el reintento no vuelve a pagar la imagen", async () => {
+test("fallo de subida tras pagar: el reintento RECUPERA la imagen pagada releyendo su request_id (GET), sin volver a pagarla", async () => {
   let failUpload = true;
   const fal = fakeRecraft();
   const h = await harness({ provider: fal.provider, failPutObject: () => failUpload });
   await assert.rejects(run(shot("s1"), h.deps));
   assert.equal(ops(h.ledger)[0].status, "COMMITTED", "the provider charged: the row is committed");
+  assert.match(String(ops(h.ledger)[0].resultRef), /:job=fal-req-0001$/);
   failUpload = false;
-  await assert.rejects(run(shot("s1"), h.deps), (e: unknown) => e instanceof ChosenImageProviderError && e.paidUncertain);
+  const r = await run(shot("s1"), h.deps);
+  assert.equal(r.executedType, "generated_placeholder");
   assert.equal(fal.submitted.length, 1, "never paid twice");
+  assert.deepEqual(fal.resumed, ["fal-req-0001", "fal-req-0001"], "the paid result was read again by its request id");
+  assert.equal(h.stock.calls(), 0);
+});
+
+test("402 → recarga → aceptado → timeout → el siguiente intento REANUDA la clave correcta (el contador sobrevive a STARTED)", async () => {
+  let funded = false, stall = true;
+  const fal = fakeRecraft({
+    submit: () => { if (!funded) throw new GenerativeProviderError("saldo insuficiente (HTTP 402)", "recraft", "quota_exceeded"); },
+    resume: (id) => { if (stall) throw new GenerativeProviderError("Recraft no terminó", "recraft", "timeout", undefined, id); },
+  });
+  const h = await harness({ provider: fal.provider });
+  await assert.rejects(run(shot("s1"), h.deps), ChosenImageProviderError);
+  funded = true;
+  await assert.rejects(run(shot("s1"), h.deps), (e: unknown) => e instanceof ChosenImageProviderError && e.resumable);
+  stall = false;
+  const r = await run(shot("s1"), h.deps);
+  assert.equal(r.executedType, "generated_placeholder");
+  assert.equal(fal.submitted.length, 2, "one refused (unbilled) + one accepted; the accepted one was resumed, not resent");
+  assert.deepEqual(ops(h.ledger).map((o) => o.status), ["REFUNDED", "COMMITTED"]);
 });
 
 test("concurrencia: dos ejecuciones simultáneas del mismo plano envían UNA sola vez", async () => {
@@ -202,11 +223,11 @@ test("concurrencia: dos ejecuciones simultáneas del mismo plano envían UNA sol
   assert.equal(h.stock.calls(), 0);
 });
 
-test("presupuesto de imágenes agotado: se detiene ANTES de llamar a fal (sin cobro, sin stock)", async () => {
+test("presupuesto de imágenes agotado: se detiene ANTES de llamar a fal (sin cobro, sin stock) y NO como reintento", async () => {
   const fal = fakeRecraft();
   const h = await harness({ provider: fal.provider, allocation: { maxAiImageGenerations: 1, maxAiVideoClips: 0, maxGenerativeUsd: 0.04 } });
   await run(shot("s1"), h.deps);
-  await assert.rejects(run(shot("s2"), h.deps), (e: unknown) => e instanceof ChosenImageProviderError && /presupuesto/.test(e.customerMessage));
+  await assert.rejects(run(shot("s2"), h.deps), (e: unknown) => e instanceof ChosenImageProviderError && !e.retryable && /presupuesto/.test(e.customerMessage) && /soporte/.test(e.customerMessage));
   assert.equal(fal.submitted.length, 1);
   assert.equal(h.stock.calls(), 0);
 });
@@ -218,6 +239,7 @@ test("no se pudo guardar el style_id creado: se detiene y NINGUNA otra imagen se
   await assert.rejects(run(shot("s2"), h.deps), (e: unknown) => e instanceof ChosenImageProviderError && /estilo/.test(e.customerMessage));
   assert.equal(fal.submitted.length, 1, "the second image was never requested");
   assert.equal(h.stock.calls(), 0);
+  assert.equal(h.deps.budget.snapshot().used.aiImageGenerations, 1, "the stopped shot never held a budget slot");
 });
 
 test("estilo dado por el usuario (style_id): nunca crea otro estilo ni usa referencias", async () => {

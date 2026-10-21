@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { GeneratedScript } from "@/lib/providers/types";
-import { parseStoredRecraftStyle, recraftReelEstimateUsd, type ReelRecraftStyle } from "./recraft-reel";
+import { parseStoredRecraftStyle, recraftReelEstimateUsd, RECRAFT_MAX_REFERENCE_BYTES, RECRAFT_MAX_REFERENCES, RECRAFT_REFERENCE_TYPES, type ReelRecraftStyle } from "./recraft-reel";
+import { imageDimensions } from "@/lib/providers/image/recraft";
 
 const BUCKET = "videos";
 export type ReelRecraftRow = { style: ReelRecraftStyle; styleId: string | null };
@@ -47,4 +48,26 @@ export async function persistReelStyleId(service: SupabaseClient, requestId: str
   const { error } = await service.from("video_requests").update({ reel_recraft_style_id: styleId })
     .eq("id", requestId).is("reel_recraft_style_id", null);
   if (error) throw new Error("No se pudo guardar el style_id de Recraft de este Reel; se detiene para no crear estilos distintos.");
+}
+
+/**
+ * Validates (real PNG/JPEG/WEBP header matching the declared type, ≤ 5 MB) and stores the creator's style references
+ * under `${folder}/ref-N.ext` in our private bucket. Nothing is sent to fal.ai and nothing is paid. Returns the stored
+ * paths, or a user-facing error (Spanish) without storing anything further. Shared by the Reel form and Long Form.
+ */
+export async function storeRecraftReferences(service: SupabaseClient, folder: string, files: File[]): Promise<{ paths: string[] } | { error: string }> {
+  const paths: string[] = [];
+  for (const [n, f] of files.slice(0, RECRAFT_MAX_REFERENCES).entries()) {
+    const buf = Buffer.from(await f.arrayBuffer());
+    const dim = imageDimensions(buf);
+    const ext = RECRAFT_REFERENCE_TYPES[f.type];
+    if (!ext || buf.byteLength > RECRAFT_MAX_REFERENCE_BYTES || !dim || dim.type !== f.type) {
+      return { error: "Las imágenes de referencia deben ser PNG, JPG o WEBP válidas de hasta 5 MB. No se ha creado ni cobrado nada." };
+    }
+    const path = `${folder}/ref-${n}.${ext}`;
+    const up = await service.storage.from(BUCKET).upload(path, buf, { contentType: f.type, upsert: true });
+    if (up.error) return { error: "No se pudieron guardar las imágenes de referencia. No se ha creado ni cobrado nada." };
+    paths.push(path);
+  }
+  return { paths };
 }

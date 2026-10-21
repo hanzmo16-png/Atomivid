@@ -21,8 +21,9 @@ export async function falApiSnapshot(request: typeof fetch, env: Record<string, 
   } catch { return { ...base, health: "DEGRADED" }; }
 }
 
-/** FAL_ADMIN_KEY when configured (recommended: billing read only needs it); otherwise FAL_KEY, which works only if
- * that key itself is Admin-scoped. */
+/** Only an explicitly configured Admin-scoped key reads billing. A regular (API-scoped) FAL_KEY is refused by the
+ * billing endpoint; using it would store a DOWN reading every time and hide a valid manual balance entry, so without
+ * FAL_ADMIN_KEY nothing is read or stored. */
 export function falBillingKey(env: Record<string, string | undefined>): string | null {
-  return env.FAL_ADMIN_KEY?.trim() || env.FAL_KEY?.trim() || null;
+  return env.FAL_ADMIN_KEY?.trim() || null;
 }

@@ -122,7 +122,8 @@ jobs:
           # Recraft (fal.ai) is chosen per video, for Reels and Long Form. The worker only calls fal when the request row
           # in the database says so (never from this payload); the key alone neither selects nor funds anything.
           FAL_KEY: ${{ secrets.FAL_KEY }}
-          # Admin-scoped key for the GET-only balance read (api.fal.ai/v1/account/billing); optional if FAL_KEY is Admin.
+          # Admin-scoped fal key, used ONLY for the GET-only balance re-read the paid-call gate needs when the 5-minute
+          # balance goes stale mid-production (supply/server.ts). Scoped to this step: npm ci and other steps never see it.
           FAL_ADMIN_KEY: ${{ secrets.FAL_ADMIN_KEY }}
           # Who may use a chosen Recraft source, re-checked by the worker from the request's owner (recraft-access.ts):
           # the internal owner account (controlled pilot), or everyone when the repository variable is "true".

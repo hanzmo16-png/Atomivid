@@ -300,17 +300,18 @@ export async function generateLongFormVideoFromScript({
   }
 
   const chosenRecraft = plan.providers.image === "recraft";
-  if (chosenRecraft !== Boolean(runtime.recraftStyle)) {
+  // Replay-only recovery (no provider call at all) reuses stored images and needs neither the style nor FAL_KEY.
+  if (!replayOnly && chosenRecraft !== Boolean(runtime.recraftStyle)) {
     throw new Error("La elección de imágenes de este documental no coincide con su plan confirmado. No se ha iniciado la generación.");
   }
   const baseProviders = providers ?? resolveLongFormProviders("real");
   // The plan pins Recraft: the per-video provider replaces the environment's image provider (FAL_KEY checked here,
   // before narration or any reservation). Injected test providers must already be "recraft".
-  const resolvedProviders: LongFormProviderSet = chosenRecraft && !providers ? { ...baseProviders, imageProvider: getRecraftImageProvider() } : baseProviders;
-  if (chosenRecraft && resolvedProviders.imageProvider.name !== "recraft") {
+  const resolvedProviders: LongFormProviderSet = chosenRecraft && !providers && !replayOnly ? { ...baseProviders, imageProvider: getRecraftImageProvider() } : baseProviders;
+  if (chosenRecraft && !replayOnly && resolvedProviders.imageProvider.name !== "recraft") {
     throw new Error("El plan confirmado usa imágenes de Recraft, pero el proveedor de imágenes resuelto es otro. No se ha iniciado la generación.");
   }
-  const imageStyle: ImageStyleContext | undefined = runtime.recraftStyle ? createImageStyleContext(runtime.recraftStyle) : undefined;
+  const imageStyle: ImageStyleContext | undefined = runtime.recraftStyle && !replayOnly ? createImageStyleContext(runtime.recraftStyle) : undefined;
   const requireReal = !providers;
   const store = runtime.store ?? supabaseShotAssetStore(supabase, requestId, STORAGE_BUCKET);
   const allocation = executionAllocation(plan);

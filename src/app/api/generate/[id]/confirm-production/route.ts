@@ -6,8 +6,9 @@ import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
 import { cinematicV6Enabled } from "@/lib/video/long-form/cinematic-v6-access";
 import { generateDiagnosticId, logRenderError } from "@/lib/video/render-error";
 import { recraftAllowedFor } from "@/lib/video/recraft-access";
-import { parseRecraftSelection, RECRAFT_MAX_REFERENCE_BYTES, RECRAFT_MAX_REFERENCES, RECRAFT_REFERENCE_TYPES, type ReelRecraftStyle } from "@/lib/video/recraft-reel";
-import { imageDimensions } from "@/lib/providers/image/recraft";
+import { randomUUID } from "node:crypto";
+import { parseRecraftSelection, type ReelRecraftStyle } from "@/lib/video/recraft-reel";
+import { storeRecraftReferences } from "@/lib/video/recraft-reel-server";
 
 /**
  * Paso 9/10 del contrato de Long Form: fija el plan confirmado (ver
@@ -54,26 +55,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         styleNote: form.get("recraft_style_note"), referenceCount: refs.length }, recraftAllowedFor(user));
       if ("error" in choice) return NextResponse.json({ error: choice.error }, { status: 400 });
       if (choice.source === "recraft") {
-        // Ownership and state BEFORE writing anything into this request's folder (the confirmation re-checks both).
-        const { data: row } = await service.from("video_requests").select("user_id, mode, long_form_confirmed_at").eq("id", id)
-          .maybeSingle<{ user_id: string; mode: string; long_form_confirmed_at: string | null }>();
+        // Ownership, mode and state BEFORE writing anything into this request's folder (the confirmation re-checks all).
+        const { data: row } = await service.from("video_requests").select("user_id, mode, status, long_form_confirmed_at").eq("id", id)
+          .maybeSingle<{ user_id: string; mode: string; status: string; long_form_confirmed_at: string | null }>();
         if (!row) return NextResponse.json({ error: "Solicitud no encontrada" }, { status: 404 });
         if (row.user_id !== user.id) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-        const referencePaths: string[] = [];
-        // Already confirmed: the stored choice wins (idempotent); nothing is uploaded again.
-        if (!row.long_form_confirmed_at && !choice.styleId) {
-          for (const [n, f] of refs.slice(0, RECRAFT_MAX_REFERENCES).entries()) {
-            const buf = Buffer.from(await f.arrayBuffer());
-            const dim = imageDimensions(buf);
-            const ext = RECRAFT_REFERENCE_TYPES[f.type];
-            if (!ext || buf.byteLength > RECRAFT_MAX_REFERENCE_BYTES || !dim || dim.type !== f.type) {
-              return NextResponse.json({ error: "Las imágenes de referencia deben ser PNG, JPG o WEBP válidas de hasta 5 MB. No se confirmó ni cobró nada." }, { status: 400 });
-            }
-            const path = `${id}/recraft-style/ref-${n}.${ext}`;
-            const up = await service.storage.from("videos").upload(path, buf, { contentType: f.type, upsert: true });
-            if (up.error) return NextResponse.json({ error: "No se pudieron guardar las imágenes de referencia. No se confirmó ni cobró nada." }, { status: 502 });
-            referencePaths.push(path);
-          }
+        if (row.mode !== "long_form") return NextResponse.json({ error: "Esta solicitud no es de Long Form" }, { status: 409 });
+        let referencePaths: string[] = [];
+        // Already confirmed: the stored choice wins (idempotent) and nothing is uploaded. Otherwise each confirmation
+        // writes to its own folder, so two tabs never overwrite each other's references (the winner keeps its own).
+        if (!row.long_form_confirmed_at && row.status === "script_ready" && !choice.styleId) {
+          const stored = await storeRecraftReferences(service, `${id}/recraft-style/lf-${randomUUID()}`, refs);
+          if ("error" in stored) return NextResponse.json({ error: stored.error.replace("No se ha creado ni cobrado nada.", "No se confirmó ni cobró nada.") }, { status: 400 });
+          referencePaths = stored.paths;
         }
         recraft = { styleId: choice.styleId, referencePaths, match: choice.match, styleNote: choice.styleNote };
       }

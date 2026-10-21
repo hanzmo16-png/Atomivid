@@ -18,8 +18,8 @@ import { CLAIM_MESSAGES, createAvatarOnce, isDuplicateUpload, photoClaimPath } f
 import { insertCanonicalAvatar } from "@/lib/video/avatar/canonical-row";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { redirect } from "next/navigation";
-import { parseRecraftSelection, RECRAFT_MAX_REFERENCE_BYTES, RECRAFT_MAX_REFERENCES, RECRAFT_REFERENCE_TYPES } from "@/lib/video/recraft-reel";
-import { imageDimensions } from "@/lib/providers/image/recraft";
+import { parseRecraftSelection } from "@/lib/video/recraft-reel";
+import { storeRecraftReferences } from "@/lib/video/recraft-reel-server";
 import { recraftAllowedFor } from "@/lib/video/recraft-access";
 import { checkProductionForRequest } from "@/lib/supply/production-check";
 import { formProduction, type ScriptChoice } from "@/lib/video/form-production";
@@ -139,20 +139,11 @@ export async function createVideoRequest(formData: FormData) {
     if ("error" in recraftChoice) redirect(formErrorUrl(recraftChoice.error));
     let recraftColumns: Record<string, unknown> = {};
     if (recraftChoice.source === "recraft") {
-      const referencePaths: string[] = [];
+      let referencePaths: string[] = [];
       if (!recraftChoice.styleId) {
-        for (const [n, f] of refFiles.slice(0, RECRAFT_MAX_REFERENCES).entries()) {
-          const buf = Buffer.from(await f.arrayBuffer());
-          const dim = imageDimensions(buf);
-          const ext = RECRAFT_REFERENCE_TYPES[f.type];
-          if (!ext || buf.byteLength > RECRAFT_MAX_REFERENCE_BYTES || !dim || dim.type !== f.type) {
-            redirect(formErrorUrl("Las imágenes de referencia deben ser PNG, JPG o WEBP válidas de hasta 5 MB. No se ha creado ni cobrado nada."));
-          }
-          const path = `${requestId}/recraft-style/ref-${n}.${ext}`;
-          const up = await createServiceClient().storage.from("videos").upload(path, buf, { contentType: f.type, upsert: true });
-          if (up.error) redirect(formErrorUrl("No se pudieron guardar las imágenes de referencia. No se ha creado ni cobrado nada."));
-          referencePaths.push(path);
-        }
+        const stored = await storeRecraftReferences(createServiceClient(), `${requestId}/recraft-style`, refFiles);
+        if ("error" in stored) redirect(formErrorUrl(stored.error));
+        referencePaths = stored.paths;
       }
       recraftColumns = { reel_image_source: "recraft", reel_recraft_style: { styleId: recraftChoice.styleId, referencePaths,
         match: recraftChoice.match, styleNote: recraftChoice.styleNote } };

@@ -5,8 +5,8 @@ const providers = [
   { name: 'elevenlabs', key: 'ELEVENLABS_API_KEY', url: 'https://api.elevenlabs.io/v1/user/subscription', unit: 'character' },
   { name: 'runway', key: 'RUNWAY_API_KEY', url: 'https://api.dev.runwayml.com/v1/organization', unit: 'credit' },
   { name: 'heygen', key: 'HEYGEN_API_KEY', url: 'https://api.heygen.com/v3/users/me', unit: 'usd' },
-  // fal.ai (Recraft images): Platform API billing, Admin-scoped key. FAL_KEY is used only if no admin key is set.
-  { name: 'recraft', key: 'FAL_ADMIN_KEY', fallbackKey: 'FAL_KEY', url: 'https://api.fal.ai/v1/account/billing?expand=credits', unit: 'usd' },
+  // fal.ai (Recraft images): Platform API billing, Admin-scoped key only (optional supplier: skipped without it).
+  { name: 'recraft', key: 'FAL_ADMIN_KEY', optional: true, url: 'https://api.fal.ai/v1/account/billing?expand=credits', unit: 'usd' },
 ];
 const finite = x => typeof x === 'number' && Number.isFinite(x) && x >= 0;
 export function parseBalance(provider, value) {
@@ -45,9 +45,9 @@ export async function observe(env, request = fetch, now = () => new Date().toISO
   for (const p of providers) {
     const checked_at = now(); // Capture before billing GET; do not erase concurrent consumption.
     let balance = null, health = 'UNCHECKED', failure = 'credential_missing';
-    const secret = env[p.key] || (p.fallbackKey ? env[p.fallbackKey] : undefined);
+    const secret = env[p.key];
     // Optional supplier (fal.ai): no credential configured ⇒ not observed at all (no hourly "missing" notices).
-    if (!secret && p.fallbackKey) continue;
+    if (!secret && p.optional) continue;
     if (secret) {
       try {
         const headers = p.name === 'elevenlabs' ? { 'xi-api-key': secret } : p.name === 'heygen' ? { 'X-Api-Key': secret }
@@ -69,11 +69,11 @@ export async function observe(env, request = fetch, now = () => new Date().toISO
     const existing = await db(`pi_provider_accounts?provider=eq.${p.name}&select=notes`);
     const prefix = '[ATOMIVID_MONITOR]';
     const oldNotes = String(existing?.[0]?.notes ?? '').split(prefix)[0].trim();
-    const evidence = { checkedAt: checked_at, source: 'github-render-worker-secret', secretReference: env[p.key] || !p.fallbackKey ? p.key : p.fallbackKey,
+    const evidence = { checkedAt: checked_at, source: 'github-render-worker-secret', secretReference: p.key,
       balanceVerified: !!balance, unit: balance?.unit ?? null, baseline, ...balance?.details, failure: balance ? null : failure };
     await db(`pi_provider_accounts?provider=eq.${p.name}`, 'PATCH', {
       balance_source: balance ? 'provider_api' : 'none', status: balance ? 'active' : 'unknown',
-      secret_reference_name: env[p.key] || !p.fallbackKey ? p.key : p.fallbackKey, renewal_date: balance?.renewal_date ?? null,
+      secret_reference_name: p.key, renewal_date: balance?.renewal_date ?? null,
       notes: `${oldNotes}\n${prefix}${JSON.stringify(evidence)}`, updated_at: now(),
     }, 'return=minimal');
     // Internal persistent notices only. No email/webhook, generation, refill or dispatch.

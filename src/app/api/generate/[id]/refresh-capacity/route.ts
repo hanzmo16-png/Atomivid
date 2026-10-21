@@ -34,7 +34,6 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const outcome = await refreshDemandedCapacity(service, providers);
   const check = async (r: typeof results) => Object.fromEntries(await Promise.all(VISUAL_STRATEGIES.map(async (strategy) =>
     [strategy, await strategyPreflight(service, { strategy, plan: r[strategy].plan, scriptJson: script, refreshErrors: outcome.errors })]))) as Record<VisualStrategy, StrategyPreflight>;
-  const preflight = await check(results);
-  const recraftPreflight = recraftResults ? await check(recraftResults) : undefined;
+  const [preflight, recraftPreflight] = await Promise.all([check(results), recraftResults ? check(recraftResults) : Promise.resolve(undefined)]);
   return NextResponse.json({ preflight, ...(recraftPreflight ? { recraftPreflight } : {}), checkedAt: new Date().toISOString(), refreshed: outcome.refreshed, reused: outcome.reused, manual: outcome.manual });
 }
