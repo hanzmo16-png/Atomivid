@@ -71,6 +71,46 @@ function publicError(err: unknown): string {
   return "No se pudo generar la narración. Lo ya generado se conserva y no se vuelve a cobrar; inténtalo de nuevo.";
 }
 
+type ReadyArtifact = {
+  audioPath: string;
+  sha256: string;
+  bytes: number;
+};
+
+function isExpectedReadyEpisode(row: PodcastEpisode | null, expected: ReadyArtifact): boolean {
+  return row?.status === "ready"
+    && row.run_token === null
+    && row.audio_path === expected.audioPath
+    && row.audio_sha256 === expected.sha256
+    && Number(row.audio_bytes) === expected.bytes;
+}
+
+/**
+ * The audio upload has already succeeded when this runs. A lost/uncertain database response must not make
+ * the caller repeat mastering and storage later. Re-read first; retry the same idempotent fenced write only
+ * while this run still owns the row. A different token or a different ready artifact always fails closed.
+ */
+export async function reconcileNarrationReady(
+  token: string,
+  expected: ReadyArtifact,
+  writeReady: () => Promise<PodcastEpisode | null>,
+  reread: () => Promise<PodcastEpisode | null>,
+): Promise<PodcastEpisode | null> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const written = await writeReady();
+      if (isExpectedReadyEpisode(written, expected)) return written;
+    } catch {
+      // The write may have committed even when its response was lost. Resolve by observation below.
+    }
+    let observed: PodcastEpisode | null = null;
+    try { observed = await reread(); } catch { /* a fenced retry is still safe */ }
+    if (isExpectedReadyEpisode(observed, expected)) return observed;
+    if (observed && (observed.status !== "generating" || observed.run_token !== token)) return null;
+  }
+  return null;
+}
+
 /**
  * One generation run. Claim (CAS) → narrate (gated) → store → ready. Any failure leaves the episode
  * 'failed' with a clear message; chunks already paid stay stored for the next run.
@@ -98,9 +138,11 @@ export async function runGeneration(service: SupabaseClient, episode: PodcastEpi
     if (!ready.ready) throw new SupplyUnavailableError(ready.failure?.provider ?? "elevenlabs", ready.failure?.reason ?? "unavailable");
     const out = await narrateEpisode({ ledger: supabaseLedgerStore(service), results: supabaseResultStore(service, BUCKET), voiceProvider: provider, voiceIdentity: getVoiceIdentity(episode.language, voiceId),
       putAudio: async (p, bytes, contentType) => { const { error } = await service.storage.from(BUCKET).upload(p, bytes, { contentType, upsert: true }); if (error) throw new Error("STORAGE"); }, capUsd: opts.capUsd ?? null }, episode);
-    const { data } = await fenced({ status: "ready", audio_path: out.audioPath, audio_mime: "audio/mp4", duration_seconds: out.durationSeconds, audio_sha256: out.sha256, audio_bytes: out.bytes,
-      loudness: out.loudness, cost_usd: out.costUsd, run_token: null, error: null }).select(EPISODE_COLUMNS);
-    const row = (data?.[0] as PodcastEpisode | undefined);
+    const readyPatch = { status: "ready", audio_path: out.audioPath, audio_mime: "audio/mp4", duration_seconds: out.durationSeconds, audio_sha256: out.sha256, audio_bytes: out.bytes,
+      loudness: out.loudness, cost_usd: out.costUsd, run_token: null, error: null };
+    const row = await reconcileNarrationReady(token, { audioPath: out.audioPath, sha256: out.sha256, bytes: out.bytes },
+      async () => { const { data } = await fenced(readyPatch).select(EPISODE_COLUMNS); return (data?.[0] as PodcastEpisode | undefined) ?? null; },
+      () => loadOwnedEpisode(service, episode.user_id, episode.id));
     return row ? { ok: true, episode: row } : { error: "Otra ejecución tomó este episodio.", status: 409 };
   } catch (err) {
     const capped = err instanceof NarrationCapError;

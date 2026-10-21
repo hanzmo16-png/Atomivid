@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { isRecordingPathFor, masterRecording, recordingUploadPath, sniffAudio } from "./recording";
 import { isStalledRun, PODCAST_STALE_RUN_MS } from "./episode";
+import { reconcileNarrationReady } from "./server";
 
 const src = (p: string) => readFileSync(path.join(__dirname, p), "utf8");
 
@@ -37,6 +38,42 @@ test("ejecución interrumpida: se puede continuar tras el plazo; antes no", () =
   assert.equal(isStalledRun({ status: "generating", run_started_at: new Date(now - PODCAST_STALE_RUN_MS - 1).toISOString() }, now), true);
   assert.equal(isStalledRun({ status: "generating", run_started_at: new Date(now - 60_000).toISOString() }, now), false);
   assert.equal(isStalledRun({ status: "ready", run_started_at: null }, now), false);
+});
+
+const readyRow = (patch: Record<string, unknown> = {}) => ({
+  status: "ready", run_token: null, audio_path: "u/podcasts/e/episode.m4a", audio_sha256: "abc", audio_bytes: 123,
+  ...patch,
+} as never);
+
+test("finalización incierta: una respuesta perdida se reconcilia sin repetir procesamiento", async () => {
+  let writes = 0, reads = 0;
+  const row = await reconcileNarrationReady("run-a", { audioPath: "u/podcasts/e/episode.m4a", sha256: "abc", bytes: 123 },
+    async () => { writes++; throw new Error("respuesta perdida"); },
+    async () => { reads++; return readyRow(); });
+  assert.equal(row?.status, "ready");
+  assert.deepEqual({ writes, reads }, { writes: 1, reads: 1 });
+});
+
+test("finalización incierta: reintenta solo el UPDATE idempotente mientras conserva el token", async () => {
+  let writes = 0;
+  const row = await reconcileNarrationReady("run-a", { audioPath: "u/podcasts/e/episode.m4a", sha256: "abc", bytes: 123 },
+    async () => ++writes === 1 ? null : readyRow(),
+    async () => ({ status: "generating", run_token: "run-a" } as never));
+  assert.equal(row?.status, "ready");
+  assert.equal(writes, 2);
+});
+
+test("finalización incierta: no pisa otro worker ni acepta un artefacto distinto", async () => {
+  for (const observed of [
+    { status: "generating", run_token: "run-b" },
+    readyRow({ audio_sha256: "otro" }),
+  ]) {
+    let writes = 0;
+    const row = await reconcileNarrationReady("run-a", { audioPath: "u/podcasts/e/episode.m4a", sha256: "abc", bytes: 123 },
+      async () => { writes++; return null; }, async () => observed as never);
+    assert.equal(row, null);
+    assert.equal(writes, 1);
+  }
 });
 
 test("grabación propia: tipo real por bytes, rutas emitidas por el servidor, rechazos claros", async () => {
