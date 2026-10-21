@@ -185,13 +185,13 @@ export type LongFormRuntime = {
    * Si se pasa, REEMPLAZA la música de fondo única (nunca se suman: música doble).
    */
   soundCues?: RenderLongFormDocInput["soundCues"];
+  /** Voz elegida y guardada en la solicitud (reel_voice_id, validada al confirmar). Nunca se sustituye en silencio. */
+  voiceId?: string;
   /**
    * «Imágenes IA con Recraft» chosen for THIS documentary (stored on the request, revalidated by run-job.ts). Required
    * exactly when the confirmed plan pins image provider "recraft"; AI images then use Recraft with this style and
    * never fall back to stock, a text card or another provider (shot-executor.ts ChosenImageProviderError).
    */
-  /** Voz elegida y guardada en la solicitud (reel_voice_id, validada al confirmar). Nunca se sustituye en silencio. */
-  voiceId?: string;
   recraftStyle?: { styleId: string | null; referenceImageUrls: string[]; match: "precise" | "flexible" | null; styleNote: string | null;
     onStyleId: (styleId: string) => Promise<void>; onMissingStyleId?: "stop" | "same_references"; styleMissing?: boolean;
     onStyleMissing?: (providerJobId: string | undefined) => Promise<void> };
@@ -696,10 +696,11 @@ export async function generateLongFormVideoFromScript({
   // Puerta FINAL de entrega (v3+): ninguna escena con «Material pendiente» llega al render, a la música ni a la
   // subida. El informe visual ya quedó guardado; nada se borra. Sin reintento automático ni gasto adicional.
   const pendingScenes = (shotScenes as LongFormShotScene[]).filter((s) => s.pending).map((s) => ({ sceneId: s.id, reason: s.pending as string }));
-  if (pendingScenes.length > 0) throw new LongFormPendingMaterialError(pendingScenes, { scenes: shotScenes as LongFormShotScene[], captions });
+  const finalDurationSeconds = timeline.durationSeconds + VIDEO_TAIL_SECONDS;
+  // The prepared scenes reported with pending material are the ones that would render (same tail coverage).
+  if (pendingScenes.length > 0) throw new LongFormPendingMaterialError(pendingScenes, { scenes: coverVideoTail(shotScenes as LongFormShotScene[], finalDurationSeconds), captions });
 
   const fullNarrationText = beats.map((b) => b.narration).join(" ");
-  const finalDurationSeconds = timeline.durationSeconds + VIDEO_TAIL_SECONDS;
   let music: MusicResult | null = null;
   let musicFallbackReason: string | null = null;
   try {

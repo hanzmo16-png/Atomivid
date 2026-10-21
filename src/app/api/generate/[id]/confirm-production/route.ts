@@ -51,6 +51,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   try {
     const service = createServiceClient();
+    // Voz elegida: validada en el servidor contra el catálogo de ESTA cuenta (clones privados solo con concesión).
+    // Si no es válida o el catálogo no responde, NO se confirma: nunca se sustituye en silencio por la predeterminada.
+    // Antes de subir referencias de Recraft: una voz rechazada no deja archivos en la carpeta del pedido.
+    let voiceId: string | undefined;
+    if (rawVoice != null && rawVoice !== "") {
+      const { data: langRow } = await service.from("video_requests").select("language, user_id").eq("id", id).maybeSingle<{ language: string | null; user_id: string }>();
+      if (!langRow) return NextResponse.json({ error: "Solicitud no encontrada" }, { status: 404 });
+      if (langRow.user_id !== user.id) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+      try {
+        voiceId = (await resolveReelVoiceSelection(rawVoice, langRow.language === "en" ? "en" : "es", user)) ?? undefined;
+      } catch (e) {
+        return NextResponse.json({ error: `${e instanceof Error ? e.message : "La voz seleccionada no está disponible."} No se confirmó ni cobró nada.` }, { status: 400 });
+      }
+      if (!voiceId) return NextResponse.json({ error: "La selección de voz no está activa. No se confirmó ni cobró nada." }, { status: 400 });
+    }
     let recraft: ReelRecraftStyle | undefined;
     if (form && String(form.get("image_source") ?? "default") !== "default") {
       const refs = form.getAll("recraft_style_refs").filter((f): f is File => typeof f !== "string" && f.size > 0);
@@ -74,20 +89,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         }
         recraft = { styleId: choice.styleId, referencePaths, match: choice.match, styleNote: choice.styleNote, onMissingStyleId: choice.onMissingStyleId };
       }
-    }
-    // Voz elegida: validada en el servidor contra el catálogo de ESTA cuenta (clones privados solo con concesión).
-    // Si no es válida o el catálogo no responde, NO se confirma: nunca se sustituye en silencio por la predeterminada.
-    let voiceId: string | undefined;
-    if (rawVoice != null && rawVoice !== "") {
-      const { data: langRow } = await service.from("video_requests").select("language, user_id").eq("id", id).maybeSingle<{ language: string | null; user_id: string }>();
-      if (!langRow) return NextResponse.json({ error: "Solicitud no encontrada" }, { status: 404 });
-      if (langRow.user_id !== user.id) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-      try {
-        voiceId = (await resolveReelVoiceSelection(rawVoice, langRow.language === "en" ? "en" : "es", user)) ?? undefined;
-      } catch (e) {
-        return NextResponse.json({ error: `${e instanceof Error ? e.message : "La voz seleccionada no está disponible."} No se confirmó ni cobró nada.` }, { status: 400 });
-      }
-      if (!voiceId) return NextResponse.json({ error: "La selección de voz no está activa. No se confirmó ni cobró nada." }, { status: 400 });
     }
     const result = await confirmLongFormProduction(createServiceClient(), {
       requestId: id,
