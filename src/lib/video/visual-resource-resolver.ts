@@ -1,5 +1,5 @@
 import { RecraftStyleMissingError } from "@/lib/video/recraft-reel";
-import type { GeneratedImageQc } from "@/lib/video/long-form/generated-image-qc";
+import { regenerationCanFix, type GeneratedImageQc } from "@/lib/video/long-form/generated-image-qc";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { GenerativeAsset, ImageGenerationRequest, ImageProvider } from "@/lib/providers/image";
 import type { StoryboardScene } from "./storyboard/types";
@@ -287,6 +287,8 @@ export async function resolveRecraftReelScene(
     generated = await resolveGeneratedImageForScene({ ...rest, style, onMissingStyleId, objectKey: rejectedKeys.has(key) ? regenKey : key });
   } catch (err) {
     if (!(err instanceof GeneratedImageRejectedError) || rejectedKeys.has(key)) throw err;
+    // Framing/size defects come from the provider's output size: a regeneration would pay again for the same defect.
+    if (!regenerationCanFix(err.qc)) throw new GeneratedImageRejectedError(err.sceneIndex, err.qc, err.styleId, err.providerJobId, false);
     // The rejected image's style is valid (the defect is in the frame): keep it for the regeneration.
     await adopt(err.styleId);
     generated = await resolveGeneratedImageForScene({ ...rest, style, onMissingStyleId, objectKey: regenKey });
@@ -314,9 +316,11 @@ async function rejectedQcKeys(supabase: SupabaseClient, bucket: string, artifact
 export class GeneratedImageRejectedError extends Error {
   readonly customerMessage: string;
   readonly retryable = false;
-  constructor(readonly sceneIndex: number, readonly qc: GeneratedImageQc, readonly styleId?: string, readonly providerJobId?: string) {
+  constructor(readonly sceneIndex: number, readonly qc: GeneratedImageQc, readonly styleId?: string, readonly providerJobId?: string,
+    /** False when no regeneration was paid because it could not fix the defect (framing/size). */
+    readonly regenerated = true) {
     const detail = qc.checks.filter((c) => !c.ok).map((c) => c.detail).join("; ");
-    const text = `La imagen generada de la escena ${sceneIndex + 1} no pasó el control automático${detail ? ` (${detail})` : ""} ni tras regenerarla una vez. Se detuvo el Reel sin sustituir imágenes; lo ya pagado se conserva y soporte revisa el caso.`;
+    const text = `La imagen generada de la escena ${sceneIndex + 1} no pasó el control automático${detail ? ` (${detail})` : ""}${regenerated ? " ni tras regenerarla una vez" : "; el defecto viene del tamaño que entrega el proveedor, así que no se pagó otra generación"}. Se detuvo el Reel sin sustituir imágenes; lo ya pagado se conserva y soporte revisa el caso.`;
     super(text);
     this.name = "GeneratedImageRejectedError";
     this.customerMessage = text;

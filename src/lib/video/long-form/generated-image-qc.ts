@@ -47,3 +47,12 @@ export async function checkGeneratedImage(asset: Pick<GenerativeAsset, "buffer" 
   }
   return { passed: checks.every((c) => c.ok), checks };
 }
+
+/**
+ * Whether paying for another generation can fix this verdict. Framing and resolution come from the provider's output
+ * size, which a new generation of the same request repeats: only a blank/uniform frame (content) is worth regenerating.
+ */
+export function regenerationCanFix(qc: GeneratedImageQc): boolean {
+  const failed = qc.checks.filter((c) => !c.ok);
+  return failed.length > 0 && failed.every((c) => c.name === "content");
+}
