@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import "./scheduler-dispatch.test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { attemptsDecision, budgetDecision, buildVideoChecks, historicalSpendUsd, MAX_PRODUCTION_ATTEMPTS, minimumBudgetUsd, noticeText, remainingCostUsd, scheduleDecision, summarizeSpend } from "./pilot";
@@ -270,7 +271,7 @@ function scriptedService(answer: (table: string, ops: string[]) => unknown) {
   return { service: { from } as never, updates };
 }
 
-test("tick programado: token en tabla de servicio, reclama y despacha; si el despacho falla vuelve a programada; bloqueo con un aviso", async () => {
+test("tick programado: token en tabla de servicio, reclama y conserva despacho incierto; bloqueo con un aviso", async () => {
   const { authorizedSchedulerTick, runSchedulerTick } = await import("./pilot-server");
   const token = "a".repeat(64);
   const auth = scriptedService(() => ({ data: { token }, error: null }));
@@ -287,10 +288,10 @@ test("tick programado: token en tabla de servicio, reclama y despacha; si el des
   });
   const dispatched: string[] = [];
   const out = await runSchedulerTick(s.service, "*", async (id, kind) => { dispatched.push(`${id}:${kind}`); return false; });
-  assert.deepEqual(out, { due: 2, dispatched: 0, blocked: 1, requeued: 1 });
+  assert.deepEqual(out, { due: 2, dispatched: 0, blocked: 1, requeued: 0, unconfirmed: 1 });
   assert.deepEqual(dispatched, ["e1:video", "e2:notices"], "the over-budget production is never dispatched; its notice goes through the Actions bot");
   const eps = s.updates.filter((u) => u.table === "podcast_episodes").map((u) => u.patch.video_status);
-  assert.deepEqual(eps, ["queued", "scheduled", "blocked"], "claimed → dispatch failed → back to scheduled; e2 blocked");
+  assert.deepEqual(eps, ["queued", "blocked"], "uncertain claim stays queued without resending; e2 blocked");
   assert.equal(s.updates.filter((u) => u.table === "production_notices" && u.ops.includes("insert")).length, 1);
 });
 
