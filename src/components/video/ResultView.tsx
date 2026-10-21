@@ -8,6 +8,7 @@ import { LinkButton } from "@/components/ui/Button";
 import { GenerateButton } from "@/app/dashboard/GenerateButton";
 import type { AvatarRecovery } from "@/lib/video/avatar/recovery";
 import { ModeBadge } from "./ModeBadge";
+import { RefreshLinksButton } from "./RefreshLinksButton";
 import { ProductionProgressCard } from "./ProductionProgressCard";
 import { RENDER_STAGE_LABEL, approximateRenderProgress, type RenderStage } from "@/lib/video/stages";
 import { LONG_FORM_STAGE_LABEL, type LongFormStage } from "@/lib/video/long-form/stages";
@@ -265,6 +266,10 @@ export function ResultView({
                 Tu video está listo, pero la miniatura solicitada no está disponible. Recarga la página para comprobarlo; si sigue faltando, contacta al soporte. No necesitas volver a generar el video.
               </Alert>
             )}
+            {/* A documentary link expires after hours: renew it in place instead of producing the video again. */}
+            {isLongForm && (
+              <RefreshLinksButton note="Tu video está guardado. Si el enlace dejó de funcionar, actualízalo: no se vuelve a producir el video." />
+            )}
           </div>
         )}
         {request.status === "completed" && !videoUrl && (
@@ -272,6 +277,11 @@ export function ResultView({
             No se pudo generar el enlace de descarga. Recarga la página para intentarlo de
             nuevo.
           </Alert>
+        )}
+        {request.status === "completed" && !videoUrl && isLongForm && (
+          <div className="mt-4">
+            <RefreshLinksButton note="Tu video sigue guardado. Puedes intentarlo otra vez; actualizar el enlace no vuelve a producirlo." />
+          </div>
         )}
       </div>
 
