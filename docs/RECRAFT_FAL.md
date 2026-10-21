@@ -96,9 +96,10 @@ El saldo de USD 9,96 en fal **no** es autorización.
 
 ## Saldo de fal (supply)
 - Lector oficial: `GET https://api.fal.ai/v1/account/billing?expand=credits` (`src/lib/supply/fal.ts`, `scripts/supply/observe.mjs`).
-  - Requiere una **clave Admin** (`FAL_ADMIN_KEY`; `FAL_KEY` solo si ella misma es Admin).
+  - Requiere una **clave Admin** explícita (`FAL_ADMIN_KEY`). `FAL_KEY` nunca se usa para el saldo: un 401 guardaría una lectura DOWN que taparía un saldo manual válido.
   - Solo `credits.current_balance` en USD cuenta como saldo (`provider_api`, válido 5 minutos).
   - Un 401/403, otra moneda o una forma distinta no son saldo, y el sistema falla cerrado.
+  - En el worker, `FAL_ADMIN_KEY` solo está en el paso de render, para la relectura GET que hace el gate cuando el saldo envejece a mitad de producción; `npm ci` y los demás pasos no la ven.
 - Se consulta al comprobar disponibilidad en Configurar, en el arranque, por llamada si el saldo está viejo y cada hora (`supply-observe.yml`). Solo hace GET; nunca genera ni recarga.
 - Alternativa ya autorizada por el dueño (2026-10-05): una fila `manual_entry` en `pi_capacity_snapshots`, válida 30 minutos. Debe tener procedencia (quién y cuándo leyó el panel de fal) y no reemplaza la política ni los topes.
 
