@@ -72,9 +72,20 @@ def sjson(obj) -> str:
     return json.dumps(obj, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
 
 
+def _finite(o):
+    """NaN/±Infinity no son JSON: los lectores estrictos (JSON.parse del worker) fallan. Se guardan como null."""
+    if isinstance(o, float):
+        return o if math.isfinite(o) else None
+    if isinstance(o, dict):
+        return {k: _finite(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_finite(v) for v in o]
+    return o
+
+
 def write_json(path: Path, obj):
     tmp = path.with_name(path.name + f".tmp{os.getpid()}")
-    tmp.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.write_text(json.dumps(_finite(obj), ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
     os.replace(tmp, path)
 
 

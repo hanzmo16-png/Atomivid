@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { podcastUser } from "@/lib/podcast/auth";
-import { loadOwnedEpisode, runGeneration } from "@/lib/podcast/server";
+import { loadOwnedEpisode, podcastV2Enabled, runGeneration } from "@/lib/podcast/server";
 import { narrationRunsInBackground, requestBackgroundNarration } from "@/lib/podcast/video-jobs";
-import { budgetDecision, narrationCapUsd, runUpperBoundUsd } from "@/lib/podcast/pilot";
-import { episodeSpentUsd, narrationChunks } from "@/lib/podcast/pilot-server";
+import { UNCERTAIN_CHARGE_MESSAGE, budgetDecision, narrationCapUsd, runUpperBoundUsd } from "@/lib/podcast/pilot";
+import { episodeSpentUsd, narrationChunks, productionSpend } from "@/lib/podcast/pilot-server";
 
 // Short narrations run here (+ mastering). Long scripts (up to ~33 min of audio) are narrated by the background
 // worker instead: a single 300 s request cannot hold them. Either way every chunk already generated is stored and
@@ -18,6 +18,13 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const service = createServiceClient();
   const episode = await loadOwnedEpisode(service, user.id, id);
   if (!episode) return NextResponse.json({ error: "Episodio no encontrado." }, { status: 404 });
+  // Podcast 2.1: a retry while a paid call has an unknown outcome could pay it twice → refused until reconciled
+  // (same rule the background worker applies). An unreadable ledger also refuses (fail-closed).
+  if (podcastV2Enabled()) {
+    const spend = await productionSpend(service, episode.id).catch(() => null);
+    if (!spend) return NextResponse.json({ error: "No se pudo leer el registro de gastos; no se genera para no cobrar a ciegas." }, { status: 503 });
+    if (spend.uncertain > 0) return NextResponse.json({ error: UNCERTAIN_CHARGE_MESSAGE, uncertain: spend.uncertain }, { status: 409 });
+  }
   // The episode's total budget, when set, also bounds a narration started on its own.
   const spentUsd = await episodeSpentUsd(service, episode.id);
   if (episode.budget_usd != null) {

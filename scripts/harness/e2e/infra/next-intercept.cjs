@@ -15,6 +15,10 @@ globalThis.fetch = async function (input, init = {}) {
   // Podcast 2.1: TODO api.elevenlabs.io → mock local con espeak-ng (voces, saldo y TTS simulados; USD 0).
   const EL = process.env.MOCK_EL_URL;
   if (EL && /^https:\/\/api\.elevenlabs\.io\//.test(url)) return orig(url.replace(/^https:\/\/api\.elevenlabs\.io\//, `${EL}/`), init);
+  // Podcast 2.1 video: Pexels (búsqueda y descarga de medios) → mock local con medios generados (USD 0).
+  const PX = process.env.MOCK_PEXELS_URL;
+  if (PX && /^https:\/\/api\.pexels\.com\//.test(url)) return orig(url.replace(/^https:\/\/api\.pexels\.com\//, `${PX}/`), init);
+  if (PX && /^https:\/\/(videos|images)\.pexels\.com\//.test(url)) return orig(url.replace(/^https:\/\/(videos|images)\.pexels\.com\//, `${PX}/`), init);
   // Ensayo Long Form: catálogo de voces y saldo fal → mock local (solo metadatos; nunca síntesis ni gasto).
   const M = process.env.MOCK_LF_URL;
   if (M && /^https:\/\/api\.elevenlabs\.io\/v1\/voices/.test(url)) return orig(url.replace(/^https:\/\/api\.elevenlabs\.io\//, `${M}/el/`), init);

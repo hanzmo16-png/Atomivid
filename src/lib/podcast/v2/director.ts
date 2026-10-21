@@ -110,7 +110,8 @@ export function directSegments(input: DirectInput[], opts: { mode?: "reference" 
     let pb = mode === "full" ? p.pb : 150;
     if (prev && Math.abs(intensity - prev.intensity) > 0.35) { intensity = (intensity + prev.intensity) / 2 + (intensity > prev.intensity ? 0.1 : -0.1); pb = Math.max(pb, 400); adaptations.push("salto emocional suavizado"); }
     // Guarda: timbre — misma voz y modelo por hablante en todo el episodio
-    const sameSpeaker = out.filter(o => o.speaker_id === s.speaker_id);
+    // (una grabación propia del hablante no es un cambio de timbre sintético: la voz real y su voz sintética se vigilan por separado)
+    const sameSpeaker = out.filter(o => o.speaker_id === s.speaker_id && (o.provider === "own_recording") === (s.provider === "own_recording"));
     if (sameSpeaker.length && (sameSpeaker[0].voice_id !== s.voice_id || sameSpeaker[0].model !== s.model)) throw new UnsupportedDirectionError(s.model, `cambio de voz/modelo para ${s.speaker_id} (cambio de timbre)`);
     // stability acotada a ±0.15 del valor base del hablante para preservar identidad (p.ej. El Duro)
     const baseStab = sameSpeaker[0]?.native.stability ?? p.stability;

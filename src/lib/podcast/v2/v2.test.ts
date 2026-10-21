@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { directSegments, buildProviderRequest, classifyEmotion, DirectionPlan, UnsupportedDirectionError, monotonyScore } from "./director";
+import { directSegments, buildProviderRequest, classifyEmotion, DirectionPlan, UnsupportedDirectionError, monotonyScore, type SegmentDirection } from "./director";
 import { Conversation, dialogueIssues } from "./conversation";
 import { MemoryStore, synthOnce, estimateCall, UnknownPriceError, spent, segmentKey } from "./cost-cache";
 import { planMusic, musicIssues } from "./music";
@@ -9,7 +9,7 @@ import { canUsePrivateVoice, visibleVoices } from "@/lib/voices/private-voices";
 import { conversationFixture, narrationFixture } from "../../../../scripts/podcast-2-0/fixtures";
 
 const PASSAGE = ["Esa noche, de repente, el viento se detuvo.", "Nadie sabía qué venía después.", "Resulta que estaban dentro del ojo del huracán.", "¿Cuánto tiempo dura esa calma?", "Quizás menos de una hora, y luego vuelve todo."];
-const inp = (model = "eleven_multilingual_v2") => PASSAGE.map((text, i) => ({ segment_id: `s${i}`, speaker_id: "A", text, voice_id: "voiceA0001", provider: "elevenlabs" as const, model }));
+const inp = (model = "eleven_multilingual_v2") => PASSAGE.map((text, i) => ({ segment_id: `s${i}`, speaker_id: "A", text, voice_id: "voiceA0001", provider: "elevenlabs" as SegmentDirection["provider"], model }));
 
 test("A) tres versiones del mismo pasaje: contrato válido y diferencias deterministas", () => {
   const ref = directSegments(inp(), { mode: "reference" }), pace = directSegments(inp(), { mode: "pace" }), full = directSegments(inp(), { mode: "full" });
@@ -42,6 +42,13 @@ test("modelo desconocido y cambio de timbre fallan explicando", () => {
   assert.throws(() => directSegments(inp("eleven_inventado")), UnsupportedDirectionError);
   const x = inp(); x[1] = { ...x[1], voice_id: "otraVoz0002" };
   assert.throws(() => directSegments(x), /timbre/);
+});
+
+test("mixto en un mismo hablante: su grabación propia no cuenta como cambio de timbre; su voz sintética sigue vigilada", () => {
+  const x = inp(); x[0] = { ...x[0], voice_id: `own-${x[0].speaker_id}`, provider: "own_recording", model: "own_recording" };
+  assert.doesNotThrow(() => directSegments(x));
+  const y = inp(); y[0] = { ...y[0], voice_id: `own-${y[0].speaker_id}`, provider: "own_recording", model: "own_recording" }; y[1] = { ...y[1], voice_id: "otraVoz0002" };
+  assert.throws(() => directSegments(y), /timbre/);
 });
 
 test("guardas: velocidad alta sostenida y salto emocional", () => {

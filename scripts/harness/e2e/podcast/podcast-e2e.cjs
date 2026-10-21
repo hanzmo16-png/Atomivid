@@ -23,7 +23,7 @@ async function session(user, tag) {
 }
 const shot = (p, n) => p.screenshot({ path: path.join(OUT, `${n}.png`), fullPage: true });
 function worker(id, kind) {
-  const env = { ...process.env, ...Object.fromEntries(fs.readFileSync(path.join(E2E, "secrets/podcast-worker.env"), "utf8").trim().split("\n").map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)])), EPISODE_ID: id, JOB_KIND: kind };
+  const env = { ...process.env, ...Object.fromEntries(fs.readFileSync(path.join(E2E, "secrets/podcast-worker.env"), "utf8").trim().split("\n").map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)])), EPISODE_ID: id, JOB_KIND: kind, NPM_CONFIG_UPDATE_NOTIFIER: "false" };
   return new Promise((res) => { const w = spawn("npx", ["tsx", "scripts/podcast-video-worker.ts"], { cwd: REPO, env }); let o = ""; w.stdout.on("data", (d) => (o += d)); w.stderr.on("data", (d) => (o += d)); w.on("close", (c) => { fs.appendFileSync(path.join(OUT, `worker-${id}-${kind}.log`), o); res({ code: c, out: o, proc: w }); }); });
 }
 async function createEpisode(p, o) {
@@ -62,7 +62,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
 (async () => {
   db = new Client({ connectionString: process.env.HARNESS_PG_URL }); await db.connect();
   browser = await chromium.launch({ executablePath: process.env.E2E_CHROME, headless: true });
-  const cases = (process.argv[2] ?? "1,2,3,4,5,6").split(",");
+  const cases = (process.argv[2] ?? "1,2,3,4,5,6,7,8").split(",");
   const F = fixtures();
   const convScript = F.conversationFixture().turns.map((t) => `${t.speaker}: ${t.text}`).join("\n\n");
   const s = await session(OWNER, "owner");
@@ -93,7 +93,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       const id2 = await createEpisode(s.p, { tag: "c4", title: "E2E caso 4 interrupción", conversation: true, script: convScript, voiceA: LEO, voiceB: ANA, nameA: "A", nameB: "B" });
       await s.p.getByRole("button", { name: /Generar narración/ }).click(); await s.p.waitForTimeout(1500);
       const m0 = ttsCalls().length;
-      const envw = { ...process.env, ...Object.fromEntries(fs.readFileSync(path.join(E2E, "secrets/podcast-worker.env"), "utf8").trim().split("\n").map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)])), EPISODE_ID: id2, JOB_KIND: "narration" };
+      const envw = { ...process.env, ...Object.fromEntries(fs.readFileSync(path.join(E2E, "secrets/podcast-worker.env"), "utf8").trim().split("\n").map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)])), EPISODE_ID: id2, JOB_KIND: "narration", NPM_CONFIG_UPDATE_NOTIFIER: "false" };
       const w = spawn("npx", ["tsx", "scripts/podcast-video-worker.ts"], { cwd: REPO, env: envw, detached: true });
       while (ttsCalls().length - m0 < 10) await new Promise((r) => setTimeout(r, 300));
       process.kill(-w.pid, "SIGKILL"); await new Promise((r) => setTimeout(r, 1500));
@@ -193,6 +193,122 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     const id5 = await mk("c6-concurrente"); const n5 = ttsCalls().length;
     const sts = await s.p.evaluate(async (id) => Promise.all([0, 1].map(async () => (await fetch(`/api/podcast/${id}/generate`, { method: "POST" })).status)), id5);
     ok("c6: dos peticiones simultáneas → una sola ejecución", sts.filter((x) => x === 200).length === 1 && ttsCalls().length - n5 === 2, `${sts} llamadas=${ttsCalls().length - n5}`);
+  }
+  if (cases.includes("7")) {
+    // Caso 7 — AV completo desde la UI: crear (A/B + música) → «Producir ahora» → worker de video real (narra + imágenes mock + montaje + MP4)
+    // → interrupción y «Reintentar» → reproducción en el reproductor de la página → descarga. Pexels y ElevenLabs simulados (USD 0).
+    const PXLOG = path.join(E2E, "logs/pexels.jsonl"), pxCalls = () => (fs.existsSync(PXLOG) ? fs.readFileSync(PXLOG, "utf8").trim().split("\n").filter(Boolean).length : 0);
+    const DLOG = path.join(E2E, "logs/dispatch.jsonl"), dispatches = () => (fs.existsSync(DLOG) ? fs.readFileSync(DLOG, "utf8").trim().split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return {}; } }) : []);
+    const short = convScript.split("\n\n").slice(0, 24).join("\n\n");
+    const EGR = path.join(E2E, "logs/egress.jsonl"), egress = () => (fs.existsSync(EGR) ? fs.readFileSync(EGR, "utf8").trim().split("\n").filter((l) => l.includes("egress_refused")) : []), e0 = egress().length;
+    const t0 = ttsCalls().length;
+    const id = await createEpisode(s.p, { tag: "c7", title: "E2E caso 7 video A/B", conversation: true, emotional: true, music: true, script: short, voiceA: DURO, voiceB: ANA, nameA: "Hans", nameB: "Invitada" });
+    const produce = async (label, tag) => {
+      const d0 = dispatches().length;
+      await s.p.getByRole("button", { name: label }).click();
+      for (let i = 0; i < 60 && dispatches().length === d0; i++) await s.p.waitForTimeout(500);
+      await shot(s.p, `${tag}-solicitado`);
+      const d = dispatches().slice(d0); return d.find((x) => JSON.stringify(x).includes(id));
+    };
+    const d1 = await produce(/Producir ahora/, "c7-01");
+    ok("c7: «Producir ahora» despacha un trabajo de video para este episodio", !!d1 && /video/.test(JSON.stringify(d1)), JSON.stringify(d1 ?? null).slice(0, 160));
+    // Primera ejecución del worker: se interrumpe (SIGKILL) al entrar en la etapa de imágenes o montaje.
+    const envw = { ...process.env, ...Object.fromEntries(fs.readFileSync(path.join(E2E, "secrets/podcast-worker.env"), "utf8").trim().split("\n").map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)])), EPISODE_ID: id, JOB_KIND: "video", NPM_CONFIG_UPDATE_NOTIFIER: "false" };
+    const w = spawn("npx", ["tsx", "scripts/podcast-video-worker.ts"], { cwd: REPO, env: envw, detached: true }); let wout = ""; w.stdout.on("data", (x) => (wout += x)); w.stderr.on("data", (x) => (wout += x));
+    let stageSeen = null; for (let i = 0; i < 1200; i++) { const r = await ep(id); if (/Buscando imágenes|Montando/.test(r.video_stage ?? "")) { stageSeen = r.video_stage; break; } if (w.exitCode !== null) break; await new Promise((r) => setTimeout(r, 250)); }
+    process.kill(-w.pid, "SIGKILL"); await new Promise((r) => setTimeout(r, 1500)); fs.writeFileSync(path.join(OUT, "worker-c7-interrumpido.log"), wout);
+    const mid = await ep(id); const ttsAfterFirst = ttsCalls().length - t0;
+    ok("c7: worker interrumpido después de narrar (audio ya guardado)", !!stageSeen && mid.status === "ready" && !!mid.audio_sha256, `etapa=${stageSeen} audio=${mid.audio_sha256?.slice(0, 12)} tts=${ttsAfterFirst}`);
+    await db.query("update podcast_episodes set video_heartbeat_at = now() - interval '20 minutes' where id=$1", [id]); // = función muerta (sin latido)
+    await s.p.reload(); await shot(s.p, "c7-02-detenido");
+    ok("c7: la UI muestra la producción detenida y ofrece reintentar", await s.p.getByText(/dejó de responder/).isVisible());
+    const d2 = await produce(/Reintentar/, "c7-03");
+    const r2 = await worker(id, "video");
+    const fin = await ep(id); const ttsTotal = ttsCalls().length - t0;
+    ok("c7: reintento termina con video listo", r2.code === 0 && fin.video_status === "ready" && !!fin.video_path, `${fin.video_status} ${fin.video_error ?? ""}`);
+    ok("c7: el reintento no repite ninguna llamada de voz (audio y turnos reutilizados)", ttsTotal === ttsAfterFirst && fin.audio_sha256 === mid.audio_sha256, `tts total=${ttsTotal} tras 1ª=${ttsAfterFirst}`);
+    ok("c7: voces separadas también en el video", (() => { const c = ttsCalls().slice(t0); const a = fin.production.turns.filter((t) => t.speaker === "A").length; return c.filter((x) => x.voiceId === DURO).length === a && c.filter((x) => x.voiceId === ANA).length === fin.production.turns.length - a; })());
+    ok("c7: imágenes vía proveedor simulado (Pexels mock); ningún intento de salida a red real", pxCalls() > 0 && egress().length === e0, `${pxCalls()} llamadas mock; salidas rechazadas=${JSON.stringify(egress().slice(e0))}`);
+    const subs = path.join(require("node:os").tmpdir(), `podcast-${id}-${fin.video_attempts}`, "entrada", "subtitulos.json");
+    const subsTxt = fs.existsSync(subs) ? fs.readFileSync(subs, "utf8") : ""; if (subsTxt) fs.writeFileSync(path.join(OUT, "c7-subtitulos.json"), subsTxt);
+    ok("c7: subtítulos atribuidos por hablante ([Hans] y [Invitada])", subsTxt.includes("[Hans]") && subsTxt.includes("[Invitada]"), `${(subsTxt.match(/\[Hans\]/g) ?? []).length}/${(subsTxt.match(/\[Invitada\]/g) ?? []).length}`);
+    await s.p.reload(); await shot(s.p, "c7-04-entregado");
+    const vid = s.p.locator('section[aria-label="Revisión de la entrega"] video');
+    const play = await vid.evaluate(async (v) => { v.muted = true; await v.play().catch(() => {}); await new Promise((r) => setTimeout(r, 4000)); const o = { readyState: v.readyState, t: v.currentTime, d: v.duration, w: v.videoWidth, h: v.videoHeight, err: v.error?.code ?? null }; v.pause(); return o; });
+    await shot(s.p, "c7-05-reproduciendo");
+    ok("c7: el reproductor de la página reproduce el MP4", play.readyState >= 2 && play.t > 1 && play.w > 0 && !play.err, JSON.stringify(play));
+    const [dl] = await Promise.all([s.p.waitForEvent("download"), s.p.getByText(/Descargar video/).click()]);
+    const mp4 = path.join(OUT, "c7-episodio.mp4"); await dl.saveAs(mp4);
+    const pr = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration:stream=codec_type,codec_name,width,height", "-of", "json", mp4]).toString());
+    ok("c7: descarga = video guardado (sha) con video H.264 + audio", sha(fs.readFileSync(mp4)) === fin.video_sha256 && pr.streams.some((x) => x.codec_type === "video") && pr.streams.some((x) => x.codec_type === "audio"), `${pr.streams.map((x) => x.codec_name).join("+")} ${Number(pr.format.duration).toFixed(1)} s`);
+    ok("c7: duración del video = audio (±2 s)", Math.abs(Number(pr.format.duration) - Number(fin.duration_seconds)) <= 2, `${Number(pr.format.duration).toFixed(1)} vs ${Number(fin.duration_seconds).toFixed(1)}`);
+    // Música: misma producción sin música (turnos reutilizados → 0 llamadas) como referencia para medir que la música no corta ni distorsiona la voz.
+    const tRef = ttsCalls().length;
+    const idRef = await createEpisode(s.p, { tag: "c7-ref", title: "E2E caso 7 referencia sin música", conversation: true, emotional: true, script: short, voiceA: DURO, voiceB: ANA, nameA: "Hans", nameB: "Invitada" });
+    await generate(s.p, idRef, "c7-ref"); const ref = await ep(idRef);
+    ok("c7: referencia sin música lista (otro episodio → su propia síntesis simulada; solo sirve de referencia de medición)", ref.status === "ready", `${ttsCalls().length - tRef} llamadas mock`);
+    const refFile = await download(s.p, "c7-ref"); fs.writeFileSync(path.join(OUT, "c7-timeline.json"), JSON.stringify(fin.production_timeline));
+    const av = require("node:child_process").spawnSync("python3", [path.join(REPO, "scripts/harness/e2e/podcast/av-check.py"), mp4, refFile, path.join(OUT, "c7-timeline.json")], { encoding: "utf8" });
+    fs.writeFileSync(path.join(OUT, "c7-av-check.json"), av.stdout);
+    ok("c7: música no corta ni enmascara la voz, sin distorsión, y se oye entre turnos", av.status === 0, av.stdout.trim());
+    // Aislamiento del video y topes
+    const o = await session(OTHER, "intruso-c7");
+    const vr = await o.p.evaluate(async (id) => (await fetch(`/api/podcast/${id}/video`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).status, id);
+    ok("c7: otra cuenta no puede producir/ver el video ajeno (404)", vr === 404, String(vr));
+    const vs = (await fetch(`http://127.0.0.1:54821/storage/v1/object/videos/${fin.video_path}`)).status;
+    ok("c7: MP4 privado no descargable sin firma", vs >= 400, String(vs)); await o.ctx.close();
+    const idB = await createEpisode(s.p, { tag: "c7-tope", title: "E2E caso 7 tope", conversation: true, script: "A: Texto nuevo nunca sintetizado para probar el tope de gasto.\n\nB: De acuerdo, sin presupuesto no debería narrarse nada.", voiceA: LEO, voiceB: ANA, nameA: "A", nameB: "B" });
+    const tB = ttsCalls().length; await s.p.locator('input[name="budget_usd"]').fill("0"); const dB = dispatches().length;
+    await s.p.getByRole("button", { name: /Producir ahora/ }).click(); await s.p.waitForTimeout(2500); await s.p.reload(); await shot(s.p, "c7-06-tope");
+    const rB = await ep(idB); if (rB.video_status === "queued") await worker(idB, "video"); const rB2 = await ep(idB);
+    ok("c7: presupuesto 0 → no narra ni produce (0 llamadas)", ttsCalls().length === tB && rB2.video_status !== "ready", `${rB2.video_status} «${rB2.video_error ?? ""}» despachos=${dispatches().length - dB}`);
+    summary.c7 = { id, video_sha256: fin.video_sha256, video_path: fin.video_path, seconds: Number(pr.format.duration), tts: ttsTotal, pexels: pxCalls(), play, stageKilled: stageSeen };
+  }
+  if (cases.includes("8")) {
+    // Caso 8 — UI por turno con clics reales: editar UN turno, subir grabación propia de UN turno, regenerar solo lo cambiado;
+    // operación incierta visible y reintento bloqueado (UI y servidor).
+    const script8 = "A: Bienvenidos a una prueba breve de edición por turnos.\n\nB: Gracias, hoy vamos a cambiar solo una parte.\n\nA: La primera idea es que nada se vuelva a cobrar.\n\nB: Y la segunda, que mi voz siga siendo la mía.\n\nA: Perfecto, cerramos aquí la prueba.\n\nB: Hasta la próxima, gracias por escuchar.";
+    const id = await createEpisode(s.p, { tag: "c8", title: "E2E caso 8 turnos", conversation: true, script: script8, voiceA: LEO, voiceB: ANA, nameA: "Hans", nameB: "Invitada" });
+    await generate(s.p, id, "c8-inicial"); const r0 = await ep(id);
+    ok("c8: episodio inicial listo (6 turnos, 6 llamadas)", r0.status === "ready" && r0.production.turns.length === 6);
+    const panel = s.p.locator("section, div").filter({ has: s.p.getByRole("heading", { name: "Turnos" }) }).last();
+    ok("c8: la página muestra el panel de turnos con los 6 turnos", (await s.p.locator("li[data-turn]").count()) === 6);
+    // Editar T004 (B)
+    const n0 = ttsCalls().length;
+    await s.p.getByRole("button", { name: "Editar turno T004" }).click();
+    await s.p.getByLabel("Texto del turno T004").fill("Y la segunda, que mi voz siga siendo exactamente la mía, sin trucos.");
+    await shot(s.p, "c8-01-editando");
+    await s.p.getByRole("button", { name: "Guardar turno T004" }).click();
+    await s.p.getByText(/Turno T004 actualizado/).waitFor(); await shot(s.p, "c8-02-editado");
+    const r1 = await ep(id);
+    ok("c8: guardar un turno → episodio a borrador, solo cambia ese texto", r1.status === "draft" && r1.production.turns.find((t) => t.id === "T004").text.includes("sin trucos") && r1.production.turns.filter((t, i) => t.text !== r0.production.turns[i].text).length === 1);
+    // Subir grabación propia para T001 (A) desde el selector de archivos real
+    const wav = path.join(OUT, "c8-rec-T001.wav"); execFileSync("espeak-ng", ["-v", "es", "-p", "10", "-s", "150", "-w", wav, r0.production.turns[0].text]); const recSha = sha(fs.readFileSync(wav));
+    await s.p.getByLabel("Grabación del turno T001").setInputFiles(wav);
+    await s.p.getByText(/Grabación asignada al turno T001/).waitFor({ timeout: 60000 }); await shot(s.p, "c8-03-grabacion");
+    const r2 = await ep(id); const recPath = r2.production.participants.find((p) => p.id === "A").recordings?.T001;
+    ok("c8: grabación subida por el navegador (URL firmada) y asignada solo a T001", !!recPath && Object.keys(r2.production.participants.find((p) => p.id === "A").recordings).length === 1 && sha(fs.readFileSync(path.join(E2E, "storage/videos", recPath))) === recSha);
+    ok("c8: la UI marca T001 como grabación propia", await s.p.locator('li[data-turn="T001"] [data-turn-state]').filter({ hasText: /Grabación propia/ }).waitFor({ timeout: 20000 }).then(() => true, () => false));
+    // Regenerar: solo T004 se sintetiza; T001 sin TTS; el resto reutilizado
+    await generate(s.p, id, "c8-regenerado"); const r3 = await ep(id); const calls = ttsCalls().slice(n0);
+    ok("c8: regenerar → exactamente 1 síntesis (T004) y 0 para la grabación", r3.status === "ready" && calls.length === 1 && calls[0].voiceId === ANA, `${calls.length} llamadas`);
+    const tl = Object.fromEntries(r3.production_timeline.map((e) => [e.turn_id, e]));
+    ok("c8: línea de tiempo: T001 grabación (sha original), T004 nuevo, resto reutilizado", tl.T001.source === "own_recording" && tl.T001.sha256 === recSha && tl.T004.reused === false && ["T002", "T003", "T005", "T006"].every((k) => tl[k].reused === true), JSON.stringify(Object.fromEntries(Object.entries(tl).map(([k, v]) => [k, v.source === "own_recording" ? "rec" : v.reused ? "reuso" : "nuevo"]))));
+    await s.p.reload(); await shot(s.p, "c8-04-estados");
+    ok("c8: la UI muestra T004 sintetizado y los demás reutilizados", /sintetizado/.test(await s.p.locator('li[data-turn="T004"] [data-turn-state]').innerText()) && /reutilizado/.test(await s.p.locator('li[data-turn="T002"] [data-turn-state]').innerText()));
+    // Operación incierta: editar T006 y cortar la red del proveedor al sintetizarlo
+    await s.p.getByRole("button", { name: "Editar turno T006" }).click(); await s.p.getByLabel("Texto del turno T006").fill("Hasta la próxima, y gracias de verdad por escuchar.");
+    await s.p.getByRole("button", { name: "Guardar turno T006" }).click(); await s.p.getByText(/Turno T006 actualizado/).waitFor();
+    fs.writeFileSync(FAILF, "timeout"); const n1 = ttsCalls().length;
+    await generate(s.p, id, "c8-incierto"); await s.p.reload(); await shot(s.p, "c8-05-incierto");
+    const r4 = await ep(id);
+    ok("c8: corte durante la síntesis → episodio fallido con mensaje «incierto»", r4.status === "failed" && /incierto/i.test(r4.error ?? ""), r4.error);
+    ok("c8: la UI muestra «Requiere revisión» con la operación incierta", await s.p.getByText(/Requiere revisión: 1 operación/).isVisible());
+    ok("c8: botón de reintento deshabilitado y explicado en la UI", (await s.p.getByRole("button", { name: /Continuar \/ reintentar/ }).isDisabled()) && await s.p.getByText(/Reintento bloqueado/).isVisible());
+    ok("c8: edición y subida por turno bloqueadas mientras haya incierto", await s.p.getByRole("button", { name: "Editar turno T002" }).isDisabled());
+    const forced = await s.p.evaluate(async (id) => { const r = await fetch(`/api/podcast/${id}/generate`, { method: "POST" }); return [r.status, (await r.json()).error]; }, id);
+    ok("c8: el servidor también rechaza el reintento forzado (409) sin llamar al proveedor", forced[0] === 409 && ttsCalls().length - n1 === 1, `${forced.join(" ")} llamadas=${ttsCalls().length - n1}`);
+    summary.c8 = { id, recSha, timeline: Object.fromEntries(Object.entries(tl).map(([k, v]) => [k, v.source === "own_recording" ? "rec" : v.reused ? "reuso" : "nuevo"])) };
   }
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary }, null, 1));
   await s.ctx.close(); await browser.close(); await db.end();

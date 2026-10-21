@@ -6,8 +6,15 @@ import { MissingEnvVarError } from "@/lib/env-errors";
 // distingue cuál de las dos es la culpable ni por qué está vacía, y un
 // Error genérico tampoco permite que el código que llama distinga este
 // caso de cualquier otro fallo.
+// Next.js solo sustituye en el bundle del navegador las referencias LITERALES `process.env.NEXT_PUBLIC_*`;
+// `process.env[name]` queda vacío en el cliente (createClient() del navegador fallaba con «Falta la variable…»).
+const PUBLIC_ENV: Record<string, string | undefined> = {
+  NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+};
+
 function readEnv(name: string): string {
-  const value = process.env[name]?.trim();
+  const value = (PUBLIC_ENV[name] ?? process.env[name])?.trim();
   if (!value) {
     throw new MissingEnvVarError(name);
   }

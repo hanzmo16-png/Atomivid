@@ -16,6 +16,7 @@ import { applyTurnAction } from "./turns";
 import { espeakVoice, type EspeakCall } from "./espeak-provider";
 
 const has = (b: string) => { try { execFileSync(b, ["--version"], { stdio: "ignore" }); return true; } catch { return false; } };
+if (process.env.CI && !has("espeak-ng")) throw new Error("espeak-ng es obligatorio en CI: estas pruebas no pueden omitirse en silencio");
 const skip = !has("espeak-ng");
 const VA = "voiceAAAA0001", VB = "voiceBBBB0002", DURO = "CeFSZuaHs4SxcBxb9nCr";
 const voices = [VA, VB].map((id, i) => ({ voiceId: id, name: `Voz ${i}`, category: "premade", language: "es", accent: null, gender: null, previewUrl: null }))
