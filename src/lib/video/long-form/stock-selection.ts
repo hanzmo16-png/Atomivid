@@ -315,6 +315,68 @@ async function candidatesFor(provider: FootageProvider, query: string, preferVid
   return out;
 }
 
+/**
+ * Criterio de elegibilidad por METADATOS (sin descarga) de un candidato para una intención.
+ * Única fuente: lo usan la selección real (selectStockForShot) y el preflight de disponibilidad
+ * (material-preflight.ts), para que el preflight nunca acepte lo que la ejecución rechazaría.
+ * Lo que solo se sabe tras descargar (contenido duplicado, verificación de contenido) NO está aquí:
+ * por eso la puerta final de entrega se mantiene.
+ */
+export function screenCandidate(
+  visual: BeatVisual,
+  candidate: FootageCandidate,
+  tier: number,
+  deps: Pick<StockSelectionDeps, "footageProvider" | "verifyEntityLink" | "verifyEvidenceLink">,
+):
+  | { reject: string }
+  | { identity: { eligible: true; link?: TrustedEntityLink }; evidence: { eligible: true; link?: TrustedEvidenceLink }; assessment: RelevanceAssessment; verifiedReuse: SelectionReuse["justification"] | null } {
+  const identity = identityEligibility(visual, deps.verifyEntityLink?.(candidate, deps.footageProvider.name) ?? null);
+  const evidence = evidenceEligibility(visual, deps.verifyEvidenceLink?.(candidate, deps.footageProvider.name) ?? null);
+  // Reutilización legítima (v4): SOLO un recurso con vínculo verificado que coincide con la identidad/proposición
+  // de ESTA escena. Cualquier otra repetición sigue rechazándose.
+  const verifiedReuse: SelectionReuse["justification"] | null =
+    identity.eligible && identity.link ? "verified_identity_reuse" : evidence.eligible && evidence.link ? "verified_evidence_reuse" : null;
+  const assessment = assessRelevance(visual, candidate.description);
+  const substitute = personSubstitute(visual, candidate.description);
+  if (substitute) {
+    // Contexto de un beat con persona: el candidato muestra lo que hace la persona → la sustituiría.
+    return { reject: `FALSE_FRIEND: muestra la acción de la persona del beat (${substitute}) sin ser ella (pertinencia ${assessment.relevance}, score ${assessment.score}; ${candidate.description})` };
+  }
+  if (!identity.eligible) {
+    // El score no se toca: se rechaza A PESAR de su pertinencia léxica.
+    const falseFriend = assessment.relevance !== "irrelevant";
+    return { reject: `${falseFriend ? "FALSE_FRIEND" : "IDENTITY_UNVERIFIED"}: ${identity.why} (pertinencia ${assessment.relevance}, score ${assessment.score}; ${candidate.description ?? "sin descripción"})` };
+  }
+  if (!evidence.eligible) {
+    // El score no se toca: mismo objeto/medio no es la misma proposición.
+    const falseFriend = assessment.relevance !== "irrelevant";
+    return { reject: `${falseFriend ? "FALSE_FRIEND" : "EVIDENCE_UNGROUNDED"}: ${evidence.why} (pertinencia ${assessment.relevance}, score ${assessment.score}; ${candidate.description ?? "sin descripción"})` };
+  }
+  if (identity.link || evidence.link) {
+    // Elegible por identidad/prueba, no aceptado: las contradicciones de época/lugar siguen descartando.
+    if (assessment.conflicts.length > 0) return { reject: `contradicción ${assessment.conflicts.join(", ")}` };
+  } else if (assessment.relevance === "irrelevant") {
+    return { reject: assessment.conflicts.length > 0 ? `contradicción ${assessment.conflicts.join(", ")}` : `sin coincidencia con la intención (${candidate.description ?? "sin descripción"})` };
+  }
+  // Sin texto descriptivo solo se acepta desde la consulta principal, y queda como incierto.
+  if (!identity.link && !evidence.link && assessment.relevance === "unverified" && tier > 0) {
+    return { reject: "sin descripción del proveedor en una consulta secundaria" };
+  }
+  return { identity, evidence, assessment, verifiedReuse };
+}
+
+/** Igual que la búsqueda de la selección real, pero SIN tragarse errores: el preflight distingue «no existe» de «error temporal». */
+export async function searchCandidatesStrict(provider: FootageProvider, query: string, preferVideo: boolean, minDurationSec: number): Promise<FootageCandidate[]> {
+  const out: FootageCandidate[] = [];
+  if (preferVideo && provider.searchVideoCandidates) out.push(...(await provider.searchVideoCandidates(query, minDurationSec, "landscape")));
+  if (provider.searchImageCandidates) out.push(...(await provider.searchImageCandidates(query, "landscape")));
+  if (out.length === 0 && !provider.searchVideoCandidates && !provider.searchImageCandidates) {
+    const single = await provider.fetchFootage(query, preferVideo ? minDurationSec : undefined, "landscape");
+    if (single) out.push({ ...single, sourceId: "" });
+  }
+  return out;
+}
+
 export async function selectStockForShot(
   input: { shotId: string; visual: BeatVisual; preferVideo: boolean; minDurationSec: number },
   deps: StockSelectionDeps,
@@ -346,12 +408,12 @@ export async function selectStockForShot(
       if (seen.has(key)) continue;
       seen.add(key);
       considered += 1;
-      const identity = identityEligibility(input.visual, deps.verifyEntityLink?.(candidate, deps.footageProvider.name) ?? null);
-      const evidenceVerdict = evidenceEligibility(input.visual, deps.verifyEvidenceLink?.(candidate, deps.footageProvider.name) ?? null);
-      // Reutilización legítima (v4): SOLO un recurso con vínculo verificado que coincide con la identidad/proposición
-      // de ESTA escena. Cualquier otra repetición sigue rechazándose.
-      const verifiedReuse: SelectionReuse["justification"] | null =
-        identity.eligible && identity.link ? "verified_identity_reuse" : evidenceVerdict.eligible && evidenceVerdict.link ? "verified_evidence_reuse" : null;
+      const screen = screenCandidate(input.visual, candidate, tier, deps);
+      if ("reject" in screen) {
+        rejected.push({ sourceId: reference.sourceId, query, reason: screen.reject });
+        continue;
+      }
+      const { identity, evidence, assessment, verifiedReuse } = screen;
       let reuse: SelectionReuse | undefined;
       const refDup = deps.registry.findByReference(reference, input.shotId);
       if (refDup) {
@@ -360,53 +422,6 @@ export async function selectStockForShot(
           continue;
         }
         reuse = { of: refDup.shotId, justification: verifiedReuse };
-      }
-      const assessment = assessRelevance(input.visual, candidate.description);
-      const substitute = personSubstitute(input.visual, candidate.description);
-      if (substitute) {
-        // Contexto de un beat con persona: el candidato muestra lo que hace la persona → la sustituiría.
-        rejected.push({ sourceId: reference.sourceId, query, reason: `FALSE_FRIEND: muestra la acción de la persona del beat (${substitute}) sin ser ella (pertinencia ${assessment.relevance}, score ${assessment.score}; ${candidate.description})` });
-        continue;
-      }
-      if (!identity.eligible) {
-        // El score no se toca: se rechaza A PESAR de su pertinencia léxica.
-        const falseFriend = assessment.relevance !== "irrelevant";
-        rejected.push({
-          sourceId: reference.sourceId,
-          query,
-          reason: `${falseFriend ? "FALSE_FRIEND" : "IDENTITY_UNVERIFIED"}: ${identity.why} (pertinencia ${assessment.relevance}, score ${assessment.score}; ${candidate.description ?? "sin descripción"})`,
-        });
-        continue;
-      }
-      const evidence = evidenceVerdict;
-      if (!evidence.eligible) {
-        // El score no se toca: mismo objeto/medio no es la misma proposición.
-        const falseFriend = assessment.relevance !== "irrelevant";
-        rejected.push({
-          sourceId: reference.sourceId,
-          query,
-          reason: `${falseFriend ? "FALSE_FRIEND" : "EVIDENCE_UNGROUNDED"}: ${evidence.why} (pertinencia ${assessment.relevance}, score ${assessment.score}; ${candidate.description ?? "sin descripción"})`,
-        });
-        continue;
-      }
-      if (identity.link || evidence.link) {
-        // Elegible por identidad/prueba, no aceptado: las contradicciones de época/lugar siguen descartando.
-        if (assessment.conflicts.length > 0) {
-          rejected.push({ sourceId: reference.sourceId, query, reason: `contradicción ${assessment.conflicts.join(", ")}` });
-          continue;
-        }
-      } else if (assessment.relevance === "irrelevant") {
-        rejected.push({
-          sourceId: reference.sourceId,
-          query,
-          reason: assessment.conflicts.length > 0 ? `contradicción ${assessment.conflicts.join(", ")}` : `sin coincidencia con la intención (${candidate.description ?? "sin descripción"})`,
-        });
-        continue;
-      }
-      // Sin texto descriptivo solo se acepta desde la consulta principal, y queda como incierto.
-      if (!identity.link && !evidence.link && assessment.relevance === "unverified" && tier > 0) {
-        rejected.push({ sourceId: reference.sourceId, query, reason: "sin descripción del proveedor en una consulta secundaria" });
-        continue;
       }
       if (downloads >= maxDownloads) {
         rejected.push({ sourceId: reference.sourceId, query, reason: "tope de descargas por escena alcanzado" });

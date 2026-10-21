@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient } from "@/lib/supabase/service";
 import { stableHash } from "@/lib/production-intelligence/canonical";
-import { withDocumentarySupplyContext } from "@/lib/supply/anthropic";
+import { documentarySupplyScope, withDocumentarySupplyContext } from "@/lib/supply/anthropic";
 import { withDocumentaryStep, DocumentaryStepYield } from "@/lib/supply/documentary-step";
 import { canAccessLongFormBeta } from "./private-access";
 import { loadCreativeHistory } from "./creative-history";
@@ -56,7 +56,7 @@ export async function runScriptJobStep(id:string, service=createServiceClient())
   if(input.referenceContract!==undefined && input.referenceContract!=="catalog-v1")throw new Error("Unsupported saved reference contract");
   if(input.writerContract!==undefined && input.writerContract!==FRAGMENT_CONTRACT)throw new Error("Unsupported saved writer contract");
   const script=await withDocumentaryStep(()=>withDocumentarySupplyContext(job.user_id,
-   {...fields,editorialVersion:EDITORIAL_VERSION,researchVersion:RESEARCH_VERSION,creativeHistory:input.creativeHistory,...(input.referenceContract?{referenceContract:input.referenceContract}:{})},
+   documentaryScopeInput(input,fields),
    input.recoverLegacyOperator && isInternalProductionOwner(owner.user),async()=>{
     await update({stage:"Investigando fuentes"});
     const researchPack=await researchDocumentary({topic:fields.topic,references:parseSources(fields.sources),openQuestions:parseOpenQuestions(fields.openQuestions)});
@@ -121,4 +121,16 @@ export function retryPatch(job:Pick<RetryRow,"status"|"failure_kind"|"retry_coun
  if(job.retry_count>=MAX_SCRIPT_RETRIES) return null;
  if(job.failure_kind==="interrupted") return job.resubmit_allowance<MAX_RESUBMITS ? {retry_count:job.retry_count+1,resubmit_allowance:job.resubmit_allowance+1} : null;
  return {retry_count:job.retry_count+1};
+}
+
+/** Entrada exacta que fija el proyecto del ledger del guion/investigación (misma que usa runScriptJob). */
+export function documentaryScopeInput(input:ScriptJobInput,fields:ReturnType<typeof ScriptJobFieldsSchema.parse>) {
+ return {...fields,editorialVersion:EDITORIAL_VERSION,researchVersion:RESEARCH_VERSION,creativeHistory:input.creativeHistory,...(input.referenceContract?{referenceContract:input.referenceContract}:{})};
+}
+/** ADVANCE 2: proyecto del ledger donde quedó el gasto de investigación+guion de un pedido Long Form. */
+export function documentaryLedgerScopeFor(job:{user_id:string;input:unknown}):string|null {
+ const input=job.input as ScriptJobInput|null;
+ const parsed=ScriptJobFieldsSchema.safeParse(input?.fields);
+ if(!input||!parsed.success) return null;
+ return documentarySupplyScope(job.user_id,documentaryScopeInput(input,parsed.data),false).projectId;
 }

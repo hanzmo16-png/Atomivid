@@ -99,6 +99,12 @@ export function supabaseLedgerStore(supabase: SupabaseClient): LedgerStore {
       if (error) throw new PaidLedgerUnavailableError(`update failed (${error.code ?? "?"}): ${error.message}`);
       return Array.isArray(data) && data.length === 1;
     },
+    async listByProjects(projectIds) {
+      if (projectIds.length === 0) return [];
+      const { data, error } = await supabase.from(PAID_OPERATIONS_TABLE).select("*").in("project_id", projectIds);
+      if (error) throw new PaidLedgerUnavailableError(`list failed (${error.code ?? "?"}): ${error.message}`);
+      return ((data ?? []) as Row[]).map(fromRow);
+    },
   };
   if (supplyGuardRequired()) store.submit = op => submitWithSupply(supabase, op);
   return store;
