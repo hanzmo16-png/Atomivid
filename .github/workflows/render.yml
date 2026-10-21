@@ -119,6 +119,8 @@ jobs:
           # the server reserved for this attempt's image envelope after the owner approved a ceiling.
           IMAGE_PROVIDER: ${{ ((github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') || vars.DIRECTOR_MATERIAL_ENABLED == 'true') && 'openai' || '' }}
           OPENAI_API_KEY: ${{ ((github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') || vars.DIRECTOR_MATERIAL_ENABLED == 'true') && secrets.OPENAI_API_KEY || '' }}
+          # Recraft is selected per Reel; Long Form does not receive this credential.
+          FAL_KEY: ${{ (github.event.client_payload.mode != 'long_form' && inputs.mode != 'long_form') && secrets.FAL_KEY || '' }}
           # Video IA: en el worker se encienden para Long Form y el ÚNICO
           # control es la allocation del plan confirmado (calculada en Vercel
           # con sus propias flags y mostrada al usuario antes de confirmar):
