@@ -75,6 +75,7 @@ import { datedEventEvidenceBlockers, LongFormDatedEventEvidenceError } from "./d
 import { usesImpactDirection } from "./production-plan-types";
 import { authorizeRequestBudget, requestSpend, storageAuthorizationStore, withRequestBudget, type AuthorizationStore, type RequestBudgetAuthorization, type RequestSpend } from "./request-budget";
 import type { PilotStageEstimate } from "./pilot-budget-envelope";
+import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
 import type { ProductionTtsCostGuard as TtsCostGuard } from "./production-tts-cache";
 import { LongFormMaterialPreflightTemporaryError, LongFormMaterialUnavailableError, materialAvailabilityPreflight, type MaterialPreflight } from "./material-preflight";
 import { curatedSvgGraphic } from "./premium-composition";
@@ -358,7 +359,8 @@ export async function generateLongFormVideoFromScript({
       { stage: "images", ceilingUsd: conservative.imageUsd * allocation.maxAiImageGenerations, retryPolicy: "reuse_paid_results" },
       { stage: "video", ceilingUsd: conservative.clipUsd * allocation.maxAiVideoClips, retryPolicy: "reuse_paid_results" },
       { stage: "music", ceilingUsd: musicCeiling, retryPolicy: "reuse_paid_results", note: musicName === "beatoven" ? "BEATOVEN_ESTIMATED_COST_USD" : `proveedor ${musicName} sin cargo por llamada` },
-      { stage: "render", ceilingUsd: 0, retryPolicy: "reuse_paid_results", note: "render propio (GitHub Actions): sin llamada a proveedor de pago" },
+      // Render costeado (PRICING_RENDER_USD_PER_MINUTE): techo = intentos máximos × timeout del job long_form × tarifa.
+      { stage: "render", ceilingUsd: renderCeilingUsd(), retryPolicy: "reuse_paid_results", note: `cubre ${MAX_RENDER_ATTEMPTS} intentos × ${LONG_FORM_RENDER_JOB_TIMEOUT_MIN} min; cada intento factura sus minutos; fuera del ledger` },
     ];
     const auth = await authorizeRequestBudget({
       requestId,
@@ -369,7 +371,8 @@ export async function generateLongFormVideoFromScript({
       store: rb.store ?? storageAuthorizationStore(supabase as never, STORAGE_BUCKET),
     });
     rb.onAuthorized?.(auth, requestSpend(await inner.listByProjects(auth.ledgerScopes)));
-    const budgeted = withRequestBudget(inner, auth);
+    // El render no pasa por el ledger: su techo se descuenta del disponible para proveedores de pago.
+    const budgeted = withRequestBudget(inner, { ceilingUsd: Math.max(0, auth.ceilingUsd - (auth.stageCeilings.render ?? 0)), ledgerScopes: auth.ledgerScopes });
     paidCalls.ledger = budgeted;
     // La caché TTS marca STARTED antes del gate: el techo se comprueba ANTES (costGuard), sin escribir nada.
     ttsBudgetGuard = {
@@ -867,4 +870,10 @@ async function defaultScriptScopes(supabase: SupabaseClient, requestId: string):
   const scope = documentaryLedgerScopeFor(data as { user_id: string; input: unknown });
   if (!scope) throw new Error("El guion de este pedido no permite localizar su gasto en el ledger; no se inicia sin presupuesto total.");
   return [scope];
+}
+
+/** Minutos máximos del job de render long_form (timeout-minutes de .github/workflows/render.yml). */
+export const LONG_FORM_RENDER_JOB_TIMEOUT_MIN = 330;
+function renderCeilingUsd(): number {
+  return MAX_RENDER_ATTEMPTS * LONG_FORM_RENDER_JOB_TIMEOUT_MIN * getPricingConfig().renderUsdPerMinute;
 }

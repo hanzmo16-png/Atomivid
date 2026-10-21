@@ -12,7 +12,12 @@ import { countingProviders, makeStorage } from "./cinematic-simulation";
 import { memoryShotAssetStore } from "./durable-shot-assets";
 import { memoryBudgetStore } from "./production-budget";
 import { memoryOutputDeps } from "./output-finalize";
-import { generateLongFormVideoFromScript, type LongFormRuntime } from "./produce";
+import { generateLongFormVideoFromScript, LONG_FORM_RENDER_JOB_TIMEOUT_MIN, type LongFormRuntime } from "./produce";
+import { getPricingConfig } from "@/lib/billing/pricing";
+import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
+
+/** Techo del render (fuera del ledger), reservado dentro del techo total. */
+const RENDER_USD = MAX_RENDER_ATTEMPTS * LONG_FORM_RENDER_JOB_TIMEOUT_MIN * getPricingConfig().renderUsdPerMinute;
 
 /**
  * ADVANCE 2 — presupuesto TOTAL del pedido aplicado por el servidor en produce() real.
@@ -160,11 +165,11 @@ test("A2-P2 interrupción por techo + reintento con un techo de entorno mayor �
 
   const sh = newShared();
   const store = authStore();
-  const first = await run(b, plan3(b), { footage: plentiful(), shared: sh, requestBudget: { scriptScopes: [], store, hardMaxUsd: ceiling } });
+  const first = await run(b, plan3(b), { footage: plentiful(), shared: sh, requestBudget: { scriptScopes: [], store, hardMaxUsd: Math.round((ceiling + RENDER_USD) * 10000) / 10000 } });
   assert.ok(first.error, "el primer intento debe detenerse en el techo");
   assert.equal(first.error!.name, "RequestBudgetExceededError", first.error!.message.slice(0, 200));
   assert.equal(first.voice, 1, "solo la voz que cabía");
-  assert.ok(exposure(sh, ["req-total-budget"]) <= ceiling + 1e-9, "nunca por encima del techo");
+  assert.ok(exposure(sh, ["req-total-budget"]) <= ceiling + 1e-9, "nunca por encima del techo (proveedores = total − render)");
 
   const retry = await run(b, plan3(b), { footage: plentiful(), shared: sh, requestBudget: { scriptScopes: [], store, hardMaxUsd: 1000 } });
   assert.ok(retry.error, "el reintento no puede ampliar el techo autorizado");
@@ -183,5 +188,5 @@ test("A2-P3 dentro del techo → produce completo y el total del pedido queda ba
   assert.equal(r.error, null, r.error?.message);
   assert.equal(r.render, 1);
   assert.ok(authorized > 0 && authorized <= 12);
-  assert.ok(exposure(r.sh, ["req-total-budget"]) <= authorized + 1e-9);
+  assert.ok(exposure(r.sh, ["req-total-budget"]) <= authorized - RENDER_USD + 1e-9, "proveedores ≤ techo total − techo del render");
 });
