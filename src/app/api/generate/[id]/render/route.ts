@@ -5,6 +5,7 @@ import { providerCheck, visualBlockMessage, visualCheck } from "@/lib/video/long
 import { isLongFormScriptJson } from "@/lib/video/long-form/script-json";
 import { editorialApprovalError } from "@/lib/video/long-form/editorial";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
+import { loadReelRecraft, recraftDemandUsd } from "@/lib/video/recraft-reel-server";
 import { jobSupplyDemands, releaseUnusedJobSupply, reserveJobSupply } from "@/lib/supply/job";
 import { isOwnScriptDraft } from "@/lib/video/own-script";
 import { approvedDirectorMaterialUsd, productionProfile } from "@/lib/video/director/material-fill";
@@ -296,7 +297,9 @@ export async function POST(
     try {
       const demands = jobSupplyDemands(videoRequest, videoRequest.mode === "long_form"
         ? videoRequest.long_form_production_plan?.providers.voice ?? "unconfigured"
-        : getVoiceProvider().name, undefined, { directorMaterialUsd });
+        : getVoiceProvider().name, undefined, { directorMaterialUsd,
+          // Same envelope the worker asks for (run-job.ts), from the same stored choice; 0 for every non-Recraft Reel.
+          recraftUsd: videoRequest.mode === "visual" ? recraftDemandUsd(await loadReelRecraft(service, id), videoRequest.script_json) : 0 });
       if (supplyGuardRequired()) {
         // Same readiness rule as the preflight: stale balances of THIS job's
         // providers are re-read (billing GET only) before the atomic reservation.
