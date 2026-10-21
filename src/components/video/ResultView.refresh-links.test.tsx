@@ -39,3 +39,13 @@ test("Reel, Avatar y Long Form sin terminar conservan su flujo: no muestran Actu
   for (const status of ["processing", "failed", "script_ready"] as const)
     assert.doesNotMatch(render({ status, video_path: null }, null), /refresh-links/, status);
 });
+
+test("Long Form completado: reproductor, descarga y miniatura usan los enlaces firmados del servidor", () => {
+  const thumb = "https://example.com/storage/thumb.jpg?token=t1";
+  const html = renderToStaticMarkup(<AppRouterContext.Provider value={router}><ResultView request={base} videoUrl={videoUrl} thumbnailUrl={thumb} nowMs={0} /></AppRouterContext.Provider>);
+  assert.match(html, /<video[^>]*data-testid="result-video"/);
+  assert.match(html, /<video[^>]*src="https:\/\/example\.com\/storage\/final\.mp4\?token=t1"/);
+  assert.match(html, /<img[^>]*src="https:\/\/example\.com\/storage\/thumb\.jpg\?token=t1"/);
+  assert.match(html, /data-testid="refresh-status" data-state="idle"/);
+  assert.equal((html.match(/<video/g) ?? []).length, 1, "un solo reproductor");
+});
