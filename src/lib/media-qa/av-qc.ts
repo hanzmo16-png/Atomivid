@@ -43,6 +43,8 @@ export type AvMeasurements = {
   width?: number; height?: number; videoCodec?: string; audioCodec?: string; pixFmt?: string; fps?: number;
   formatDuration?: number; videoDuration?: number; audioDuration?: number; hasAudio: boolean;
   decodeErrors: string[];
+  /** Errors from the detector/loudness pass. A failed pass must never look like zero findings. */
+  detectorErrors: string[];
   black: [number, number][];
   freeze: [number, number][];
   silence: [number, number][];
@@ -77,7 +79,7 @@ const DEF = { durationTolerancePct: 10, toleranceLu: 2 };
 const overlap = (a: [number, number], s: AvManifestSegment) => a[0] < s.end && a[1] > s.start;
 
 /** Interval [a,b] is acceptable if fully covered by segments marked intentional for that kind. */
-function intentional(iv: [number, number], kind: "black" | "freeze" | "silence", tl: AvManifestSegment[], dur: number): boolean {
+function intentional(iv: [number, number], kind: "black" | "freeze" | "silence", tl: AvManifestSegment[]): boolean {
   const segs = tl.filter((s) => overlap(iv, s));
   if (!segs.length) return false;
   // Fades at the very start/end shorter than 2.5 s are a normal opening/closing.
@@ -93,6 +95,7 @@ export function evaluateAv(m: AvMeasurements, manifest: AvManifest = {}): AvRepo
   const dur = m.formatDuration ?? m.videoDuration ?? 0;
 
   if (!m.probeOk) B("probe_failed", "ffprobe no pudo leer el archivo como video.");
+  if (!Number.isFinite(dur) || dur <= 0) B("duration_unreadable", "No se pudo medir una duración positiva y finita del video.");
   if (ex.width && ex.height && (m.width !== ex.width || m.height !== ex.height)) B("resolution", `Resolución ${m.width}x${m.height}; se esperaba ${ex.width}x${ex.height}.`);
   if (ex.width && ex.height && m.width && m.height && Math.abs(m.width / m.height - ex.width / ex.height) > 0.01) B("aspect", `Relación de aspecto ${(m.width / m.height).toFixed(3)}; se esperaba ${(ex.width / ex.height).toFixed(3)}.`);
   if (ex.videoCodec && m.videoCodec && m.videoCodec !== ex.videoCodec) B("video_codec", `Códec de video ${m.videoCodec}; se esperaba ${ex.videoCodec}.`);
@@ -103,6 +106,7 @@ export function evaluateAv(m: AvMeasurements, manifest: AvManifest = {}): AvRepo
     else if (Math.abs(d) > tol / 2) W("duration_drift", `Duración real ${dur.toFixed(1)} s se aparta ${(d * 100).toFixed(1)} % de la pedida.`);
   }
   if (m.decodeErrors.length) B("decode", `La decodificación completa reportó ${m.decodeErrors.length} error(es): ${m.decodeErrors.slice(0, 3).join(" | ").slice(0, 300)}`);
+  if (m.detectorErrors.length) B("detector_failed", `El pase de detectores/sonoridad falló: ${m.detectorErrors.slice(0, 3).join(" | ").slice(0, 300)}`);
 
   const requireAudio = ex.requireAudio ?? true;
   if (!m.hasAudio) { if (requireAudio) B("no_audio", "El archivo no tiene pista de audio."); }
@@ -118,20 +122,20 @@ export function evaluateAv(m: AvMeasurements, manifest: AvManifest = {}): AvRepo
     if (m.truePeakDbfs !== undefined && m.truePeakDbfs > tp + 0.5) W("true_peak", `Pico real ${m.truePeakDbfs} dBFS supera el máximo ${tp} dBTP.`);
     if (m.samplePeakDb !== undefined && m.samplePeakDb >= -0.1) B("clipping", `Pico de muestra ${m.samplePeakDb} dBFS: saturación digital (clipping).`);
     for (const s of m.silence) {
-      const len = s[1] - s[0]; if (intentional(s, "silence", tl, dur)) continue;
+      const len = s[1] - s[0]; if (intentional(s, "silence", tl)) continue;
       const edge = s[0] < 0.5 || s[1] > dur - 0.5;
       if (len >= 6 && !edge) B("silence", `Silencio de ${len.toFixed(1)} s no previsto en mitad del video.`, s);
       else if (len >= 2 && !(edge && len < 4)) W("silence", `Silencio de ${len.toFixed(1)} s no marcado como intencional.`, s);
     }
   }
   for (const s of m.black) {
-    const len = s[1] - s[0]; if (intentional(s, "black", tl, dur)) continue;
+    const len = s[1] - s[0]; if (intentional(s, "black", tl)) continue;
     const edge = s[0] < 0.5 || s[1] > dur - 0.5;
     if (edge && len < 2.5) continue;
     if (len >= 2) B("black", `Negro de ${len.toFixed(1)} s no previsto.`, s); else W("black", `Negro de ${len.toFixed(1)} s.`, s);
   }
   for (const s of m.freeze) {
-    const len = s[1] - s[0]; if (intentional(s, "freeze", tl, dur)) continue;
+    const len = s[1] - s[0]; if (intentional(s, "freeze", tl)) continue;
     if (len >= 8) B("freeze", `Imagen congelada ${len.toFixed(1)} s no prevista.`, s); else W("freeze", `Imagen fija ${len.toFixed(1)} s (¿plano estático intencional?).`, s);
   }
 
