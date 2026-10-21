@@ -147,7 +147,7 @@ async function mixMusic(dir: string, voice: string, plan: DirectionPlan, music: 
   const lst = path.join(dir, "music.txt"), bed = path.join(dir, "music.wav"), mix = path.join(dir, "mix.wav");
   await writeFile(lst, parts.map((f) => `file '${f}'`).join("\n"));
   await run(["-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", lst, bed]);
-  await run(["-y", "-v", "error", "-i", voice, "-i", bed, "-filter_complex", `[0:a]asplit=2[v][sc];[1:a][sc]sidechaincompress=threshold=0.02:ratio=8:attack=20:release=400[m];[v][m]amix=inputs=2:duration=first:normalize=0[a]`, "-map", "[a]", mix]);
+  await run(["-y", "-v", "error", "-i", voice, "-i", bed, "-filter_complex", `[0:a]asplit=2[v][sc];[1:a][sc]sidechaincompress=threshold=0.02:ratio=8:attack=20:release=400[m];[v][m]amix=inputs=2:duration=first:dropout_transition=0,volume=2[a]`, "-map", "[a]", mix]);
   return mix;
 }
 

@@ -46,6 +46,13 @@ http.createServer(async (req, res) => {
     if (p === "/auth/v1/logout") { res.writeHead(204); res.end(); return; }
     let m;
     if ((m = p.match(/^\/auth\/v1\/admin\/users\/([^/]+)$/))) { if (claims(req)?.role !== "service_role") return json(res, 403, {}); const usr = USERS.find((x) => x.id === m[1]); return usr ? json(res, 200, userObj(usr)) : json(res, 404, { msg: "User not found" }); }
+    if ((m = p.match(/^\/storage\/v1\/object\/upload\/sign\/(.+)$/))) { // createSignedUploadUrl / uploadToSignedUrl
+      const key = decodeURIComponent(m[1]);
+      if (req.method === "POST") { if (claims(req)?.role !== "service_role") return json(res, 403, {}); const t = sign({ upload: key, exp: Math.floor(Date.now() / 1000) + 7200 }); log({ kind: "sign-upload", key }); return json(res, 200, { url: `/object/upload/sign/${m[1]}?token=${t}`, token: t }); }
+      const c = verify(u.searchParams.get("token") ?? ""); if (!c || c.upload !== key) return json(res, 400, { message: "invalid signature" });
+      const f = path.join(STORE, key); if (fs.existsSync(f) && req.headers["x-upsert"] !== "true") return json(res, 400, { statusCode: "409", error: "Duplicate", message: "The resource already exists" });
+      const b = await body(req); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, b); log({ kind: "signed-upload", key, bytes: b.length, sha256: crypto.createHash("sha256").update(b).digest("hex") }); return json(res, 200, { Key: key });
+    }
     if ((m = p.match(/^\/storage\/v1\/object\/sign\/(.+)$/))) {
       if (req.method === "POST") { if (claims(req)?.role !== "service_role") return json(res, 403, {}); const key = decodeURIComponent(m[1]); const t = sign({ url: key, exp: Math.floor(Date.now() / 1000) + 3600 }); log({ kind: "sign", key }); return json(res, 200, { signedURL: `/object/sign/${m[1]}?token=${t}` }); }
       const c = verify(u.searchParams.get("token") ?? ""); const key = decodeURIComponent(m[1]); if (!c || c.url !== key) return json(res, 400, { message: "invalid signature" });

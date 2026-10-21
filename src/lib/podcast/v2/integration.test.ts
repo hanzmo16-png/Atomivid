@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { memoryLedgerStore, ReconciliationRequiredError } from "@/lib/production-intelligence/ledger";
@@ -110,4 +110,4 @@ test("errores: límite antes de pagar; timeout ambiguo bloquea sin volver a llam
 });
 
 function saveTmp(b: Buffer) { const f = path.join(mkdtempSync(path.join(tmpdir(), "m-")), "a.m4a"); writeFileSync(f, b); return f; }
-function recWav(text: string) { const d = mkdtempSync(path.join(tmpdir(), "rec-")), f = path.join(d, "r.wav"); execFileSync("espeak-ng", ["-v", "es", "-p", "20", "-w", f, text]); return Buffer.from(require("node:fs").readFileSync(f)); }
+function recWav(text: string) { const d = mkdtempSync(path.join(tmpdir(), "rec-")), f = path.join(d, "r.wav"); execFileSync("espeak-ng", ["-v", "es", "-p", "20", "-w", f, text]); return Buffer.from(readFileSync(f)); }

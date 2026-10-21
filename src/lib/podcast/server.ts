@@ -90,7 +90,9 @@ const PUBLIC_REASON: Record<string, string> = {
 function publicError(err: unknown): string {
   if (err instanceof SupplyUnavailableError) return PUBLIC_REASON[err.reason] ?? err.customerMessage;
   const name = err instanceof Error ? err.constructor.name : "";
-  if (/Reconciliation|Uncertain|PaidResultUnavailable/i.test(name)) return "Una parte quedó en estado incierto con el proveedor (posible cobro sin respuesta). No se reintenta para no cobrar dos veces; requiere revisión.";
+  const msg = err instanceof Error ? err.message : "";
+  // Red caída tras enviar (fetch failed) o una operación que el libro mayor exige reconciliar: el cobro pudo ocurrir → no decir «inténtalo».
+  if (/Reconciliation|Uncertain|InFlight|PaidResultUnavailable/i.test(name) || /reconcile with the provider|in flight|outcome is unknown|^fetch failed$/i.test(msg)) return "Una parte quedó en estado incierto con el proveedor (posible cobro sin respuesta). No se reintenta para no cobrar dos veces; requiere revisión.";
   return "No se pudo generar la narración. Lo ya generado se conserva y no se vuelve a cobrar; inténtalo de nuevo.";
 }
 
@@ -139,6 +141,7 @@ export async function runGeneration(service: SupabaseClient, episode: PodcastEpi
     const row = (data?.[0] as PodcastEpisode | undefined);
     return row ? { ok: true, episode: row } : { error: "Otra ejecución tomó este episodio.", status: 409 };
   } catch (err) {
+    console.error("[podcast] narración fallida", episode.id, err instanceof Error ? `${err.name}: ${err.message}` : String(err));
     const capped = err instanceof NarrationCapError;
     const message = err instanceof VoicesUnavailableError ? err.customerMessage
       : capped ? `La narración se detuvo antes de superar el límite autorizado (USD ${err.capUsd.toFixed(2)}; gastado en esta ejecución USD ${err.spentUsd.toFixed(4)}). Lo ya narrado se conserva y no se vuelve a cobrar.`

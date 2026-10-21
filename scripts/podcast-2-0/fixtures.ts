@@ -15,6 +15,9 @@ export const SUBTOPICS = [
   { t: "la preparación en casa", f: "Las guías oficiales recomiendan agua y comida para al menos tres días.", h: "Me pregunto cuántas familias lo tienen listo hoy." },
   { t: "los satélites", f: "Los satélites geoestacionarios vigilan el Atlántico de forma continua.", h: "Sin ellos, cada tormenta sería una sorpresa." },
   { t: "los aviones cazahuracanes", f: "Hay aviones que vuelan dentro de los huracanes para medir presión y viento.", h: "Es increíble que alguien haga ese trabajo." },
+  { t: "la lluvia y las inundaciones", f: "Un huracán lento puede dejar más lluvia acumulada que uno rápido y más intenso.", h: "Quizás deberíamos hablar más de la velocidad de avance que de la categoría." },
+  { t: "la cizalladura del viento", f: "La cizalladura vertical del viento puede desorganizar una tormenta y debilitarla.", h: "Me intriga que algo invisible decida tanto." },
+  { t: "la recuperación después del paso", f: "Tras el paso de un huracán, los cortes de luz y de agua pueden durar semanas.", h: "Tal vez la preparación debería pensar en el después, no solo en el impacto." },
 ];
 
 export function conversationFixture(sources: { A: Conversation["participants"][0]["source"]; B: Conversation["participants"][1]["source"] } = { A: "mock", B: "mock" }): Conversation {
