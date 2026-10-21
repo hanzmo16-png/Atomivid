@@ -1,7 +1,7 @@
 From a5bc5a775914f38daf0469aa207be35b8f8384a7 Mon Sep 17 00:00:00 2001
 From: grok-bot <grok-bot@users.noreply.github.com>
 Date: Wed, 21 Oct 2026 09:33:48 -0500
-Subject: [PATCH 5/5] chore(harness): rehearsal fixes (ids path, newest job by
+Subject: [PATCH 5/6] chore(harness): rehearsal fixes (ids path, newest job by
  topic, recraft policy unit cost = 1 for a usd unit)
 
 ---

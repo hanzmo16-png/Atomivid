@@ -1,7 +1,7 @@
 From 8e8fe653848dd3e510fbcf071303f76d6ad3911e Mon Sep 17 00:00:00 2001
 From: grok-bot <grok-bot@users.noreply.github.com>
 Date: Wed, 21 Oct 2026 09:22:59 -0500
-Subject: [PATCH 2/5] =?UTF-8?q?feat(long-form):=20narrate=20with=20the=20v?=
+Subject: [PATCH 2/6] =?UTF-8?q?feat(long-form):=20narrate=20with=20the=20v?=
  =?UTF-8?q?oice=20chosen=20at=20confirmation=20(e.g.=20private=20=C2=ABEl?=
  =?UTF-8?q?=20Duro=C2=BB),=20never=20a=20silent=20substitute?=
 MIME-Version: 1.0

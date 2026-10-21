@@ -1,7 +1,7 @@
 From 82bb0a2e5021d70b7d1a4a529b9b7241bff12c57 Mon Sep 17 00:00:00 2001
 From: grok-bot <grok-bot@users.noreply.github.com>
 Date: Wed, 21 Oct 2026 09:27:39 -0500
-Subject: [PATCH 3/5] chore(harness): rehearse voice choice and Recraft locally
+Subject: [PATCH 3/6] chore(harness): rehearse voice choice and Recraft locally
  (synthetic voices catalogue, fal queue/billing mocks, Marco Aurelio beats)
 
 ---

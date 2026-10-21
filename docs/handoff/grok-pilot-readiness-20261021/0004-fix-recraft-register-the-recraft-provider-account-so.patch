@@ -1,7 +1,7 @@
 From eb773a921b2aa5b2b61bdab1145261a2c95a433d Mon Sep 17 00:00:00 2001
 From: grok-bot <grok-bot@users.noreply.github.com>
 Date: Wed, 21 Oct 2026 09:28:32 -0500
-Subject: [PATCH 4/5] fix(recraft): register the recraft provider account so
+Subject: [PATCH 4/6] fix(recraft): register the recraft provider account so
  its balance snapshots can be stored
 
 pi_capacity_snapshots.provider references pi_provider_accounts; without a 'recraft' row every fal balance

@@ -1,7 +1,7 @@
 From 981f7164391d4abaa7ba52ad11fc23d97ed53c65 Mon Sep 17 00:00:00 2001
 From: grok-bot <grok-bot@users.noreply.github.com>
 Date: Wed, 21 Oct 2026 09:18:34 -0500
-Subject: [PATCH 1/5] fix(long-form): apply the current hardMax on budget
+Subject: [PATCH 1/6] fix(long-form): apply the current hardMax on budget
  retries even when the recalculation is unverifiable
 
 Found by ChatGPT's static review (anexo PR174): a stored authorization + null recalculation

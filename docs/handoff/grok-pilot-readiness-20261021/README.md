@@ -12,3 +12,4 @@ Por eso los commits van aquí como parches `git am`, en orden, sobre bd94dcaa (p
 5. `0005` chore(harness): arreglos del ensayo.
 
 Aplicar: `git checkout claude/recraft-integration && git am docs/handoff/grok-pilot-readiness-20261021/000*.patch`.
+- 0006: coverVideoTail (gap_at_end float, R8) + f-player.cjs.
