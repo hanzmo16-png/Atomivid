@@ -114,3 +114,22 @@ El saldo de USD 9,96 en fal **no** es autorización.
 - **Desactivar sin desplegar:** poner `enabled=false` en la política `recraft`. Las producciones con Recraft quedan en espera y nada se cobra.
 - **Revertir el código:** hacer revert del merge. Las columnas aditivas pueden quedarse: el código anterior las ignora.
 - **No se borran filas del ledger.**
+
+## Comprobación de acceso a fal: cuatro hechos distintos
+`fal-access-check.yml` se lanza a mano y corre en GitHub Actions, con red autorizada. No genera nada y cuesta USD 0.
+
+| # | Hecho | Cómo se comprueba | Qué NO prueba |
+|---|---|---|---|
+| 1 | Clave presente | El secreto existe (`FAL_KEY` / `FAL_ADMIN_KEY`). | Que sea válida. |
+| 2 | Clave válida | `FAL_KEY`: GET de estado de un request_id aleatorio inexistente, comparado con la misma llamada sin clave. Solo cuenta como «autenticada» una respuesta distinta que no sea 401/403; si ambas coinciden, «no concluyente». `FAL_ADMIN_KEY`: el GET de facturación devuelve 200. | Que haya saldo o que se pueda generar. |
+| 3 | Saldo comprobado | `credits.current_balance` en USD (solo con la clave Admin). | Que una generación concreta se complete. |
+| 4 | Generación real completada | **No se prueba aquí.** Solo el piloto autorizado lo demuestra: request_id, fila COMMITTED, objeto en Storage y MP4. | — |
+
+## style_id en la respuesta de fal (opcional en su esquema)
+- El esquema oficial (API → Schema → Output) declara `images` como obligatorio y `style_id` como **opcional**. La comprobación de contrato en CI registra la lista `required`.
+- **Estilo existente** (`style_id` del usuario): se usa siempre ese mismo; nunca se crea otro, aunque la respuesta lo omita.
+- **Creación desde referencias:**
+  - Si llega un `style_id` válido (ni malformado ni igual al request_id), se adopta y se guarda antes de la siguiente imagen.
+  - Si no llega, **la imagen pagada se guarda igualmente**: el ledger queda COMMITTED con su request_id y el resultado se reutiliza en cualquier reintento, sin volver a pagarlo. Después se aplica la política que el creador eligió antes de confirmar:
+    - **«Detener» (recomendado):** no se pide ninguna otra imagen. En Reel, la imagen queda sin etiqueta de estilo; en Long Form, con un marcador durable `state/recraft-style-missing.json`. Soporte revisa el caso.
+    - **«Mismas referencias»:** cada imagen siguiente usa las mismas referencias y el mismo `style_match`. Se presupuesta como creación de estilo (USD 0,04 por imagen).
