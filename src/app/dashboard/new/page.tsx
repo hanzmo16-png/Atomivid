@@ -76,6 +76,7 @@ export default async function NewVideoPage({
             avatarModeEnabled={avatarModeUiEnabled}
             maxAvatarDurationSeconds={flags.maxAvatarDurationSeconds}
             reelVoiceSelectionEnabled={flags.reelVoiceSelectionEnabled}
+            recraftReelEnabled={flags.recraftReelEnabled}
             existingAvatars={existingAvatars}
             // La tarjeta "Video con avatar" se ofrece a la cuenta beta
             // (privateAvatarAccess) sola — igual que siempre funcionó para

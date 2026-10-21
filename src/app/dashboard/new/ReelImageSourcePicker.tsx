@@ -1,0 +1,54 @@
+"use client";
+
+import { useState } from "react";
+
+/**
+ * Per-video image source for a Reel. «Imágenes IA con Recraft» is an explicit choice: the style comes only from what
+ * the user gives for THIS video (a saved Recraft style_id or 1-10 reference images). No house aesthetic is imposed.
+ * Nothing is paid here; the server validates everything again (actions.ts).
+ */
+export function ReelImageSourcePicker() {
+  const [source, setSource] = useState<"default" | "recraft">("default");
+  return (
+    <fieldset className="space-y-2">
+      <legend className="text-sm font-medium text-ink">Imágenes del Reel</legend>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="radio" name="reel_image_source" value="default" checked={source === "default"} onChange={() => setSource("default")} />
+        Material de archivo (como hasta ahora)
+      </label>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="radio" name="reel_image_source" value="recraft" checked={source === "recraft"} onChange={() => setSource("recraft")} />
+        Imágenes IA con Recraft
+      </label>
+      {source === "recraft" && (
+        <div className="space-y-2 rounded-md border border-line p-3 text-sm">
+          <p className="text-ink-muted">
+            Una imagen por escena con un estilo único para este video. Costo estimado: USD 0,035 por escena
+            (+ USD 0,005 una vez si el estilo se crea desde tus imágenes). Si algo falla, el video se detiene con un
+            aviso claro: nunca se sustituyen imágenes.
+          </p>
+          <label className="block">
+            <span>Style ID de Recraft (opcional)</span>
+            <input name="recraft_style_id" type="text" autoComplete="off" placeholder="Pega un style_id existente (no un request_id)" className="mt-1 w-full rounded border border-line px-2 py-1" />
+          </label>
+          <label className="block">
+            <span>O sube de 1 a 10 imágenes de referencia de estilo (PNG, JPG o WEBP, máx. 5 MB c/u)</span>
+            <input name="recraft_style_refs" type="file" multiple accept="image/png,image/jpeg,image/webp" className="mt-1 block" />
+          </label>
+          <label className="block">
+            <span>Ajuste del estilo</span>
+            <select name="recraft_style_match" defaultValue="" className="mt-1 rounded border border-line px-2 py-1">
+              <option value="">Predeterminado</option>
+              <option value="precise">Preciso</option>
+              <option value="flexible">Flexible</option>
+            </select>
+          </label>
+          <label className="block">
+            <span>Nota de estilo (opcional, tus palabras)</span>
+            <input name="recraft_style_note" type="text" maxLength={300} className="mt-1 w-full rounded border border-line px-2 py-1" />
+          </label>
+        </div>
+      )}
+    </fieldset>
+  );
+}

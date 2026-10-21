@@ -7,6 +7,8 @@ import { needsNarrationEdit } from "./duration-check";
 import { DeliverableUnverifiedError } from "@/lib/video/deliverable-check";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { editorialApprovalError } from "./long-form/editorial";
+import { loadReelRecraft, recraftDemandUsd, signReferenceUrls, persistReelStyleId } from "@/lib/video/recraft-reel-server";
+import { getRecraftImageProvider } from "@/lib/providers/image";
 import { jobSupplyDemands, reserveJobSupply, releaseUnusedJobSupply, JobEnvelopeMismatchError, JobEnvelopeExhaustedError } from "@/lib/supply/job";
 import { withSupplyContext } from "@/lib/supply/anthropic";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
@@ -199,7 +201,11 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
       const preflight = directorReelPreflight(row.script_json as GeneratedScript);
       if (preflight.blockers.length) throw new DirectorPreflightBlockedError(preflight.blockers);
     }
-    await reserveJobSupply(service, requestId, row.render_attempts, jobSupplyDemands(row, getVoiceProvider().name));
+    // «Imágenes IA con Recraft»: read in its own query (works before the migration), FAL_KEY checked BEFORE any
+    // reservation or paid voice; a Recraft Reel never falls back to stock/fixture images.
+    const recraft = mode === "visual" ? await loadReelRecraft(service, requestId) : null;
+    if (recraft) getRecraftImageProvider();
+    await reserveJobSupply(service, requestId, row.render_attempts, jobSupplyDemands(row, getVoiceProvider().name, undefined, { recraftUsd: recraftDemandUsd(recraft, row.script_json) }));
     const { videoPath } =
       mode === "avatar"
         ? await generateAvatarVideo({
@@ -236,6 +242,12 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
               topic: row.topic ?? undefined,
               language: row.language ?? undefined,
               voiceId: row.reel_voice_id ?? undefined,
+              ...(recraft ? { recraft: {
+                styleId: recraft.styleId,
+                referenceImageUrls: recraft.styleId ? [] : await signReferenceUrls(service, recraft.style.referencePaths),
+                match: recraft.style.match, styleNote: recraft.style.styleNote,
+                onStyleId: (styleId: string) => persistReelStyleId(service, requestId, styleId),
+              } } : {}),
               targetDurationSeconds: row.duration_seconds ?? undefined,
               onProgress,
               directorRender,

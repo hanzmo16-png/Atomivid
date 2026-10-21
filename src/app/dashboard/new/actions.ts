@@ -18,6 +18,8 @@ import { CLAIM_MESSAGES, createAvatarOnce, isDuplicateUpload, photoClaimPath } f
 import { insertCanonicalAvatar } from "@/lib/video/avatar/canonical-row";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { redirect } from "next/navigation";
+import { parseRecraftSelection, RECRAFT_MAX_REFERENCE_BYTES, RECRAFT_MAX_REFERENCES, RECRAFT_REFERENCE_TYPES } from "@/lib/video/recraft-reel";
+import { imageDimensions } from "@/lib/providers/image/recraft";
 import { checkProductionForRequest } from "@/lib/supply/production-check";
 import { formProduction, type ScriptChoice } from "@/lib/video/form-production";
 import { MAX_NARRATION_CHARS } from "@/lib/video/narration-fit";
@@ -128,6 +130,32 @@ export async function createVideoRequest(formData: FormData) {
     catch {
       redirect(formErrorUrl("No se pudo confirmar la voz seleccionada. Vuelve a elegirla o usa la voz predeterminada; no se ha creado ni cobrado nada."));
     }
+    // «Imágenes IA con Recraft»: explicit per-video choice, validated here (never trusted from the browser).
+    // Reference images are stored in our bucket; nothing is sent to fal.ai and nothing is paid at creation.
+    const refFiles = formData.getAll("recraft_style_refs").filter((f): f is File => typeof f !== "string" && f.size > 0);
+    const recraftChoice = parseRecraftSelection({ source: formData.get("reel_image_source"), styleId: formData.get("recraft_style_id"),
+      match: formData.get("recraft_style_match"), styleNote: formData.get("recraft_style_note"), referenceCount: refFiles.length }, flags.recraftReelEnabled);
+    if ("error" in recraftChoice) redirect(formErrorUrl(recraftChoice.error));
+    let recraftColumns: Record<string, unknown> = {};
+    if (recraftChoice.source === "recraft") {
+      const referencePaths: string[] = [];
+      if (!recraftChoice.styleId) {
+        for (const [n, f] of refFiles.slice(0, RECRAFT_MAX_REFERENCES).entries()) {
+          const buf = Buffer.from(await f.arrayBuffer());
+          const dim = imageDimensions(buf);
+          const ext = RECRAFT_REFERENCE_TYPES[f.type];
+          if (!ext || buf.byteLength > RECRAFT_MAX_REFERENCE_BYTES || !dim || dim.type !== f.type) {
+            redirect(formErrorUrl("Las imágenes de referencia deben ser PNG, JPG o WEBP válidas de hasta 5 MB. No se ha creado ni cobrado nada."));
+          }
+          const path = `${requestId}/recraft-style/ref-${n}.${ext}`;
+          const up = await createServiceClient().storage.from("videos").upload(path, buf, { contentType: f.type, upsert: true });
+          if (up.error) redirect(formErrorUrl("No se pudieron guardar las imágenes de referencia. No se ha creado ni cobrado nada."));
+          referencePaths.push(path);
+        }
+      }
+      recraftColumns = { reel_image_source: "recraft", reel_recraft_style: { styleId: recraftChoice.styleId, referencePaths,
+        match: recraftChoice.match, styleNote: recraftChoice.styleNote } };
+    }
     // Persist the server's total provider limit before any script, voice or image can be paid.
     // Invalid configuration or an absent schema must stop creation, never silently drop the cap.
     let providerSpendCap: number;
@@ -149,6 +177,7 @@ export async function createVideoRequest(formData: FormData) {
       status: "pending",
       provider_spend_cap_usd: providerSpendCap,
       ...(reelVoiceId ? { reel_voice_id: reelVoiceId } : {}),
+      ...recraftColumns,
       script_json: form.draft,
     });
 

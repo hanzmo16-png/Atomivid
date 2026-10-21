@@ -33,7 +33,10 @@ import { evaluateQualityGate, QUALITY_GATE_MIN_SCORE } from "@/lib/video/quality
 import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { buildStoryboard } from "@/lib/video/storyboard";
 import type { Storyboard } from "@/lib/video/storyboard/types";
-import { getImageProvider } from "@/lib/providers/image";
+import { getImageProvider, getRecraftImageProvider, type ImageGenerationRequest } from "@/lib/providers/image";
+import { recraftScenePrompt } from "@/lib/video/recraft-reel";
+import { recraftEstimatedCostUsd } from "@/lib/providers/image/recraft";
+import type { StoryboardScene } from "@/lib/video/storyboard/types";
 import { decideResourceStrategy, buildScenePlanEntry, type ScenePlanEntry } from "@/lib/video/visual-resource-planner";
 import { resolveGeneratedImageForScene } from "@/lib/video/visual-resource-resolver";
 import { cinematicDirectorRenderEnabled } from "@/lib/video/director/flag";
@@ -76,8 +79,25 @@ export async function generateVideoFromScript({
   directorRender = false,
   directorMaterialBudgetUsd,
   directorAdapter,
+  recraft,
 }: {
   supabase: SupabaseClient;
+  /**
+   * «Imágenes IA con Recraft» chosen by the creator for THIS Reel (video_requests.reel_image_source='recraft').
+   * Every scene gets one Recraft image in the video's own style; a failure stops the render clearly (no stock, no
+   * fixture, no other provider). Absent = the existing behaviour, unchanged.
+   */
+  recraft?: {
+    styleId: string | null;
+    /** Short-lived signed URLs of the user's reference images (only used while no style_id exists yet). */
+    referenceImageUrls: string[];
+    match: "precise" | "flexible" | null;
+    styleNote: string | null;
+    /** Persists the style_id fal returned (created from the references) so later scenes and retries reuse it. */
+    onStyleId?: (styleId: string) => Promise<void>;
+    /** Test seam only. */
+    provider?: import("@/lib/providers/image").ImageProvider;
+  };
   /** Montar con el plan del Director. Lo decide SOLO el worker (run-job.ts → resolveDirectorRender): flag global + piloto + Reel visual. */
   directorRender?: boolean;
   /**
@@ -109,6 +129,12 @@ export async function generateVideoFromScript({
   const footageProvider = getFootageProvider();
   const musicProvider = getMusicProvider();
   const imageProvider = getFeatureFlags().imageGenerationEnabled ? getImageProvider() : undefined;
+  // Resolved up front: a Recraft Reel without FAL_KEY fails BEFORE any voice is paid.
+  const recraftProvider = recraft ? (recraft.provider ?? getRecraftImageProvider()) : undefined;
+  let recraftStyle: ImageGenerationRequest["style"] | undefined = recraft
+    ? (recraft.styleId ? { styleId: recraft.styleId, ...(recraft.match ? { match: recraft.match } : {}) }
+      : { referenceImageUrls: recraft.referenceImageUrls, ...(recraft.match ? { match: recraft.match } : {}) })
+    : undefined;
   const gate: PaidCallDeps = {
     ledger: paidCalls?.ledger ?? supabaseLedgerStore(supabase),
     results: paidCalls?.results ?? supabaseResultStore(supabase, STORAGE_BUCKET), requestId,
@@ -285,6 +311,33 @@ export async function generateVideoFromScript({
         console.log("[atomivid:director]", JSON.stringify({ requestId, sceneIndex: i, card: k, dataCard: neutral ? "(tarjeta neutral, sin cifra)" : w.card.figures.map((f) => f.display).join(" · ") || "(sin cifra)",
           treatment: w.treatment, neutralReason: w.neutralReason ?? null, ambiguousBetween: w.ambiguousBetween ?? null, timing: w.timing, start: w.start, end: w.end, shortWindow: w.end - w.start < MIN_CARD_SECONDS }));
       }
+      continue;
+    }
+    if (recraft && recraftProvider && recraftStyle) {
+      // One Recraft image per scene, held for the whole scene. Estimate BEFORE submit = what the ledger reserves and
+      // the Reel total cap admits; the fal request_id is recorded before polling (visual-resource-resolver.ts).
+      const prompt = recraftScenePrompt(segment, storyboard?.scenes[i]?.imagePrompt, recraft.styleNote);
+      const estimate = recraftEstimatedCostUsd({ style: recraftStyle });
+      imagesRequestedCount += 1;
+      const generated = await resolveGeneratedImageForScene({
+        ledger: gate.ledger, supabase, bucket: STORAGE_BUCKET, requestId, sceneIndex: i,
+        scene: { imagePrompt: prompt, negativePrompt: storyboard?.scenes[i]?.negativePrompt ?? "text, watermark, logo" } as StoryboardScene,
+        imageProvider: recraftProvider, remainingBudgetUsd: estimate, signedUrlTtlSeconds: ASSET_SIGNED_URL_TTL_SECONDS,
+        style: recraftStyle, objectKey: `scene-${i}-recraft`,
+      });
+      if (generated.styleId && !recraftStyle.styleId) {
+        await recraft.onStyleId?.(generated.styleId);
+        recraftStyle = { styleId: generated.styleId, ...(recraft.match ? { match: recraft.match } : {}) };
+      }
+      storageBytes += generated.bufferBytes;
+      visualCostSpentUsd += generated.costUsd;
+      usedGeneratedImageProvider = generated.provider;
+      usedGeneratedImageModel = generated.model ?? usedGeneratedImageModel;
+      if (generated.width && generated.height) usedGeneratedImageSize = `${generated.width}x${generated.height}`;
+      if (generated.status === "generated") imagesGeneratedCount += 1; else imagesReusedCount += 1;
+      scenes.push({ mediaUrl: generated.url, mediaType: "image", startSeconds: timing.start, endSeconds: timing.end });
+      directorBeats[i].push({ url: generated.url, mediaType: "image", source: "generated", license: GENERATED_IMAGE_LICENSE, start: timing.start, end: timing.end });
+      console.log("[atomivid:visual]", JSON.stringify({ requestId, sceneIndex: i, status: generated.status, provider: "recraft", costUsd: generated.costUsd, falRequestId: generated.providerJobId ?? null }));
       continue;
     }
     const beats = splitIntoBeats(timing.start, timing.end);
