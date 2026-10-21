@@ -13,19 +13,27 @@ Estado: código en la rama `grok/podcast-2-0-20261021` (PR #178, draft). Nada fu
 | Reemplazar un turno | acción `edit` → solo ese segmento se resintetiza | c3: exactamente 1 llamada |
 | Música + ducking + loudnorm 2 pasadas | `narrate-v2.ts` (sidechaincompress, `masterAudioLoudness`) | c1/c2: −16 LUFS, TP ≤ −1, LRA ≤ 15 |
 | Reanudación sin doble cobro | resultados persistidos + `ReconciliationRequiredError`/`SubmissionInFlightError` | c4 |
-| Subtítulos por hablante | worker de video lee `production_timeline` (`[Nombre]`) | unit + MP4 de evidencia |
+| Subtítulos por hablante | worker de video lee `production_timeline` (`[Nombre]`) | E2E c7: `subtitulos.json` con [Hans]/[Invitada] |
+| Video AV completo | VideoPanel «Producir ahora» → despacho → worker real (narra, imágenes Pexels **simuladas**, editor v3, MP4) → reproductor y descarga | E2E c7 |
+| UI por turno | `TurnsPanel.tsx`: subir grabación (URL firmada), editar un turno, estado por turno | E2E c8 (clics reales) |
+| Operaciones inciertas | aviso «Requiere revisión», reintento/edición deshabilitados; `/generate` responde 409 | E2E c8 |
 
 ## Dependencia de migración
 `supabase/proposals/20261021200000_podcast_v2_production.sql` (+ `.rollback.sql`): columnas `production`, `production_timeline` (jsonb).
 **Sin aplicar** en ningún proyecto real. Sin ella, activar `PODCAST_V2_ENABLED` rompe las consultas; con el flag apagado el código usa las columnas de siempre.
 
 ## Limitaciones honestas
-- Si el proceso muere con una llamada en vuelo, ese segmento queda «incierto» y **requiere revisión manual** (no se reenvía para no cobrar dos veces).
-- El MP4 de evidencia (`scripts/podcast-2-0/evidence-mp4.py`) es un render de verificación (tarjetas + subtítulos), no el pipeline de video del producto (worker + Pexels, no ejercitado E2E).
+- Si el proceso muere con una llamada en vuelo, ese segmento queda «incierto»: la UI lo muestra y bloquea reintentos; la **conciliación** con el historial de ElevenLabs sigue siendo manual (no hay botón de conciliar: requiere acceso al proveedor).
+- Las operaciones inciertas ocupan cupo de concurrencia del proveedor hasta conciliarse.
+- Los medios de Pexels se vuelven a buscar en cada reintento de video (gratis; no se persisten entre intentos).
+- El pipeline de video del producto se ejercita E2E (c7) con Pexels simulado; `scripts/podcast-2-0/evidence-mp4.py` queda solo como render auxiliar.
 - Nunca dos avatares: cada participante es una imagen.
 - Estimación de narración pendiente en `pilot-server` es conservadora (sobreestima) para episodios v2.
 
-## E2E local (USD 0)
+## E2E (USD 0)
+Casos: 1 narración · 2 diálogo A/B · 3 mixto (API) · 4 recuperación · 5 aislamiento · 6 errores/concurrencia · 7 video AV desde la UI · 8 UI por turno.
+Workflow propuesto: `.github/workflows/podcast-2-1-e2e.yml` (no se pudo subir: el token no tiene el scope `workflow`).
+
 `scripts/harness/e2e/podcast/start.sh` (PG + PostgREST + gateway local + mock ElevenLabs con espeak-ng + Next), luego `run.sh <salida> 1,2,3,4,5,6`.
 
 ## Los 6 fallos de `test:unit` en local

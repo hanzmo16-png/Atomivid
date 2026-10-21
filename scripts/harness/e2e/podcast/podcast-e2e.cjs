@@ -177,7 +177,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       await s.p.getByRole("button", { name: /Generar narración/ }).click(); await s.p.waitForTimeout(4000); await s.p.reload(); await shot(s.p, `c6-${mode}`);
       const row = await ep(id);
       ok(`c6: proveedor ${mode} → fallo claro sin éxito falso`, row.status === "failed" && expect.test(row.error ?? ""), row.error);
-      if (mode === "timeout") { await s.p.getByRole("button", { name: /Continuar \/ reintentar/ }).click(); await s.p.waitForTimeout(4000); const r2 = await ep(id); ok("c6: reintento tras ambiguo no vuelve a pedir el segmento incierto", r2.status === "failed" && ttsCalls().length - n0 === 1, `${ttsCalls().length - n0} llamadas`); }
+      if (mode === "timeout") { const dis = await s.p.getByRole("button", { name: /Continuar \/ reintentar/ }).isDisabled(); const st = await s.p.evaluate(async (id) => (await fetch(`/api/podcast/${id}/generate`, { method: "POST" })).status, id); await s.p.waitForTimeout(2000); const r2 = await ep(id); ok("c6: tras ambiguo el reintento está bloqueado (UI deshabilitada + API 409) y no se vuelve a pedir el segmento incierto", dis && st === 409 && r2.status === "failed" && ttsCalls().length - n0 === 1, `disabled=${dis} status=${st} ${ttsCalls().length - n0} llamadas`); }
     }
     // saldo insuficiente / precio desconocido
     await db.query("update pi_supply_policies set daily_cap_usd=0.0001 where provider='elevenlabs'");
