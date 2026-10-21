@@ -1,0 +1,86 @@
+[
+ {
+  "type": "hook",
+  "purpose": "Plantear la pregunta central",
+  "visual": "cielo azul con nubes cúmulos moviéndose lentamente",
+  "narration": "Levanta la vista un día cualquiera y verás algo que parece sencillo: una nube. Parece algodón suspendido en el aire, pero en realidad es una enorme cantidad de agua que flota sobre tu cabeza. Una nube de buen tiempo, de esas pequeñas y redondeadas, puede contener cientos de toneladas de agua. Entonces surge una pregunta inevitable. Si el agua pesa tanto, ¿por qué no cae de inmediato? ¿Qué mantiene a una nube en el cielo y qué decide el momento exacto en que se convierte en lluvia? En este video vamos a seguir el viaje de una gota de agua desde el suelo hasta lo alto de la atmósfera, y de regreso. Por el camino veremos que una nube no es un objeto, sino un proceso que nunca se detiene."
+ },
+ {
+  "type": "context",
+  "purpose": "Explicar la evaporación",
+  "visual": "superficie del mar con reflejos de sol y vapor",
+  "narration": "Todo empieza con el calor del sol. Cuando la luz calienta la superficie del mar, de un lago o incluso de un charco, algunas moléculas de agua ganan suficiente energía para escapar del líquido y convertirse en vapor. Ese vapor es invisible. No es la nube todavía, y tampoco es el vapor blanco que ves salir de una olla. Es agua en forma de gas, mezclada con el aire que respiras. Los océanos aportan la mayor parte de ese vapor, pero también participan los ríos, los suelos húmedos y las plantas, que liberan agua a través de sus hojas. Cada día, una cantidad gigantesca de agua sube así hacia la atmósfera, sin que nadie la vea, empujada por la energía que llega del sol."
+ },
+ {
+  "type": "discovery",
+  "purpose": "El aire que sube se enfría",
+  "visual": "diagrama de una masa de aire caliente ascendiendo sobre un campo",
+  "narration": "El aire cargado de vapor no se queda quieto. Cuando el suelo se calienta, el aire que está en contacto con él también se calienta, se vuelve menos denso y empieza a subir, como lo haría una burbuja en el agua. A medida que asciende, la presión a su alrededor disminuye y el aire se expande. Al expandirse, se enfría. Este detalle es la clave de toda la historia. El aire frío no puede sostener tanta agua en forma de vapor como el aire cálido. Llega un punto, a cierta altura, en el que el aire ya no puede guardar todo ese vapor invisible. Los meteorólogos llaman a ese punto el nivel de condensación, y muchas veces puedes verlo a simple vista: es la base plana de las nubes."
+ },
+ {
+  "type": "discovery",
+  "purpose": "Núcleos de condensación",
+  "visual": "partículas de polvo y sal flotando iluminadas por un rayo de luz",
+  "narration": "Pero enfriar el aire no basta. El vapor necesita algo sobre lo que posarse. En la atmósfera flotan partículas diminutas: granos de polvo, cristales de sal que el viento arranca de las olas, restos de polen y humo. Se llaman núcleos de condensación. Son tan pequeños que miles caben en la punta de un alfiler. Cuando el aire se enfría lo suficiente, las moléculas de vapor se juntan alrededor de estas partículas y forman gotitas de agua líquida. Cada gotita es mucho más pequeña que una gota de lluvia, tan ligera que la menor corriente de aire la mantiene flotando. Millones y millones de esas gotitas juntas dispersan la luz del sol en todas direcciones. Y eso es lo que tus ojos perciben como una nube blanca."
+ },
+ {
+  "type": "discovery",
+  "purpose": "Por qué la nube flota",
+  "visual": "primer plano de una nube con bordes cambiantes a cámara rápida",
+  "narration": "Volvamos a la pregunta del principio. Si una nube contiene toneladas de agua, ¿por qué flota? La respuesta es que ese peso está repartido en una cantidad enorme de gotitas minúsculas, y cada una cae tan despacio que el aire ascendente la sostiene con facilidad. Una gotita de nube típica cae más lento que una mota de polvo en una habitación. Además, la nube entera ocupa un volumen inmenso, de varios kilómetros cúbicos, así que su densidad no es muy distinta de la del aire que la rodea. La nube no es un bloque pesado colgando del cielo. Es una niebla gigantesca que se renueva constantemente: en sus bordes, unas gotitas se evaporan mientras otras se forman en su interior."
+ },
+ {
+  "type": "context",
+  "purpose": "Tipos de nubes",
+  "visual": "secuencia de cúmulos, estratos y cirros en distintos cielos",
+  "narration": "No todas las nubes nacen igual. Los cúmulos, esas nubes con forma de coliflor, aparecen cuando burbujas de aire caliente suben con fuerza desde el suelo. Los estratos, en cambio, son capas grises y planas que cubren el cielo cuando una masa de aire húmedo se eleva despacio y de manera uniforme. Muy arriba, donde hace muchísimo frío, se forman los cirros, delgados y fibrosos, hechos no de gotitas sino de cristales de hielo. Cada forma cuenta algo sobre lo que está ocurriendo en la atmósfera: si el aire sube rápido o lento, si está estable o inestable, si hay mucha humedad o poca. Aprender a mirar las nubes es aprender a leer el movimiento invisible del aire."
+ },
+ {
+  "type": "discovery",
+  "purpose": "La niebla es una nube a ras de suelo",
+  "visual": "niebla densa sobre un valle al amanecer",
+  "narration": "Hay una nube que seguramente has atravesado caminando: la niebla. La niebla es, literalmente, una nube a ras de suelo. Se forma por el mismo principio, aire húmedo que se enfría hasta que su vapor se condensa, pero el enfriamiento no ocurre porque el aire suba, sino porque el suelo pierde calor durante la noche. En las madrugadas despejadas y tranquilas, la tierra se enfría, enfría la capa de aire que está justo encima y las gotitas aparecen flotando entre los árboles y las casas. Cuando sale el sol y calienta el suelo de nuevo, las gotitas se evaporan y la niebla se disuelve poco a poco, como si nunca hubiera estado allí."
+ },
+ {
+  "type": "tension",
+  "purpose": "Nubes que no llegan a llover",
+  "visual": "velos de lluvia que se evaporan antes de tocar el suelo en un desierto",
+  "narration": "No toda la lluvia que cae de una nube llega al suelo. En lugares secos y calurosos a veces se ven franjas grises colgando de la base de las nubes, como cortinas deshilachadas que terminan en el aire. Se llaman virga. Son gotas o cristales que empezaron a caer, pero que se evaporan por completo al atravesar aire muy seco antes de tocar tierra. Es una señal de que la nube sí produjo precipitación, pero la atmósfera de abajo la reabsorbió. Este fenómeno nos recuerda que la lluvia no depende solo de la nube: depende también del camino que las gotas deben recorrer, y de cuánta humedad hay en ese trayecto final hacia el suelo."
+ },
+ {
+  "type": "tension",
+  "purpose": "El problema de la lluvia",
+  "visual": "gotitas diminutas comparadas con una gota de lluvia en una ilustración",
+  "narration": "Aquí aparece un problema fascinante. Una gota de lluvia es enorme comparada con una gotita de nube. Para formar una sola gota de lluvia se necesitan alrededor de un millón de gotitas de nube. Si cada gotita creciera solo por condensación, atrapando vapor poco a poco, tardaría muchísimo en alcanzar el tamaño necesario para caer. Mucho más de lo que dura una nube típica. Y sin embargo, a veces llueve apenas una hora después de que una nube empieza a formarse. Algo tiene que acelerar el proceso. La física de la lluvia se dedica precisamente a explicar cómo millones de gotitas logran unirse a tiempo para convertirse en gotas capaces de vencer al aire que las sostiene."
+ },
+ {
+  "type": "discovery",
+  "purpose": "Colisión y coalescencia",
+  "visual": "animación de gotitas chocando y fusionándose dentro de una nube",
+  "narration": "Una de las respuestas es el choque. Dentro de la nube, las gotitas no son todas iguales. Algunas son un poco más grandes y caen un poco más rápido. Al descender, chocan con las más pequeñas y se fusionan con ellas, como una bola de nieve que crece al rodar. Cuanto más grande es una gota, más rápido cae y más gotitas encuentra en su camino. Este proceso se llama colisión y coalescencia, y funciona especialmente bien en las nubes cálidas de las regiones tropicales. En pocos minutos, una gota afortunada puede pasar de flotar a desplomarse. Cuando el aire ascendente ya no puede sostenerla, comienza su caída hacia el suelo, arrastrando consigo a otras gotas por el camino."
+ },
+ {
+  "type": "discovery",
+  "purpose": "El papel del hielo",
+  "visual": "cristales de hielo creciendo en una nube fría a gran altura",
+  "narration": "En las nubes frías ocurre algo distinto y sorprendente. Muchas gotitas siguen siendo líquidas aunque estén por debajo de cero grados. Se llaman gotitas sobreenfriadas. Cuando aparece un cristal de hielo entre ellas, el vapor tiende a depositarse sobre el hielo en lugar de sobre el agua líquida. El cristal crece rápidamente a costa de las gotitas que lo rodean, que se evaporan poco a poco. Así se forman copos de nieve dentro de la nube. Si esos copos caen a través de aire más cálido, se derriten y llegan al suelo como lluvia. Gran parte de la lluvia que cae en las zonas templadas del planeta empezó, de hecho, como nieve en lo alto de una nube."
+ },
+ {
+  "type": "tension",
+  "purpose": "Tormentas y nubes gigantes",
+  "visual": "cumulonimbo enorme con yunque en la parte superior al atardecer",
+  "narration": "Cuando el aire sube con mucha fuerza y hay abundante humedad, las nubes pueden crecer hasta alturas impresionantes. El cumulonimbo es la nube de tormenta por excelencia. Su base puede estar a un kilómetro del suelo y su cima a más de diez, donde se aplana formando una especie de yunque. Dentro de ella, corrientes ascendentes y descendentes se cruzan a gran velocidad. Las gotas suben y bajan, se congelan y se derriten, chocan entre sí y separan cargas eléctricas. De esa separación nacen los rayos y los truenos. Una sola tormenta puede liberar en minutos la energía acumulada durante horas de calentamiento solar, devolviendo al suelo enormes cantidades de agua."
+ },
+ {
+  "type": "reflection",
+  "purpose": "El ciclo completo",
+  "visual": "paisaje con río, montaña y nubes conectados por un recorrido del agua",
+  "narration": "Ahora podemos ver el viaje completo. El sol evapora el agua de la superficie. El aire húmedo sube, se expande y se enfría. El vapor se condensa sobre partículas diminutas y forma una nube. Dentro de ella, las gotitas chocan, se unen o se transforman en hielo hasta que pesan demasiado. Entonces caen como lluvia o nieve, alimentan ríos, lagos y acuíferos, y tarde o temprano regresan al mar. Desde allí, el viaje vuelve a empezar. Es el ciclo del agua, y las nubes son su parte más visible. Cada nube que ves es una pausa momentánea en ese movimiento continuo, un instante en el que el agua del planeta está literalmente en el aire."
+ },
+ {
+  "type": "payoff",
+  "purpose": "Responder la pregunta y cerrar",
+  "visual": "atardecer con nubes iluminadas en tonos naranjas",
+  "narration": "Así que la próxima vez que mires una nube, recuerda lo que realmente estás viendo. No es un objeto quieto, sino un proceso en marcha: aire que sube, vapor que se condensa, gotitas que nacen y desaparecen a cada segundo. Flota porque su agua está dividida en millones de gotas diminutas sostenidas por el aire. Y llueve cuando esas gotas logran unirse, ya sea chocando entre ellas o creciendo como cristales de hielo, hasta pesar lo suficiente para caer. Detrás de algo tan cotidiano hay una física elegante que mantiene vivo al planeta. Gracias por acompañarnos en este viaje de la gota de agua. Si te gustó, cuéntanos en los comentarios qué otro fenómeno del cielo quieres entender."
+ }
+]

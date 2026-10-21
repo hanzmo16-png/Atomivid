@@ -73,6 +73,11 @@ import { VerifiedAssetRegistry } from "./verified-assets";
 import { MAX_TEXT_FALLBACK_RATIO, visualReleasePreflight } from "./visual-release-preflight";
 import { datedEventEvidenceBlockers, LongFormDatedEventEvidenceError } from "./dated-event-preflight";
 import { usesImpactDirection } from "./production-plan-types";
+import { authorizeRequestBudget, requestSpend, storageAuthorizationStore, withRequestBudget, type AuthorizationStore, type RequestBudgetAuthorization, type RequestSpend } from "./request-budget";
+import type { PilotStageEstimate } from "./pilot-budget-envelope";
+import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
+import type { ProductionTtsCostGuard as TtsCostGuard } from "./production-tts-cache";
+import { LongFormMaterialPreflightTemporaryError, LongFormMaterialUnavailableError, materialAvailabilityPreflight, type MaterialPreflight } from "./material-preflight";
 import { curatedSvgGraphic } from "./premium-composition";
 import type { LongFormCuratedSvgGraphic } from "../../../../remotion/LongFormDoc";
 import type { ExecutableSequence } from "./sequence-intent";
@@ -119,6 +124,16 @@ type OnProgress = (stage: LongFormStage, units?: LongFormProgressUnits) => void 
 
 /** Dependencias inyectables (pruebas / inyección de fallos). En producción se omiten todas. */
 export type LongFormRuntime = {
+  /**
+   * ADVANCE 2: presupuesto TOTAL del pedido aplicado en el ledger (request-budget.ts). Por omisión activo.
+   * false solo para pruebas heredadas; `scriptScopes` inyecta el proyecto del ledger del guion (si no, se
+   * busca en documentary_script_jobs por request_id).
+   */
+  requestBudget?: false | { scriptScopes?: string[]; store?: AuthorizationStore; contingencyPct?: number; hardMaxUsd?: number; onAuthorized?: (a: RequestBudgetAuthorization, spentBefore: RequestSpend) => void };
+  /** ADVANCE 1: false desactiva el preflight de disponibilidad (solo pruebas heredadas que no lo modelan). */
+  materialPreflight?: boolean;
+  /** Observa el veredicto del preflight de material (diagnóstico/pruebas). */
+  onMaterialPreflight?: (verdict: MaterialPreflight) => void;
   /**
    * v4: registro de recursos verificados del SERVIDOR (ya rehidratado). Ausente = se rehidrata
    * desde `{requestId}/state/curation.json` (decisiones del curador; datos, no autoridad), o vacío.
@@ -280,6 +295,7 @@ export async function generateLongFormVideoFromScript({
   const requireReal = !providers;
   const store = runtime.store ?? supabaseShotAssetStore(supabase, requestId, STORAGE_BUCKET);
   const allocation = executionAllocation(plan);
+  const anchored0 = usesAnchoredVisuals(plan);
   // Abrir el presupuesto (gratis) ANTES de cualquier llamada pagada: si el
   // storage no responde, el trabajo falla aquí con $0 gastado.
   const units = getGenerativeUnitCosts(plan.providers.aiVideo);
@@ -297,6 +313,73 @@ export async function generateLongFormVideoFromScript({
     if (!candidate || candidate.name !== "runway" || !candidate.isAvailable() || !(runtime.aiVideoEnabled ?? isLongFormAiVideoConfigured())) {
       throw new Error("El plan confirmado requiere Runway, pero su conexión no está disponible. No se ha iniciado la generación.");
     }
+  }
+  // ADVANCE 1 (material-preflight.ts): disponibilidad de material ANTES de la primera llamada pagada (voz).
+  // Búsquedas gratuitas en el proveedor de stock elegido, mismo criterio de elegibilidad que la selección real.
+  // Carencia inevitable → USD 0 y error claro; error temporal → recuperable, USD 0. La puerta final se mantiene.
+  if (anchored0 && !sequences && !replayOnly && runtime.materialPreflight !== false) {
+    const aiVideoForPlan = allocation.maxAiVideoClips > 0 && (runtime.videoProvider !== undefined ? runtime.videoProvider !== null : (runtime.aiVideoEnabled ?? isLongFormAiVideoConfigured()));
+    const material = await materialAvailabilityPreflight({
+      plan,
+      allocation,
+      beats: beats as ProductionPlanBeatInput[],
+      topic,
+      footageProvider: resolvedProviders.footageProvider,
+      aiVideoEnabled: aiVideoForPlan,
+      verifiedAssets,
+      completedStock: async (shotId) => {
+        const record = await store.read(shotId, "stock");
+        return record?.status === "COMPLETED" ? { sourceId: record.identity?.sourceId, canonicalUrl: record.identity?.canonicalUrl } : null;
+      },
+    });
+    runtime.onMaterialPreflight?.(material);
+    if (material.status === "unavoidable_gap") throw new LongFormMaterialUnavailableError(material.missing);
+    if (material.status === "temporary_error") throw new LongFormMaterialPreflightTemporaryError(material.temporary);
+  }
+  // ADVANCE 2: techo TOTAL del pedido (todas las etapas, calculador de PR173), aplicado en el ledger ANTES de
+  // la primera llamada pagada. Cuenta gasto previo del pedido (incl. investigación+guion), reservas pendientes y
+  // ambiguas, y la operación nueva. Un reintento relee la autorización guardada y nunca la amplía.
+  let ttsBudgetGuard: TtsCostGuard | undefined;
+  if (!replayOnly && runtime.requestBudget !== false) {
+    const rb = runtime.requestBudget || {};
+    const scriptScopes = rb.scriptScopes ?? (await defaultScriptScopes(supabase, requestId));
+    const scopes = [requestId, ...scriptScopes];
+    const inner = paidCalls.ledger;
+    if (!inner.listByProjects) throw new Error("El ledger no permite sumar el gasto del pedido: no se inicia una producción sin presupuesto total aplicable.");
+    const scriptOps = scriptScopes.length ? await inner.listByProjects(scriptScopes) : [];
+    const scriptSpent = requestSpend(scriptOps).totalUsd;
+    const musicName = resolvedProviders.musicProvider?.name ?? "none";
+    const musicEstimate = process.env.BEATOVEN_ESTIMATED_COST_USD;
+    const musicCeiling = musicName === "beatoven" ? (musicEstimate !== undefined && musicEstimate !== "" && Number.isFinite(Number(musicEstimate)) ? Number(musicEstimate) : null) : 0;
+    const stages: PilotStageEstimate[] = [
+      { stage: "research", ceilingUsd: 0, retryPolicy: "reuse_paid_results", note: "incluida en «script»: mismo proyecto del ledger del guion" },
+      { stage: "script", ceilingUsd: scriptSpent, retryPolicy: "reuse_paid_results", note: "gasto ya registrado (comprometido + pendiente/ambiguo) del guion e investigación" },
+      { stage: "style", ceilingUsd: 0, retryPolicy: "reuse_paid_results", note: "Long Form no crea estilo (Recraft fuera de alcance)" },
+      { stage: "voice", ceilingUsd: narrationUsd, retryPolicy: "reuse_paid_results" },
+      { stage: "images", ceilingUsd: conservative.imageUsd * allocation.maxAiImageGenerations, retryPolicy: "reuse_paid_results" },
+      { stage: "video", ceilingUsd: conservative.clipUsd * allocation.maxAiVideoClips, retryPolicy: "reuse_paid_results" },
+      { stage: "music", ceilingUsd: musicCeiling, retryPolicy: "reuse_paid_results", note: musicName === "beatoven" ? "BEATOVEN_ESTIMATED_COST_USD" : `proveedor ${musicName} sin cargo por llamada` },
+      // Render costeado (PRICING_RENDER_USD_PER_MINUTE): techo = intentos máximos × timeout del job long_form × tarifa.
+      { stage: "render", ceilingUsd: renderCeilingUsd(), retryPolicy: "reuse_paid_results", note: `cubre ${MAX_RENDER_ATTEMPTS} intentos × ${LONG_FORM_RENDER_JOB_TIMEOUT_MIN} min; cada intento factura sus minutos; fuera del ledger` },
+    ];
+    const auth = await authorizeRequestBudget({
+      requestId,
+      stages,
+      contingencyPct: rb.contingencyPct ?? Number(process.env.LONG_FORM_BUDGET_CONTINGENCY_PCT || "20"),
+      hardMaxUsd: rb.hardMaxUsd ?? getLongFormBudget().maxTotalUsd,
+      ledgerScopes: scopes,
+      store: rb.store ?? storageAuthorizationStore(supabase as never, STORAGE_BUCKET),
+    });
+    rb.onAuthorized?.(auth, requestSpend(await inner.listByProjects(auth.ledgerScopes)));
+    // El render no pasa por el ledger: su techo se descuenta del disponible para proveedores de pago.
+    const budgeted = withRequestBudget(inner, { ceilingUsd: Math.max(0, auth.ceilingUsd - (auth.stageCeilings.render ?? 0)), ledgerScopes: auth.ledgerScopes });
+    paidCalls.ledger = budgeted;
+    // La caché TTS marca STARTED antes del gate: el techo se comprueba ANTES (costGuard), sin escribir nada.
+    ttsBudgetGuard = {
+      estimateCostUsd: (text: string) => (text.length / 1000) * getPricingConfig().elevenLabsUsdPer1kChars,
+      assertCanSpend: (usd: number) => budgeted.precheck(usd, "tts"),
+      recordSpend: () => {},
+    };
   }
   const uploadArtifact = runtime.uploadArtifact ?? ((path: string, buffer: Buffer, ct: string) => uploadToStorage(supabase, path, buffer, ct));
 
@@ -317,6 +400,7 @@ export async function generateLongFormVideoFromScript({
         ledger: paidCalls.ledger,
         videoId: requestId,
         voiceIdentity: getVoiceIdentity(lang === "en" ? "en" : "es"),
+        ...(ttsBudgetGuard ? { costGuard: ttsBudgetGuard } : {}),
       }));
   let synthesized = 0;
   const synthesizeWithProgress: BeatSynthesizer = async (voiceProvider, beat, lang) => {
@@ -776,3 +860,20 @@ export function directAnchoredScenes(
   });
 }
 
+/** Proyecto(s) del ledger del guion/investigación de este pedido (documentary_script_jobs.request_id = video_requests.id). */
+async function defaultScriptScopes(supabase: SupabaseClient, requestId: string): Promise<string[]> {
+  if (typeof (supabase as { from?: unknown }).from !== "function") return [];
+  const { data, error } = await supabase.from("documentary_script_jobs").select("user_id,input").eq("request_id", requestId).maybeSingle();
+  if (error) throw new Error(`No se pudo leer el gasto del guion de este pedido (${error.message}); no se inicia sin presupuesto total.`);
+  if (!data) return [];
+  const { documentaryLedgerScopeFor } = await import("./script-jobs");
+  const scope = documentaryLedgerScopeFor(data as { user_id: string; input: unknown });
+  if (!scope) throw new Error("El guion de este pedido no permite localizar su gasto en el ledger; no se inicia sin presupuesto total.");
+  return [scope];
+}
+
+/** Minutos máximos del job de render long_form (timeout-minutes de .github/workflows/render.yml). */
+export const LONG_FORM_RENDER_JOB_TIMEOUT_MIN = 330;
+function renderCeilingUsd(): number {
+  return MAX_RENDER_ATTEMPTS * LONG_FORM_RENDER_JOB_TIMEOUT_MIN * getPricingConfig().renderUsdPerMinute;
+}

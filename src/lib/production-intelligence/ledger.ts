@@ -40,6 +40,8 @@ export interface LedgerStore {
   update(key: string, expected: PaidOpStatus, patch: Partial<PaidOperation>): Promise<boolean>;
   /** Production stores atomically check supply/concurrency AND set SUBMITTED. */
   submit?(op: PaidOperation, at: string): Promise<boolean>;
+  /** All operations of these projects (request-level budget: prior spend + pending reservations). */
+  listByProjects?(projectIds: string[]): Promise<PaidOperation[]>;
 }
 
 export function memoryLedgerStore(): LedgerStore & { ops: Map<string, PaidOperation>; writes: number } {
@@ -49,6 +51,7 @@ export function memoryLedgerStore(): LedgerStore & { ops: Map<string, PaidOperat
     async get(k: string) { return ops.get(k) ? { ...ops.get(k)! } : null; },
     async insert(op: PaidOperation) { if (ops.has(op.idempotencyKey)) return false; ops.set(op.idempotencyKey, { ...op }); s.writes++; return true; },
     async update(k: string, expected: PaidOpStatus, patch: Partial<PaidOperation>) { const cur = ops.get(k); if (!cur || cur.status !== expected) return false; ops.set(k, { ...cur, ...patch }); s.writes++; return true; },
+    async listByProjects(ids: string[]) { return [...ops.values()].filter((o) => ids.includes(o.projectId)).map((o) => ({ ...o })); },
   };
   return s;
 }
