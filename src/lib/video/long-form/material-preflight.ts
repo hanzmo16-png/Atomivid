@@ -96,8 +96,17 @@ export async function materialAvailabilityPreflight(input: {
   }
 
   const verdicts: MaterialShotVerdict[] = [];
+  // Fallo rápido: tras el primer error temporal del proveedor no se insiste escena por escena (cada búsqueda ya
+  // reintenta con espera); el resultado no puede ser «ok» y el reintento del usuario repetirá la comprobación.
+  let providerDown: string | null = null;
   for (const shot of allocated.shots) {
-    verdicts.push(await judge(shot));
+    if (providerDown && STOCK_TYPES.has(shot.type) && !already.has(shot.id)) {
+      verdicts.push({ shotId: shot.id, plannedType: shot.type, status: "temporary", reason: `no comprobada: ${providerDown}` });
+      continue;
+    }
+    const v = await judge(shot);
+    if (v.status === "temporary") providerDown = v.reason;
+    verdicts.push(v);
   }
   async function judge(shot: AllocatedShot): Promise<MaterialShotVerdict> {
     const base = { shotId: shot.id, plannedType: shot.type };

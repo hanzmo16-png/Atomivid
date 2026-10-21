@@ -221,6 +221,7 @@ test("A1-3 error temporal del proveedor de stock → estado recuperable claro, 0
   assert.match(r.error!.message, /temporal/i);
   assert.equal(r.voice, 0);
   assert.equal(r.sh.ledger.ops.size, 0);
+  assert.equal(sw.state.calls, 1, "fallo rápido: no insiste escena por escena con el proveedor caído");
   // Recuperación: el proveedor vuelve → el mismo pedido se produce.
   sw.state.mode = "ok";
   const again = await run(beats, v3(beats), { footage: sw.provider, shared: r.sh });
