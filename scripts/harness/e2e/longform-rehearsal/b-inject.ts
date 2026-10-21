@@ -1,3 +1,4 @@
+// @ts-nocheck -- harness local de ensayo (depende de pg del banco .e2e-local); excluido del typecheck de la app
 // Ensayo LF (Grok): guion SINTÉTICO (sin LLM) persistido por las RPC productivas claim/finish_documentary_script_job.
 import fs from "node:fs"; import { randomUUID } from "node:crypto";
 import { editorialScriptHash, editorialApprovalError } from "@/lib/video/long-form/editorial";
