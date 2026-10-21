@@ -5,7 +5,7 @@
 // Cada llamada se registra (MOCK_LOG) con sha256 de lo servido.
 import http from "node:http"; import fs from "node:fs"; import path from "node:path"; import crypto from "node:crypto"; import { execFileSync } from "node:child_process"; import os from "node:os";
 const MEDIA = process.env.MEDIA_DIR, LOG = process.env.MOCK_LOG, PIPER = process.env.PIPER_BIN, VOICE = process.env.PIPER_VOICE, PORT = 54610;
-const FAULTS = process.env.FAULTS_FILE; // {"el":{"mode":"500","remaining":1}}
+const FAULTS = process.env.FAULTS_FILE; // {"el":{"mode":"500","remaining":1}} · {"pexels":{"mode":"503"|"empty","remaining":N}}
 const log = (o) => LOG && fs.appendFileSync(LOG, JSON.stringify({ at: new Date().toISOString(), ...o }) + "\n");
 const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
 let img = 0, ttsN = 0;
@@ -51,6 +51,9 @@ http.createServer((req, res) => { const c = []; req.on("data", (d) => c.push(d))
       log({ kind: "tts", n: ttsN, voice: p.split("/")[4], model: b.model_id, chars: b.text.length, words: b.text.split(/\s+/).length, seconds: r.dur, sha256: sha(r.buf) });
       return json(200, { audio_base64: r.buf.toString("base64"), alignment: r.alignment, normalized_alignment: r.alignment });
     }
+    if (p.startsWith("/pexels/")) { const pf = fault("pexels"); // {"pexels":{"mode":"503"|"empty","remaining":N}}
+      if (pf === "503") { log({ kind: "pexels_fault", fault: 503, path: p }); return json(503, { error: "mock temporary fault" }); }
+      if (pf === "empty") { log({ kind: "pexels_fault", fault: "empty", path: p, q: u.searchParams.get("query") }); return json(200, { page: 1, per_page: 0, total_results: 0, videos: [], photos: [] }); } }
     if (p === "/pexels/videos/search") { const q = u.searchParams.get("query") ?? ""; const v = files("clip-");
       const rot = Array.from({ length: 12 }, (_, i) => i).map(() => { const id = ++uid; return { id: 900000 + id, duration: 10, url: `https://www.pexels.com/video/${slug(q)}-${900000 + id}/`, user: { name: "Sintético local" },
         video_files: [{ link: `${B}/media/gen/clip-${id}.mp4`, width: 1920, height: 1080, file_type: "video/mp4", quality: "hd" }] }; });
