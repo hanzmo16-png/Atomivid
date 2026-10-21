@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { evaluateAv, parseDetectors, parseSubtitles, type AvMeasurements, type AvManifest } from "./av-qc";
 
 const ok = (o: Partial<AvMeasurements> = {}): AvMeasurements => ({ probeOk: true, width: 1920, height: 1080, videoCodec: "h264", audioCodec: "aac", pixFmt: "yuv420p", fps: 30,
-  formatDuration: 600, videoDuration: 600, audioDuration: 600, hasAudio: true, decodeErrors: [], black: [], freeze: [], silence: [], integratedLufs: -16.2, lra: 7,
+  formatDuration: 600, videoDuration: 600, audioDuration: 600, hasAudio: true, decodeErrors: [], detectorErrors: [], black: [], freeze: [], silence: [], integratedLufs: -16.2, lra: 7,
   truePeakDbfs: -2, samplePeakDb: -2.5, meanVolumeDb: -22, subtitles: [{ start: 0.2, end: 3, text: "a" }, { start: 3, end: 598, text: "b" }], missingFiles: [], hashMismatches: [], segmentHashes: {}, ...o });
 const man: AvManifest = { expected: { width: 1920, height: 1080, durationSeconds: 600, videoCodec: "h264", audioCodec: "aac" }, subtitles: "x.srt",
   timeline: [{ id: "s1", start: 0, end: 300 }, { id: "s2", start: 300, end: 600 }] };
@@ -17,6 +17,10 @@ test("decode errors, no audio, A/V mismatch", () => {
   assert.ok(codes(evaluateAv(ok({ decodeErrors: ["corrupt frame"] }), man)).includes("decode"));
   assert.ok(codes(evaluateAv(ok({ hasAudio: false, audioCodec: undefined, audioDuration: undefined }), man)).includes("no_audio"));
   assert.ok(codes(evaluateAv(ok({ audioDuration: 590 }), man)).includes("av_length"));
+});
+test("fail-closed: detector failure and non-finite duration are blocking", () => {
+  assert.ok(codes(evaluateAv(ok({ detectorErrors: ["filter graph failed"] }), man)).includes("detector_failed"));
+  assert.ok(codes(evaluateAv(ok({ formatDuration: Number.NaN, videoDuration: undefined }), man)).includes("duration_unreadable"));
 });
 test("silence: long unintended silence blocks; intentional one does not", () => {
   assert.ok(codes(evaluateAv(ok({ silence: [[200, 210]] }), man)).includes("silence"));
