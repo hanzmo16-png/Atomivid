@@ -39,7 +39,10 @@ async function main() {
   if (key) {
     const v = await fetch("https://api.elevenlabs.io/v1/voices", { headers: { "xi-api-key": key } });
     const voices = v.ok ? ((await v.json()) as { voices: { voice_id: string; name: string; category: string }[] }).voices : [];
-    const duro = voices.filter((x) => /el\s*duro/i.test(x.name));
+    const duro = voices.filter((x) => /duro/i.test(x.name));
+    const cats: Record<string, number> = {};
+    for (const x of voices) cats[x.category] = (cats[x.category] ?? 0) + 1;
+    log("VOICES", { total: voices.length, byCategory: cats, ownClones: voices.filter((x) => x.category !== "premade").map((x) => x.name) });
     const grants = new Map<string, Set<string>>();
     for (const e of (env.PRIVATE_VOICE_GRANTS ?? "").split(";")) {
       const [id, emails] = e.split("=").map((s) => s?.trim() ?? "");
