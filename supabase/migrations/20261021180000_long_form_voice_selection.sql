@@ -4,7 +4,9 @@
 -- confirma el plan (confirm-production.ts) y es inmutable después. Sin tablas nuevas ni cambios de permisos.
 set local lock_timeout = '3s';
 
-alter table public.video_requests drop constraint video_requests_reel_voice_id_valid;
+-- 20261020200444 was applied to production outside the migration tool (2026-10-21 run 39633746212: the column already
+-- existed, registration missing), so its objects are not assumed: the constraint and trigger are (re)created here.
+alter table public.video_requests drop constraint if exists video_requests_reel_voice_id_valid;
 alter table public.video_requests add constraint video_requests_reel_voice_id_valid
   check (reel_voice_id is null or (mode in ('visual', 'long_form') and reel_voice_id ~ '^[A-Za-z0-9]{8,64}$'));
 
@@ -25,3 +27,5 @@ begin
 end;
 $$;
 revoke all on function public.reel_voice_immutable() from public, anon, authenticated;
+create or replace trigger reel_voice_immutable before update on public.video_requests
+for each row execute function public.reel_voice_immutable();

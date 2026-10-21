@@ -105,7 +105,7 @@ El saldo de USD 9,96 en fal **no** es autorización.
 
 ## Activación (orden)
 1. Migraciones, en este orden, con `apply-supabase-migration.yml` (input `migration_file`, una por ejecución). Todas son aditivas y compatibles con la versión desplegada antes del merge, así que van ANTES del merge:
-   - `20261020200444_reel_voice_selection.sql` es requisito de la 180000. Si ya está registrada, la ejecución no hace nada.
+   - `20261020200444_reel_voice_selection.sql`: **no la ejecutes otra vez.** La columna ya existe en producción, aplicada fuera de la herramienta: la ejecución 39633746212 falló con «column already exists» y se revirtió sin cambiar nada. La 180000 ya no depende de su restricción ni de su trigger: los vuelve a crear.
    - `20261021090000_reel_recraft_images.sql` se aplicó el 2026-10-21 a las 14:32 UTC (ejecución 39617623458). Queda registrada en `public._migrations_applied`, no en el historial de la CLI de Supabase.
    - `20261021160000_long_form_recraft_images.sql`
    - `20261021170000_recraft_provider_account.sql`: fila `recraft` en `pi_provider_accounts`. Solo guarda el nombre del secreto; no crea saldo ni plan.
