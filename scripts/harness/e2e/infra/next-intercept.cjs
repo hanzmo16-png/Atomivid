@@ -12,6 +12,10 @@ globalThis.fetch = async function (input, init = {}) {
     const r = await orig("http://127.0.0.1:54400/dispatch", { method: "POST", body: init.body, headers: { "content-type": "application/json" } });
     return new Response(null, { status: r.ok ? 204 : 502 });
   }
+  // Ensayo Long Form: catálogo de voces y saldo fal → mock local (solo metadatos; nunca síntesis ni gasto).
+  const M = process.env.MOCK_LF_URL;
+  if (M && /^https:\/\/api\.elevenlabs\.io\/v1\/voices/.test(url)) return orig(url.replace(/^https:\/\/api\.elevenlabs\.io\//, `${M}/el/`), init);
+  if (M && /^https:\/\/api\.fal\.ai\//.test(url)) return orig(url.replace(/^https:\/\/api\.fal\.ai\//, `${M}/falapi/`), init);
   if (!["127.0.0.1", "localhost", "::1", ""].includes(host) && !url.startsWith("data:")) {
     LOG && fs.appendFileSync(LOG, JSON.stringify({ at: new Date().toISOString(), kind: "egress_refused", host }) + "\n");
     throw new Error(`E2E: salida no loopback rechazada (${host})`);

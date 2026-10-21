@@ -8,7 +8,10 @@ const MEDIA = process.env.MEDIA_DIR, LOG = process.env.MOCK_LOG, PIPER = process
 const FAULTS = process.env.FAULTS_FILE; // {"el":{"mode":"500","remaining":1}} · {"pexels":{"mode":"503"|"empty","remaining":N}}
 const log = (o) => LOG && fs.appendFileSync(LOG, JSON.stringify({ at: new Date().toISOString(), ...o }) + "\n");
 const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
-let img = 0, ttsN = 0;
+let img = 0, ttsN = 0, falN = 0; const falJobs = new Map();
+// Catálogo SINTÉTICO de voces (GET /v1/voices): un clon privado con el id de «El Duro» y una voz estándar. Solo metadatos.
+const VOICES = [{ voice_id: "CeFSZuaHs4SxcBxb9nCr", name: "El Duro (simulado)", category: "cloned", is_owner: true, preview_url: null, labels: { language: "es", accent: "latin american" }, high_quality_base_model_ids: ["eleven_multilingual_v2"] },
+  { voice_id: "uYlzyj2kIZo3HfBB21vF", name: "Predeterminada (simulada)", category: "premade", is_owner: false, preview_url: null, labels: { language: "es" }, high_quality_base_model_ids: ["eleven_multilingual_v2"] }];
 function fault(k) { if (!FAULTS) return null; try { const a = JSON.parse(fs.readFileSync(FAULTS, "utf8")); if (a[k]?.remaining > 0) { a[k].remaining--; fs.writeFileSync(FAULTS, JSON.stringify(a)); return a[k].mode; } } catch {} return null; }
 function tts(text) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tts-")); const wav = path.join(dir, "a.wav"), mp3 = path.join(dir, "a.mp3");
@@ -51,6 +54,17 @@ http.createServer((req, res) => { const c = []; req.on("data", (d) => c.push(d))
       log({ kind: "tts", n: ttsN, voice: p.split("/")[4], model: b.model_id, chars: b.text.length, words: b.text.split(/\s+/).length, seconds: r.dur, sha256: sha(r.buf) });
       return json(200, { audio_base64: r.buf.toString("base64"), alignment: r.alignment, normalized_alignment: r.alignment });
     }
+    if (p === "/el/v1/voices") { log({ kind: "el_voices" }); return json(200, { voices: VOICES }); }
+    // fal.ai cola Recraft V4 Styles (simulada): POST → request_id; status → COMPLETED; resultado → imagen 1536x1024 + style_id.
+    if (p === "/fal/recraft/v4/style/text-to-image" && req.method === "POST") { const b = JSON.parse(Buffer.concat(c).toString() || "{}"); const id = `mockreq-${String(++falN).padStart(6, "0")}`;
+      const styleId = b.style_id || "mock-style-0001-recraft"; falJobs.set(id, { styleId, n: falN, created: !b.style_id });
+      log({ kind: "fal_submit", request_id: id, style_id: b.style_id ?? null, refs: (b.image_urls ?? []).length, image_size: b.image_size, prompt: String(b.prompt ?? "").slice(0, 160) });
+      return json(200, { request_id: id, status_url: `https://queue.fal.run/recraft/v4/requests/${id}/status`, response_url: `https://queue.fal.run/recraft/v4/requests/${id}` }); }
+    { const m = /^\/fal\/recraft\/v4\/requests\/([\w-]+)(\/status)?$/.exec(p); if (m) { const j = falJobs.get(m[1]); if (!j) return json(404, { detail: "unknown request" });
+      if (m[2]) { log({ kind: "fal_status", request_id: m[1] }); return json(200, { status: "COMPLETED" }); }
+      const f = path.basename(gen("ai", `r${j.n}`)); log({ kind: "fal_result", request_id: m[1], style_id: j.styleId, style_created: j.created, file: f });
+      return json(200, { images: [{ url: `https://v3.fal.media/files/mock/${f}`, content_type: "image/png", file_name: f }], style_id: j.styleId }); } }
+    if (p === "/falapi/v1/account/billing") { log({ kind: "fal_billing" }); return json(200, { credits: { current_balance: 25, currency: "USD" } }); }
     if (p.startsWith("/pexels/")) { const pf = fault("pexels"); // {"pexels":{"mode":"503"|"empty","remaining":N}}
       if (pf === "503") { log({ kind: "pexels_fault", fault: 503, path: p }); return json(503, { error: "mock temporary fault" }); }
       if (pf === "empty") { log({ kind: "pexels_fault", fault: "empty", path: p, q: u.searchParams.get("query") }); return json(200, { page: 1, per_page: 0, total_results: 0, videos: [], photos: [] }); } }
