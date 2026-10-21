@@ -243,6 +243,7 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
               plan: longFormPlan as ProductionPlan,
               onProgress: onLongFormProgress,
               runtime: { attempt: row.render_attempts,
+                ...(row.reel_voice_id ? { voiceId: row.reel_voice_id } : {}),
                 ...(recraft ? { recraftStyle: {
                   styleId: recraft.styleId,
                   // A documentary may reach its first AI image hours after start: references stay signed for 6 h.

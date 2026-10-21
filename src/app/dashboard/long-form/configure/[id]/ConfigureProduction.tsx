@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ReelImageSourcePicker } from "@/app/dashboard/new/ReelImageSourcePicker";
+import { ReelVoicePicker } from "@/app/dashboard/new/ReelVoicePicker";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -189,6 +190,7 @@ export function ConfigureProduction({
   visualBlockText = null,
   defaultPackaging,
   ownChannel = false,
+  language = "es",
 }: {
   requestId: string;
   plans: Record<VisualStrategy, ProductionPlan>;
@@ -202,10 +204,13 @@ export function ConfigureProduction({
   /** Presentación para YouTube inicial (activada por defecto solo en los canales propios). */
   defaultPackaging?: LongFormPackaging;
   ownChannel?: boolean;
+  /** Idioma del documental: catálogo de voces de ese idioma. */
+  language?: "es" | "en";
 }) {
   const router = useRouter();
   // Recraft first for new productions when this account may use it (owner decision 2026-10-21).
   const [imageSource, setImageSource] = useState<"default" | "recraft">(recraftPlans ? "recraft" : "default");
+  const [voiceId, setVoiceId] = useState("");
   const useRecraft = imageSource === "recraft" && !!recraftPlans;
   const plans = useRecraft ? recraftPlans : defaultPlans;
   const imageForm = useRef<HTMLFormElement>(null);
@@ -274,9 +279,10 @@ export function ConfigureProduction({
         const body = new FormData(imageForm.current);
         body.set("strategy", strategy);
         if (packaging) body.set("packaging", JSON.stringify(packaging));
+        if (voiceId) body.set("voice_id", voiceId);
         confirmInit = { method: "POST", body };
       } else {
-        confirmInit = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(packaging ? { strategy, packaging } : { strategy }) };
+        confirmInit = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ strategy, ...(packaging ? { packaging } : {}), ...(voiceId ? { voice_id: voiceId } : {}) }) };
       }
       const confirmRes = await fetch(`/api/generate/${requestId}/confirm-production`, confirmInit);
       const confirmResult = await safeParseJsonResponse(confirmRes);
@@ -341,6 +347,10 @@ export function ConfigureProduction({
           );
         })}
       </fieldset>
+
+      <Card className="mt-4 p-4">
+        <ReelVoicePicker key={language} language={language} onSelect={setVoiceId} />
+      </Card>
 
       {recraftPlans && (
         <Card className="mt-4 p-4">

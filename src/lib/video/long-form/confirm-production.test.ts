@@ -247,3 +247,22 @@ test("sin Recraft: el plan y la fila quedan exactamente como antes (OpenAI, sin 
   assert.ok(result.ok && result.plan.providers.image === "openai");
   assert.equal("reel_image_source" in fake.row, false);
 });
+
+test("voz elegida (Long Form): se escribe en el MISMO UPDATE de la confirmación y una pestaña vieja no la cambia", async () => {
+  const fake = fakeService(baseRow());
+  const result = await confirmLongFormProduction(fake.client, { requestId: "req-1", userId: "user-1", strategy: "balanced", voiceId: "CeFSZuaHs4SxcBxb9nCr" });
+  assert.ok(result.ok);
+  assert.equal(fake.appliedUpdates(), 1);
+  assert.equal(fake.row.reel_voice_id, "CeFSZuaHs4SxcBxb9nCr");
+  const stale = await confirmLongFormProduction(fake.client, { requestId: "req-1", userId: "user-1", strategy: "balanced", voiceId: "otraVoz12345" });
+  assert.ok(stale.ok && stale.alreadyConfirmed);
+  assert.equal(fake.appliedUpdates(), 1);
+  assert.equal(fake.row.reel_voice_id, "CeFSZuaHs4SxcBxb9nCr");
+});
+
+test("sin voz elegida: la fila no recibe reel_voice_id (voz predeterminada como antes)", async () => {
+  const fake = fakeService(baseRow());
+  const result = await confirmLongFormProduction(fake.client, { requestId: "req-1", userId: "user-1", strategy: "balanced" });
+  assert.ok(result.ok);
+  assert.equal("reel_voice_id" in fake.row, false);
+});

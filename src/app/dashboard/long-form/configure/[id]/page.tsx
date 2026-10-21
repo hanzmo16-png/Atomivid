@@ -69,7 +69,7 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
     modality: "Documental largo (Long Form, 16:9)",
     engine: engine.engine === "cinematic-v6" ? "Cinematic V6 (plan v6)" : `Plan estándar (v${plans.balanced.version})`,
     requestedSeconds: data.duration_seconds ?? null,
-    voice: plans.balanced.providers.voice === "elevenlabs" ? "ElevenLabs · voz de narración configurada del producto" : plans.balanced.providers.voice,
+    voice: plans.balanced.providers.voice === "elevenlabs" ? "ElevenLabs · la voz que elijas abajo (predeterminada del producto si no eliges)" : plans.balanced.providers.voice,
     curationPath: visual.applies && canCurateAssets(user) ? `/dashboard/admin/curation/${id}` : null,
   };
 
@@ -149,6 +149,7 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
         summary={summary}
         visualBlockText={visual.ready ? null : visualBlockMessage(visual)}
         ownChannel={ownChannel}
+        language={data.language === "en" ? "en" : "es"}
         defaultPackaging={usesAnchoredVisuals(plans.balanced) ? defaultPackaging({ topic: script.topic || data.topic, ownChannel }) : undefined}
       />
     </div>

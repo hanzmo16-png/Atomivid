@@ -9,6 +9,7 @@ import { recraftAllowedFor } from "@/lib/video/recraft-access";
 import { randomUUID } from "node:crypto";
 import { parseRecraftSelection, type ReelRecraftStyle } from "@/lib/video/recraft-reel";
 import { storeRecraftReferences } from "@/lib/video/recraft-reel-server";
+import { resolveReelVoiceSelection } from "@/lib/video/reel-voices-server";
 
 /**
  * Paso 9/10 del contrato de Long Form: fija el plan confirmado (ver
@@ -30,16 +31,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!user) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   if (!canAccessLongFormBeta(user)) return NextResponse.json({ error: "Long Form no está disponible para tu cuenta." }, { status: 403 });
 
-  let strategy: unknown, packaging: unknown, form: FormData | null = null;
+  let strategy: unknown, packaging: unknown, rawVoice: unknown, form: FormData | null = null;
   try {
     if ((request.headers.get("content-type") ?? "").toLowerCase().startsWith("multipart/form-data")) {
       form = await request.formData();
       strategy = form.get("strategy");
+      rawVoice = form.get("voice_id");
       const rawPackaging = form.get("packaging");
       packaging = typeof rawPackaging === "string" && rawPackaging.trim() ? JSON.parse(rawPackaging) : undefined;
     } else {
-      const body = (await request.json()) as { strategy?: unknown; packaging?: unknown } | null;
+      const body = (await request.json()) as { strategy?: unknown; packaging?: unknown; voice_id?: unknown } | null;
       strategy = body?.strategy;
+      rawVoice = body?.voice_id;
       packaging = body?.packaging;
     }
   } catch {
@@ -72,6 +75,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         recraft = { styleId: choice.styleId, referencePaths, match: choice.match, styleNote: choice.styleNote, onMissingStyleId: choice.onMissingStyleId };
       }
     }
+    // Voz elegida: validada en el servidor contra el catálogo de ESTA cuenta (clones privados solo con concesión).
+    // Si no es válida o el catálogo no responde, NO se confirma: nunca se sustituye en silencio por la predeterminada.
+    let voiceId: string | undefined;
+    if (rawVoice != null && rawVoice !== "") {
+      const { data: langRow } = await service.from("video_requests").select("language, user_id").eq("id", id).maybeSingle<{ language: string | null; user_id: string }>();
+      if (!langRow) return NextResponse.json({ error: "Solicitud no encontrada" }, { status: 404 });
+      if (langRow.user_id !== user.id) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+      try {
+        voiceId = (await resolveReelVoiceSelection(rawVoice, langRow.language === "en" ? "en" : "es", user)) ?? undefined;
+      } catch (e) {
+        return NextResponse.json({ error: `${e instanceof Error ? e.message : "La voz seleccionada no está disponible."} No se confirmó ni cobró nada.` }, { status: 400 });
+      }
+      if (!voiceId) return NextResponse.json({ error: "La selección de voz no está activa. No se confirmó ni cobró nada." }, { status: 400 });
+    }
     const result = await confirmLongFormProduction(createServiceClient(), {
       requestId: id,
       userId: user.id,
@@ -79,6 +96,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       packaging,
       cinematicV6: cinematicV6Enabled(user),
       ...(recraft ? { recraft } : {}),
+      ...(voiceId ? { voiceId } : {}),
     });
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
     return NextResponse.json({ plan: result.plan, confirmedAt: result.confirmedAt, alreadyConfirmed: result.alreadyConfirmed });

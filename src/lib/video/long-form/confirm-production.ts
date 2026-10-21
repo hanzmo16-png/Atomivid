@@ -67,6 +67,12 @@ export async function confirmLongFormProduction(
      * conditional update as the confirmation (DB trigger: immutable afterwards). Absent = default (OpenAI) images.
      */
     recraft?: ReelRecraftStyle;
+    /**
+     * Voz de narración elegida para ESTE documental, ya validada por la ruta contra el catálogo del usuario
+     * (resolveReelVoiceSelection: voces privadas solo con su concesión). Se escribe en el MISMO UPDATE condicional que
+     * confirma (trigger: inmutable después). Ausente = voz predeterminada del producto, como siempre.
+     */
+    voiceId?: string;
   },
 ): Promise<ConfirmProductionResult> {
   if (!isVisualStrategyValue(input.strategy)) return { ok: false, status: 400, error: "Estrategia visual inválida" };
@@ -139,7 +145,8 @@ export async function confirmLongFormProduction(
   const { data: updated, error: updateError } = await service
     .from("video_requests")
     .update({ long_form_production_plan: plan, long_form_confirmed_at: confirmedAt,
-      ...(input.recraft ? { reel_image_source: "recraft", reel_recraft_style: input.recraft } : {}) })
+      ...(input.recraft ? { reel_image_source: "recraft", reel_recraft_style: input.recraft } : {}),
+      ...(input.voiceId ? { reel_voice_id: input.voiceId } : {}) })
     .eq("id", input.requestId)
     .eq("user_id", input.userId)
     .eq("status", "script_ready")

@@ -88,6 +88,8 @@ export interface VoiceProvider {
    * = velocidad normal del proveedor.
    */
   synthesize(text: string, language?: ScriptLanguage, speed?: number): Promise<VoiceResult>;
+  /** Voz fija de esta instancia (elegida por el usuario). Ausente = voz predeterminada del idioma. */
+  readonly voiceId?: string;
 }
 
 /**

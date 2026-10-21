@@ -45,6 +45,7 @@ import { resolveLongFormProviders, type LongFormProviderSet } from "./mode";
 import { getRecraftImageProvider } from "@/lib/providers/image";
 import { allocateWithImagePriority, RECRAFT_PRIORITY_VERSION } from "./image-priority";
 import type { BeatType } from "./types";
+import { getVoiceProvider } from "@/lib/providers/voice";
 import { buildLongFormTimeline, type BeatSynthesizer } from "./timeline";
 import { shotsForSpan } from "./shots";
 import { assertOpeningValid, CoverValidationError, renderLongFormDoc, renderLongFormThumbnail, type RenderLongFormDocInput } from "./render";
@@ -189,6 +190,8 @@ export type LongFormRuntime = {
    * exactly when the confirmed plan pins image provider "recraft"; AI images then use Recraft with this style and
    * never fall back to stock, a text card or another provider (shot-executor.ts ChosenImageProviderError).
    */
+  /** Voz elegida y guardada en la solicitud (reel_voice_id, validada al confirmar). Nunca se sustituye en silencio. */
+  voiceId?: string;
   recraftStyle?: { styleId: string | null; referenceImageUrls: string[]; match: "precise" | "flexible" | null; styleNote: string | null;
     onStyleId: (styleId: string) => Promise<void>; onMissingStyleId?: "stop" | "same_references"; styleMissing?: boolean;
     onStyleMissing?: (providerJobId: string | undefined) => Promise<void> };
@@ -242,6 +245,26 @@ export class LongFormPendingMaterialError extends Error {
 
 export { isLongFormScriptJson, type LongFormScriptBeatInput, type LongFormScriptJson } from "./script-json";
 import type { LongFormScriptBeatInput } from "./script-json";
+
+/** La voz elegida no se pudo garantizar: se detiene ANTES de cualquier narración o reserva (sin sustitución). */
+export class LongFormChosenVoiceUnavailableError extends Error {
+  readonly recoverable = false;
+  constructor(readonly voiceId: string) {
+    super(`La voz elegida para este documental (${voiceId}) no está disponible en el proveedor de narración. No se usó otra voz ni se cobró nada.`);
+    this.name = "LongFormChosenVoiceUnavailableError";
+  }
+}
+
+/**
+ * Aplica la voz guardada en la solicitud al proveedor de narración. Real: instancia con esa voz. Inyectado (tests/banco):
+ * debe declarar la misma voz. Nunca se narra con otra voz en silencio; el fixture local (sin clave) no factura.
+ */
+export function withChosenVoice(set: LongFormProviderSet, voiceId: string | undefined, injected: boolean): LongFormProviderSet {
+  if (!voiceId) return set;
+  const voiceProvider = injected ? set.voiceProvider : getVoiceProvider(voiceId);
+  if (voiceProvider.name !== "fixture" && voiceProvider.voiceId !== voiceId) throw new LongFormChosenVoiceUnavailableError(voiceId);
+  return { ...set, voiceProvider };
+}
 
 export async function generateLongFormVideoFromScript({
   supabase,
@@ -307,7 +330,7 @@ export async function generateLongFormVideoFromScript({
   if (!replayOnly && chosenRecraft !== Boolean(runtime.recraftStyle)) {
     throw new Error("La elección de imágenes de este documental no coincide con su plan confirmado. No se ha iniciado la generación.");
   }
-  const baseProviders = providers ?? resolveLongFormProviders("real");
+  const baseProviders = withChosenVoice(providers ?? resolveLongFormProviders("real"), runtime.voiceId, Boolean(providers));
   // The plan pins Recraft: the per-video provider replaces the environment's image provider (FAL_KEY checked here,
   // before narration or any reservation). Injected test providers must already be "recraft".
   const resolvedProviders: LongFormProviderSet = chosenRecraft && !providers && !replayOnly ? { ...baseProviders, imageProvider: getRecraftImageProvider() } : baseProviders;
@@ -417,14 +440,14 @@ export async function generateLongFormVideoFromScript({
       ? (voiceProvider, beat, lang) =>
           loadProductionCachedBeatNarration(supabase, voiceProvider.name, beat, lang, {
             videoId: requestId,
-            voiceIdentity: getVoiceIdentity(lang === "en" ? "en" : "es"),
+            voiceIdentity: getVoiceIdentity(lang === "en" ? "en" : "es", runtime.voiceId),
           })
       : null) ??
     ((voiceProvider, beat, lang) =>
       synthesizeBeatNarrationProductionCached(supabase, voiceProvider, beat, lang, {
         ledger: paidCalls.ledger,
         videoId: requestId,
-        voiceIdentity: getVoiceIdentity(lang === "en" ? "en" : "es"),
+        voiceIdentity: getVoiceIdentity(lang === "en" ? "en" : "es", runtime.voiceId),
         ...(ttsBudgetGuard ? { costGuard: ttsBudgetGuard } : {}),
       }));
   let synthesized = 0;
