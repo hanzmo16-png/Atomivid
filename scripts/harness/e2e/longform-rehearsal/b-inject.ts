@@ -1,7 +1,7 @@
 // Ensayo LF (Grok): guion SINTÉTICO (sin LLM) persistido por las RPC productivas claim/finish_documentary_script_job.
 import fs from "node:fs"; import { randomUUID } from "node:crypto";
 import { editorialScriptHash, editorialApprovalError } from "@/lib/video/long-form/editorial";
-import pg from "/workspace/atomivid-recraft/.e2e-local/deps/node_modules/pg/lib/index.js";
+import pg from "pg";
 const map: Record<string,string> = { context: "setup", tension: "escalation", reflection: "insight" };
 const raw = JSON.parse(fs.readFileSync("/workspace/atomivid-mission/lf/script-beats.json","utf8"));
 const beats = raw.map((b: any) => ({ type: map[b.type] ?? b.type, purpose: b.purpose, narration: b.narration, claims: [], emotionalTone: "curious", visuals: [{ description: b.visual, motion: false }] }));
