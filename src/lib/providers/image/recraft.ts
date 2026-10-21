@@ -28,6 +28,15 @@ const MIN_DIMENSION = 512;
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 const REQUEST_ID = /^[A-Za-z0-9-]{8,64}$/;
+const STYLE_ID = /^[A-Za-z0-9-]{8,64}$/;
+/**
+ * Known identifiers that are NOT style ids. 01a15cd6-… is the fal request_id of a manual test (queue request id),
+ * not a Recraft style: passing it as style_id would be refused by fal or, worse, paid for nothing.
+ */
+const KNOWN_NON_STYLE_IDS = new Set(["01a15cd6-f79f-77f1-8f4a-06d582611ae4"]);
+export function isValidStyleId(v: unknown): v is string {
+  return typeof v === "string" && STYLE_ID.test(v) && !KNOWN_NON_STYLE_IDS.has(v.toLowerCase());
+}
 
 type Env = Record<string, string | undefined>;
 const num = (v: string | undefined, d: number) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : d; };
@@ -200,8 +209,18 @@ export const recraftImageProvider: ImageProvider = {
     const out = (await r.json().catch(() => null)) as { images?: Array<{ url?: string }>; style_id?: unknown } | null;
     const url = out?.images?.[0]?.url;
     if (!url) throw new GenerativeProviderError("Resultado de Recraft sin imágenes.", "recraft", "invalid_response", undefined, providerJobId);
+    // R3: creating a style (references, no style_id yet) is only usable if fal returned a valid style_id. Without it the
+    // next scene would create ANOTHER style (outside "one creation per video"). Fail with the request_id attached: the
+    // ledger keeps PROVIDER_JOB_RECORDED for reconciliation and nothing is resubmitted.
+    let styleId: string | undefined = request.style?.styleId;
+    if (!styleId) {
+      const returned = typeof out?.style_id === "string" ? out.style_id.trim() : "";
+      if (!isValidStyleId(returned) || returned === providerJobId) {
+        throw new GenerativeProviderError(`Recraft creó la imagen pero no devolvió un style_id válido; request_id ${providerJobId} guardado para conciliación. No se reenvía ni se crea otro estilo.`, "recraft", "invalid_response", undefined, providerJobId);
+      }
+      styleId = returned;
+    }
     const img = await download(url, providerJobId);
-    const styleId = typeof out?.style_id === "string" && out.style_id ? out.style_id : request.style?.styleId;
     return {
       buffer: img.buffer, mimeType: img.mimeType, extension: EXT[img.mimeType], width: img.width, height: img.height,
       model: RECRAFT_MODEL, costUsd: recraftEstimatedCostUsd(request), costBasis: "estimated", providerJobId, styleId,

@@ -38,7 +38,7 @@ import { recraftScenePrompt } from "@/lib/video/recraft-reel";
 import { recraftEstimatedCostUsd } from "@/lib/providers/image/recraft";
 import type { StoryboardScene } from "@/lib/video/storyboard/types";
 import { decideResourceStrategy, buildScenePlanEntry, type ScenePlanEntry } from "@/lib/video/visual-resource-planner";
-import { resolveGeneratedImageForScene } from "@/lib/video/visual-resource-resolver";
+import { resolveGeneratedImageForScene, resolveRecraftReelScene } from "@/lib/video/visual-resource-resolver";
 import { cinematicDirectorRenderEnabled } from "@/lib/video/director/flag";
 import type { ResolvedBeat } from "@/lib/video/director/reel-render";
 import { footageResultLicense, GENERATED_IMAGE_LICENSE, licenseBlockAfterVoiceMessage } from "@/lib/video/director/beat-license";
@@ -319,16 +319,13 @@ export async function generateVideoFromScript({
       const prompt = recraftScenePrompt(segment, storyboard?.scenes[i]?.imagePrompt, recraft.styleNote);
       const estimate = recraftEstimatedCostUsd({ style: recraftStyle });
       imagesRequestedCount += 1;
-      const generated = await resolveGeneratedImageForScene({
+      const { generated, nextStyle } = await resolveRecraftReelScene({
         ledger: gate.ledger, supabase, bucket: STORAGE_BUCKET, requestId, sceneIndex: i,
         scene: { imagePrompt: prompt, negativePrompt: storyboard?.scenes[i]?.negativePrompt ?? "text, watermark, logo" } as StoryboardScene,
         imageProvider: recraftProvider, remainingBudgetUsd: estimate, signedUrlTtlSeconds: ASSET_SIGNED_URL_TTL_SECONDS,
-        style: recraftStyle, objectKey: `scene-${i}-recraft`,
+        style: recraftStyle, match: recraft.match, onStyleId: recraft.onStyleId,
       });
-      if (generated.styleId && !recraftStyle.styleId) {
-        await recraft.onStyleId?.(generated.styleId);
-        recraftStyle = { styleId: generated.styleId, ...(recraft.match ? { match: recraft.match } : {}) };
-      }
+      recraftStyle = nextStyle;
       storageBytes += generated.bufferBytes;
       visualCostSpentUsd += generated.costUsd;
       usedGeneratedImageProvider = generated.provider;

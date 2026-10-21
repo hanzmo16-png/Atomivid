@@ -39,18 +39,35 @@ export type GeneratedImageOutcome = {
   providerJobId?: string;
 };
 
+const IMAGE_EXT = "(?:png|jpe?g|webp|svg)";
+const escapeRe = (v: string) => v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** Recraft (R1): the style_id travels IN the image object name, written by the same upload as the paid bytes. */
+export const styleTaggedObjectName = (key: string, styleId: string | undefined, extension: string) =>
+  styleId ? `${key}.style-${styleId}.${extension}` : `${key}.${extension}`;
+
 export async function findExistingGeneratedImage(
   supabase: SupabaseClient,
   bucket: string,
   requestId: string,
   sceneIndex: number,
   objectKey?: string,
-): Promise<{ path: string } | null> {
+  options: { strict?: boolean } = {},
+): Promise<{ path: string; styleId?: string } | null> {
   const prefix = objectKey ?? generatedImageObjectPrefix(sceneIndex);
   const { data, error } = await supabase.storage.from(bucket).list(requestId, { search: prefix });
-  if (error || !data) return null;
-  const match = data.find((f) => f.name.startsWith(prefix));
-  return match ? { path: `${requestId}/${match.name}` } : null;
+  if (error || !data) {
+    // R2: with a per-video style a failed lookup is NOT "nothing exists" — never treat it as permission to pay again.
+    if (options.strict) throw new Error(`No se pudo comprobar en Storage si la imagen pagada de ${prefix} ya existe (${error?.message ?? "sin datos"}); no se genera otra.`);
+    return null;
+  }
+  // Only image objects named exactly `<key>.<ext>` or `<key>.style-<id>.<ext>`: metadata/sidecar files, other scenes
+  // (scene-1 vs scene-10) or partial names never count as the paid image.
+  const re = new RegExp(`^${escapeRe(prefix)}(?:\\.style-([A-Za-z0-9-]{8,64}))?\\.${IMAGE_EXT}$`, "i");
+  for (const f of data) {
+    const m = re.exec(f.name);
+    if (m) return { path: `${requestId}/${f.name}`, ...(m[1] ? { styleId: m[1] } : {}) };
+  }
+  return null;
 }
 
 export async function resolveGeneratedImageForScene({
@@ -92,7 +109,16 @@ export async function resolveGeneratedImageForScene({
   /** Per-video style (Recraft). Part of the ledger fingerprint so a different style never reuses a paid row. */
   style?: ImageGenerationRequest["style"];
 }): Promise<GeneratedImageOutcome> {
-  const existing = await findExistingGeneratedImage(supabase, bucket, artifactPrefix, sceneIndex, objectKey);
+  const existing = await findExistingGeneratedImage(supabase, bucket, artifactPrefix, sceneIndex, objectKey, { strict: Boolean(style) });
+  if (existing && style) {
+    // R1: an already-paid image must hand back the style it used/created before the next scene is allowed to run.
+    if (!existing.styleId) {
+      throw new Error(`La imagen pagada ${existing.path} no conserva su style_id: no se continúa para no crear otro estilo. Requiere conciliación.`);
+    }
+    if (style.styleId && style.styleId !== existing.styleId) {
+      throw new Error(`La imagen pagada ${existing.path} usa otro estilo que el del video: incompatibilidad, no se reutiliza ni se genera otra.`);
+    }
+  }
   if (existing) {
     const { data, error } = await supabase.storage.from(bucket).createSignedUrl(existing.path, signedUrlTtlSeconds);
     if (error || !data) {
@@ -105,6 +131,7 @@ export async function resolveGeneratedImageForScene({
       costUsd: 0,
       bufferBytes: 0,
       provider: imageProvider.name,
+      ...(existing.styleId ? { styleId: existing.styleId } : {}),
     };
   }
 
@@ -125,7 +152,9 @@ export async function resolveGeneratedImageForScene({
       throw new Error(`El proveedor de imagen "${imageProvider.name}" devolvió un archivo inválido: ${validation.reason}`);
     }
 
-    const path = `${artifactPrefix}/${objectKey ?? generatedImageObjectPrefix(sceneIndex)}.${asset.extension}`;
+    const key = objectKey ?? generatedImageObjectPrefix(sceneIndex);
+    if (style && !asset.styleId) throw new Error(`Imagen de ${imageProvider.name} sin style_id para la escena ${sceneIndex}: no se guarda como resultado consistente.`);
+    const path = `${artifactPrefix}/${style ? styleTaggedObjectName(key, asset.styleId, asset.extension) : `${key}.${asset.extension}`}`;
     const { error: uploadError } = await supabase.storage
       .from(bucket)
       .upload(path, asset.buffer, { contentType: asset.mimeType, upsert: true });
@@ -154,7 +183,10 @@ export async function resolveGeneratedImageForScene({
         method: "generate_image",
         inputFingerprint: style
           ? { prompt: request.prompt, negativePrompt: request.negativePrompt ?? null, aspectRatio: request.aspectRatio,
-              styleId: style.styleId ?? null, references: style.styleId ? null : (style.referenceImageUrls ?? []).map((u) => u.split("?")[0]), match: style.match ?? null }
+              // R2: stable identity of the paid scene. The per-video style moves from references (first scene) to the
+              // style_id fal returned; that switch must NOT open a second ledger key for the same scene. Compatibility
+              // of the stored image with the video's style is checked on reuse (style-tagged object name).
+              style: "recraft-video-style", match: style.match ?? null }
           : { prompt: request.prompt, negativePrompt: request.negativePrompt ?? null, aspectRatio: request.aspectRatio },
         // Two-phase providers price BEFORE submit (estimateCostUsd): that exact estimate is what the ledger reserves
         // and the reel total cap (pi_submit_with_supply) admits or refuses before fal is called.
@@ -203,4 +235,26 @@ export async function resolveGeneratedImageForScene({
     styleId: asset.styleId,
     providerJobId: asset.providerJobId,
   };
+}
+
+/**
+ * One Recraft scene of a Reel, exactly as generate-video.ts runs it: resolve (reuse / resume / pay once) and, when the
+ * video had no style_id yet, persist the one this image created BEFORE the next scene runs. Returns the style the next
+ * scene must use. Exported so the multi-scene interruption sequence is tested on the production code path.
+ */
+export async function resolveRecraftReelScene(
+  args: Omit<Parameters<typeof resolveGeneratedImageForScene>[0], "style" | "objectKey"> & {
+    style: NonNullable<ImageGenerationRequest["style"]>;
+    match?: "precise" | "flexible" | null;
+    onStyleId?: (styleId: string) => Promise<void>;
+  },
+): Promise<{ generated: GeneratedImageOutcome; nextStyle: NonNullable<ImageGenerationRequest["style"]> }> {
+  const { match, onStyleId, style, ...rest } = args;
+  const generated = await resolveGeneratedImageForScene({ ...rest, style, objectKey: `scene-${rest.sceneIndex}-recraft` });
+  if (style.styleId) return { generated, nextStyle: style };
+  if (!generated.styleId) {
+    throw new Error(`Escena ${rest.sceneIndex}: la creación del estilo no dejó style_id; se detiene el video sin crear otro estilo.`);
+  }
+  await onStyleId?.(generated.styleId);
+  return { generated, nextStyle: { styleId: generated.styleId, ...(match ? { match } : {}) } };
 }

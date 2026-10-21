@@ -1,4 +1,5 @@
-import { RECRAFT_USD_PER_IMAGE, RECRAFT_USD_STYLE_CREATION } from "@/lib/providers/image/recraft";
+import { RECRAFT_USD_PER_IMAGE, RECRAFT_USD_STYLE_CREATION, isValidStyleId } from "@/lib/providers/image/recraft";
+export { isValidStyleId };
 import type { ScriptScene } from "@/lib/providers/types";
 
 /**
@@ -20,16 +21,6 @@ export type ReelRecraftStyle = {
 export const RECRAFT_MAX_REFERENCES = 10;
 export const RECRAFT_MAX_REFERENCE_BYTES = 5 * 1024 * 1024;
 export const RECRAFT_REFERENCE_TYPES: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
-const STYLE_ID = /^[A-Za-z0-9-]{8,64}$/;
-/**
- * Known identifiers that are NOT style ids. 01a15cd6-… is the fal request_id of a manual test (queue request id),
- * not a Recraft style: passing it as style_id would be refused by fal or, worse, paid for nothing.
- */
-const KNOWN_NON_STYLE_IDS = new Set(["01a15cd6-f79f-77f1-8f4a-06d582611ae4"]);
-
-export function isValidStyleId(v: string): boolean {
-  return STYLE_ID.test(v) && !KNOWN_NON_STYLE_IDS.has(v.toLowerCase());
-}
 
 export type RecraftSelectionInput = {
   source: unknown; styleId: unknown; match: unknown; styleNote: unknown; referenceCount: number;

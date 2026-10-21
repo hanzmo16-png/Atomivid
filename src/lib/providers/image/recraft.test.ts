@@ -216,7 +216,7 @@ test("integración: request_id queda en el ledger ANTES del sondeo; reserva = es
         imageProvider: recraftImageProvider, remainingBudgetUsd: 0.04, signedUrlTtlSeconds: 60, style: REQ.style, objectKey: "scene-0-recraft" });
       assert.equal(out.status, "generated");
       assert.equal(out.styleId, "6654d01b-7c9d-4f87-9f99-80e6cb989380");
-      assert.equal(out.path, "req-1/scene-0-recraft.webp");
+      assert.equal(out.path, "req-1/scene-0-recraft.style-6654d01b-7c9d-4f87-9f99-80e6cb989380.webp");
     });
     assert.equal(seenAtPoll, `PROVIDER_JOB_RECORDED:${RID}`);
     const row = [...ledger.ops.values()][0];
@@ -224,7 +224,7 @@ test("integración: request_id queda en el ledger ANTES del sondeo; reserva = es
     assert.equal(row.reservedUsd, 0.04);
     assert.equal(row.committedUsd, 0.04);
     assert.equal(row.provider, "recraft");
-    assert.ok(objects.has("req-1/scene-0-recraft.webp"));
+    assert.ok(objects.has("req-1/scene-0-recraft.style-6654d01b-7c9d-4f87-9f99-80e6cb989380.webp"));
   } finally { m.restore(); }
 });
 
