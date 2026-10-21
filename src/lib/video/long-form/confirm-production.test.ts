@@ -229,7 +229,9 @@ test("Recraft: el plan fija image=recraft (precio Recraft) y la elección se esc
   assert.ok(result.ok);
   if (!result.ok) return;
   assert.equal(result.plan.providers.image, "recraft");
-  if (result.plan.aiImageCount > 0) assert.ok(Math.abs((result.plan.estimatedImageCostUsd ?? 0) - result.plan.aiImageCount * 0.04) < 1e-6);
+  assert.ok(result.plan.imagePriority, "Recraft plans carry the Recraft-first image plan");
+  const reserve = result.plan.imagePriority?.regenerationReserve ?? 0;
+  assert.ok(Math.abs((result.plan.estimatedImageCostUsd ?? 0) - (result.plan.aiImageCount + reserve) * 0.04) < 1e-6);
   assert.equal(fake.appliedUpdates(), 1);
   assert.equal(fake.row.reel_image_source, "recraft");
   assert.deepEqual(fake.row.reel_recraft_style, style);

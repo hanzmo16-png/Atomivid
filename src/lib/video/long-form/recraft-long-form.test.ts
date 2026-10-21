@@ -94,7 +94,10 @@ test("precio y plan: Recraft se estima como techo 0.04/imagen y el plan reserva 
   const plan = computeProductionPlan({ beats, topic: "Marco Aurelio", strategy: "balanced", providers: { voice: "elevenlabs", footage: "pexels-video-first", image: "recraft", aiVideo: "veo", music: "curated-library" }, aiVideoEnabled: false });
   assert.equal(plan.providers.image, "recraft");
   assert.ok(plan.aiImageCount > 0, "the balanced plan of this script includes AI images");
-  assert.ok(Math.abs((plan.estimatedImageCostUsd ?? -1) - plan.aiImageCount * 0.04) < 1e-6, `${plan.estimatedImageCostUsd} vs ${plan.aiImageCount}`);
+  const reserve = plan.imagePriority?.regenerationReserve ?? -1;
+  assert.ok(reserve >= 1, "a regeneration reserve is planned");
+  assert.ok(Math.abs((plan.estimatedImageCostUsd ?? -1) - (plan.aiImageCount + reserve) * 0.04) < 1e-6, `${plan.estimatedImageCostUsd} vs ${plan.aiImageCount}+${reserve}`);
+  assert.equal(plan.allocation?.maxAiImageGenerations, plan.aiImageCount + reserve);
   const demands = jobSupplyDemands({ mode: "long_form", script_json: { beats }, recorded_audio_path: null, long_form_production_plan: plan }, "elevenlabs");
   assert.ok(demands.some((d) => d.provider === "recraft"), JSON.stringify(demands));
   assert.ok(!demands.some((d) => d.provider === "openai"), "a Recraft plan never reserves OpenAI images");

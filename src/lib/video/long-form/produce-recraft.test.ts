@@ -245,17 +245,17 @@ test("Long Form + Recraft (adaptador real, fal simulado): todas las imágenes IA
     const style = styleChoice();
     const { renderInput } = await run(env, c, plan, { image: recraftImageProvider, recraftStyle: style.choice });
     assert.equal(c.image, 0, "the environment image provider (OpenAI-like fake) is never called");
-    assert.equal(fal.posts.length, plan.aiImageCount, "exactly the planned number of Recraft images");
+    assert.ok(fal.posts.length > 1 && fal.posts.length <= plan.aiImageCount, `never more than confirmed (${fal.posts.length}/${plan.aiImageCount})`);
     assert.ok(fal.posts.every((p) => p.image_size === "landscape_16_9"), "YouTube: 16:9 landscape");
     assert.deepEqual(Object.keys(fal.posts[0]).sort(), ["enable_safety_checker", "image_size", "image_urls", "prompt", "style_match"]);
     assert.ok(fal.posts.slice(1).every((p) => p.style_id === STYLE && !("image_urls" in p)), "one style created, then reused");
     assert.ok(fal.posts.every((p) => String(p.prompt).includes("grabado antiguo en tinta sepia")));
     assert.deepEqual(style.persisted, [STYLE], "style persisted once");
     const ops = [...env.paidCalls.ledger.ops.values()].filter((o) => o.method === "generate_image");
-    assert.equal(ops.length, plan.aiImageCount);
+    assert.equal(ops.length, fal.posts.length, "one ledger row per submission");
     assert.ok(ops.every((o) => o.provider === "recraft" && o.status === "COMMITTED" && /^fal-req-/.test(String(o.providerJobId))));
     const committed = ops.reduce((s, o) => s + Number(o.committedUsd), 0);
-    assert.ok(Math.abs(committed - (0.04 + 0.035 * (plan.aiImageCount - 1))) < 1e-6, `committed ${committed}`);
+    assert.ok(Math.abs(committed - (0.04 + 0.035 * (ops.length - 1))) < 1e-6, `committed ${committed}`);
     assert.equal(renderInput?.scenes.length, plan.shotCount);
     assert.deepEqual(fal.nonLoopback, []);
   } finally { restore(); }
@@ -277,7 +277,9 @@ test("Long Form + Recraft: interrupción al sondear → se detiene (sin stock); 
     const c2 = counters();
     // Retry reads the persisted style_id (as run-job does from the DB).
     const retry = await run(env, c2, plan, { image: recraftImageProvider, recraftStyle: { ...style.choice, styleId: style.persisted[0] ?? null, referenceImageUrls: [] } });
-    assert.equal(fal.posts.length, plan.aiImageCount, "no image submitted twice: the stalled one was resumed, the first reused");
+    const keys = [...env.paidCalls.ledger.ops.values()].filter((o) => o.method === "generate_image");
+    assert.equal(keys.length, fal.posts.length, "no image submitted twice: the stalled one was resumed, the first reused");
+    assert.ok(keys.every((o) => o.status === "COMMITTED"));
     assert.ok(fal.resultCalls.filter((id) => id === "fal-req-0001").length === 1, "paid image 1 reused from storage");
     assert.ok(fal.resultCalls.includes("fal-req-0002"), "the stalled request id was resumed");
     assert.ok(retry.renderInput);
@@ -291,5 +293,33 @@ test("plan Recraft sin la elección guardada (o al revés): se detiene ANTES de 
     const c = counters();
     await assert.rejects(run(freshEnv(), c, planFor("balanced"), { image: recraftImageProvider }), /no coincide con su plan confirmado/);
     assert.equal(c.voice, 0); assert.equal(fal.posts.length, 0);
+  } finally { restore(); }
+});
+
+test("prioridad en ejecución: la apertura es original (Recraft) y queda rotulada como recreación", async () => {
+  const { fal, restore } = installFal();
+  try {
+    const plan = planFor("balanced");
+    assert.ok(plan.imagePriority, "a new Recraft plan carries the Recraft-first image plan");
+    const { renderInput } = await run(freshEnv(), counters(), plan, { image: recraftImageProvider, recraftStyle: styleChoice().choice });
+    const first = renderInput!.scenes[0];
+    assert.equal(first.provenance, "ai_recreation", "the opening scene is an original Recraft image");
+    assert.ok(fal.posts.length > 0);
+  } finally { restore(); }
+});
+
+test("planes ya confirmados se respetan: sin `imagePriority` el worker NO re-prioriza (mismo ciclo de antes)", async () => {
+  const { fal, restore } = installFal();
+  try {
+    const legacy = planFor("balanced");
+    delete (legacy as { imagePriority?: unknown }).imagePriority;
+    const prioritized = planFor("balanced");
+    const a = await run(freshEnv(), counters(), legacy, { image: recraftImageProvider, recraftStyle: styleChoice().choice });
+    const legacyPosts = fal.posts.length; fal.posts.length = 0;
+    const b = await run(freshEnv(), counters(), prioritized, { image: recraftImageProvider, recraftStyle: styleChoice().choice });
+    const aiIds = (r: typeof a) => r.renderInput!.scenes.filter((s) => s.provenance === "ai_recreation").map((s) => s.id);
+    assert.notDeepEqual(aiIds(a), aiIds(b), "the legacy plan keeps its own (cycle) scenes; the new plan prioritizes");
+    assert.notEqual(a.renderInput!.scenes[0].provenance, "ai_recreation", "legacy cycle: the first scene stays archive");
+    assert.ok(legacyPosts > 0);
   } finally { restore(); }
 });

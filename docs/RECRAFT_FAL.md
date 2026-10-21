@@ -133,3 +133,27 @@ El saldo de USD 9,96 en fal **no** es autorización.
   - Si no llega, **la imagen pagada se guarda igualmente**: el ledger queda COMMITTED con su request_id y el resultado se reutiliza en cualquier reintento, sin volver a pagarlo. Después se aplica la política que el creador eligió antes de confirmar:
     - **«Detener» (recomendado):** no se pide ninguna otra imagen. En Reel, la imagen queda sin etiqueta de estilo; en Long Form, con un marcador durable `state/recraft-style-missing.json`. Soporte revisa el caso.
     - **«Mismas referencias»:** cada imagen siguiente usa las mismas referencias y el mismo `style_match`. Se presupuesta como creación de estilo (USD 0,04 por imagen).
+
+## Prioridad Recraft-first (`recraft_first_v1`) — implementada, NO verificada en un recorrido real
+
+- **Planificación, no solo selector.** Con Recraft elegido y estrategia no económica, el plan decide desde el inicio
+  qué escenas serán imágenes originales (`image-priority.ts`): primero la apertura (< 30 s), después los momentos
+  clave (hook, twist, insight, payoff), luego el resto en orden. El vídeo de archivo es el último candidato.
+- **Escenas protegidas.** Nunca se generan escenas que requieren una persona real, que prueban un hecho (evidencia
+  documental auténtica) o que piden un esquema (misma regla que el Director cinematográfico). Se respeta el tope de
+  reconstrucción del HERO: si el asignador rechaza una escena, se elige la siguiente en prioridad.
+- **Coste con precios del proveedor.** Número de imágenes = presupuesto de imágenes aprobado ÷ USD 0,04 (0,035 +
+  0,005 de creación de estilo), menos una reserva de regeneración del 10 % (mín. 1). La pantalla de confirmación
+  muestra apertura, momentos clave, reserva, escenas protegidas, techo y coste total antes de confirmar.
+- **Sin relleno ajeno.** Escena no elegida = material de archivo solo si es pertinente; si no, tarjeta anclada a su
+  propia narración.
+- **"Generada" ≠ "aprobada".** Control automático (`generated-image-qc.ts`): encuadre ±3 %, lado corto ≥ 700 px,
+  imagen no uniforme. Una imagen rechazada se conserva aparte y se regenera una vez (con la reserva); si vuelve a
+  fallar, la escena queda sin imagen generada y se informa. La correspondencia con la narración queda
+  «pendiente de revisión humana» en el informe visual: el control automático no la juzga.
+- **Reels (9:16).** Con Recraft elegido, todas las escenas usan Recraft; mismo control y una regeneración; la
+  estimación incluye la reserva.
+- **Planes confirmados.** Solo se aplica a planes que llevan `imagePriority.version = recraft_first_v1`; los planes
+  ya confirmados sin ese campo no cambian.
+- **Estado:** cubierto por pruebas (`recraft-priority.test.ts`, `produce-recraft.test.ts`, `recraft-recovery.test.ts`).
+  No se declara aplicada hasta comprobarla en un recorrido real autorizado.

@@ -54,6 +54,8 @@ export type AssetSelectionTrace = {
   entityLink?: { name: string };
   /** Fuentes que el verificador del servidor confirma que el recurso documenta (escenas EVIDENCE). */
   evidenceLink?: { sourceIds: string[] };
+  /** Generated image: passed the automatic check; still pending human review of its match with the narration. */
+  review?: { status: "pendiente_revision_humana"; qc: { name: string; ok: boolean; detail: string }[] };
   /** Reutilización verificada y justificada de un recurso que ya ocupa otra escena. */
   reuse?: { of: string; justification: "verified_identity_reuse" | "verified_evidence_reuse" };
 };
@@ -61,7 +63,8 @@ export type AssetSelectionTrace = {
 export type ShotAssetRecord = {
   shotId: string;
   kind: ShotAssetKind;
-  status: "STARTED" | "COMPLETED" | "FAILED_NO_CHARGE";
+  /** QC_REJECTED (chosen provider only): paid and committed, but it failed the automatic check — never used. */
+  status: "STARTED" | "COMPLETED" | "FAILED_NO_CHARGE" | "QC_REJECTED";
   objectPath?: string;
   contentType?: string;
   mediaType?: "image" | "video";
@@ -75,6 +78,8 @@ export type ShotAssetRecord = {
   selection?: AssetSelectionTrace;
   /** Chosen image provider only: zero-charge refusals so far (each later try uses a new ledger key). */
   noChargeFailures?: number;
+  /** Chosen image provider only: images of this scene rejected by the automatic check (each regeneration: new key). */
+  qcRejections?: number;
 };
 
 export interface ShotAssetStore {

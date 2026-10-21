@@ -129,17 +129,31 @@ export function PlanSummary({ plan }: { plan: ProductionPlan }) {
         <Row label="Duración estimada" value={`~${formatDuration(plan.durationSeconds)}`} />
         <Row label="Escenas" value={String(plan.shotCount)} />
         <Row label="Video e imagen de archivo" value={String(plan.stockVideoCount + plan.stockImageCount)} />
-        <Row label="Imágenes generadas por IA" value={String(plan.aiImageCount)} />
+        <Row label={plan.imagePriority ? "Imágenes originales (Recraft)" : "Imágenes generadas por IA"} value={String(plan.aiImageCount)} />
+        {plan.imagePriority && <>
+          <Row label="· en la apertura / momentos clave" value={`${plan.imagePriority.openingImages} / ${plan.imagePriority.keyMomentImages}`} />
+          <Row label="· reserva para regenerar defectos" value={String(plan.imagePriority.regenerationReserve)} />
+          {plan.imagePriority.protectedScenes > 0 && <Row label="· escenas que exigen material auténtico" value={String(plan.imagePriority.protectedScenes)} />}
+        </>}
         <Row label="Clips de video IA" value={String(plan.aiVideoClipCount)} />
         <Row label="Segundos de video IA" value={plan.aiVideoClipCount > 0 ? `${Math.round(plan.aiVideoSeconds)} s` : "0 s"} />
         <Row label="Tarjetas de texto" value={String(plan.deterministicCount)} />
       </dl>
       <dl className="mt-3 rounded-md bg-surface-raised px-3 py-2">
         {plan.estimatedVoiceCostUsd !== undefined && <Row label="Narración" value={USD.format(plan.estimatedVoiceCostUsd)} />}
-        {plan.estimatedImageCostUsd !== undefined && <Row label="Imágenes IA" value={USD.format(plan.estimatedImageCostUsd)} />}
+        {plan.estimatedImageCostUsd !== undefined && <Row label={plan.imagePriority ? "Imágenes Recraft (techo: estilo + generaciones + reserva)" : "Imágenes IA"} value={USD.format(plan.estimatedImageCostUsd)} />}
         {plan.estimatedAiVideoCostUsd !== undefined && <Row label="Video IA" value={USD.format(plan.estimatedAiVideoCostUsd)} />}
         <Row label="Costo estimado de producción" value={USD.format(plan.estimatedProviderCostUsd)} />
       </dl>
+      {plan.imagePriority && (
+        <p className="mt-2 text-xs text-ink-muted">
+          Recraft va primero en la apertura y los momentos clave, hasta el presupuesto de imágenes
+          (USD {plan.imagePriority.perImageUsd.toFixed(3)} por imagen, creación del estilo incluida). El resto usa material de
+          archivo solo si corresponde a lo narrado; si no hay, la escena muestra su propio texto, nunca un relleno ajeno.
+          Las escenas que deben mostrar una persona real o una prueba documental nunca se recrean con IA. Cada imagen generada
+          pasa un control automático (encuadre, resolución, imagen vacía) y queda pendiente de tu revisión: generada no es aprobada.
+        </p>
+      )}
       <p className="mt-2 text-xs text-ink-faint">
         Estimación de costo de proveedores (no incluye el guion ya generado). Todavía no hay un sistema de créditos: no se
         descuenta ningún saldo. La producción nunca supera las cantidades de este plan.
@@ -190,7 +204,8 @@ export function ConfigureProduction({
   ownChannel?: boolean;
 }) {
   const router = useRouter();
-  const [imageSource, setImageSource] = useState<"default" | "recraft">("default");
+  // Recraft first for new productions when this account may use it (owner decision 2026-10-21).
+  const [imageSource, setImageSource] = useState<"default" | "recraft">(recraftPlans ? "recraft" : "default");
   const useRecraft = imageSource === "recraft" && !!recraftPlans;
   const plans = useRecraft ? recraftPlans : defaultPlans;
   const imageForm = useRef<HTMLFormElement>(null);

@@ -32,6 +32,10 @@ import type { ProductionBudget } from "./production-budget";
 import type { AllocatedShot, GenerativeUnitCosts } from "./production-plan";
 import { documentaryImagePrompt, requiresEvidence, requiresIdentity, textCardForShot } from "./visual-intents";
 import { RecraftStyleMissingError } from "@/lib/video/recraft-reel";
+import { checkGeneratedImage, type GeneratedImageQc } from "./generated-image-qc";
+
+/** Regenerations of one scene after an automatic-check rejection (each from the plan's regeneration reserve). */
+export const MAX_QC_REGENERATIONS = 1;
 import type { ShotType } from "./types";
 
 /** Rechazos de imagen con costo conocido CERO (el proveedor no generó nada). */
@@ -136,6 +140,8 @@ export type ShotExecutionDeps = {
   imageProvider: ImageProvider;
   /** Present when the creator chose the image provider for this video (Recraft): strict, styled AI images. */
   imageStyle?: ImageStyleContext;
+  /** Test seam: pixel statistics for the automatic image check (default: sharp). */
+  imageStats?: (buffer: Buffer) => Promise<{ stdev: number[] } | null>;
   /** Ya envuelto con wrapDurableVideoProvider (reuso/reanudación/reserva de presupuesto por envío). */
   videoProvider?: VideoProvider;
   store: ShotAssetStore;
@@ -440,12 +446,18 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
   if (existing?.status === "FAILED_NO_CHARGE" && !strict) {
     return { unavailable: "el proveedor ya rechazó esta imagen antes" };
   }
+  // Chosen provider: images rejected by the automatic check so far. One regeneration per scene, from the plan's reserve.
+  const qcRejections = existing?.qcRejections ?? 0;
+  if (strict && existing?.status === "QC_REJECTED" && qcRejections > MAX_QC_REGENERATIONS) {
+    throw new ChosenImageProviderError(shot.id, "la imagen generada no pasó el control automático tras regenerarla", false, false, false);
+  }
   // Read BEFORE reserving: a poisoned style context stops here without holding a budget slot.
   const style = strict?.current();
   const realUsd = Math.max(deps.units.imageUsd, deps.conservativeImageUsd ?? deps.units.imageUsd);
   if (!resuming && !(await deps.budget.reserveAiImage(deps.units.imageUsd, realUsd))) {
     // The durable budget never widens: retrying cannot clear this, so it is a support stop, not a retry.
-    if (strict) throw new ChosenImageProviderError(shot.id, "se alcanzó el presupuesto confirmado de imágenes IA", false, false, false);
+    if (strict) throw new ChosenImageProviderError(shot.id, qcRejections > 0 ? "no queda reserva para regenerar la imagen rechazada por el control automático"
+      : "se alcanzó el presupuesto confirmado de imágenes IA", false, false, false);
     return { unavailable: "presupuesto confirmado de imágenes IA agotado" };
   }
 
@@ -461,7 +473,8 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
       // Recreación IA: identidad de contenido (para el registro del documental) y procedencia explícita.
       const identity: AssetIdentity = { provider: deps.imageProvider.name, ...(await (deps.identify ?? contentIdentity)(asset.buffer, "image")) };
       const provenance: AssetProvenance = { kind: "ai_recreation", provider: deps.imageProvider.name, license: "Generada por IA para este documental — recreación, no registro histórico" };
-      const selection: AssetSelectionTrace = { relevance: "generated_from_intent", query: shot.visualIntent };
+      const selection: AssetSelectionTrace = { relevance: "generated_from_intent", query: shot.visualIntent,
+        ...(qc ? { review: { status: "pendiente_revision_humana" as const, qc: qc.checks } } : {}) };
       const url = await persistMedia(deps, shot.id, "ai_image", asset.buffer, asset.mimeType, asset.extension, "image", deps.imageProvider.name, asset.costUsd, {
         identity,
         provenance,
@@ -487,7 +500,7 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
     // Supply admission happens in guardPaidCall BEFORE this hook. A refused
     // admission is resumable and must not leave an uncertain STARTED asset.
     await deps.store.write({ shotId: shot.id, kind: "ai_image", status: "STARTED", provider: deps.imageProvider.name, updatedAtIso: new Date().toISOString(),
-      ...(noChargeRetry > 0 ? { noChargeFailures: noChargeRetry } : {}) });
+      ...(noChargeRetry > 0 ? { noChargeFailures: noChargeRetry } : {}), ...(qcRejections > 0 ? { qcRejections } : {}) });
     providerStarted = true;
   };
   const generate = async () => {
@@ -499,6 +512,8 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
   // storage failure still commits the row (the provider charged) and then fails the shot as before.
   let persisted: MediaOutcome | undefined;
   let persistError: unknown;
+  let qc: GeneratedImageQc | undefined;
+  let qcFailed: GeneratedImageQc | undefined;
   const twoStep = Boolean(strict && deps.imageProvider.submitImage && deps.imageProvider.resumeImage);
   const accept = async (a: GenerativeAsset) => {
     // Same contract as Reel generated images: never trust "the call did not throw" as "the
@@ -506,12 +521,20 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
     // (no new call) and the shot uses its existing fallback (ASSET-FINAL).
     const validation = validateVisualAssetBuffer(a.buffer, a.mimeType);
     if (!validation.valid) throw new Error(`Imagen IA inválida de "${deps.imageProvider.name}": ${validation.reason}`);
+    // Chosen provider: "generated" is not "approved". A measurable defect keeps the (paid, committed) image out of the
+    // video; the scene is regenerated once from the plan's reserve below. Never a silent stock substitute.
+    if (strict) {
+      qc = await checkGeneratedImage(a, "16:9", { stats: deps.imageStats });
+      if (!qc.passed) qcFailed = qc;
+    }
     // The paid image is stored FIRST: whatever the style outcome, it is never lost or paid again.
-    try {
-      persisted = await persistImage(a);
-    } catch (err) {
-      if (err instanceof SupplyUnavailableError) throw err;
-      persistError = err;
+    if (!qcFailed) {
+      try {
+        persisted = await persistImage(a);
+      } catch (err) {
+        if (err instanceof SupplyUnavailableError) throw err;
+        persistError = err;
+      }
     }
     // Chosen style: the style created by the first image is persisted BEFORE any other image is requested. fal may
     // omit style_id (optional in its schema): the video's policy then stops further images or keeps the references.
@@ -538,7 +561,8 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
           method: "generate_image",
           // Stable across attempts: never the signed reference URLs or the style id (set after the first image).
           inputFingerprint: strict
-            ? { prompt: request.prompt, aspectRatio: request.aspectRatio, style: "chosen-video-style", match: style?.match ?? null, noChargeRetry }
+            ? { prompt: request.prompt, aspectRatio: request.aspectRatio, style: "chosen-video-style", match: style?.match ?? null, noChargeRetry,
+                ...(qcRejections > 0 ? { regeneration: qcRejections } : {}) }
             : { prompt: request.prompt, aspectRatio: request.aspectRatio },
           reservedUsd: Math.max(0, realUsd),
         },
@@ -561,6 +585,8 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
               const a = await deps.imageProvider.resumeImage!(job, request);
               const validation = validateVisualAssetBuffer(a.buffer, a.mimeType);
               if (!validation.valid) return null;
+              qc = await checkGeneratedImage(a, "16:9", { stats: deps.imageStats });
+              if (!qc.passed) { qcFailed = qc; return a; }
               persisted = await persistImage(a);
               return a;
             } catch (err) {
@@ -607,6 +633,13 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
     return { unavailable: `imagen IA falló (${err instanceof GenerativeProviderError ? err.reason : "error inesperado"})` };
   }
   if (persistError !== undefined) throw persistError;
+  if (strict && qcFailed) {
+    // Paid and committed, but unusable: recorded (never reused), then regenerated once under a NEW ledger key.
+    await deps.store.write({ shotId: shot.id, kind: "ai_image", status: "QC_REJECTED", provider: deps.imageProvider.name, updatedAtIso: new Date().toISOString(),
+      ...(noChargeRetry > 0 ? { noChargeFailures: noChargeRetry } : {}), qcRejections: qcRejections + 1 });
+    console.warn(`[atomivid:long-form:qc] imagen rechazada ${shot.id}: ${qcFailed.checks.filter((c) => !c.ok).map((c) => c.detail).join("; ")}`);
+    return resolveAiImage(shot, deps);
+  }
   if (persisted) return persisted;
   if (deps.requireReal && deps.imageProvider.name === "fixture") {
     throw new Error(`Shot ${shot.id}: el proveedor de imagen resolvió a fixture en una producción real.`);

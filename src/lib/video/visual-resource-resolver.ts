@@ -1,4 +1,5 @@
 import { RecraftStyleMissingError } from "@/lib/video/recraft-reel";
+import type { GeneratedImageQc } from "@/lib/video/long-form/generated-image-qc";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { GenerativeAsset, ImageGenerationRequest, ImageProvider } from "@/lib/providers/image";
 import type { StoryboardScene } from "./storyboard/types";
@@ -84,6 +85,7 @@ export async function resolveGeneratedImageForScene({
   ledger,
   objectKey,
   style,
+  qc,
 }: {
   supabase: SupabaseClient;
   bucket: string;
@@ -111,6 +113,8 @@ export async function resolveGeneratedImageForScene({
   style?: ImageGenerationRequest["style"];
   /** Video's policy when fal created its style without returning a style_id (see recraft-reel.ts). */
   onMissingStyleId?: "stop" | "same_references";
+  /** Automatic check of a generated image (generated-image-qc.ts). A rejected image is paid and kept apart, never used. */
+  qc?: (asset: GenerativeAsset) => Promise<GeneratedImageQc>;
 }): Promise<GeneratedImageOutcome> {
   const existing = await findExistingGeneratedImage(supabase, bucket, artifactPrefix, sceneIndex, objectKey, { strict: Boolean(style) });
   if (existing && style) {
@@ -158,6 +162,15 @@ export async function resolveGeneratedImageForScene({
     }
 
     const key = objectKey ?? generatedImageObjectPrefix(sceneIndex);
+    // "Generated" is not "approved": a measurable defect keeps the paid image out of the video. It is stored apart (the
+    // durable marker that this scene needs its one regeneration) and settled as paid; the caller regenerates.
+    const verdict = qc ? await qc(asset) : undefined;
+    if (verdict && !verdict.passed) {
+      const rejectedPath = `${artifactPrefix}/${QC_REJECTED_DIR}/${key}.${asset.extension}`;
+      const { error: rejectedError } = await supabase.storage.from(bucket).upload(rejectedPath, asset.buffer, { contentType: asset.mimeType, upsert: true });
+      if (rejectedError) throw new Error(`No se pudo guardar la imagen rechazada por el control (${rejectedPath}): ${rejectedError.message}`);
+      return { asset, path: rejectedPath, rejected: verdict };
+    }
     const path = `${artifactPrefix}/${style ? styleTaggedObjectName(key, asset.styleId, asset.extension) : `${key}.${asset.extension}`}`;
     const { error: uploadError } = await supabase.storage
       .from(bucket)
@@ -165,19 +178,20 @@ export async function resolveGeneratedImageForScene({
     if (uploadError) {
       throw new Error(`No se pudo subir la imagen generada (${path}): ${uploadError.message}`);
     }
-    return { asset, path };
+    return { asset, path, rejected: undefined as GeneratedImageQc | undefined };
   };
   const generateAndStore = async () => store(await imageProvider.generateImage(request));
 
   let asset: Awaited<ReturnType<typeof generateAndStore>>["asset"];
   let path: string;
+  let rejected: GeneratedImageQc | undefined;
   if (imageProvider.name === "fixture" || !ledger) {
     if (imageProvider.name !== "fixture") {
       throw new Error(`Imagen generada para la escena ${sceneIndex}: proveedor real "${imageProvider.name}" sin puerta de llamadas pagadas — no se llama.`);
     }
-    ({ asset, path } = await generateAndStore());
+    ({ asset, path, rejected } = await generateAndStore());
   } else {
-    const guarded = await guardPaidCall<{ asset: Awaited<ReturnType<typeof generateAndStore>>["asset"]; path: string }>(
+    const guarded = await guardPaidCall<{ asset: Awaited<ReturnType<typeof generateAndStore>>["asset"]; path: string; rejected?: GeneratedImageQc }>(
       ledger,
       {
         projectId: requestId,
@@ -218,8 +232,9 @@ export async function resolveGeneratedImageForScene({
         maxRejectedRetries: 0,
       },
     );
-    ({ asset, path } = guarded.result);
+    ({ asset, path, rejected } = guarded.result);
   }
+  if (rejected) throw new GeneratedImageRejectedError(sceneIndex, rejected, asset.styleId, asset.providerJobId);
 
   const { data, error: signError } = await supabase.storage.from(bucket).createSignedUrl(path, signedUrlTtlSeconds);
   if (signError || !data) {
@@ -253,14 +268,57 @@ export async function resolveRecraftReelScene(
     onStyleId?: (styleId: string) => Promise<void>;
   },
 ): Promise<{ generated: GeneratedImageOutcome; nextStyle: NonNullable<ImageGenerationRequest["style"]> }> {
-  const { match, onStyleId, style, onMissingStyleId = "stop", ...rest } = args;
-  const generated = await resolveGeneratedImageForScene({ ...rest, style, onMissingStyleId, objectKey: `scene-${rest.sceneIndex}-recraft` });
+  const { match, onStyleId, onMissingStyleId = "stop", ...rest } = args;
+  let style = args.style;
+  const key = `scene-${rest.sceneIndex}-recraft`;
+  const regenKey = `${key}-r1`;
+  const artifactPrefix = rest.artifactPrefix ?? rest.requestId;
+  // A scene whose image the automatic check rejected regenerates ONCE under its own key (own ledger row); a second
+  // rejection stops the Reel (never a third image, never stock). The rejected objects are the durable markers.
+  const rejectedKeys = await rejectedQcKeys(rest.supabase, rest.bucket, artifactPrefix, key);
+  if (rejectedKeys.has(regenKey)) throw new GeneratedImageRejectedError(rest.sceneIndex, { passed: false, checks: [] });
+  let generated: GeneratedImageOutcome;
+  const adopt = async (styleId: string | undefined) => {
+    if (style.styleId || !styleId) return;
+    await onStyleId?.(styleId);
+    style = { styleId, ...(match ? { match } : {}) };
+  };
+  try {
+    generated = await resolveGeneratedImageForScene({ ...rest, style, onMissingStyleId, objectKey: rejectedKeys.has(key) ? regenKey : key });
+  } catch (err) {
+    if (!(err instanceof GeneratedImageRejectedError) || rejectedKeys.has(key)) throw err;
+    // The rejected image's style is valid (the defect is in the frame): keep it for the regeneration.
+    await adopt(err.styleId);
+    generated = await resolveGeneratedImageForScene({ ...rest, style, onMissingStyleId, objectKey: regenKey });
+  }
   if (style.styleId) return { generated, nextStyle: style };
   if (!generated.styleId) {
     // fal returned no style_id (optional in its schema). The paid image is stored and kept; coherence policy decides.
     if (onMissingStyleId === "same_references") return { generated, nextStyle: style };
     throw new RecraftStyleMissingError(generated.providerJobId);
   }
-  await onStyleId?.(generated.styleId);
-  return { generated, nextStyle: { styleId: generated.styleId, ...(match ? { match } : {}) } };
+  await adopt(generated.styleId);
+  return { generated, nextStyle: style };
+}
+
+export const QC_REJECTED_DIR = "qc-rejected";
+/** Keys of this scene already rejected by the automatic check (objects under `${prefix}/qc-rejected/`). Fail-closed. */
+async function rejectedQcKeys(supabase: SupabaseClient, bucket: string, artifactPrefix: string, key: string): Promise<Set<string>> {
+  const { data, error } = await supabase.storage.from(bucket).list(`${artifactPrefix}/${QC_REJECTED_DIR}`, { search: key });
+  if (error) throw new Error(`No se pudo comprobar el control de imagen de ${key}; no se genera otra.`);
+  const re = new RegExp(`^(${escapeRe(key)}(?:-r1)?)\\.${IMAGE_EXT}$`, "i");
+  return new Set((data ?? []).map((f) => re.exec(f.name)?.[1]).filter((k): k is string => Boolean(k)));
+}
+
+/** A generated image failed the automatic check (and, for a regeneration, so did that one). Customer-safe, support. */
+export class GeneratedImageRejectedError extends Error {
+  readonly customerMessage: string;
+  readonly retryable = false;
+  constructor(readonly sceneIndex: number, readonly qc: GeneratedImageQc, readonly styleId?: string, readonly providerJobId?: string) {
+    const detail = qc.checks.filter((c) => !c.ok).map((c) => c.detail).join("; ");
+    const text = `La imagen generada de la escena ${sceneIndex + 1} no pasó el control automático${detail ? ` (${detail})` : ""} ni tras regenerarla una vez. Se detuvo el Reel sin sustituir imágenes; lo ya pagado se conserva y soporte revisa el caso.`;
+    super(text);
+    this.name = "GeneratedImageRejectedError";
+    this.customerMessage = text;
+  }
 }

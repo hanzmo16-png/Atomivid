@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { GeneratedScript } from "@/lib/providers/types";
 import { parseStoredRecraftStyle, recraftReelEstimateUsd, RECRAFT_MAX_REFERENCE_BYTES, RECRAFT_MAX_REFERENCES, RECRAFT_REFERENCE_TYPES, type ReelRecraftStyle } from "./recraft-reel";
-import { imageDimensions } from "@/lib/providers/image/recraft";
+import { imageDimensions, RECRAFT_USD_PER_IMAGE, RECRAFT_USD_STYLE_CREATION } from "@/lib/providers/image/recraft";
 
 const BUCKET = "videos";
 export type ReelRecraftRow = { style: ReelRecraftStyle; styleId: string | null };
@@ -29,7 +29,9 @@ export async function loadReelRecraft(service: SupabaseClient, requestId: string
 export function recraftDemandUsd(recraft: ReelRecraftRow | null, script: unknown): number {
   if (!recraft) return 0;
   const n = (script as GeneratedScript | null)?.segments?.length ?? 0;
-  return recraftReelEstimateUsd(n, Boolean(recraft.styleId), recraft.style.onMissingStyleId);
+  // + one regeneration per ~10 scenes for images rejected by the automatic check (a ceiling, never a purchase).
+  const reserve = n > 0 ? Math.max(1, Math.ceil(n * 0.1)) : 0;
+  return Math.round((recraftReelEstimateUsd(n, Boolean(recraft.styleId), recraft.style.onMissingStyleId) + reserve * (RECRAFT_USD_PER_IMAGE + RECRAFT_USD_STYLE_CREATION)) * 10_000) / 10_000;
 }
 
 /** Short-lived signed URLs for the user's reference images (fal needs a fetchable URL; nothing is made public). */

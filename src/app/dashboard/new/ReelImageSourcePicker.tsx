@@ -7,13 +7,15 @@ import { useState } from "react";
  * the user gives for THIS video (a saved Recraft style_id or 1-10 reference images). No house aesthetic is imposed.
  * Nothing is paid here; the server validates everything again (actions.ts).
  */
-export function ReelImageSourcePicker({ format = "reel", disabled = false, onSourceChange }: {
+export function ReelImageSourcePicker({ format = "reel", disabled = false, onSourceChange, defaultSource = "recraft" }: {
   /** "reel": one image per scene (9:16). "long_form": the plan's AI images (16:9); archive footage stays as planned. */
   format?: "reel" | "long_form";
   disabled?: boolean;
   onSourceChange?: (source: "default" | "recraft") => void;
+  /** Owner decision 2026-10-21: Recraft first for new productions of accounts that may use it. */
+  defaultSource?: "default" | "recraft";
 } = {}) {
-  const [source, setSourceState] = useState<"default" | "recraft">("default");
+  const [source, setSourceState] = useState<"default" | "recraft">(defaultSource);
   const setSource = (v: "default" | "recraft") => { setSourceState(v); onSourceChange?.(v); };
   const field = format === "reel" ? "reel_image_source" : "image_source";
   return (

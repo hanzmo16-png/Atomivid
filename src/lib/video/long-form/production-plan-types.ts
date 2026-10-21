@@ -110,6 +110,11 @@ export type ProductionPlan = {
   allocation?: ProductionPlanAllocation;
   /** Presentación para YouTube elegida al confirmar (portada/miniatura). Solo la aplican los planes v3. */
   packaging?: import("./packaging").LongFormPackaging;
+  /**
+   * Recraft-first image planning (image-priority.ts). Present only on plans confirmed with Recraft images after this
+   * change; the worker applies the SAME prioritization to its shots. Absent = the strategy's fixed cycle, as before.
+   */
+  imagePriority?: import("./image-priority").ImagePriorityPlan;
   /** Todavía no existe un sistema de créditos real — nunca se inventa un saldo. */
   estimatedCredits: number | null;
   confirmedAt: string | null;

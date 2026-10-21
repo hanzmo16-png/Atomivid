@@ -43,6 +43,8 @@ import { getVoiceIdentity } from "@/lib/ai/voice";
 import type { MusicResult, ScriptLanguage, VideoProvider } from "@/lib/providers/types";
 import { resolveLongFormProviders, type LongFormProviderSet } from "./mode";
 import { getRecraftImageProvider } from "@/lib/providers/image";
+import { allocateWithImagePriority, RECRAFT_PRIORITY_VERSION } from "./image-priority";
+import type { BeatType } from "./types";
 import { buildLongFormTimeline, type BeatSynthesizer } from "./timeline";
 import { shotsForSpan } from "./shots";
 import { assertOpeningValid, CoverValidationError, renderLongFormDoc, renderLongFormThumbnail, type RenderLongFormDocInput } from "./render";
@@ -481,7 +483,12 @@ export async function generateLongFormVideoFromScript({
     cinematic: usesVisualIdentity(plan),
   };
   const allShots = timeline.beats.flatMap((b) => b.shots);
-  const allocated = allocateShotTypes(allShots, timeline.durationSeconds, limits);
+  // Recraft-first plans (image-priority.ts): the worker re-applies the SAME prioritization to the real-duration shots,
+  // capped at the images the plan confirmed. Plans without `imagePriority` keep the strategy cycle exactly as before.
+  const allocated = plan.imagePriority?.version === RECRAFT_PRIORITY_VERSION
+    ? allocateWithImagePriority(allShots, new Map(beats.map((b) => [b.id, b.type as BeatType])), plan.imagePriority.plannedImages,
+      (s) => allocateShotTypes(s, timeline.durationSeconds, limits)).allocation
+    : allocateShotTypes(allShots, timeline.durationSeconds, limits);
   if (plannedShotCounts && allShots.length !== plan.shotCount && !replayOnly) {
     // Nunca en silencio: la duración real narrada no permitió respetar el
     // número de escenas confirmado (queda registrado en el presupuesto).

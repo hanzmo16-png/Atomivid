@@ -35,6 +35,7 @@ import { buildStoryboard } from "@/lib/video/storyboard";
 import type { Storyboard } from "@/lib/video/storyboard/types";
 import { getImageProvider, getRecraftImageProvider, type ImageGenerationRequest } from "@/lib/providers/image";
 import { recraftScenePrompt } from "@/lib/video/recraft-reel";
+import { checkGeneratedImage } from "@/lib/video/long-form/generated-image-qc";
 import { recraftEstimatedCostUsd } from "@/lib/providers/image/recraft";
 import type { StoryboardScene } from "@/lib/video/storyboard/types";
 import { decideResourceStrategy, buildScenePlanEntry, type ScenePlanEntry } from "@/lib/video/visual-resource-planner";
@@ -99,6 +100,8 @@ export async function generateVideoFromScript({
     onStyleId?: (styleId: string) => Promise<void>;
     /** Test seam only. */
     provider?: import("@/lib/providers/image").ImageProvider;
+    /** Test seam only: pixel statistics for the automatic image check. */
+    imageStats?: (buffer: Buffer) => Promise<{ stdev: number[] } | null>;
   };
   /** Montar con el plan del Director. Lo decide SOLO el worker (run-job.ts → resolveDirectorRender): flag global + piloto + Reel visual. */
   directorRender?: boolean;
@@ -326,6 +329,8 @@ export async function generateVideoFromScript({
         scene: { imagePrompt: prompt, negativePrompt: storyboard?.scenes[i]?.negativePrompt ?? "text, watermark, logo" } as StoryboardScene,
         imageProvider: recraftProvider, remainingBudgetUsd: estimate, signedUrlTtlSeconds: ASSET_SIGNED_URL_TTL_SECONDS,
         style: recraftStyle, match: recraft.match, onStyleId: recraft.onStyleId, onMissingStyleId: recraft.onMissingStyleId ?? "stop",
+        // "Generated" is not "approved": framing/resolution/blank check; one regeneration per scene, never stock.
+        qc: (asset) => checkGeneratedImage(asset, "9:16", recraft.imageStats ? { stats: recraft.imageStats } : {}),
       });
       recraftStyle = nextStyle;
       storageBytes += generated.bufferBytes;

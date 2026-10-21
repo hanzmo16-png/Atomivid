@@ -36,6 +36,7 @@ import { ESTIMATED_COST_USD as OPENAI_IMAGE_ESTIMATED_COST_USD } from "@/lib/pro
 import { VEO_DURATION_SECONDS_1080P, getVeoCostUsdPerSecond } from "@/lib/providers/video-gen/veo";
 import { RUNWAY_COST_USD_PER_SECOND } from "@/lib/providers/video-gen/runway";
 import { RECRAFT_USD_PER_IMAGE, RECRAFT_USD_STYLE_CREATION } from "@/lib/providers/image/recraft";
+import { allocateWithImagePriority, recraftImageBudget, RECRAFT_PRIORITY_VERSION, type ImagePriorityPlan } from "./image-priority";
 import type { BeatType, Shot, ShotType } from "./types";
 import { PLAN_ESTIMATE_AVAILABILITY, declaresImpact, resolveSequences, validateImpactIntents, validateSequenceIntents, type SequenceIntent } from "./sequence-intent";
 import { planSequenceShots } from "./sequence-direction";
@@ -392,8 +393,25 @@ export function computeProductionPlan(input: {
     ...strategyLimits(input.strategy, voiceCostUsd, { aiVideoEnabled: aiVideoAvailable, units: getGenerativeUnitCosts(input.providers.aiVideo, input.providers.image) }),
     cinematic: usesVisualIdentity({ version }),
   };
-  const allocation = allocateShotTypes(shots, narrationSeconds, limits);
-  const generativeUsd = round4(allocation.imageUsd + allocation.aiVideoUsd);
+  // Recraft-first (image-priority.ts): original images go to the opening and the key moments first, within the approved
+  // image budget at Recraft's price and the Director's rules, with a regeneration reserve. Economical stays archive-only.
+  let imagePriority: ImagePriorityPlan | undefined;
+  let allocation: AllocationResult;
+  if (input.providers.image === "recraft" && input.strategy !== "economical") {
+    const perImageUsd = imageUnitUsd("recraft");
+    const { planned: maxImages, reserve } = recraftImageBudget(getLongFormBudget().maxImageUsd, perImageUsd);
+    const prioritized = allocateWithImagePriority(shots, new Map(input.beats.map((b) => [b.id, b.type])), maxImages,
+      (s) => allocateShotTypes(s, narrationSeconds, limits));
+    allocation = prioritized.allocation;
+    imagePriority = { version: RECRAFT_PRIORITY_VERSION, provider: "recraft", plannedImages: allocation.aiImageGenerations, regenerationReserve: reserve,
+      openingImages: prioritized.opening, keyMomentImages: prioritized.keyMoments, protectedScenes: prioritized.protectedScenes,
+      perImageUsd, styleCreationUsd: RECRAFT_USD_STYLE_CREATION, ceilingUsd: round4((allocation.aiImageGenerations + reserve) * perImageUsd) };
+  } else {
+    allocation = allocateShotTypes(shots, narrationSeconds, limits);
+  }
+  // The regeneration reserve is part of the approved ceiling (count and USD), never spent on new scenes.
+  const reserveUsd = imagePriority ? round4(imagePriority.regenerationReserve * imagePriority.perImageUsd) : 0;
+  const generativeUsd = round4(allocation.imageUsd + allocation.aiVideoUsd + reserveUsd);
 
   return {
     version,
@@ -418,11 +436,12 @@ export function computeProductionPlan(input: {
     aiVideoAvailable: input.strategy === "cinematic" ? aiVideoAvailable : undefined,
     providers: input.providers,
     estimatedVoiceCostUsd: voiceCostUsd,
-    estimatedImageCostUsd: allocation.imageUsd,
+    estimatedImageCostUsd: round4(allocation.imageUsd + reserveUsd),
     estimatedAiVideoCostUsd: allocation.aiVideoUsd,
     estimatedProviderCostUsd: round4(voiceCostUsd + generativeUsd),
+    ...(imagePriority ? { imagePriority } : {}),
     allocation: {
-      maxAiImageGenerations: allocation.aiImageGenerations,
+      maxAiImageGenerations: allocation.aiImageGenerations + (imagePriority?.regenerationReserve ?? 0),
       maxAiVideoClips: allocation.aiVideoClipCount,
       maxGenerativeUsd: generativeUsd,
     },

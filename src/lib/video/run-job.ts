@@ -12,6 +12,7 @@ import { getRecraftImageProvider } from "@/lib/providers/image";
 import { recraftAllowedFor, RecraftAccessError } from "@/lib/video/recraft-access";
 import { ChosenImageProviderError } from "@/lib/video/long-form/shot-executor";
 import { RecraftStyleMissingError } from "@/lib/video/recraft-reel";
+import { GeneratedImageRejectedError } from "@/lib/video/visual-resource-resolver";
 import { jobSupplyDemands, reserveJobSupply, releaseUnusedJobSupply, JobEnvelopeMismatchError, JobEnvelopeExhaustedError } from "@/lib/supply/job";
 import { withSupplyContext } from "@/lib/supply/anthropic";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
@@ -349,7 +350,7 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
       || error instanceof JobEnvelopeMismatchError || error instanceof JobEnvelopeExhaustedError || error instanceof DeliverableUnverifiedError
       || (error instanceof DirectorUnavailableError && error.reason !== "owner_lookup_failed")
       // Recraft: an account/plan mismatch or a stop that a retry cannot clear goes to support, never a retry loop.
-      || error instanceof RecraftAccessError || error instanceof RecraftStyleMissingError
+      || error instanceof RecraftAccessError || error instanceof RecraftStyleMissingError || error instanceof GeneratedImageRejectedError
       || (error instanceof ChosenImageProviderError && !error.retryable) ? "support" : "retry";
     // A measured duration mismatch happens before footage/render and after the
     // voice ledger is settled. Reopen editing; retain attempts and paid history.
