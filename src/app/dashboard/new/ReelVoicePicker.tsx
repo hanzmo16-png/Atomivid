@@ -27,7 +27,7 @@ function remember(language: string, scope: string, value: Remembered | null) {
 type Playback = "idle" | "loading" | "playing" | "error";
 
 /** Mounted with key=language: changing language loads that language's catalogue and remembered choice. */
-export function ReelVoicePicker({ language }: { language: "es" | "en" }) {
+export function ReelVoicePicker({ language, onSelect }: { language: "es" | "en"; /** Long Form: recibe la voz confirmada ("" = predeterminada). */ onSelect?: (voiceId: string) => void }) {
   const [catalog, setCatalog] = useState<ReelVoiceCatalog | null>(null);
   const [selected, setSelected] = useState("");
   const [error, setError] = useState("");
@@ -48,7 +48,7 @@ export function ReelVoicePicker({ language }: { language: "es" | "en" }) {
         setCatalog(data);
         const stored = data.storageScope ? readRemembered(language, data.storageScope) : null;
         if (stored && data.enabled) {
-          if (data.voices.some(v => v.voiceId === stored.voiceId)) setSelected(stored.voiceId);
+          if (data.voices.some(v => v.voiceId === stored.voiceId)) { setSelected(stored.voiceId); onSelect?.(stored.voiceId); }
           else { setUnavailable(stored); remember(language, data.storageScope!, null); }
         }
       }).catch(() => {
@@ -57,7 +57,7 @@ export function ReelVoicePicker({ language }: { language: "es" | "en" }) {
         setPending(true);
       }).finally(() => clearTimeout(timer));
     return () => { alive = false; clearTimeout(timer); controller.abort(); };
-  }, [language]);
+  }, [language]); // eslint-disable-line react-hooks/exhaustive-deps -- onSelect is a stable setter
 
   const voice = catalog?.voices.find(v => v.voiceId === selected);
   const preview = selected ? voice?.previewUrl ?? null : catalog?.defaultPreviewUrl ?? null;
@@ -67,6 +67,7 @@ export function ReelVoicePicker({ language }: { language: "es" | "en" }) {
   const choose = (id: string) => {
     audio.current?.pause(); setPlayback("idle"); setUnavailable(null);
     setSelected(id);
+    onSelect?.(catalog?.voices.some(x => x.voiceId === id) ? id : "");
     const v = catalog?.voices.find(x => x.voiceId === id);
     if (catalog?.storageScope) remember(language, catalog.storageScope, v ? { voiceId: v.voiceId, name: v.name } : null);
   };

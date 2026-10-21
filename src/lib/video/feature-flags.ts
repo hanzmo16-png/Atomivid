@@ -28,6 +28,11 @@ export function getFeatureFlags() {
     /** Enable only after the additive voice migration and the updated render worker are deployed. */
     reelVoiceSelectionEnabled: flag("REEL_VOICE_SELECTION_ENABLED", false),
     /**
+     * Shows «Imágenes IA con Recraft» in the Reel form and lets the server accept it. Off by default: enable only
+     * after migration 20261021090000_reel_recraft_images.sql, FAL_KEY in the worker and an authorized budget.
+     */
+    recraftReelEnabled: flag("RECRAFT_REEL_ENABLED", false),
+    /**
      * Enciende la etapa de storyboard semántico (Visual Director). Añade
      * una llamada extra a Claude (proveedor ya configurado) por video — sí
      * tiene costo incremental, por eso queda apagada por defecto hasta que

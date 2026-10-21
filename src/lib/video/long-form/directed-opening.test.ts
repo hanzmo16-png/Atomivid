@@ -262,6 +262,7 @@ async function showcase(sequences?: SequenceIntent[]) {
   const run = await produceOffline(showcaseBeats, planFor(showcaseBeats, "economical", sequences, SHOWCASE_TOPIC), {
     topic: SHOWCASE_TOPIC,
     verifiedAssets: showcaseRegistry(BASE),
+    materialPreflight: false, // inspecciona las escenas preparadas tras la puerta FINAL
     footageProvider: showcaseFootageProvider(BASE, async (u) => (downloaded.add(u), Buffer.from(`bytes:${u}`))),
     onRender: (i) => (input = i as never),
   });

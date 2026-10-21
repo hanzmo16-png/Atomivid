@@ -1,0 +1,23 @@
+name: fal access check (no generation, USD 0)
+
+# Runs in GitHub Actions (authorized network) on demand. Reports four separate facts: key present, key valid, balance
+# verified, generation completed (never asserted here). Calls only a queue-status GET for a random non-existent request
+# and the billing GET; never submits a generation. Secret values are never printed.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check fal.ai access (GET only)
+        run: node scripts/fal/access-check.mjs
+        env:
+          FAL_KEY: ${{ secrets.FAL_KEY }}
+          FAL_ADMIN_KEY: ${{ secrets.FAL_ADMIN_KEY }}

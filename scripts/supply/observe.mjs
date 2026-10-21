@@ -5,6 +5,8 @@ const providers = [
   { name: 'elevenlabs', key: 'ELEVENLABS_API_KEY', url: 'https://api.elevenlabs.io/v1/user/subscription', unit: 'character' },
   { name: 'runway', key: 'RUNWAY_API_KEY', url: 'https://api.dev.runwayml.com/v1/organization', unit: 'credit' },
   { name: 'heygen', key: 'HEYGEN_API_KEY', url: 'https://api.heygen.com/v3/users/me', unit: 'usd' },
+  // fal.ai (Recraft images): Platform API billing, Admin-scoped key only (optional supplier: skipped without it).
+  { name: 'recraft', key: 'FAL_ADMIN_KEY', optional: true, url: 'https://api.fal.ai/v1/account/billing?expand=credits', unit: 'usd' },
 ];
 const finite = x => typeof x === 'number' && Number.isFinite(x) && x >= 0;
 export function parseBalance(provider, value) {
@@ -14,6 +16,11 @@ export function parseBalance(provider, value) {
     const renewal = finite(reset) && reset > 0 && reset * 1000 < 8.64e15 ? new Date(reset * 1000).toISOString() : null;
     return { available: Math.max(0, value.character_limit - value.character_count), unit: 'character', baseline: value.character_limit,
       renewal_date: renewal?.slice(0, 10) ?? null, details: { renewalAt: renewal } };
+  }
+  if (provider === 'recraft') {
+    const c = value?.credits;
+    return String(c?.currency ?? '').toUpperCase() === 'USD' && finite(c?.current_balance)
+      ? { available: c.current_balance, unit: 'usd', baseline: null, renewal_date: null, details: {} } : null;
   }
   if (provider === 'runway') return finite(value.creditBalance) ? { available: value.creditBalance, unit: 'credit', baseline: null, renewal_date: null, details: {} } : null;
   const d = value.data, w = d?.wallet;
@@ -38,9 +45,13 @@ export async function observe(env, request = fetch, now = () => new Date().toISO
   for (const p of providers) {
     const checked_at = now(); // Capture before billing GET; do not erase concurrent consumption.
     let balance = null, health = 'UNCHECKED', failure = 'credential_missing';
-    if (env[p.key]) {
+    const secret = env[p.key];
+    // Optional supplier (fal.ai): no credential configured ⇒ not observed at all (no hourly "missing" notices).
+    if (!secret && p.optional) continue;
+    if (secret) {
       try {
-        const headers = p.name === 'elevenlabs' ? { 'xi-api-key': env[p.key] } : p.name === 'heygen' ? { 'X-Api-Key': env[p.key] } : { Authorization: `Bearer ${env[p.key]}`, 'X-Runway-Version': '2024-11-06' };
+        const headers = p.name === 'elevenlabs' ? { 'xi-api-key': secret } : p.name === 'heygen' ? { 'X-Api-Key': secret }
+          : p.name === 'recraft' ? { Authorization: `Key ${secret}`, Accept: 'application/json' } : { Authorization: `Bearer ${secret}`, 'X-Runway-Version': '2024-11-06' };
         const r = await request(p.url, { method: 'GET', headers, redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(10_000) });
         health = r.ok ? 'OK' : r.status >= 500 ? 'DEGRADED' : 'DOWN';
         failure = r.ok ? 'balance_not_supported_or_invalid' : `http_${r.status}`;

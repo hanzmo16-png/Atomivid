@@ -34,7 +34,7 @@ async function main() {
   const drift = keys.filter(k => JSON.stringify(recomputed[k]) !== JSON.stringify(plan[k])).map(k => ({ field: k, persisted: plan[k], recomputed: recomputed[k] }));
   console.log("RECOMPUTE_DRIFT", JSON.stringify({ drift, allocationPersisted: plan.allocation, allocationRecomputed: recomputed.allocation }));
 
-  const pricing = getPricingConfig(), units = getGenerativeUnitCosts(plan.providers?.aiVideo), budget = getLongFormBudget();
+  const pricing = getPricingConfig(), units = getGenerativeUnitCosts(plan.providers?.aiVideo, plan.providers?.image), budget = getLongFormBudget();
   const limits = strategyLimits(plan.strategy, plan.estimatedVoiceCostUsd ?? 0, { aiVideoEnabled: plan.aiVideoAvailable ?? false, units });
   console.log("RATES_LOCAL_DEFAULTS", JSON.stringify({ elevenLabsUsdPer1kChars: pricing.elevenLabsUsdPer1kChars, imageUsd: units.imageUsd, aiVideoClipUsd: units.veoClipUsd,
     aiVideoBilledSecondsPerClip: units.veoBilledSeconds, longFormBudget: budget, strategyLimits: { maxAiImageGenerations: limits.maxAiImageGenerations, maxAiVideoClips: limits.maxAiVideoClips, maxGenerativeUsd: limits.maxGenerativeUsd } }));

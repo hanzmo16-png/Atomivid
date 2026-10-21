@@ -55,7 +55,7 @@ async function main() {
   check(projected <= CAP_USD, `projected spend ${projected} <= ${CAP_USD}`);
   const demands = jobSupplyDemands(row as never, plan.providers.voice);
   // Exactly what the deployed worker computes before its first paid call.
-  const units = getGenerativeUnitCosts(plan.providers.aiVideo), allocation = executionAllocation(plan);
+  const units = getGenerativeUnitCosts(plan.providers.aiVideo, plan.providers.image), allocation = executionAllocation(plan);
   const observed = await loadObservedMax(db, plan.providers);
   const conservative = conservativeUnits({ imageUsd: units.imageUsd, clipUsd: units.veoClipUsd, voiceUsdPer1kChars: getPricingConfig().elevenLabsUsdPer1kChars }, observed);
   const worstCase = conservativeWorstCaseUsd({ voiceCharacters: plan.voiceCharacters, allocation }, conservative);

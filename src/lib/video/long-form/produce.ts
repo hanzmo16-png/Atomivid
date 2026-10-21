@@ -42,6 +42,10 @@ import { getVideoProvider } from "@/lib/providers/video-gen";
 import { getVoiceIdentity } from "@/lib/ai/voice";
 import type { MusicResult, ScriptLanguage, VideoProvider } from "@/lib/providers/types";
 import { resolveLongFormProviders, type LongFormProviderSet } from "./mode";
+import { getRecraftImageProvider } from "@/lib/providers/image";
+import { allocateWithImagePriority, RECRAFT_PRIORITY_VERSION } from "./image-priority";
+import type { BeatType } from "./types";
+import { getVoiceProvider } from "@/lib/providers/voice";
 import { buildLongFormTimeline, type BeatSynthesizer } from "./timeline";
 import { shotsForSpan } from "./shots";
 import { assertOpeningValid, CoverValidationError, renderLongFormDoc, renderLongFormThumbnail, type RenderLongFormDocInput } from "./render";
@@ -73,6 +77,11 @@ import { VerifiedAssetRegistry } from "./verified-assets";
 import { MAX_TEXT_FALLBACK_RATIO, visualReleasePreflight } from "./visual-release-preflight";
 import { datedEventEvidenceBlockers, LongFormDatedEventEvidenceError } from "./dated-event-preflight";
 import { usesImpactDirection } from "./production-plan-types";
+import { authorizeRequestBudget, requestSpend, storageAuthorizationStore, withRequestBudget, type AuthorizationStore, type RequestBudgetAuthorization, type RequestSpend } from "./request-budget";
+import type { PilotStageEstimate } from "./pilot-budget-envelope";
+import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
+import type { ProductionTtsCostGuard as TtsCostGuard } from "./production-tts-cache";
+import { LongFormMaterialPreflightTemporaryError, LongFormMaterialUnavailableError, materialAvailabilityPreflight, type MaterialPreflight } from "./material-preflight";
 import { curatedSvgGraphic } from "./premium-composition";
 import type { LongFormCuratedSvgGraphic } from "../../../../remotion/LongFormDoc";
 import type { ExecutableSequence } from "./sequence-intent";
@@ -83,7 +92,7 @@ import { getPricingConfig } from "@/lib/billing/pricing";
 import { getLongFormBudget } from "./cost";
 import { conservativeUnits, conservativeWorstCaseUsd, loadObservedMax, productionHardCap, type ObservedMax } from "./spend-cap";
 import { supabaseShotAssetStore, type ShotAssetStore } from "./durable-shot-assets";
-import { executeShot, type ShotExecution } from "./shot-executor";
+import { createImageStyleContext, executeShot, type ImageStyleContext, type ShotExecution } from "./shot-executor";
 import { type LongFormStage } from "./stages";
 import {
   finalizeLongFormOutput,
@@ -119,6 +128,16 @@ type OnProgress = (stage: LongFormStage, units?: LongFormProgressUnits) => void 
 
 /** Dependencias inyectables (pruebas / inyección de fallos). En producción se omiten todas. */
 export type LongFormRuntime = {
+  /**
+   * ADVANCE 2: presupuesto TOTAL del pedido aplicado en el ledger (request-budget.ts). Por omisión activo.
+   * false solo para pruebas heredadas; `scriptScopes` inyecta el proyecto del ledger del guion (si no, se
+   * busca en documentary_script_jobs por request_id).
+   */
+  requestBudget?: false | { scriptScopes?: string[]; store?: AuthorizationStore; contingencyPct?: number; hardMaxUsd?: number; onAuthorized?: (a: RequestBudgetAuthorization, spentBefore: RequestSpend) => void };
+  /** ADVANCE 1: false desactiva el preflight de disponibilidad (solo pruebas heredadas que no lo modelan). */
+  materialPreflight?: boolean;
+  /** Observa el veredicto del preflight de material (diagnóstico/pruebas). */
+  onMaterialPreflight?: (verdict: MaterialPreflight) => void;
   /**
    * v4: registro de recursos verificados del SERVIDOR (ya rehidratado). Ausente = se rehidrata
    * desde `{requestId}/state/curation.json` (decisiones del curador; datos, no autoridad), o vacío.
@@ -166,6 +185,16 @@ export type LongFormRuntime = {
    * Si se pasa, REEMPLAZA la música de fondo única (nunca se suman: música doble).
    */
   soundCues?: RenderLongFormDocInput["soundCues"];
+  /** Voz elegida y guardada en la solicitud (reel_voice_id, validada al confirmar). Nunca se sustituye en silencio. */
+  voiceId?: string;
+  /**
+   * «Imágenes IA con Recraft» chosen for THIS documentary (stored on the request, revalidated by run-job.ts). Required
+   * exactly when the confirmed plan pins image provider "recraft"; AI images then use Recraft with this style and
+   * never fall back to stock, a text card or another provider (shot-executor.ts ChosenImageProviderError).
+   */
+  recraftStyle?: { styleId: string | null; referenceImageUrls: string[]; match: "precise" | "flexible" | null; styleNote: string | null;
+    onStyleId: (styleId: string) => Promise<void>; onMissingStyleId?: "stop" | "same_references"; styleMissing?: boolean;
+    onStyleMissing?: (providerJobId: string | undefined) => Promise<void> };
 };
 
 export class LongFormReplayError extends Error {
@@ -216,6 +245,26 @@ export class LongFormPendingMaterialError extends Error {
 
 export { isLongFormScriptJson, type LongFormScriptBeatInput, type LongFormScriptJson } from "./script-json";
 import type { LongFormScriptBeatInput } from "./script-json";
+
+/** La voz elegida no se pudo garantizar: se detiene ANTES de cualquier narración o reserva (sin sustitución). */
+export class LongFormChosenVoiceUnavailableError extends Error {
+  readonly recoverable = false;
+  constructor(readonly voiceId: string) {
+    super(`La voz elegida para este documental (${voiceId}) no está disponible en el proveedor de narración. No se usó otra voz ni se cobró nada.`);
+    this.name = "LongFormChosenVoiceUnavailableError";
+  }
+}
+
+/**
+ * Aplica la voz guardada en la solicitud al proveedor de narración. Real: instancia con esa voz. Inyectado (tests/banco):
+ * debe declarar la misma voz. Nunca se narra con otra voz en silencio; el fixture local (sin clave) no factura.
+ */
+export function withChosenVoice(set: LongFormProviderSet, voiceId: string | undefined, injected: boolean): LongFormProviderSet {
+  if (!voiceId) return set;
+  const voiceProvider = injected ? set.voiceProvider : getVoiceProvider(voiceId);
+  if (voiceProvider.name !== "fixture" && voiceProvider.voiceId !== voiceId) throw new LongFormChosenVoiceUnavailableError(voiceId);
+  return { ...set, voiceProvider };
+}
 
 export async function generateLongFormVideoFromScript({
   supabase,
@@ -276,13 +325,26 @@ export async function generateLongFormVideoFromScript({
     if (dated.length > 0) throw new LongFormDatedEventEvidenceError(dated);
   }
 
-  const resolvedProviders = providers ?? resolveLongFormProviders("real");
+  const chosenRecraft = plan.providers.image === "recraft";
+  // Replay-only recovery (no provider call at all) reuses stored images and needs neither the style nor FAL_KEY.
+  if (!replayOnly && chosenRecraft !== Boolean(runtime.recraftStyle)) {
+    throw new Error("La elección de imágenes de este documental no coincide con su plan confirmado. No se ha iniciado la generación.");
+  }
+  const baseProviders = withChosenVoice(providers ?? resolveLongFormProviders("real"), runtime.voiceId, Boolean(providers));
+  // The plan pins Recraft: the per-video provider replaces the environment's image provider (FAL_KEY checked here,
+  // before narration or any reservation). Injected test providers must already be "recraft".
+  const resolvedProviders: LongFormProviderSet = chosenRecraft && !providers && !replayOnly ? { ...baseProviders, imageProvider: getRecraftImageProvider() } : baseProviders;
+  if (chosenRecraft && !replayOnly && resolvedProviders.imageProvider.name !== "recraft") {
+    throw new Error("El plan confirmado usa imágenes de Recraft, pero el proveedor de imágenes resuelto es otro. No se ha iniciado la generación.");
+  }
+  const imageStyle: ImageStyleContext | undefined = runtime.recraftStyle && !replayOnly ? createImageStyleContext(runtime.recraftStyle) : undefined;
   const requireReal = !providers;
   const store = runtime.store ?? supabaseShotAssetStore(supabase, requestId, STORAGE_BUCKET);
   const allocation = executionAllocation(plan);
+  const anchored0 = usesAnchoredVisuals(plan);
   // Abrir el presupuesto (gratis) ANTES de cualquier llamada pagada: si el
   // storage no responde, el trabajo falla aquí con $0 gastado.
-  const units = getGenerativeUnitCosts(plan.providers.aiVideo);
+  const units = getGenerativeUnitCosts(plan.providers.aiVideo, plan.providers.image);
   // Hard cap BEFORE any paid call: conservative prices (never below the highest
   // cost already billed for the same call) applied to the confirmed allocation.
   const conservative = conservativeUnits({ imageUsd: units.imageUsd, clipUsd: units.veoClipUsd, voiceUsdPer1kChars: getPricingConfig().elevenLabsUsdPer1kChars },
@@ -298,6 +360,75 @@ export async function generateLongFormVideoFromScript({
       throw new Error("El plan confirmado requiere Runway, pero su conexión no está disponible. No se ha iniciado la generación.");
     }
   }
+  // ADVANCE 1 (material-preflight.ts): disponibilidad de material ANTES de la primera llamada pagada (voz).
+  // Búsquedas gratuitas en el proveedor de stock elegido, mismo criterio de elegibilidad que la selección real.
+  // Carencia inevitable → USD 0 y error claro; error temporal → recuperable, USD 0. La puerta final se mantiene.
+  if (anchored0 && !sequences && !replayOnly && runtime.materialPreflight !== false) {
+    const aiVideoForPlan = allocation.maxAiVideoClips > 0 && (runtime.videoProvider !== undefined ? runtime.videoProvider !== null : (runtime.aiVideoEnabled ?? isLongFormAiVideoConfigured()));
+    const material = await materialAvailabilityPreflight({
+      plan,
+      allocation,
+      beats: beats as ProductionPlanBeatInput[],
+      topic,
+      footageProvider: resolvedProviders.footageProvider,
+      aiVideoEnabled: aiVideoForPlan,
+      verifiedAssets,
+      completedStock: async (shotId) => {
+        const record = await store.read(shotId, "stock");
+        return record?.status === "COMPLETED" ? { sourceId: record.identity?.sourceId, canonicalUrl: record.identity?.canonicalUrl } : null;
+      },
+    });
+    runtime.onMaterialPreflight?.(material);
+    if (material.status === "unavoidable_gap") throw new LongFormMaterialUnavailableError(material.missing);
+    if (material.status === "temporary_error") throw new LongFormMaterialPreflightTemporaryError(material.temporary);
+  }
+  // ADVANCE 2: techo TOTAL del pedido (todas las etapas, calculador de PR173), aplicado en el ledger ANTES de
+  // la primera llamada pagada. Cuenta gasto previo del pedido (incl. investigación+guion), reservas pendientes y
+  // ambiguas, y la operación nueva. Un reintento relee la autorización guardada y nunca la amplía.
+  let ttsBudgetGuard: TtsCostGuard | undefined;
+  if (!replayOnly && runtime.requestBudget !== false) {
+    const rb = runtime.requestBudget || {};
+    const scriptScopes = rb.scriptScopes ?? (await defaultScriptScopes(supabase, requestId));
+    const scopes = [requestId, ...scriptScopes];
+    const inner = paidCalls.ledger;
+    if (!inner.listByProjects) throw new Error("El ledger no permite sumar el gasto del pedido: no se inicia una producción sin presupuesto total aplicable.");
+    const scriptOps = scriptScopes.length ? await inner.listByProjects(scriptScopes) : [];
+    const scriptSpent = requestSpend(scriptOps).totalUsd;
+    const musicName = resolvedProviders.musicProvider?.name ?? "none";
+    const musicEstimate = process.env.BEATOVEN_ESTIMATED_COST_USD;
+    const musicCeiling = musicName === "beatoven" ? (musicEstimate !== undefined && musicEstimate !== "" && Number.isFinite(Number(musicEstimate)) ? Number(musicEstimate) : null) : 0;
+    const stages: PilotStageEstimate[] = [
+      { stage: "research", ceilingUsd: 0, retryPolicy: "reuse_paid_results", note: "incluida en «script»: mismo proyecto del ledger del guion" },
+      { stage: "script", ceilingUsd: scriptSpent, retryPolicy: "reuse_paid_results", note: "gasto ya registrado (comprometido + pendiente/ambiguo) del guion e investigación" },
+      { stage: "style", ceilingUsd: 0, retryPolicy: "reuse_paid_results", note: chosenRecraft
+        ? "creación del estilo Recraft (USD 0.005) incluida en «images»: cada imagen se estima como si creara el estilo"
+        : "Long Form sin estilo propio: imágenes del proveedor por defecto" },
+      { stage: "voice", ceilingUsd: narrationUsd, retryPolicy: "reuse_paid_results" },
+      { stage: "images", ceilingUsd: conservative.imageUsd * allocation.maxAiImageGenerations, retryPolicy: "reuse_paid_results" },
+      { stage: "video", ceilingUsd: conservative.clipUsd * allocation.maxAiVideoClips, retryPolicy: "reuse_paid_results" },
+      { stage: "music", ceilingUsd: musicCeiling, retryPolicy: "reuse_paid_results", note: musicName === "beatoven" ? "BEATOVEN_ESTIMATED_COST_USD" : `proveedor ${musicName} sin cargo por llamada` },
+      // Render costeado (PRICING_RENDER_USD_PER_MINUTE): techo = intentos máximos × timeout del job long_form × tarifa.
+      { stage: "render", ceilingUsd: renderCeilingUsd(), retryPolicy: "reuse_paid_results", note: `cubre ${MAX_RENDER_ATTEMPTS} intentos × ${LONG_FORM_RENDER_JOB_TIMEOUT_MIN} min; cada intento factura sus minutos; fuera del ledger` },
+    ];
+    const auth = await authorizeRequestBudget({
+      requestId,
+      stages,
+      contingencyPct: rb.contingencyPct ?? Number(process.env.LONG_FORM_BUDGET_CONTINGENCY_PCT || "20"),
+      hardMaxUsd: rb.hardMaxUsd ?? getLongFormBudget().maxTotalUsd,
+      ledgerScopes: scopes,
+      store: rb.store ?? storageAuthorizationStore(supabase as never, STORAGE_BUCKET),
+    });
+    rb.onAuthorized?.(auth, requestSpend(await inner.listByProjects(auth.ledgerScopes)));
+    // El render no pasa por el ledger: su techo se descuenta del disponible para proveedores de pago.
+    const budgeted = withRequestBudget(inner, { ceilingUsd: Math.max(0, auth.ceilingUsd - (auth.stageCeilings.render ?? 0)), ledgerScopes: auth.ledgerScopes });
+    paidCalls.ledger = budgeted;
+    // La caché TTS marca STARTED antes del gate: el techo se comprueba ANTES (costGuard), sin escribir nada.
+    ttsBudgetGuard = {
+      estimateCostUsd: (text: string) => (text.length / 1000) * getPricingConfig().elevenLabsUsdPer1kChars,
+      assertCanSpend: (usd: number) => budgeted.precheck(usd, "tts"),
+      recordSpend: () => {},
+    };
+  }
   const uploadArtifact = runtime.uploadArtifact ?? ((path: string, buffer: Buffer, ct: string) => uploadToStorage(supabase, path, buffer, ct));
 
   await onProgress?.("scripting");
@@ -309,14 +440,15 @@ export async function generateLongFormVideoFromScript({
       ? (voiceProvider, beat, lang) =>
           loadProductionCachedBeatNarration(supabase, voiceProvider.name, beat, lang, {
             videoId: requestId,
-            voiceIdentity: getVoiceIdentity(lang === "en" ? "en" : "es"),
+            voiceIdentity: getVoiceIdentity(lang === "en" ? "en" : "es", runtime.voiceId),
           })
       : null) ??
     ((voiceProvider, beat, lang) =>
       synthesizeBeatNarrationProductionCached(supabase, voiceProvider, beat, lang, {
         ledger: paidCalls.ledger,
         videoId: requestId,
-        voiceIdentity: getVoiceIdentity(lang === "en" ? "en" : "es"),
+        voiceIdentity: getVoiceIdentity(lang === "en" ? "en" : "es", runtime.voiceId),
+        ...(ttsBudgetGuard ? { costGuard: ttsBudgetGuard } : {}),
       }));
   let synthesized = 0;
   const synthesizeWithProgress: BeatSynthesizer = async (voiceProvider, beat, lang) => {
@@ -374,7 +506,12 @@ export async function generateLongFormVideoFromScript({
     cinematic: usesVisualIdentity(plan),
   };
   const allShots = timeline.beats.flatMap((b) => b.shots);
-  const allocated = allocateShotTypes(allShots, timeline.durationSeconds, limits);
+  // Recraft-first plans (image-priority.ts): the worker re-applies the SAME prioritization to the real-duration shots,
+  // capped at the images the plan confirmed. Plans without `imagePriority` keep the strategy cycle exactly as before.
+  const allocated = plan.imagePriority?.version === RECRAFT_PRIORITY_VERSION
+    ? allocateWithImagePriority(allShots, new Map(beats.map((b) => [b.id, b.type as BeatType])), plan.imagePriority.plannedImages,
+      (s) => allocateShotTypes(s, timeline.durationSeconds, limits)).allocation
+    : allocateShotTypes(allShots, timeline.durationSeconds, limits);
   if (plannedShotCounts && allShots.length !== plan.shotCount && !replayOnly) {
     // Nunca en silencio: la duración real narrada no permitió respetar el
     // número de escenas confirmado (queda registrado en el presupuesto).
@@ -452,6 +589,7 @@ export async function generateLongFormVideoFromScript({
         topic,
         footageProvider: resolvedProviders.footageProvider,
         imageProvider: resolvedProviders.imageProvider,
+        ...(imageStyle ? { imageStyle } : {}),
         videoProvider,
         store,
         budget,
@@ -558,10 +696,11 @@ export async function generateLongFormVideoFromScript({
   // Puerta FINAL de entrega (v3+): ninguna escena con «Material pendiente» llega al render, a la música ni a la
   // subida. El informe visual ya quedó guardado; nada se borra. Sin reintento automático ni gasto adicional.
   const pendingScenes = (shotScenes as LongFormShotScene[]).filter((s) => s.pending).map((s) => ({ sceneId: s.id, reason: s.pending as string }));
-  if (pendingScenes.length > 0) throw new LongFormPendingMaterialError(pendingScenes, { scenes: shotScenes as LongFormShotScene[], captions });
+  const finalDurationSeconds = timeline.durationSeconds + VIDEO_TAIL_SECONDS;
+  // The prepared scenes reported with pending material are the ones that would render (same tail coverage).
+  if (pendingScenes.length > 0) throw new LongFormPendingMaterialError(pendingScenes, { scenes: coverVideoTail(shotScenes as LongFormShotScene[], finalDurationSeconds), captions });
 
   const fullNarrationText = beats.map((b) => b.narration).join(" ");
-  const finalDurationSeconds = timeline.durationSeconds + VIDEO_TAIL_SECONDS;
   let music: MusicResult | null = null;
   let musicFallbackReason: string | null = null;
   try {
@@ -614,7 +753,7 @@ export async function generateLongFormVideoFromScript({
     audioUrl: audioUpload.url,
     musicUrl: runtime.soundCues ? undefined : musicUrl,
     soundCues: runtime.soundCues,
-    scenes: shotScenes,
+    scenes: coverVideoTail(shotScenes, finalDurationSeconds),
     captions,
     narrationGaps,
     durationSeconds: finalDurationSeconds,
@@ -776,3 +915,32 @@ export function directAnchoredScenes(
   });
 }
 
+/**
+ * La última escena cubre la cola del video (VIDEO_TAIL_SECONDS tras la última palabra). Las escenas se planifican hasta el
+ * final de la voz; sin esto quedaban ~0,5 s sin imagen al final y, por redondeo binario (p. ej. 474.27200000000005 − 473.772),
+ * el preflight del render rechazaba el documental entero DESPUÉS de pagar voz e imágenes (ensayo R8).
+ */
+export function coverVideoTail<T extends { endSeconds: number }>(scenes: T[], durationSeconds: number): T[] {
+  if (scenes.length === 0) return scenes;
+  const last = scenes[scenes.length - 1];
+  if (last.endSeconds >= durationSeconds) return scenes;
+  return [...scenes.slice(0, -1), { ...last, endSeconds: durationSeconds }];
+}
+
+/** Proyecto(s) del ledger del guion/investigación de este pedido (documentary_script_jobs.request_id = video_requests.id). */
+async function defaultScriptScopes(supabase: SupabaseClient, requestId: string): Promise<string[]> {
+  if (typeof (supabase as { from?: unknown }).from !== "function") return [];
+  const { data, error } = await supabase.from("documentary_script_jobs").select("user_id,input").eq("request_id", requestId).maybeSingle();
+  if (error) throw new Error(`No se pudo leer el gasto del guion de este pedido (${error.message}); no se inicia sin presupuesto total.`);
+  if (!data) return [];
+  const { documentaryLedgerScopeFor } = await import("./script-jobs");
+  const scope = documentaryLedgerScopeFor(data as { user_id: string; input: unknown });
+  if (!scope) throw new Error("El guion de este pedido no permite localizar su gasto en el ledger; no se inicia sin presupuesto total.");
+  return [scope];
+}
+
+/** Minutos máximos del job de render long_form (timeout-minutes de .github/workflows/render.yml). */
+export const LONG_FORM_RENDER_JOB_TIMEOUT_MIN = 330;
+function renderCeilingUsd(): number {
+  return MAX_RENDER_ATTEMPTS * LONG_FORM_RENDER_JOB_TIMEOUT_MIN * getPricingConfig().renderUsdPerMinute;
+}

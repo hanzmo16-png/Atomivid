@@ -1,0 +1,24 @@
+name: fal Recraft contract (public schema, no key, no cost)
+
+# Verifies that fal.ai's public OpenAPI document for recraft/v4/style/text-to-image still exposes every field the
+# adapter (src/lib/providers/image/recraft.ts) relies on. No secret is available to this job and nothing is generated.
+on:
+  pull_request:
+    paths:
+      - 'src/lib/providers/image/recraft*.ts'
+      - 'scripts/fal/**'
+      - '.github/workflows/fal-recraft-contract.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check the public fal OpenAPI schema for Recraft V4 Styles
+        run: node scripts/fal/check-recraft-contract.mjs

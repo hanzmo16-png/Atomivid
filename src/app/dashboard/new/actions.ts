@@ -18,6 +18,9 @@ import { CLAIM_MESSAGES, createAvatarOnce, isDuplicateUpload, photoClaimPath } f
 import { insertCanonicalAvatar } from "@/lib/video/avatar/canonical-row";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { redirect } from "next/navigation";
+import { parseRecraftSelection } from "@/lib/video/recraft-reel";
+import { storeRecraftReferences } from "@/lib/video/recraft-reel-server";
+import { recraftAllowedFor } from "@/lib/video/recraft-access";
 import { checkProductionForRequest } from "@/lib/supply/production-check";
 import { formProduction, type ScriptChoice } from "@/lib/video/form-production";
 import { MAX_NARRATION_CHARS } from "@/lib/video/narration-fit";
@@ -128,6 +131,23 @@ export async function createVideoRequest(formData: FormData) {
     catch {
       redirect(formErrorUrl("No se pudo confirmar la voz seleccionada. Vuelve a elegirla o usa la voz predeterminada; no se ha creado ni cobrado nada."));
     }
+    // «Imágenes IA con Recraft»: explicit per-video choice, validated here (never trusted from the browser).
+    // Reference images are stored in our bucket; nothing is sent to fal.ai and nothing is paid at creation.
+    const refFiles = formData.getAll("recraft_style_refs").filter((f): f is File => typeof f !== "string" && f.size > 0);
+    const recraftChoice = parseRecraftSelection({ source: formData.get("reel_image_source"), styleId: formData.get("recraft_style_id"),
+      match: formData.get("recraft_style_match"), styleNote: formData.get("recraft_style_note"), referenceCount: refFiles.length, onMissingStyleId: formData.get("recraft_style_missing") }, recraftAllowedFor(user));
+    if ("error" in recraftChoice) redirect(formErrorUrl(recraftChoice.error));
+    let recraftColumns: Record<string, unknown> = {};
+    if (recraftChoice.source === "recraft") {
+      let referencePaths: string[] = [];
+      if (!recraftChoice.styleId) {
+        const stored = await storeRecraftReferences(createServiceClient(), `${requestId}/recraft-style`, refFiles);
+        if ("error" in stored) redirect(formErrorUrl(stored.error));
+        referencePaths = stored.paths;
+      }
+      recraftColumns = { reel_image_source: "recraft", reel_recraft_style: { styleId: recraftChoice.styleId, referencePaths,
+        match: recraftChoice.match, styleNote: recraftChoice.styleNote, onMissingStyleId: recraftChoice.onMissingStyleId } };
+    }
     // Persist the server's total provider limit before any script, voice or image can be paid.
     // Invalid configuration or an absent schema must stop creation, never silently drop the cap.
     let providerSpendCap: number;
@@ -149,6 +169,7 @@ export async function createVideoRequest(formData: FormData) {
       status: "pending",
       provider_spend_cap_usd: providerSpendCap,
       ...(reelVoiceId ? { reel_voice_id: reelVoiceId } : {}),
+      ...recraftColumns,
       script_json: form.draft,
     });
 

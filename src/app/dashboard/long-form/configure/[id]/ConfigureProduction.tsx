@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ReelImageSourcePicker } from "@/app/dashboard/new/ReelImageSourcePicker";
+import { ReelVoicePicker } from "@/app/dashboard/new/ReelVoicePicker";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -128,17 +130,31 @@ export function PlanSummary({ plan }: { plan: ProductionPlan }) {
         <Row label="Duración estimada" value={`~${formatDuration(plan.durationSeconds)}`} />
         <Row label="Escenas" value={String(plan.shotCount)} />
         <Row label="Video e imagen de archivo" value={String(plan.stockVideoCount + plan.stockImageCount)} />
-        <Row label="Imágenes generadas por IA" value={String(plan.aiImageCount)} />
+        <Row label={plan.imagePriority ? "Imágenes originales (Recraft)" : "Imágenes generadas por IA"} value={String(plan.aiImageCount)} />
+        {plan.imagePriority && <>
+          <Row label="· en la apertura / momentos clave" value={`${plan.imagePriority.openingImages} / ${plan.imagePriority.keyMomentImages}`} />
+          <Row label="· reserva para regenerar defectos" value={String(plan.imagePriority.regenerationReserve)} />
+          {plan.imagePriority.protectedScenes > 0 && <Row label="· escenas que exigen material auténtico" value={String(plan.imagePriority.protectedScenes)} />}
+        </>}
         <Row label="Clips de video IA" value={String(plan.aiVideoClipCount)} />
         <Row label="Segundos de video IA" value={plan.aiVideoClipCount > 0 ? `${Math.round(plan.aiVideoSeconds)} s` : "0 s"} />
         <Row label="Tarjetas de texto" value={String(plan.deterministicCount)} />
       </dl>
       <dl className="mt-3 rounded-md bg-surface-raised px-3 py-2">
         {plan.estimatedVoiceCostUsd !== undefined && <Row label="Narración" value={USD.format(plan.estimatedVoiceCostUsd)} />}
-        {plan.estimatedImageCostUsd !== undefined && <Row label="Imágenes IA" value={USD.format(plan.estimatedImageCostUsd)} />}
+        {plan.estimatedImageCostUsd !== undefined && <Row label={plan.imagePriority ? "Imágenes Recraft (techo: estilo + generaciones + reserva)" : "Imágenes IA"} value={USD.format(plan.estimatedImageCostUsd)} />}
         {plan.estimatedAiVideoCostUsd !== undefined && <Row label="Video IA" value={USD.format(plan.estimatedAiVideoCostUsd)} />}
         <Row label="Costo estimado de producción" value={USD.format(plan.estimatedProviderCostUsd)} />
       </dl>
+      {plan.imagePriority && (
+        <p className="mt-2 text-xs text-ink-muted">
+          Recraft va primero en la apertura y los momentos clave, hasta el presupuesto de imágenes
+          (USD {plan.imagePriority.perImageUsd.toFixed(3)} por imagen, creación del estilo incluida). El resto usa material de
+          archivo solo si corresponde a lo narrado; si no hay, la escena muestra su propio texto, nunca un relleno ajeno.
+          Las escenas que deben mostrar una persona real o una prueba documental nunca se recrean con IA. Cada imagen generada
+          pasa un control automático (encuadre, resolución, imagen vacía) y queda pendiente de tu revisión: generada no es aprobada.
+        </p>
+      )}
       <p className="mt-2 text-xs text-ink-faint">
         Estimación de costo de proveedores (no incluye el guion ya generado). Todavía no hay un sistema de créditos: no se
         descuenta ningún saldo. La producción nunca supera las cantidades de este plan.
@@ -165,32 +181,48 @@ export function PlanSummary({ plan }: { plan: ProductionPlan }) {
  */
 export function ConfigureProduction({
   requestId,
-  plans,
-  preflight,
+  plans: defaultPlans,
+  preflight: defaultPreflight,
+  recraftPlans,
+  recraftPreflight,
   visual,
   summary,
   visualBlockText = null,
   defaultPackaging,
   ownChannel = false,
+  language = "es",
 }: {
   requestId: string;
   plans: Record<VisualStrategy, ProductionPlan>;
   preflight?: Record<VisualStrategy, StrategyPreflight>;
+  /** Present only when this account may choose «Imágenes IA con Recraft» (decided on the server). */
+  recraftPlans?: Record<VisualStrategy, ProductionPlan>;
+  recraftPreflight?: Record<VisualStrategy, StrategyPreflight>;
   visual?: VisualCheck;
   summary?: PreflightSummary;
   visualBlockText?: string | null;
   /** Presentación para YouTube inicial (activada por defecto solo en los canales propios). */
   defaultPackaging?: LongFormPackaging;
   ownChannel?: boolean;
+  /** Idioma del documental: catálogo de voces de ese idioma. */
+  language?: "es" | "en";
 }) {
   const router = useRouter();
+  // Recraft first for new productions when this account may use it (owner decision 2026-10-21).
+  const [imageSource, setImageSource] = useState<"default" | "recraft">(recraftPlans ? "recraft" : "default");
+  const [voiceId, setVoiceId] = useState("");
+  const useRecraft = imageSource === "recraft" && !!recraftPlans;
+  const plans = useRecraft ? recraftPlans : defaultPlans;
+  const imageForm = useRef<HTMLFormElement>(null);
   const [strategy, setStrategy] = useState<VisualStrategy>("balanced");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [packaging, setPackaging] = useState<LongFormPackaging | undefined>(defaultPackaging);
   const [packagingValid, setPackagingValid] = useState(true);
   const onValidityChange = useCallback((valid: boolean) => setPackagingValid(valid), []);
-  const [livePreflight, setLivePreflight] = useState(preflight);
+  const [liveDefault, setLiveDefault] = useState(defaultPreflight);
+  const [liveRecraft, setLiveRecraft] = useState(recraftPreflight);
+  const livePreflight = useRecraft ? liveRecraft : liveDefault;
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [checkedAt, setCheckedAt] = useState<string | null>(null);
@@ -213,9 +245,10 @@ export function ConfigureProduction({
     setNowMs(started);
     try {
       const res = await fetch(`/api/generate/${requestId}/refresh-capacity`, { method: "POST" });
-      const result = await safeParseJsonResponse<{ preflight: Record<VisualStrategy, StrategyPreflight>; checkedAt: string }>(res);
+      const result = await safeParseJsonResponse<{ preflight: Record<VisualStrategy, StrategyPreflight>; recraftPreflight?: Record<VisualStrategy, StrategyPreflight>; checkedAt: string }>(res);
       if (!result.ok) throw new Error(result.error);
-      setLivePreflight(result.data.preflight);
+      setLiveDefault(result.data.preflight);
+      if (result.data.recraftPreflight) setLiveRecraft(result.data.recraftPreflight);
       setCheckedAt(result.data.checkedAt);
     } catch (err) {
       setRefreshError(`No se pudo actualizar la disponibilidad: ${classifyClientFetchError(err)}`);
@@ -240,11 +273,18 @@ export function ConfigureProduction({
     setError(null);
     let confirmed = false;
     try {
-      const confirmRes = await fetch(`/api/generate/${requestId}/confirm-production`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(packaging ? { strategy, packaging } : { strategy }),
-      });
+      let confirmInit: RequestInit;
+      if (useRecraft && imageForm.current) {
+        // Recraft choice (+ optional reference images) travels as multipart; the server validates and stores it.
+        const body = new FormData(imageForm.current);
+        body.set("strategy", strategy);
+        if (packaging) body.set("packaging", JSON.stringify(packaging));
+        if (voiceId) body.set("voice_id", voiceId);
+        confirmInit = { method: "POST", body };
+      } else {
+        confirmInit = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ strategy, ...(packaging ? { packaging } : {}), ...(voiceId ? { voice_id: voiceId } : {}) }) };
+      }
+      const confirmRes = await fetch(`/api/generate/${requestId}/confirm-production`, confirmInit);
       const confirmResult = await safeParseJsonResponse(confirmRes);
       if (!confirmResult.ok) throw new Error(confirmResult.error);
       confirmed = true;
@@ -307,6 +347,18 @@ export function ConfigureProduction({
           );
         })}
       </fieldset>
+
+      <Card className="mt-4 p-4">
+        <ReelVoicePicker key={language} language={language} onSelect={setVoiceId} />
+      </Card>
+
+      {recraftPlans && (
+        <Card className="mt-4 p-4">
+          <form ref={imageForm} onSubmit={(e) => e.preventDefault()}>
+            <ReelImageSourcePicker format="long_form" disabled={loading} onSourceChange={setImageSource} />
+          </form>
+        </Card>
+      )}
 
       <Card className="mt-4 p-4">
         <h2 className="text-sm font-medium text-ink">Plan de producción</h2>

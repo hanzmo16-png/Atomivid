@@ -9,6 +9,7 @@ import { VISUAL_STRATEGIES, type VisualStrategy } from "@/lib/video/long-form/pr
 import { strategyPreflight, type StrategyPreflight } from "@/lib/video/long-form/production-preflight";
 import { refreshDemandedCapacity } from "@/lib/video/long-form/refresh-capacity";
 import { jobSupplyDemands } from "@/lib/supply/job";
+import { recraftAllowedFor } from "@/lib/video/recraft-access";
 
 /**
  * "Actualizar disponibilidad" (Configurar): solo el dueño de la solicitud. Consulta el saldo (GET de
@@ -23,11 +24,16 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const lookup = await lookupConfigurableRequest(supabase, user, id, canAccessLongFormBeta(user));
   if (lookup.kind !== "ok") return NextResponse.json({ error: "Solicitud no disponible para configurar." }, { status: 404 });
   const script = lookup.data.script_json;
-  const results = configurePlans({ script, topic: lookup.data.topic, durationSeconds: lookup.data.duration_seconds, cinematicV6: cinematicV6Enabled(user) });
+  const base = { script, topic: lookup.data.topic, durationSeconds: lookup.data.duration_seconds, cinematicV6: cinematicV6Enabled(user) };
+  const results = configurePlans(base);
+  // Accounts that may choose Recraft also get the Recraft-priced plans re-checked (same as the Configure page).
+  const recraftResults = recraftAllowedFor(user) ? configurePlans({ ...base, imageProvider: "recraft" }) : null;
   const service = createServiceClient();
-  const providers = VISUAL_STRATEGIES.flatMap((s) => jobSupplyDemands({ mode: "long_form", script_json: script, recorded_audio_path: null, long_form_production_plan: results[s].plan }, results[s].plan.providers.voice).map((d) => d.provider));
+  const all = [results, ...(recraftResults ? [recraftResults] : [])];
+  const providers = [...new Set(all.flatMap((r) => VISUAL_STRATEGIES.flatMap((s) => jobSupplyDemands({ mode: "long_form", script_json: script, recorded_audio_path: null, long_form_production_plan: r[s].plan }, r[s].plan.providers.voice).map((d) => d.provider))))];
   const outcome = await refreshDemandedCapacity(service, providers);
-  const preflight = Object.fromEntries(await Promise.all(VISUAL_STRATEGIES.map(async (strategy) =>
-    [strategy, await strategyPreflight(service, { strategy, plan: results[strategy].plan, scriptJson: script, refreshErrors: outcome.errors })]))) as Record<VisualStrategy, StrategyPreflight>;
-  return NextResponse.json({ preflight, checkedAt: new Date().toISOString(), refreshed: outcome.refreshed, reused: outcome.reused, manual: outcome.manual });
+  const check = async (r: typeof results) => Object.fromEntries(await Promise.all(VISUAL_STRATEGIES.map(async (strategy) =>
+    [strategy, await strategyPreflight(service, { strategy, plan: r[strategy].plan, scriptJson: script, refreshErrors: outcome.errors })]))) as Record<VisualStrategy, StrategyPreflight>;
+  const [preflight, recraftPreflight] = await Promise.all([check(results), recraftResults ? check(recraftResults) : Promise.resolve(undefined)]);
+  return NextResponse.json({ preflight, ...(recraftPreflight ? { recraftPreflight } : {}), checkedAt: new Date().toISOString(), refreshed: outcome.refreshed, reused: outcome.reused, manual: outcome.manual });
 }

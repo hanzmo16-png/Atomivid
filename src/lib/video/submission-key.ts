@@ -33,6 +33,20 @@ export async function intentFingerprint(formData: FormData): Promise<Record<stri
     out[k] = typeof v === "string" ? v.trim()
       : { sha256: createHash("sha256").update(Buffer.from(await v.arrayBuffer())).digest("hex"), size: v.size, type: v.type };
   }
+  // «Imágenes IA con Recraft»: part of the intent ONLY when chosen, so every existing (default) request id is unchanged.
+  if (String(formData.get("mode") ?? "visual").trim() === "visual" && String(formData.get("reel_image_source") ?? "").trim() === "recraft") {
+    out.reel_image_source = "recraft";
+    for (const k of ["recraft_style_id", "recraft_style_match", "recraft_style_note"]) {
+      const v = formData.get(k);
+      if (typeof v === "string" && v.trim()) out[k] = v.trim();
+    }
+    const refs = [];
+    for (const f of formData.getAll("recraft_style_refs")) {
+      if (typeof f === "string" || f.size === 0) continue;
+      refs.push({ sha256: createHash("sha256").update(Buffer.from(await f.arrayBuffer())).digest("hex"), size: f.size, type: f.type });
+    }
+    if (refs.length) out.recraft_style_refs = refs;
+  }
   return out;
 }
 

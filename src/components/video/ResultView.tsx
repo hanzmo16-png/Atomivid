@@ -8,6 +8,7 @@ import { LinkButton } from "@/components/ui/Button";
 import { GenerateButton } from "@/app/dashboard/GenerateButton";
 import type { AvatarRecovery } from "@/lib/video/avatar/recovery";
 import { ModeBadge } from "./ModeBadge";
+import { LongFormResult } from "./LongFormResult";
 import { ProductionProgressCard } from "./ProductionProgressCard";
 import { RENDER_STAGE_LABEL, approximateRenderProgress, type RenderStage } from "@/lib/video/stages";
 import { LONG_FORM_STAGE_LABEL, type LongFormStage } from "@/lib/video/long-form/stages";
@@ -222,7 +223,13 @@ export function ResultView({
           </div>
         ))}
 
-        {request.status === "completed" && videoUrl && (
+        {/* Finished documentary: player continuity across link renewals lives in a client component,
+            remounted per request so nothing carries over to another video or account. */}
+        {request.status === "completed" && isLongForm && (
+          <LongFormResult key={request.id} requestId={request.id} videoUrl={videoUrl ?? null} thumbnailUrl={thumbnailUrl ?? null}
+            thumbnailRequested={thumbnailRequested} isLandscape={isLandscape} />
+        )}
+        {request.status === "completed" && !isLongForm && videoUrl && (
           <div className="flex flex-col items-center gap-4">
             <video
               src={videoUrl}
@@ -267,7 +274,7 @@ export function ResultView({
             )}
           </div>
         )}
-        {request.status === "completed" && !videoUrl && (
+        {request.status === "completed" && !isLongForm && !videoUrl && (
           <Alert tone="danger" role="alert">
             No se pudo generar el enlace de descarga. Recarga la página para intentarlo de
             nuevo.

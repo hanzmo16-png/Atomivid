@@ -14,6 +14,7 @@ import { defaultPackaging, isOwnChannelAccount } from "@/lib/video/long-form/pac
 import { PRODUCT_DEFAULT_PLAN_VERSION, usesAnchoredVisuals } from "@/lib/video/long-form/production-plan-types";
 import { configurePlans } from "@/lib/video/long-form/product-plan";
 import { cinematicV6Enabled } from "@/lib/video/long-form/cinematic-v6-access";
+import { recraftAllowedFor } from "@/lib/video/recraft-access";
 import { createServiceClient } from "@/lib/supabase/service";
 import { canCurateAssets } from "@/lib/video/long-form/asset-curation";
 import type { ProductionPlanBeatInput } from "@/lib/video/long-form/production-plan";
@@ -54,15 +55,21 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
   const engine = results.balanced;
   // Pre-flight (read-only, server-side): same capacity rule as the start click and same visual gate as the worker.
   const service = createServiceClient();
-  const preflight = Object.fromEntries(await Promise.all(VISUAL_STRATEGIES.map(async (strategy) =>
-    [strategy, await strategyPreflight(service, { strategy, plan: plans[strategy], scriptJson: script })]))) as Record<VisualStrategy, StrategyPreflight>;
+  // «Imágenes IA con Recraft» (pilot account or general release): the same plans priced/pinned for Recraft, and their
+  // own pre-flight (Recraft supply) — shown only when the creator picks it; confirm-production recomputes server-side.
+  const recraftAllowed = recraftAllowedFor(user);
+  const recraftPlans = recraftAllowed ? Object.fromEntries(Object.entries(configurePlans({ script, topic: data.topic, durationSeconds: data.duration_seconds, cinematicV6, imageProvider: "recraft" }))
+    .map(([s, r]) => [s, r.plan])) as Record<VisualStrategy, ProductionPlan> : undefined;
+  const check = async (set: Record<VisualStrategy, ProductionPlan>) => Object.fromEntries(await Promise.all(VISUAL_STRATEGIES.map(async (strategy) =>
+    [strategy, await strategyPreflight(service, { strategy, plan: set[strategy], scriptJson: script })]))) as Record<VisualStrategy, StrategyPreflight>;
+  const [preflight, recraftPreflight] = await Promise.all([check(plans), recraftPlans ? check(recraftPlans) : Promise.resolve(undefined)]);
   const visual = await visualCheck(service, { requestId: id, plan: plans.balanced, beats: beats as ProductionPlanBeatInput[], topic: script.topic || data.topic })
     .catch((): VisualCheck => ({ applies: true, ready: false, codes: ["VISUAL_CHECK_UNAVAILABLE"], missingHeroIdentities: 0, missingHeroEvidence: 0, textCardRatio: null, maxTextCardRatio: 0.25, verifiedAssets: 0 }));
   const summary = {
     modality: "Documental largo (Long Form, 16:9)",
     engine: engine.engine === "cinematic-v6" ? "Cinematic V6 (plan v6)" : `Plan estándar (v${plans.balanced.version})`,
     requestedSeconds: data.duration_seconds ?? null,
-    voice: plans.balanced.providers.voice === "elevenlabs" ? "ElevenLabs · voz de narración configurada del producto" : plans.balanced.providers.voice,
+    voice: plans.balanced.providers.voice === "elevenlabs" ? "ElevenLabs · la voz que elijas abajo (predeterminada del producto si no eliges)" : plans.balanced.providers.voice,
     curationPath: visual.applies && canCurateAssets(user) ? `/dashboard/admin/curation/${id}` : null,
   };
 
@@ -136,10 +143,13 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
         requestId={id}
         plans={plans}
         preflight={preflight}
+        recraftPlans={recraftPlans}
+        recraftPreflight={recraftPreflight}
         visual={visual}
         summary={summary}
         visualBlockText={visual.ready ? null : visualBlockMessage(visual)}
         ownChannel={ownChannel}
+        language={data.language === "en" ? "en" : "es"}
         defaultPackaging={usesAnchoredVisuals(plans.balanced) ? defaultPackaging({ topic: script.topic || data.topic, ownChannel }) : undefined}
       />
     </div>

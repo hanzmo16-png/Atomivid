@@ -27,6 +27,7 @@ import { usesAnchoredVisuals, usesVisualIdentity } from "./production-plan-types
 import { datedEventBlockMessage, datedEventEvidenceBlockers } from "./dated-event-preflight";
 import type { ProductionPlanBeatInput } from "./production-plan";
 import { visualBlockMessage, visualCheck, type VisualCheck } from "./production-preflight";
+import type { ReelRecraftStyle } from "@/lib/video/recraft-reel";
 
 export function isVisualStrategyValue(value: unknown): value is VisualStrategy {
   return typeof value === "string" && (VISUAL_STRATEGIES as readonly string[]).includes(value);
@@ -60,6 +61,18 @@ export async function confirmLongFormProduction(
     cinematicV6?: boolean;
     /** Tests only: replaces the visual release check (production always uses visualCheck). */
     visualGate?: (plan: ProductionPlan) => Promise<VisualCheck>;
+    /**
+     * «Imágenes IA con Recraft», already validated and permitted by the route (recraftAllowedFor + parseRecraftSelection,
+     * references stored in our bucket). The plan pins image provider "recraft" and the choice is written in the SAME
+     * conditional update as the confirmation (DB trigger: immutable afterwards). Absent = default (OpenAI) images.
+     */
+    recraft?: ReelRecraftStyle;
+    /**
+     * Voz de narración elegida para ESTE documental, ya validada por la ruta contra el catálogo del usuario
+     * (resolveReelVoiceSelection: voces privadas solo con su concesión). Se escribe en el MISMO UPDATE condicional que
+     * confirma (trigger: inmutable después). Ausente = voz predeterminada del producto, como siempre.
+     */
+    voiceId?: string;
   },
 ): Promise<ConfirmProductionResult> {
   if (!isVisualStrategyValue(input.strategy)) return { ok: false, status: 400, error: "Estrategia visual inválida" };
@@ -101,7 +114,7 @@ export async function confirmLongFormProduction(
     })),
     topic: data.script_json.topic || data.topic || "",
     strategy,
-    providers: getRealLongFormProviderNames(),
+    providers: { ...getRealLongFormProviderNames(), ...(input.recraft ? { image: "recraft" } : {}) },
     requestedDurationSeconds: data.duration_seconds ?? undefined,
     cinematicV6: input.cinematicV6 === true,
   });
@@ -131,7 +144,9 @@ export async function confirmLongFormProduction(
   const confirmedAt = input.nowIso ?? new Date().toISOString();
   const { data: updated, error: updateError } = await service
     .from("video_requests")
-    .update({ long_form_production_plan: plan, long_form_confirmed_at: confirmedAt })
+    .update({ long_form_production_plan: plan, long_form_confirmed_at: confirmedAt,
+      ...(input.recraft ? { reel_image_source: "recraft", reel_recraft_style: input.recraft } : {}),
+      ...(input.voiceId ? { reel_voice_id: input.voiceId } : {}) })
     .eq("id", input.requestId)
     .eq("user_id", input.userId)
     .eq("status", "script_ready")

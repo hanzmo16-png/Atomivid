@@ -88,6 +88,8 @@ export interface VoiceProvider {
    * = velocidad normal del proveedor.
    */
   synthesize(text: string, language?: ScriptLanguage, speed?: number): Promise<VoiceResult>;
+  /** Voz fija de esta instancia (elegida por el usuario). Ausente = voz predeterminada del idioma. */
+  readonly voiceId?: string;
 }
 
 /**
@@ -258,6 +260,8 @@ export type GenerativeAsset = {
    * ignorarse o descartarse al integrarlo, nunca lo elimina por sí mismo.
    */
   sourceHasGeneratedAudio?: boolean;
+  /** Recraft V4 Styles: style_id the provider used or CREATED for this image (persist per video and reuse). */
+  styleId?: string;
 };
 
 /** Error base para cualquier fallo de un proveedor generativo — siempre tipado, nunca un Error genérico. */
@@ -326,6 +330,11 @@ export type ImageGenerationRequest = {
   aspectRatio: "9:16" | "16:9";
   /** Presupuesto máximo para ESTE recurso — el proveedor debe rechazar (BUDGET_EXCEEDED) antes de pedir si lo excedería, no después. */
   maxCostUsd: number;
+  /**
+   * Per-video style chosen EXPLICITLY by the user (Recraft V4 Styles only; other providers ignore it).
+   * styleId reuses a saved style; referenceImageUrls (1-10, PNG/JPG/WEBP) create one on the first call.
+   */
+  style?: { styleId?: string; referenceImageUrls?: string[]; match?: "precise" | "flexible" };
 };
 
 export interface ImageProvider {
@@ -333,6 +342,15 @@ export interface ImageProvider {
   readonly capabilities: GenerativeCapabilities;
   isAvailable(): boolean;
   generateImage(request: ImageGenerationRequest): Promise<GenerativeAsset>;
+  /**
+   * Optional two-phase (queue) contract. submitImage returns the provider job id as soon as the provider ACCEPTED
+   * the request, so the caller can persist it in the ledger BEFORE polling; resumeImage(jobId) polls/fetches that
+   * same job (also after a worker interruption) and never resubmits.
+   */
+  submitImage?(request: ImageGenerationRequest): Promise<{ providerJobId: string }>;
+  resumeImage?(providerJobId: string, request: ImageGenerationRequest): Promise<GenerativeAsset>;
+  /** Cost the provider would charge for this request, computed BEFORE submitting (USD). */
+  estimateCostUsd?(request: ImageGenerationRequest): number;
 }
 
 export type VideoGenerationRequest = {

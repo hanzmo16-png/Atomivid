@@ -62,6 +62,12 @@ export type PaidCallHooks<T> = {
   call: (ctx: { key: string; attemptOrdinal: number }) => Promise<PaidCallResult<T>>;
   /** Load a previously committed result from its reference; null when it is not there. */
   load: (resultRef: string, ctx: { key: string }) => Promise<T | null>;
+  /**
+   * Two-phase providers (queue APIs): submit ONLY, returning the provider job id the moment the provider accepted.
+   * The gate records it (PROVIDER_JOB_RECORDED) BEFORE any polling, then completes through `resume`. Requires
+   * `resume`; when present `call` is not used for this attempt.
+   */
+  submit?: (ctx: { key: string; attemptOrdinal: number }) => Promise<{ providerJobId: string }>;
   /** Resume a PROVIDER_JOB_RECORDED job without resubmitting (optional; absent = reconcile). */
   resume?: (providerJobId: string, ctx: { key: string }) => Promise<PaidCallResult<T>>;
   classify?: (err: unknown) => PaidCallClassification;
@@ -182,6 +188,7 @@ export async function guardPaidCall<T>(store: LedgerStore, rawSpec: PaidCallSpec
     const port: ProviderPort = {
       async submit() {
         calledNow = true;
+        if (hooks.submit && hooks.resume) return { providerJobId: (await hooks.submit({ key, attemptOrdinal: ordinal })).providerJobId };
         captured = await hooks.call({ key, attemptOrdinal: ordinal });
         captured = { ...captured, costUsd: ledgerUsd(captured.costUsd, "committed_usd") };
         return { providerJobId: captured.providerJobId ?? `sync:${key}` };

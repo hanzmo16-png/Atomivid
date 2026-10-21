@@ -35,6 +35,8 @@ import { getPricingConfig } from "@/lib/billing/pricing";
 import { ESTIMATED_COST_USD as OPENAI_IMAGE_ESTIMATED_COST_USD } from "@/lib/providers/image/openai";
 import { VEO_DURATION_SECONDS_1080P, getVeoCostUsdPerSecond } from "@/lib/providers/video-gen/veo";
 import { RUNWAY_COST_USD_PER_SECOND } from "@/lib/providers/video-gen/runway";
+import { RECRAFT_USD_PER_IMAGE, RECRAFT_USD_STYLE_CREATION } from "@/lib/providers/image/recraft";
+import { allocateWithImagePriority, recraftImageBudget, RECRAFT_PRIORITY_VERSION, type ImagePriorityPlan } from "./image-priority";
 import type { BeatType, Shot, ShotType } from "./types";
 import { PLAN_ESTIMATE_AVAILABILITY, declaresImpact, resolveSequences, validateImpactIntents, validateSequenceIntents, type SequenceIntent } from "./sequence-intent";
 import { planSequenceShots } from "./sequence-direction";
@@ -102,15 +104,25 @@ export type GenerativeUnitCosts = {
   veoBilledSeconds: number;
 };
 
-export function getGenerativeUnitCosts(provider = "veo"): GenerativeUnitCosts {
+/** Image providers a Long Form plan may pin. "recraft" only when the creator chose it for this video. */
+export const LONG_FORM_IMAGE_PROVIDERS = ["openai", "recraft"] as const;
+
+/** Estimated price of ONE AI image of the plan's image provider. Recraft is priced as if every image also created
+ * the style (USD 0.035 + 0.005): only the first one does, so the estimate is a ceiling, never below the bill. */
+export function imageUnitUsd(imageProvider = "openai"): number {
+  return imageProvider === "recraft" ? round4(RECRAFT_USD_PER_IMAGE + RECRAFT_USD_STYLE_CREATION) : OPENAI_IMAGE_ESTIMATED_COST_USD;
+}
+
+export function getGenerativeUnitCosts(provider = "veo", imageProvider = "openai"): GenerativeUnitCosts {
+  const imageUsd = imageUnitUsd(imageProvider);
   // Product shots last up to 8s. Reserve a 10s Runway clip to cover motion/cut margins.
   if (provider === "runway") return {
-    imageUsd: OPENAI_IMAGE_ESTIMATED_COST_USD,
+    imageUsd,
     veoClipUsd: round4(10 * RUNWAY_COST_USD_PER_SECOND),
     veoBilledSeconds: 10,
   };
   return {
-    imageUsd: OPENAI_IMAGE_ESTIMATED_COST_USD,
+    imageUsd,
     veoClipUsd: round4(VEO_DURATION_SECONDS_1080P * getVeoCostUsdPerSecond()),
     veoBilledSeconds: VEO_DURATION_SECONDS_1080P,
   };
@@ -378,11 +390,28 @@ export function computeProductionPlan(input: {
   const voiceCostUsd = round4((voiceCharacters / 1000) * getPricingConfig().elevenLabsUsdPer1kChars);
   const aiVideoAvailable = input.aiVideoEnabled ?? isLongFormAiVideoConfigured();
   const limits = {
-    ...strategyLimits(input.strategy, voiceCostUsd, { aiVideoEnabled: aiVideoAvailable, units: getGenerativeUnitCosts(input.providers.aiVideo) }),
+    ...strategyLimits(input.strategy, voiceCostUsd, { aiVideoEnabled: aiVideoAvailable, units: getGenerativeUnitCosts(input.providers.aiVideo, input.providers.image) }),
     cinematic: usesVisualIdentity({ version }),
   };
-  const allocation = allocateShotTypes(shots, narrationSeconds, limits);
-  const generativeUsd = round4(allocation.imageUsd + allocation.aiVideoUsd);
+  // Recraft-first (image-priority.ts): original images go to the opening and the key moments first, within the approved
+  // image budget at Recraft's price and the Director's rules, with a regeneration reserve. Economical stays archive-only.
+  let imagePriority: ImagePriorityPlan | undefined;
+  let allocation: AllocationResult;
+  if (input.providers.image === "recraft" && input.strategy !== "economical") {
+    const perImageUsd = imageUnitUsd("recraft");
+    const { planned: maxImages, reserve } = recraftImageBudget(getLongFormBudget().maxImageUsd, perImageUsd);
+    const prioritized = allocateWithImagePriority(shots, new Map(input.beats.map((b) => [b.id, b.type])), maxImages,
+      (s) => allocateShotTypes(s, narrationSeconds, limits));
+    allocation = prioritized.allocation;
+    imagePriority = { version: RECRAFT_PRIORITY_VERSION, provider: "recraft", plannedImages: allocation.aiImageGenerations, regenerationReserve: reserve,
+      openingImages: prioritized.opening, keyMomentImages: prioritized.keyMoments, protectedScenes: prioritized.protectedScenes,
+      perImageUsd, styleCreationUsd: RECRAFT_USD_STYLE_CREATION, ceilingUsd: round4((allocation.aiImageGenerations + reserve) * perImageUsd) };
+  } else {
+    allocation = allocateShotTypes(shots, narrationSeconds, limits);
+  }
+  // The regeneration reserve is part of the approved ceiling (count and USD), never spent on new scenes.
+  const reserveUsd = imagePriority ? round4(imagePriority.regenerationReserve * imagePriority.perImageUsd) : 0;
+  const generativeUsd = round4(allocation.imageUsd + allocation.aiVideoUsd + reserveUsd);
 
   return {
     version,
@@ -407,11 +436,12 @@ export function computeProductionPlan(input: {
     aiVideoAvailable: input.strategy === "cinematic" ? aiVideoAvailable : undefined,
     providers: input.providers,
     estimatedVoiceCostUsd: voiceCostUsd,
-    estimatedImageCostUsd: allocation.imageUsd,
+    estimatedImageCostUsd: round4(allocation.imageUsd + reserveUsd),
     estimatedAiVideoCostUsd: allocation.aiVideoUsd,
     estimatedProviderCostUsd: round4(voiceCostUsd + generativeUsd),
+    ...(imagePriority ? { imagePriority } : {}),
     allocation: {
-      maxAiImageGenerations: allocation.aiImageGenerations,
+      maxAiImageGenerations: allocation.aiImageGenerations + (imagePriority?.regenerationReserve ?? 0),
       maxAiVideoClips: allocation.aiVideoClipCount,
       maxGenerativeUsd: generativeUsd,
     },

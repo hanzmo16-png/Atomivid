@@ -7,6 +7,12 @@ import { needsNarrationEdit } from "./duration-check";
 import { DeliverableUnverifiedError } from "@/lib/video/deliverable-check";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { editorialApprovalError } from "./long-form/editorial";
+import { loadReelRecraft, recraftDemandUsd, signReferenceUrls, persistReelStyleId, loadStyleMissing, persistStyleMissing } from "@/lib/video/recraft-reel-server";
+import { getRecraftImageProvider } from "@/lib/providers/image";
+import { recraftAllowedFor, RecraftAccessError } from "@/lib/video/recraft-access";
+import { ChosenImageProviderError } from "@/lib/video/long-form/shot-executor";
+import { RecraftStyleMissingError } from "@/lib/video/recraft-reel";
+import { GeneratedImageRejectedError } from "@/lib/video/visual-resource-resolver";
 import { jobSupplyDemands, reserveJobSupply, releaseUnusedJobSupply, JobEnvelopeMismatchError, JobEnvelopeExhaustedError } from "@/lib/supply/job";
 import { withSupplyContext } from "@/lib/supply/anthropic";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
@@ -199,7 +205,18 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
       const preflight = directorReelPreflight(row.script_json as GeneratedScript);
       if (preflight.blockers.length) throw new DirectorPreflightBlockedError(preflight.blockers);
     }
-    await reserveJobSupply(service, requestId, row.render_attempts, jobSupplyDemands(row, getVoiceProvider().name));
+    // «Imágenes IA con Recraft» (Reel and Long Form): read in its own query (works before the migration), revalidated
+    // here against the DB row, the confirmed plan and the owning account, with FAL_KEY checked BEFORE any reservation
+    // or paid voice. A Recraft video never falls back to stock/fixture/other-provider images.
+    const recraft = mode === "visual" || mode === "long_form" ? await loadReelRecraft(service, requestId) : null;
+    if (mode === "long_form" && (longFormPlan?.providers.image === "recraft") !== Boolean(recraft)) throw new RecraftAccessError("plan_mismatch");
+    if (recraft) {
+      const { data: ownerData, error: ownerError } = await service.auth.admin.getUserById(row.user_id);
+      if (ownerError) throw ownerError;
+      if (!recraftAllowedFor(ownerData.user)) throw new RecraftAccessError();
+      getRecraftImageProvider();
+    }
+    await reserveJobSupply(service, requestId, row.render_attempts, jobSupplyDemands(row, getVoiceProvider().name, undefined, { recraftUsd: mode === "visual" ? recraftDemandUsd(recraft, row.script_json) : 0 }));
     const { videoPath } =
       mode === "avatar"
         ? await generateAvatarVideo({
@@ -225,7 +242,18 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
               language: row.language ?? undefined,
               plan: longFormPlan as ProductionPlan,
               onProgress: onLongFormProgress,
-              runtime: { attempt: row.render_attempts },
+              runtime: { attempt: row.render_attempts,
+                ...(row.reel_voice_id ? { voiceId: row.reel_voice_id } : {}),
+                ...(recraft ? { recraftStyle: {
+                  styleId: recraft.styleId,
+                  // A documentary may reach its first AI image hours after start: references stay signed for 6 h.
+                  referenceImageUrls: recraft.styleId ? [] : await signReferenceUrls(service, recraft.style.referencePaths, 6 * 3600),
+                  match: recraft.style.match, styleNote: recraft.style.styleNote,
+                  onStyleId: (styleId: string) => persistReelStyleId(service, requestId, styleId),
+                  onMissingStyleId: recraft.style.onMissingStyleId,
+                  styleMissing: recraft.styleId ? false : await loadStyleMissing(service, requestId),
+                  onStyleMissing: (providerJobId: string | undefined) => persistStyleMissing(service, requestId, providerJobId),
+                } } : {}) },
             })
           : await generateVideoFromScript({
               supabase: service,
@@ -236,6 +264,12 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
               topic: row.topic ?? undefined,
               language: row.language ?? undefined,
               voiceId: row.reel_voice_id ?? undefined,
+              ...(recraft ? { recraft: {
+                styleId: recraft.styleId,
+                referenceImageUrls: recraft.styleId ? [] : await signReferenceUrls(service, recraft.style.referencePaths),
+                match: recraft.style.match, styleNote: recraft.style.styleNote, onMissingStyleId: recraft.style.onMissingStyleId,
+                onStyleId: (styleId: string) => persistReelStyleId(service, requestId, styleId),
+              } } : {}),
               targetDurationSeconds: row.duration_seconds ?? undefined,
               onProgress,
               directorRender,
@@ -315,7 +349,10 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
     // (a retry would only spend attempts, and possibly money): support reviews it first.
     const action = configError || error instanceof ProviderConfigurationError || error instanceof ReelBudgetExceededError
       || error instanceof JobEnvelopeMismatchError || error instanceof JobEnvelopeExhaustedError || error instanceof DeliverableUnverifiedError
-      || (error instanceof DirectorUnavailableError && error.reason !== "owner_lookup_failed") ? "support" : "retry";
+      || (error instanceof DirectorUnavailableError && error.reason !== "owner_lookup_failed")
+      // Recraft: an account/plan mismatch or a stop that a retry cannot clear goes to support, never a retry loop.
+      || error instanceof RecraftAccessError || error instanceof RecraftStyleMissingError || error instanceof GeneratedImageRejectedError
+      || (error instanceof ChosenImageProviderError && !error.retryable) ? "support" : "retry";
     // A measured duration mismatch happens before footage/render and after the
     // voice ledger is settled. Reopen editing; retain attempts and paid history.
     // T-24 C1: same for an Avatar narrated from the script whose REAL audio exceeds the limit (no avatar job was
