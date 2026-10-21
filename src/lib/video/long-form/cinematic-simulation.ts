@@ -524,6 +524,8 @@ export async function produceOffline(
     /** Captura lo que recibiría el renderer (escenas, subtítulos) y el informe visual. */
     onRender?: (input: Parameters<NonNullable<LongFormRuntime["render"]>>[0]) => void;
     onReport?: (report: Parameters<NonNullable<LongFormRuntime["saveVisualReport"]>>[0]) => void;
+    /** false = omite el preflight de material (pruebas que inspeccionan la puerta FINAL o las escenas preparadas). */
+    materialPreflight?: boolean;
   } = {},
 ) {
   const events: string[] = [];
@@ -538,6 +540,7 @@ export async function produceOffline(
     observedUnitMax: {},
     ...(opts.curatedSvgMarkup ? { curatedSvgMarkup: opts.curatedSvgMarkup } : {}),
     ...(opts.verifiedAssets ? { verifiedAssets: opts.verifiedAssets } : {}),
+    ...(opts.materialPreflight === false ? { materialPreflight: false } : {}),
     videoProvider: null,
     aiVideoEnabled: false,
     recordCosts: false,

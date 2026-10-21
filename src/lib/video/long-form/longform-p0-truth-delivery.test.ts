@@ -188,6 +188,7 @@ test("P0 out-v4 (pipeline v4): con carencias en el catálogo sintético, el work
   const { events, error } = await produceOffline(beats, plan, {
     topic: TOPIC,
     footageProvider: syntheticCatalog(),
+    materialPreflight: false, // prueba la puerta FINAL (el preflight se cubre en material-preflight.test.ts)
     onReport: (r) => {
       pending = r.summary.gaps.map((g) => g.shotId);
       deliverable = r.cinematic?.qa.release.deliverable;
@@ -208,7 +209,7 @@ test("P0 entregabilidad (pipeline v3 sin fecha): la misma carencia también bloq
   const beats = auroraBeats({ dated: false });
   const plan = planOf(beats, 3);
   let pending: string[] = [];
-  const { events, error } = await produceOffline(beats, plan, { topic: TOPIC, footageProvider: syntheticCatalog(), onReport: (r) => { pending = r.summary.gaps.map((g) => g.shotId); } });
+  const { events, error } = await produceOffline(beats, plan, { topic: TOPIC, footageProvider: syntheticCatalog(), materialPreflight: false, onReport: (r) => { pending = r.summary.gaps.map((g) => g.shotId); } });
   assert.ok(pending.length > 0, "el fixture debe reproducir carencias");
   assert.equal((error as Error | null)?.name, "LongFormPendingMaterialError", `eventos: ${events.join(",")}`);
   assert.equal(count(events, "render"), 0);

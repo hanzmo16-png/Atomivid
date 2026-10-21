@@ -73,6 +73,7 @@ import { VerifiedAssetRegistry } from "./verified-assets";
 import { MAX_TEXT_FALLBACK_RATIO, visualReleasePreflight } from "./visual-release-preflight";
 import { datedEventEvidenceBlockers, LongFormDatedEventEvidenceError } from "./dated-event-preflight";
 import { usesImpactDirection } from "./production-plan-types";
+import { LongFormMaterialPreflightTemporaryError, LongFormMaterialUnavailableError, materialAvailabilityPreflight, type MaterialPreflight } from "./material-preflight";
 import { curatedSvgGraphic } from "./premium-composition";
 import type { LongFormCuratedSvgGraphic } from "../../../../remotion/LongFormDoc";
 import type { ExecutableSequence } from "./sequence-intent";
@@ -119,6 +120,10 @@ type OnProgress = (stage: LongFormStage, units?: LongFormProgressUnits) => void 
 
 /** Dependencias inyectables (pruebas / inyección de fallos). En producción se omiten todas. */
 export type LongFormRuntime = {
+  /** ADVANCE 1: false desactiva el preflight de disponibilidad (solo pruebas heredadas que no lo modelan). */
+  materialPreflight?: boolean;
+  /** Observa el veredicto del preflight de material (diagnóstico/pruebas). */
+  onMaterialPreflight?: (verdict: MaterialPreflight) => void;
   /**
    * v4: registro de recursos verificados del SERVIDOR (ya rehidratado). Ausente = se rehidrata
    * desde `{requestId}/state/curation.json` (decisiones del curador; datos, no autoridad), o vacío.
@@ -280,6 +285,7 @@ export async function generateLongFormVideoFromScript({
   const requireReal = !providers;
   const store = runtime.store ?? supabaseShotAssetStore(supabase, requestId, STORAGE_BUCKET);
   const allocation = executionAllocation(plan);
+  const anchored0 = usesAnchoredVisuals(plan);
   // Abrir el presupuesto (gratis) ANTES de cualquier llamada pagada: si el
   // storage no responde, el trabajo falla aquí con $0 gastado.
   const units = getGenerativeUnitCosts(plan.providers.aiVideo);
@@ -297,6 +303,28 @@ export async function generateLongFormVideoFromScript({
     if (!candidate || candidate.name !== "runway" || !candidate.isAvailable() || !(runtime.aiVideoEnabled ?? isLongFormAiVideoConfigured())) {
       throw new Error("El plan confirmado requiere Runway, pero su conexión no está disponible. No se ha iniciado la generación.");
     }
+  }
+  // ADVANCE 1 (material-preflight.ts): disponibilidad de material ANTES de la primera llamada pagada (voz).
+  // Búsquedas gratuitas en el proveedor de stock elegido, mismo criterio de elegibilidad que la selección real.
+  // Carencia inevitable → USD 0 y error claro; error temporal → recuperable, USD 0. La puerta final se mantiene.
+  if (anchored0 && !sequences && !replayOnly && runtime.materialPreflight !== false) {
+    const aiVideoForPlan = allocation.maxAiVideoClips > 0 && (runtime.videoProvider !== undefined ? runtime.videoProvider !== null : (runtime.aiVideoEnabled ?? isLongFormAiVideoConfigured()));
+    const material = await materialAvailabilityPreflight({
+      plan,
+      allocation,
+      beats: beats as ProductionPlanBeatInput[],
+      topic,
+      footageProvider: resolvedProviders.footageProvider,
+      aiVideoEnabled: aiVideoForPlan,
+      verifiedAssets,
+      completedStock: async (shotId) => {
+        const record = await store.read(shotId, "stock");
+        return record?.status === "COMPLETED" ? { sourceId: record.identity?.sourceId, canonicalUrl: record.identity?.canonicalUrl } : null;
+      },
+    });
+    runtime.onMaterialPreflight?.(material);
+    if (material.status === "unavoidable_gap") throw new LongFormMaterialUnavailableError(material.missing);
+    if (material.status === "temporary_error") throw new LongFormMaterialPreflightTemporaryError(material.temporary);
   }
   const uploadArtifact = runtime.uploadArtifact ?? ((path: string, buffer: Buffer, ct: string) => uploadToStorage(supabase, path, buffer, ct));
 
