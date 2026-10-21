@@ -122,3 +122,16 @@ test("A2-8 fail-closed: un ledger que no permite sumar el gasto del pedido no pa
   const store = withRequestBudget(inner, { ceilingUsd: 1, ledgerScopes: [REQ] });
   await assert.rejects(guardPaidCall(store, { projectId: "otro", shotId: "s", provider: "p", model: "m", method: "x", inputFingerprint: {}, reservedUsd: 0.1 }, { call: async () => ({ result: 1, costUsd: 0.1, resultRef: "r" }), load: async () => 1 }), /fuera del pedido/);
 });
+
+test("A2-9 reintento con autorización previa: un hardMax reducido siempre se aplica (precio desconocido o envelope válido); una subida del entorno no amplía", async () => {
+  const store = memoryAuthorizationStore();
+  const first = await authorizeRequestBudget({ requestId: REQ, stages: stages({ voice: 1, images: 1 }), contingencyPct: 20, hardMaxUsd: 12, ledgerScopes: [REQ], store });
+  assert.equal(first.ceilingUsd, 2.4);
+  const unknownPrice = await authorizeRequestBudget({ requestId: REQ, stages: stages({ music: null }), hardMaxUsd: 1, ledgerScopes: [REQ], store });
+  assert.equal(unknownPrice.ceilingUsd, 1, "precio desconocido + hardMax reducido → el hardMax manda");
+  const validEnvelope = await authorizeRequestBudget({ requestId: REQ, stages: stages({ voice: 1, images: 1 }), contingencyPct: 20, hardMaxUsd: 1.5, ledgerScopes: [REQ], store });
+  assert.equal(validEnvelope.ceilingUsd, 1.5, "envelope válido + hardMax reducido → el hardMax manda");
+  const raised = await authorizeRequestBudget({ requestId: REQ, stages: stages({ music: null }), hardMaxUsd: 100, ledgerScopes: [REQ], store });
+  assert.equal(raised.ceilingUsd, 2.4, "subir el techo del entorno no amplía la autorización guardada");
+  assert.equal(store.rows.get(REQ)!.ceilingUsd, 2.4, "la autorización guardada no se reescribe");
+});

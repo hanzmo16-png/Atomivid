@@ -149,8 +149,10 @@ export async function authorizeRequestBudget(input: {
   if (existing) {
     // Reintento: se respeta la autorización original. Si el recálculo pide más, NO se amplía.
     const recalculated = envelope.proposedAuthorizationCeilingUsd;
-    const ceilingUsd = recalculated === null ? existing.ceilingUsd : Math.min(existing.ceilingUsd, Math.max(recalculated, 0), input.hardMaxUsd);
-    return { ...existing, ceilingUsd: Math.min(existing.ceilingUsd, ceilingUsd), ledgerScopes: [...new Set([...existing.ledgerScopes, ...input.ledgerScopes])] };
+    // El techo de producto/entorno vigente (hardMax) se aplica SIEMPRE, también cuando el recálculo no es verificable.
+    const hardMax = Number.isFinite(input.hardMaxUsd) ? Math.max(0, input.hardMaxUsd) : 0;
+    const ceilingUsd = Math.min(existing.ceilingUsd, hardMax, recalculated === null ? Infinity : Math.max(recalculated, 0));
+    return { ...existing, ceilingUsd, ledgerScopes: [...new Set([...existing.ledgerScopes, ...input.ledgerScopes])] };
   }
   if (!envelope.ready || envelope.proposedAuthorizationCeilingUsd === null) throw new RequestBudgetNotAuthorizedError(envelope);
   const auth: RequestBudgetAuthorization = {
