@@ -209,16 +209,14 @@ export const recraftImageProvider: ImageProvider = {
     const out = (await r.json().catch(() => null)) as { images?: Array<{ url?: string }>; style_id?: unknown } | null;
     const url = out?.images?.[0]?.url;
     if (!url) throw new GenerativeProviderError("Resultado de Recraft sin imágenes.", "recraft", "invalid_response", undefined, providerJobId);
-    // R3: creating a style (references, no style_id yet) is only usable if fal returned a valid style_id. Without it the
-    // next scene would create ANOTHER style (outside "one creation per video"). Fail with the request_id attached: the
-    // ledger keeps PROVIDER_JOB_RECORDED for reconciliation and nothing is resubmitted.
+    // fal's output schema lists `style_id` but does NOT mark it required (official API page, checked 2026-10-21). A
+    // created style without a valid id is NOT an error here: the image is paid and usable, so it is returned (styleId
+    // undefined) and stored; the CALLER applies the video's coherence policy (stop, or keep the same references) before
+    // any other image. A malformed id or one equal to the request id is treated as absent, never adopted.
     let styleId: string | undefined = request.style?.styleId;
     if (!styleId) {
       const returned = typeof out?.style_id === "string" ? out.style_id.trim() : "";
-      if (!isValidStyleId(returned) || returned === providerJobId) {
-        throw new GenerativeProviderError(`Recraft creó la imagen pero no devolvió un style_id válido; request_id ${providerJobId} guardado para conciliación. No se reenvía ni se crea otro estilo.`, "recraft", "invalid_response", undefined, providerJobId);
-      }
-      styleId = returned;
+      styleId = isValidStyleId(returned) && returned !== providerJobId ? returned : undefined;
     }
     const img = await download(url, providerJobId);
     return {

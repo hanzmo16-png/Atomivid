@@ -52,6 +52,13 @@ export function ReelImageSourcePicker({ format = "reel", disabled = false, onSou
             </select>
           </label>
           <label className="block">
+            <span>Si Recraft crea el estilo pero no devuelve su identificador (style_id)</span>
+            <select name="recraft_style_missing" defaultValue="stop" className="mt-1 rounded border border-line px-2 py-1">
+              <option value="stop">Detener y conservar la imagen pagada (recomendado)</option>
+              <option value="same_references">Continuar con las mismas referencias (hasta USD 0,005 más por imagen; el plan ya lo cubre)</option>
+            </select>
+          </label>
+          <label className="block">
             <span>Nota de estilo (opcional, tus palabras)</span>
             <input name="recraft_style_note" type="text" maxLength={300} className="mt-1 w-full rounded border border-line px-2 py-1" />
           </label>

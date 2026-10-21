@@ -135,7 +135,7 @@ export async function createVideoRequest(formData: FormData) {
     // Reference images are stored in our bucket; nothing is sent to fal.ai and nothing is paid at creation.
     const refFiles = formData.getAll("recraft_style_refs").filter((f): f is File => typeof f !== "string" && f.size > 0);
     const recraftChoice = parseRecraftSelection({ source: formData.get("reel_image_source"), styleId: formData.get("recraft_style_id"),
-      match: formData.get("recraft_style_match"), styleNote: formData.get("recraft_style_note"), referenceCount: refFiles.length }, recraftAllowedFor(user));
+      match: formData.get("recraft_style_match"), styleNote: formData.get("recraft_style_note"), referenceCount: refFiles.length, onMissingStyleId: formData.get("recraft_style_missing") }, recraftAllowedFor(user));
     if ("error" in recraftChoice) redirect(formErrorUrl(recraftChoice.error));
     let recraftColumns: Record<string, unknown> = {};
     if (recraftChoice.source === "recraft") {
@@ -146,7 +146,7 @@ export async function createVideoRequest(formData: FormData) {
         referencePaths = stored.paths;
       }
       recraftColumns = { reel_image_source: "recraft", reel_recraft_style: { styleId: recraftChoice.styleId, referencePaths,
-        match: recraftChoice.match, styleNote: recraftChoice.styleNote } };
+        match: recraftChoice.match, styleNote: recraftChoice.styleNote, onMissingStyleId: recraftChoice.onMissingStyleId } };
     }
     // Persist the server's total provider limit before any script, voice or image can be paid.
     // Invalid configuration or an absent schema must stop creation, never silently drop the cap.

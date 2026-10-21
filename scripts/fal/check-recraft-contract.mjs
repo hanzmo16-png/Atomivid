@@ -24,9 +24,13 @@ for (const k of ["prompt", "image_size", "style_id", "image_urls", "style_match"
 const sizes = inP.image_size ? enumOf(inP.image_size) : [];
 for (const v of ["portrait_16_9", "landscape_16_9"]) if (!sizes.includes(v)) problems.push(`input.image_size lacks ${v} (has: ${sizes.join(",") || "none"})`);
 if (!outP.images) problems.push("output.images missing");
-if (!outP.style_id) problems.push("output.style_id missing (adapter refuses a created image without it)");
+// style_id is declared but OPTIONAL in fal's schema: the adapter keeps a created image without it and the video's
+// coherence policy decides (stop / same references). The check records the required list so a change is visible.
+const outRequired = output ? (flat(output[1]).required ?? []) : [];
+if (!outRequired.includes("images")) problems.push("output.images is no longer required");
+if (!outP.style_id) problems.push("output.style_id no longer declared (policy still handles absence; review the adapter)");
 const summary = { endpoint: ENDPOINT, source: fileArg > 0 ? "file" : URL_, inputSchema: input?.[0] ?? null, outputSchema: output?.[0] ?? null,
-  inputFields: Object.keys(inP).sort(), outputFields: Object.keys(outP).sort(), imageSizes: sizes, problems };
+  inputFields: Object.keys(inP).sort(), outputFields: Object.keys(outP).sort(), outputRequired: outRequired, styleIdRequired: outRequired.includes("style_id"), imageSizes: sizes, problems };
 console.log(JSON.stringify(summary, null, 2));
 if (problems.length) { console.error(`CONTRACT MISMATCH: ${problems.join("; ")}`); process.exit(1); }
 console.log("CONTRACT OK");

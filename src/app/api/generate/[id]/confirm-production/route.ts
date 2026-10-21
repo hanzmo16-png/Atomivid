@@ -52,7 +52,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (form && String(form.get("image_source") ?? "default") !== "default") {
       const refs = form.getAll("recraft_style_refs").filter((f): f is File => typeof f !== "string" && f.size > 0);
       const choice = parseRecraftSelection({ source: form.get("image_source"), styleId: form.get("recraft_style_id"), match: form.get("recraft_style_match"),
-        styleNote: form.get("recraft_style_note"), referenceCount: refs.length }, recraftAllowedFor(user));
+        styleNote: form.get("recraft_style_note"), referenceCount: refs.length, onMissingStyleId: form.get("recraft_style_missing") }, recraftAllowedFor(user));
       if ("error" in choice) return NextResponse.json({ error: choice.error }, { status: 400 });
       if (choice.source === "recraft") {
         // Ownership, mode and state BEFORE writing anything into this request's folder (the confirmation re-checks all).
@@ -69,7 +69,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           if ("error" in stored) return NextResponse.json({ error: stored.error.replace("No se ha creado ni cobrado nada.", "No se confirmó ni cobró nada.") }, { status: 400 });
           referencePaths = stored.paths;
         }
-        recraft = { styleId: choice.styleId, referencePaths, match: choice.match, styleNote: choice.styleNote };
+        recraft = { styleId: choice.styleId, referencePaths, match: choice.match, styleNote: choice.styleNote, onMissingStyleId: choice.onMissingStyleId };
       }
     }
     const result = await confirmLongFormProduction(createServiceClient(), {

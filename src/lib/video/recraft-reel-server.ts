@@ -29,7 +29,7 @@ export async function loadReelRecraft(service: SupabaseClient, requestId: string
 export function recraftDemandUsd(recraft: ReelRecraftRow | null, script: unknown): number {
   if (!recraft) return 0;
   const n = (script as GeneratedScript | null)?.segments?.length ?? 0;
-  return recraftReelEstimateUsd(n, Boolean(recraft.styleId));
+  return recraftReelEstimateUsd(n, Boolean(recraft.styleId), recraft.style.onMissingStyleId);
 }
 
 /** Short-lived signed URLs for the user's reference images (fal needs a fetchable URL; nothing is made public). */
@@ -70,4 +70,22 @@ export async function storeRecraftReferences(service: SupabaseClient, folder: st
     paths.push(path);
   }
   return { paths };
+}
+
+/** Long Form: durable marker that fal created this video's style without a style_id under the "stop" policy. */
+const styleMissingPath = (requestId: string) => `${requestId}/state/recraft-style-missing.json`;
+export async function loadStyleMissing(service: SupabaseClient, requestId: string): Promise<boolean> {
+  const { data, error } = await service.storage.from(BUCKET).download(styleMissingPath(requestId));
+  if (error || !data) {
+    const status = (error as { statusCode?: string | number; status?: number } | null);
+    const notFound = !error || String(status?.statusCode ?? status?.status ?? "") === "404" || /not.?found|object not found/i.test(error.message ?? "");
+    if (notFound) return false;
+    throw new Error("No se pudo leer el estado del estilo Recraft de este video; no se pide ninguna imagen.");
+  }
+  return true;
+}
+export async function persistStyleMissing(service: SupabaseClient, requestId: string, providerJobId: string | undefined): Promise<void> {
+  const body = Buffer.from(JSON.stringify({ styleMissing: true, providerJobId: providerJobId ?? null, at: new Date().toISOString() }));
+  const { error } = await service.storage.from(BUCKET).upload(styleMissingPath(requestId), body, { contentType: "application/json", upsert: true });
+  if (error) throw new Error("No se pudo registrar que Recraft no devolvió style_id; se detiene para no mezclar estilos.");
 }

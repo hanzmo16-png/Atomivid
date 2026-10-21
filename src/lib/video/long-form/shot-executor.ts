@@ -31,6 +31,7 @@ import { clip, salientFact } from "./scene-anchoring";
 import type { ProductionBudget } from "./production-budget";
 import type { AllocatedShot, GenerativeUnitCosts } from "./production-plan";
 import { documentaryImagePrompt, requiresEvidence, requiresIdentity, textCardForShot } from "./visual-intents";
+import { RecraftStyleMissingError } from "@/lib/video/recraft-reel";
 import type { ShotType } from "./types";
 
 /** Rechazos de imagen con costo conocido CERO (el proveedor no generó nada). */
@@ -58,6 +59,8 @@ export type ImageStyleContext = {
   styleNote: string | null;
   /** Persists the style_id the provider created, BEFORE the next image is requested. */
   adopt(styleId: string): Promise<void>;
+  /** The provider created the style but returned no style_id (optional in fal's schema): apply the video's policy. */
+  missing(providerJobId: string | undefined): Promise<void>;
 };
 
 /**
@@ -66,14 +69,27 @@ export type ImageStyleContext = {
  * (it would create a second, different style). The next attempt reads the stored state again.
  */
 export function createImageStyleContext(choice: { styleId: string | null; referenceImageUrls: string[]; match: "precise" | "flexible" | null;
-  styleNote: string | null; onStyleId: (styleId: string) => Promise<void> }): ImageStyleContext {
+  styleNote: string | null; onStyleId: (styleId: string) => Promise<void>;
+  /** "stop" (default) or "same_references" when fal returns no style_id (recraft-reel.ts). */
+  onMissingStyleId?: "stop" | "same_references";
+  /** Durable marker of an earlier attempt: a style was created without style_id under the "stop" policy. */
+  styleMissing?: boolean;
+  /** Persists that marker (before this call returns, no other image may be requested). */
+  onStyleMissing?: (providerJobId: string | undefined) => Promise<void> }): ImageStyleContext {
   let styleId = choice.styleId;
   let poisoned = false;
+  let blocked = choice.styleMissing === true && !choice.styleId && choice.onMissingStyleId !== "same_references";
   const match = choice.match ? { match: choice.match } : {};
   return {
     current() {
       if (poisoned) throw new ChosenImageProviderError("style", "no se pudo guardar el estilo creado para este video", true);
+      if (blocked) throw new RecraftStyleMissingError();
       return styleId ? { styleId, ...match } : { referenceImageUrls: choice.referenceImageUrls, ...match };
+    },
+    async missing(providerJobId) {
+      if (styleId || choice.onMissingStyleId === "same_references") return;
+      try { await choice.onStyleMissing?.(providerJobId); } catch (err) { poisoned = true; throw err; }
+      blocked = true;
     },
     styleNote: choice.styleNote,
     async adopt(id) {
@@ -490,16 +506,18 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
     // (no new call) and the shot uses its existing fallback (ASSET-FINAL).
     const validation = validateVisualAssetBuffer(a.buffer, a.mimeType);
     if (!validation.valid) throw new Error(`Imagen IA inválida de "${deps.imageProvider.name}": ${validation.reason}`);
-    // Chosen style: the style created by the first image is persisted BEFORE any other image is requested.
-    if (strict && !style?.styleId) {
-      if (!a.styleId) throw new Error(`"${deps.imageProvider.name}" no devolvió el estilo creado para este video`);
-      await strict.adopt(a.styleId);
-    }
+    // The paid image is stored FIRST: whatever the style outcome, it is never lost or paid again.
     try {
       persisted = await persistImage(a);
     } catch (err) {
       if (err instanceof SupplyUnavailableError) throw err;
       persistError = err;
+    }
+    // Chosen style: the style created by the first image is persisted BEFORE any other image is requested. fal may
+    // omit style_id (optional in its schema): the video's policy then stops further images or keeps the references.
+    if (strict && !style?.styleId) {
+      if (a.styleId) await strict.adopt(a.styleId);
+      else await strict.missing(a.providerJobId);
     }
     // The provider's job id travels in the ledger result so a later attempt can re-read a paid result (GET only).
     return { result: a, costUsd: a.costUsd, resultRef: `shot-asset:${shot.id}:ai_image${twoStep && a.providerJobId ? `:job=${a.providerJobId}` : ""}` };
@@ -563,7 +581,7 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
       if (!providerStarted && !resuming) await deps.budget.releaseAiImage(deps.units.imageUsd, realUsd);
       throw err;
     }
-    if (err instanceof ChosenImageProviderError) throw err;
+    if (err instanceof ChosenImageProviderError || err instanceof RecraftStyleMissingError) throw err;
     if (err instanceof PaidResultUnavailableError) {
       // Nada se envió ni se cobró en este intento: la reserva vuelve al presupuesto.
       if (!resuming) await deps.budget.releaseAiImage(deps.units.imageUsd, realUsd);

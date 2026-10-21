@@ -18,7 +18,9 @@ test("Recraft exige style_id o 1-10 referencias", () => {
   assert.ok("error" in parseRecraftSelection({ ...base, source: "recraft" }, true));
   assert.ok("error" in parseRecraftSelection({ ...base, source: "recraft", referenceCount: 11 }, true));
   const ok = parseRecraftSelection({ ...base, source: "recraft", referenceCount: 2, match: "precise" }, true);
-  assert.deepEqual(ok, { source: "recraft", styleId: null, match: "precise", styleNote: null });
+  assert.deepEqual(ok, { source: "recraft", styleId: null, match: "precise", styleNote: null, onMissingStyleId: "stop" });
+  const cont = parseRecraftSelection({ ...base, source: "recraft", referenceCount: 1, onMissingStyleId: "same_references" }, true);
+  assert.equal("onMissingStyleId" in cont && cont.onMissingStyleId, "same_references");
 });
 test("el request_id de la prueba manual NO es un style_id", () => {
   assert.equal(isValidStyleId("01a15cd6-f79f-77f1-8f4a-06d582611ae4"), false);
@@ -30,6 +32,7 @@ test("estimado de un Reel de 30 s (6 escenas): 0.215 creando estilo, 0.21 con st
   assert.equal(recraftReelEstimateUsd(6, true), 0.21);
   assert.equal(recraftReelEstimateUsd(10, false), 0.355);
   assert.equal(recraftReelEstimateUsd(0, false), 0);
+  assert.equal(recraftReelEstimateUsd(6, false, "same_references"), 0.24, "each image may create the style again");
 });
 test("el prompt no impone estética (nada romano/antiguo); solo la nota del usuario", () => {
   const p = recraftScenePrompt({ text: "Ahorra cada mes", visualQuery: "piggy bank coins", visualConcepts: ["saving money jar"] }, undefined, null);
@@ -40,7 +43,7 @@ test("el prompt no impone estética (nada romano/antiguo); solo la nota del usua
 test("configuración guardada inválida → null (el worker falla claro)", () => {
   assert.equal(parseStoredRecraftStyle({ styleId: null, referencePaths: [] }), null);
   assert.deepEqual(parseStoredRecraftStyle({ styleId: null, referencePaths: ["r/recraft-style/ref-0.png"], match: "flexible" }),
-    { styleId: null, referencePaths: ["r/recraft-style/ref-0.png"], match: "flexible", styleNote: null });
+    { styleId: null, referencePaths: ["r/recraft-style/ref-0.png"], match: "flexible", styleNote: null, onMissingStyleId: "stop" });
 });
 test("sobre de suministro: proveedor 'recraft' solo cuando el Reel lo eligió", () => {
   const row = { mode: "visual", script_json: { title: "t", segments: [{ text: "hola", visualQuery: "q" }] }, recorded_audio_path: null, long_form_production_plan: null };

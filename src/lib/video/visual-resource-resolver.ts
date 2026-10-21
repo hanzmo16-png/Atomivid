@@ -1,3 +1,4 @@
+import { RecraftStyleMissingError } from "@/lib/video/recraft-reel";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { GenerativeAsset, ImageGenerationRequest, ImageProvider } from "@/lib/providers/image";
 import type { StoryboardScene } from "./storyboard/types";
@@ -108,12 +109,16 @@ export async function resolveGeneratedImageForScene({
   objectKey?: string;
   /** Per-video style (Recraft). Part of the ledger fingerprint so a different style never reuses a paid row. */
   style?: ImageGenerationRequest["style"];
+  /** Video's policy when fal created its style without returning a style_id (see recraft-reel.ts). */
+  onMissingStyleId?: "stop" | "same_references";
 }): Promise<GeneratedImageOutcome> {
   const existing = await findExistingGeneratedImage(supabase, bucket, artifactPrefix, sceneIndex, objectKey, { strict: Boolean(style) });
   if (existing && style) {
     // R1: an already-paid image must hand back the style it used/created before the next scene is allowed to run.
-    if (!existing.styleId) {
-      throw new Error(`La imagen pagada ${existing.path} no conserva su style_id: no se continúa para no crear otro estilo. Requiere conciliación.`);
+    // An image stored without style_id (fal returned none): reusable as is; whether the VIDEO may continue is the
+    // caller's coherence policy (resolveRecraftReelScene). It is never paid again.
+    if (!existing.styleId && style.styleId) {
+      throw new Error(`La imagen pagada ${existing.path} no conserva su style_id y el video ya usa otro: incompatibilidad, no se reutiliza ni se genera otra.`);
     }
     if (style.styleId && style.styleId !== existing.styleId) {
       throw new Error(`La imagen pagada ${existing.path} usa otro estilo que el del video: incompatibilidad, no se reutiliza ni se genera otra.`);
@@ -153,7 +158,6 @@ export async function resolveGeneratedImageForScene({
     }
 
     const key = objectKey ?? generatedImageObjectPrefix(sceneIndex);
-    if (style && !asset.styleId) throw new Error(`Imagen de ${imageProvider.name} sin style_id para la escena ${sceneIndex}: no se guarda como resultado consistente.`);
     const path = `${artifactPrefix}/${style ? styleTaggedObjectName(key, asset.styleId, asset.extension) : `${key}.${asset.extension}`}`;
     const { error: uploadError } = await supabase.storage
       .from(bucket)
@@ -249,11 +253,13 @@ export async function resolveRecraftReelScene(
     onStyleId?: (styleId: string) => Promise<void>;
   },
 ): Promise<{ generated: GeneratedImageOutcome; nextStyle: NonNullable<ImageGenerationRequest["style"]> }> {
-  const { match, onStyleId, style, ...rest } = args;
-  const generated = await resolveGeneratedImageForScene({ ...rest, style, objectKey: `scene-${rest.sceneIndex}-recraft` });
+  const { match, onStyleId, style, onMissingStyleId = "stop", ...rest } = args;
+  const generated = await resolveGeneratedImageForScene({ ...rest, style, onMissingStyleId, objectKey: `scene-${rest.sceneIndex}-recraft` });
   if (style.styleId) return { generated, nextStyle: style };
   if (!generated.styleId) {
-    throw new Error(`Escena ${rest.sceneIndex}: la creación del estilo no dejó style_id; se detiene el video sin crear otro estilo.`);
+    // fal returned no style_id (optional in its schema). The paid image is stored and kept; coherence policy decides.
+    if (onMissingStyleId === "same_references") return { generated, nextStyle: style };
+    throw new RecraftStyleMissingError(generated.providerJobId);
   }
   await onStyleId?.(generated.styleId);
   return { generated, nextStyle: { styleId: generated.styleId, ...(match ? { match } : {}) } };

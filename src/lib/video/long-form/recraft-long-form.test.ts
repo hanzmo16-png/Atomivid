@@ -8,6 +8,7 @@ import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
 import { getGenerativeUnitCosts, imageUnitUsd, computeProductionPlan } from "./production-plan";
 import { jobSupplyDemands } from "@/lib/supply/job";
 import type { AllocatedShot } from "./production-plan";
+import { RecraftStyleMissingError } from "@/lib/video/recraft-reel";
 import { GenerativeProviderError, type FootageProvider, type GenerativeAsset, type ImageGenerationRequest, type ImageProvider } from "@/lib/providers/types";
 
 // Recraft for Long Form with the REAL paid-call gate and ledger state machine (in memory); fal itself is simulated.
@@ -24,7 +25,7 @@ function shot(id: string): AllocatedShot {
     attribution: "", dedupKey: id, status: "planned", validationStatus: "pending" } as AllocatedShot;
 }
 
-type Behavior = { submit?: (n: number) => Promise<void> | void; resume?: (id: string, n: number) => Promise<void> | void };
+type Behavior = { submit?: (n: number) => Promise<void> | void; resume?: (id: string, n: number) => Promise<void> | void; omitStyleId?: boolean };
 function fakeRecraft(behavior: Behavior = {}) {
   const submitted: ImageGenerationRequest[] = [];
   const resumed: string[] = [];
@@ -42,7 +43,7 @@ function fakeRecraft(behavior: Behavior = {}) {
       resumed.push(id);
       await behavior.resume?.(id, resumed.length);
       return { buffer: webp1920x1080(), mimeType: "image/webp", extension: "webp", width: 1920, height: 1080, model: "recraft/v4/style/text-to-image",
-        costUsd: req.style?.styleId ? 0.035 : 0.04, costBasis: "estimated", providerJobId: id, styleId: req.style?.styleId ?? STYLE };
+        costUsd: req.style?.styleId ? 0.035 : 0.04, costBasis: "estimated", providerJobId: id, styleId: req.style?.styleId ?? (behavior.omitStyleId ? undefined : STYLE) };
     },
   };
   return { provider, submitted, resumed };
@@ -59,11 +60,14 @@ function noStock() {
   return { provider, calls: () => calls };
 }
 
-function styleContext(initial: string | null = null, onStyleId?: (id: string) => Promise<void>) {
+function styleContext(initial: string | null = null, onStyleId?: (id: string) => Promise<void>,
+  missing: { policy?: "stop" | "same_references"; styleMissing?: boolean } = {}) {
   const adopted: string[] = [];
+  const missingMarks: (string | undefined)[] = [];
   const ctx = createImageStyleContext({ styleId: initial, referenceImageUrls: ["https://storage.test/ref-0.png?token=a"], match: "precise",
-    styleNote: "tonos sepia, luz de vela", onStyleId: onStyleId ?? (async (id) => { adopted.push(id); }) });
-  return { ctx, adopted };
+    styleNote: "tonos sepia, luz de vela", onStyleId: onStyleId ?? (async (id) => { adopted.push(id); }),
+    onMissingStyleId: missing.policy, styleMissing: missing.styleMissing, onStyleMissing: async (job) => { missingMarks.push(job); } });
+  return { ctx, adopted, missingMarks };
 }
 
 async function harness(opts: { provider: ImageProvider; style?: ReturnType<typeof styleContext>; allocation?: { maxAiImageGenerations: number; maxAiVideoClips: number; maxGenerativeUsd: number };
@@ -248,4 +252,36 @@ test("estilo dado por el usuario (style_id): nunca crea otro estilo ni usa refer
   await run(shot("s1"), h.deps);
   assert.equal(fal.submitted[0].style?.styleId, "user-style-12345678");
   assert.deepEqual(h.style.adopted, []);
+});
+
+test("style_id ausente + «detener»: la 1.ª imagen pagada se usa y se conserva con su request_id; NINGUNA otra se pide", async () => {
+  const fal = fakeRecraft({ omitStyleId: true });
+  const style = styleContext(null, undefined, { policy: "stop" });
+  const h = await harness({ provider: fal.provider, style });
+  const first = await run(shot("s1"), h.deps);
+  assert.equal(first.executedType, "generated_placeholder", "the paid image is used, not discarded");
+  assert.deepEqual(style.missingMarks, ["fal-req-0001"], "durable marker with the request id");
+  assert.equal(ops(h.ledger)[0].status, "COMMITTED");
+  await assert.rejects(run(shot("s2"), h.deps), RecraftStyleMissingError);
+  assert.equal(fal.submitted.length, 1, "no second style is created");
+  assert.equal(h.stock.calls(), 0);
+  // Next attempt (marker loaded from storage): the stored image is reused; still nothing new is requested.
+  const retry = styleContext(null, undefined, { policy: "stop", styleMissing: true });
+  const h2 = { ...h.deps, imageStyle: retry.ctx };
+  assert.equal((await run(shot("s1"), h2)).reused, true);
+  await assert.rejects(run(shot("s2"), h2), RecraftStyleMissingError);
+  assert.equal(fal.submitted.length, 1);
+});
+
+test("style_id ausente + «mismas referencias»: todas las imágenes usan las MISMAS referencias y match; presupuesto ya a 0.04/imagen", async () => {
+  const fal = fakeRecraft({ omitStyleId: true });
+  const style = styleContext(null, undefined, { policy: "same_references" });
+  const h = await harness({ provider: fal.provider, style });
+  await run(shot("s1"), h.deps); await run(shot("s2"), h.deps);
+  assert.equal(fal.submitted.length, 2);
+  assert.deepEqual(fal.submitted.map((r) => r.style), [
+    { referenceImageUrls: ["https://storage.test/ref-0.png?token=a"], match: "precise" },
+    { referenceImageUrls: ["https://storage.test/ref-0.png?token=a"], match: "precise" }]);
+  assert.deepEqual(style.missingMarks, []);
+  assert.ok(ops(h.ledger).every((o) => Number(o.reservedUsd) >= 0.04 - 1e-9), "each image reserved as a style creation");
 });

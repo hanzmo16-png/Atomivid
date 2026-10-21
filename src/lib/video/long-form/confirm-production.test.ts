@@ -224,7 +224,7 @@ test("P0-01 (T-20261019-1553): v3 con acontecimiento fechado ilustrado con stock
 
 test("Recraft: el plan fija image=recraft (precio Recraft) y la elección se escribe en el MISMO UPDATE de la confirmación", async () => {
   const fake = fakeService(baseRow());
-  const style = { styleId: null, referencePaths: ["req-1/recraft-style/ref-0.png"], match: "precise" as const, styleNote: "luz de vela" };
+  const style = { styleId: null, referencePaths: ["req-1/recraft-style/ref-0.png"], match: "precise" as const, styleNote: "luz de vela", onMissingStyleId: "stop" as const };
   const result = await confirmLongFormProduction(fake.client, { requestId: "req-1", userId: "user-1", strategy: "balanced", recraft: style });
   assert.ok(result.ok);
   if (!result.ok) return;

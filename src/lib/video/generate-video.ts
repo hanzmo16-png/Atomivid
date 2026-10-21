@@ -93,6 +93,8 @@ export async function generateVideoFromScript({
     referenceImageUrls: string[];
     match: "precise" | "flexible" | null;
     styleNote: string | null;
+    /** Coherence policy if fal returns no style_id (recraft-reel.ts). Default "stop". */
+    onMissingStyleId?: "stop" | "same_references";
     /** Persists the style_id fal returned (created from the references) so later scenes and retries reuse it. */
     onStyleId?: (styleId: string) => Promise<void>;
     /** Test seam only. */
@@ -323,7 +325,7 @@ export async function generateVideoFromScript({
         ledger: gate.ledger, supabase, bucket: STORAGE_BUCKET, requestId, sceneIndex: i,
         scene: { imagePrompt: prompt, negativePrompt: storyboard?.scenes[i]?.negativePrompt ?? "text, watermark, logo" } as StoryboardScene,
         imageProvider: recraftProvider, remainingBudgetUsd: estimate, signedUrlTtlSeconds: ASSET_SIGNED_URL_TTL_SECONDS,
-        style: recraftStyle, match: recraft.match, onStyleId: recraft.onStyleId,
+        style: recraftStyle, match: recraft.match, onStyleId: recraft.onStyleId, onMissingStyleId: recraft.onMissingStyleId ?? "stop",
       });
       recraftStyle = nextStyle;
       storageBytes += generated.bufferBytes;

@@ -188,7 +188,8 @@ export type LongFormRuntime = {
    * never fall back to stock, a text card or another provider (shot-executor.ts ChosenImageProviderError).
    */
   recraftStyle?: { styleId: string | null; referenceImageUrls: string[]; match: "precise" | "flexible" | null; styleNote: string | null;
-    onStyleId: (styleId: string) => Promise<void> };
+    onStyleId: (styleId: string) => Promise<void>; onMissingStyleId?: "stop" | "same_references"; styleMissing?: boolean;
+    onStyleMissing?: (providerJobId: string | undefined) => Promise<void> };
 };
 
 export class LongFormReplayError extends Error {
