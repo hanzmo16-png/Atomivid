@@ -19,8 +19,9 @@ export function measure(video: string, manifest: AvManifest, base: string): AvMe
   const det = run("ffmpeg", ["-hide_banner", "-nostats", "-i", video, "-vf", "blackdetect=d=0.5:pix_th=0.10,freezedetect=n=-60dB:d=2.5",
     ...(a ? ["-af", "silencedetect=n=-50dB:d=2,volumedetect,ebur128=peak=true"] : []), "-f", "null", "-"]);
   const d = parseDetectors(det.err);
-  const formatDuration = Number(probe.format?.duration);
-  const close = (xs: [number, number][]) => xs.map(([s, e]) => [s, Number.isFinite(e) ? e : formatDuration] as [number, number]);
+  const measuredDuration = Number(probe.format?.duration);
+  const formatDuration = Number.isFinite(measuredDuration) && measuredDuration > 0 ? measuredDuration : undefined;
+  const close = (xs: [number, number][]) => xs.flatMap(([s, e]) => Number.isFinite(e) ? [[s, e] as [number, number]] : formatDuration !== undefined ? [[s, formatDuration] as [number, number]] : []);
   let subtitles: AvMeasurements["subtitles"] = null, subtitleParseError: string | undefined;
   if (manifest.subtitles) { try { subtitles = parseSubtitles(fs.readFileSync(path.resolve(base, manifest.subtitles), "utf8")); } catch (e) { subtitleParseError = (e as Error).message; } }
   const missingFiles: string[] = [], hashMismatches: string[] = [], segmentHashes: Record<string, string> = {};
@@ -31,6 +32,7 @@ export function measure(video: string, manifest: AvManifest, base: string): AvMe
     audioCodec: a?.codec_name as string | undefined, pixFmt: v?.pix_fmt as string | undefined, fps: fd ? fn / fd : undefined,
     formatDuration, videoDuration: Number(v?.duration) || undefined, audioDuration: Number(a?.duration) || undefined, hasAudio: !!a,
     decodeErrors: dec.err.split("\n").map((l) => l.trim()).filter(Boolean).concat(dec.code ? [`ffmpeg exit ${dec.code}`] : []),
+    detectorErrors: det.code ? det.err.split("\n").map((l) => l.trim()).filter(Boolean).slice(-10).concat(`ffmpeg detector exit ${det.code}`) : [],
     black: d.black, freeze: close(d.freeze), silence: close(d.silence), integratedLufs: d.integratedLufs, lra: d.lra, truePeakDbfs: d.truePeakDbfs,
     samplePeakDb: d.samplePeakDb, meanVolumeDb: d.meanVolumeDb, subtitles, subtitleParseError, missingFiles, hashMismatches, segmentHashes,
   };
