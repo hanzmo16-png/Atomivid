@@ -6,18 +6,20 @@ const TOPIC=process.env.TOPIC;const TAG=process.env.TAG||"R";
  await p.goto(BASE+"/dashboard/long-form/new");await skipTour(p);
  await p.fill("input[name=topic]",TOPIC);await p.selectOption("select[name=language]","es");await p.fill("input[name=duration_minutes]","10");await shot(p,`${TAG}-A01-formulario`);
  await p.getByRole("button",{name:"Crear y revisar guion"}).click();await p.waitForURL(u=>!String(u).includes("/long-form/new"));
- const j=(await c.query("select id,request_id,status from documentary_script_jobs where user_id=$1 and input->'fields'->>'topic'=$2",[OWNER.id,TOPIC])).rows[0];
+ const j=(await c.query("select id,request_id,status from documentary_script_jobs where user_id=$1 and input->'fields'->>'topic'=$2 order by created_at desc limit 1",[OWNER.id,TOPIC])).rows[0];
  fs.writeFileSync(OUT+"/ids.json",JSON.stringify({jobId:j.id,requestId:j.request_id}));log(TAG,"UI: solicitud creada por formulario",j);const R0=j.request_id;
  // B. Guion sintético por RPC productivas (NO UI, NO LLM)
- log(TAG,"NO-UI: guion sintético inyectado por RPC claim/finish",execFileSync("npx",["tsx",".e2e-local/lf/b-inject.ts"],{cwd:"/workspace/atomivid-recraft",env:{...process.env,TOPIC}}).toString().trim());
+ log(TAG,"NO-UI: guion sintético inyectado por RPC claim/finish",execFileSync("npx",["tsx","scripts/harness/e2e/longform-rehearsal/b-inject.ts"],{cwd:"/workspace/atomivid-recraft",env:{...process.env,TOPIC}}).toString().trim());
  // C. Revisar/configurar/confirmar por UI
  await p.goto(`${BASE}/dashboard/long-form/configure/${R0}`);await skipTour(p);
  for (const t of ["Revisar el guion","Ver estructura narrativa"]) await p.getByText(t).first().click().catch(()=>log("no expand",t));
+ if(process.env.VOICE_ID){await p.locator("#reel_voice_picker").selectOption(process.env.VOICE_ID,{timeout:60000});log(TAG,"UI: voz elegida",await p.getByTestId("reel-voice-selected").innerText());}
+ if(process.env.RECRAFT_REF){await p.locator("input[type=radio][value=recraft]").check();await p.locator("input[name=recraft_style_refs]").setInputFiles(process.env.RECRAFT_REF);if(process.env.RECRAFT_NOTE)await p.fill("input[name=recraft_style_note]",process.env.RECRAFT_NOTE);log(TAG,"UI: Recraft elegido con referencia",process.env.RECRAFT_REF);}
  await shot(p,`${TAG}-C01-revisar-plan`);fs.writeFileSync(`${OUT}/${TAG}-C01.txt`,await p.locator("main").innerText());
  log(TAG,"UI: controles de edición de guion en configurar (textarea):",await p.locator("main textarea").count());
  await p.getByRole("button",{name:"Confirmar y generar video"}).click();await p.waitForTimeout(8000);await shot(p,`${TAG}-C02-confirmado`);
  }
- const R=require("./out/ids.json").requestId;
+ const R=JSON.parse(fs.readFileSync(OUT+"/ids.json","utf8")).requestId;
  if(process.env.RESUME){await p.goto(`${BASE}/dashboard/videos/${R}`);await skipTour(p);await shot(p,`${TAG}-D01-antes-iniciar`);await p.getByRole("button",{name:process.env.BTN||"Iniciar producción"}).click();await p.waitForTimeout(8000);await shot(p,`${TAG}-D02-tras-iniciar`);log(TAG,"UI: pulsado Iniciar producción");}
  const t0=Date.now();let last="";
  for(;;){const r=(await c.query("select status,render_attempts,long_form_stage,long_form_progress,video_path,error_message from video_requests where id=$1",[R])).rows[0];

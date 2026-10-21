@@ -15,6 +15,9 @@ const MAP: [RegExp, string][] = [
   [/^https:\/\/api\.pexels\.com\/v1\//, `${M}/pexels/v1/`],
   [/^https:\/\/commons\.wikimedia\.org\/w\/api\.php/, `${M}/commons`],
   [/^https:\/\/api\.openai\.com\/v1\/images\/generations$/, `${M}/openai/v1/images/generations`],
+  [/^https:\/\/queue\.fal\.run\//, `${M}/fal/`],
+  [/^https:\/\/api\.fal\.ai\//, `${M}/falapi/`],
+  [/^https:\/\/v3\.fal\.media\/files\/mock\//, `${M}/media/gen/`],
 ];
 globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
   const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;

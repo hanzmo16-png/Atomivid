@@ -1,0 +1,54 @@
+From 981f7164391d4abaa7ba52ad11fc23d97ed53c65 Mon Sep 17 00:00:00 2001
+From: grok-bot <grok-bot@users.noreply.github.com>
+Date: Wed, 21 Oct 2026 09:18:34 -0500
+Subject: [PATCH 1/6] fix(long-form): apply the current hardMax on budget
+ retries even when the recalculation is unverifiable
+
+Found by ChatGPT's static review (anexo PR174): a stored authorization + null recalculation
+returned the stored ceiling ignoring a reduced LONG_FORM_MAX_TOTAL_USD. RED A2-9 (2.4 != 1), GREEN 12/12.
+---
+ src/lib/video/long-form/request-budget.test.ts | 13 +++++++++++++
+ src/lib/video/long-form/request-budget.ts      |  6 ++++--
+ 2 files changed, 17 insertions(+), 2 deletions(-)
+
+diff --git a/src/lib/video/long-form/request-budget.test.ts b/src/lib/video/long-form/request-budget.test.ts
+index 87e8cb6e..84c68c7b 100644
+--- a/src/lib/video/long-form/request-budget.test.ts
++++ b/src/lib/video/long-form/request-budget.test.ts
+@@ -122,3 +122,16 @@ test("A2-8 fail-closed: un ledger que no permite sumar el gasto del pedido no pa
+   const store = withRequestBudget(inner, { ceilingUsd: 1, ledgerScopes: [REQ] });
+   await assert.rejects(guardPaidCall(store, { projectId: "otro", shotId: "s", provider: "p", model: "m", method: "x", inputFingerprint: {}, reservedUsd: 0.1 }, { call: async () => ({ result: 1, costUsd: 0.1, resultRef: "r" }), load: async () => 1 }), /fuera del pedido/);
+ });
++
++test("A2-9 reintento con autorización previa: un hardMax reducido siempre se aplica (precio desconocido o envelope válido); una subida del entorno no amplía", async () => {
++  const store = memoryAuthorizationStore();
++  const first = await authorizeRequestBudget({ requestId: REQ, stages: stages({ voice: 1, images: 1 }), contingencyPct: 20, hardMaxUsd: 12, ledgerScopes: [REQ], store });
++  assert.equal(first.ceilingUsd, 2.4);
++  const unknownPrice = await authorizeRequestBudget({ requestId: REQ, stages: stages({ music: null }), hardMaxUsd: 1, ledgerScopes: [REQ], store });
++  assert.equal(unknownPrice.ceilingUsd, 1, "precio desconocido + hardMax reducido → el hardMax manda");
++  const validEnvelope = await authorizeRequestBudget({ requestId: REQ, stages: stages({ voice: 1, images: 1 }), contingencyPct: 20, hardMaxUsd: 1.5, ledgerScopes: [REQ], store });
++  assert.equal(validEnvelope.ceilingUsd, 1.5, "envelope válido + hardMax reducido → el hardMax manda");
++  const raised = await authorizeRequestBudget({ requestId: REQ, stages: stages({ music: null }), hardMaxUsd: 100, ledgerScopes: [REQ], store });
++  assert.equal(raised.ceilingUsd, 2.4, "subir el techo del entorno no amplía la autorización guardada");
++  assert.equal(store.rows.get(REQ)!.ceilingUsd, 2.4, "la autorización guardada no se reescribe");
++});
+diff --git a/src/lib/video/long-form/request-budget.ts b/src/lib/video/long-form/request-budget.ts
+index 55c96403..a8bd2d51 100644
+--- a/src/lib/video/long-form/request-budget.ts
++++ b/src/lib/video/long-form/request-budget.ts
+@@ -149,8 +149,10 @@ export async function authorizeRequestBudget(input: {
+   if (existing) {
+     // Reintento: se respeta la autorización original. Si el recálculo pide más, NO se amplía.
+     const recalculated = envelope.proposedAuthorizationCeilingUsd;
+-    const ceilingUsd = recalculated === null ? existing.ceilingUsd : Math.min(existing.ceilingUsd, Math.max(recalculated, 0), input.hardMaxUsd);
+-    return { ...existing, ceilingUsd: Math.min(existing.ceilingUsd, ceilingUsd), ledgerScopes: [...new Set([...existing.ledgerScopes, ...input.ledgerScopes])] };
++    // El techo de producto/entorno vigente (hardMax) se aplica SIEMPRE, también cuando el recálculo no es verificable.
++    const hardMax = Number.isFinite(input.hardMaxUsd) ? Math.max(0, input.hardMaxUsd) : 0;
++    const ceilingUsd = Math.min(existing.ceilingUsd, hardMax, recalculated === null ? Infinity : Math.max(recalculated, 0));
++    return { ...existing, ceilingUsd, ledgerScopes: [...new Set([...existing.ledgerScopes, ...input.ledgerScopes])] };
+   }
+   if (!envelope.ready || envelope.proposedAuthorizationCeilingUsd === null) throw new RequestBudgetNotAuthorizedError(envelope);
+   const auth: RequestBudgetAuthorization = {
+-- 
+2.47.3
+

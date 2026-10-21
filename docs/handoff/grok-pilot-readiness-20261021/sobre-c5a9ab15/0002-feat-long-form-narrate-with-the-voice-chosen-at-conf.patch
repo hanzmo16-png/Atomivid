@@ -1,0 +1,662 @@
+From 627966bbec4ab93c859eab943d243642371dfb78 Mon Sep 17 00:00:00 2001
+From: grok-bot <grok-bot@users.noreply.github.com>
+Date: Wed, 21 Oct 2026 09:22:59 -0500
+Subject: [PATCH 2/6] =?UTF-8?q?feat(long-form):=20narrate=20with=20the=20v?=
+ =?UTF-8?q?oice=20chosen=20at=20confirmation=20(e.g.=20private=20=C2=ABEl?=
+ =?UTF-8?q?=20Duro=C2=BB),=20never=20a=20silent=20substitute?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- Configure: same voice catalogue as Reels (private clones only with their grant); the server
+  revalidates in confirm-production and writes reel_voice_id in the SAME conditional update.
+- Migration 20261021180000 (additive): reel_voice_id allowed for long_form, set once on confirmation.
+- Worker: produce() pins the narration provider to that voice; an injected/real provider that
+  cannot guarantee it stops before any narration or reservation (LongFormChosenVoiceUnavailableError).
+RED: 4/17 (V1-V3 + confirm voice) on bd94dcaa; GREEN 17/17. Migration verified on throwaway PG (9 cases).
+---
+ .../generate/[id]/confirm-production/route.ts |  22 ++-
+ .../configure/[id]/ConfigureProduction.tsx    |  12 +-
+ .../long-form/configure/[id]/page.tsx         |   3 +-
+ src/app/dashboard/new/ReelVoicePicker.tsx     |   7 +-
+ src/lib/providers/types.ts                    |   2 +
+ src/lib/providers/voice/real.ts               |   1 +
+ src/lib/video/long-form/configure-lookup.ts   |   4 +-
+ .../long-form/confirm-production.test.ts      |  19 ++
+ src/lib/video/long-form/confirm-production.ts |   9 +-
+ .../video/long-form/long-form-voice.test.ts   | 183 ++++++++++++++++++
+ src/lib/video/long-form/produce.ts            |  29 ++-
+ src/lib/video/run-job.ts                      |   1 +
+ ...261021180000_long_form_voice_selection.sql |  27 +++
+ .../verify/long_form_voice_selection.sql      |  29 +++
+ 14 files changed, 335 insertions(+), 13 deletions(-)
+ create mode 100644 src/lib/video/long-form/long-form-voice.test.ts
+ create mode 100644 supabase/migrations/20261021180000_long_form_voice_selection.sql
+ create mode 100644 supabase/migrations/verify/long_form_voice_selection.sql
+
+diff --git a/src/app/api/generate/[id]/confirm-production/route.ts b/src/app/api/generate/[id]/confirm-production/route.ts
+index 79cd36ea..7607f9c4 100644
+--- a/src/app/api/generate/[id]/confirm-production/route.ts
++++ b/src/app/api/generate/[id]/confirm-production/route.ts
+@@ -9,6 +9,7 @@ import { recraftAllowedFor } from "@/lib/video/recraft-access";
+ import { randomUUID } from "node:crypto";
+ import { parseRecraftSelection, type ReelRecraftStyle } from "@/lib/video/recraft-reel";
+ import { storeRecraftReferences } from "@/lib/video/recraft-reel-server";
++import { resolveReelVoiceSelection } from "@/lib/video/reel-voices-server";
+ 
+ /**
+  * Paso 9/10 del contrato de Long Form: fija el plan confirmado (ver
+@@ -30,16 +31,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
+   if (!user) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+   if (!canAccessLongFormBeta(user)) return NextResponse.json({ error: "Long Form no está disponible para tu cuenta." }, { status: 403 });
+ 
+-  let strategy: unknown, packaging: unknown, form: FormData | null = null;
++  let strategy: unknown, packaging: unknown, rawVoice: unknown, form: FormData | null = null;
+   try {
+     if ((request.headers.get("content-type") ?? "").toLowerCase().startsWith("multipart/form-data")) {
+       form = await request.formData();
+       strategy = form.get("strategy");
++      rawVoice = form.get("voice_id");
+       const rawPackaging = form.get("packaging");
+       packaging = typeof rawPackaging === "string" && rawPackaging.trim() ? JSON.parse(rawPackaging) : undefined;
+     } else {
+-      const body = (await request.json()) as { strategy?: unknown; packaging?: unknown } | null;
++      const body = (await request.json()) as { strategy?: unknown; packaging?: unknown; voice_id?: unknown } | null;
+       strategy = body?.strategy;
++      rawVoice = body?.voice_id;
+       packaging = body?.packaging;
+     }
+   } catch {
+@@ -72,6 +75,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
+         recraft = { styleId: choice.styleId, referencePaths, match: choice.match, styleNote: choice.styleNote, onMissingStyleId: choice.onMissingStyleId };
+       }
+     }
++    // Voz elegida: validada en el servidor contra el catálogo de ESTA cuenta (clones privados solo con concesión).
++    // Si no es válida o el catálogo no responde, NO se confirma: nunca se sustituye en silencio por la predeterminada.
++    let voiceId: string | undefined;
++    if (rawVoice != null && rawVoice !== "") {
++      const { data: langRow } = await service.from("video_requests").select("language, user_id").eq("id", id).maybeSingle<{ language: string | null; user_id: string }>();
++      if (!langRow) return NextResponse.json({ error: "Solicitud no encontrada" }, { status: 404 });
++      if (langRow.user_id !== user.id) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
++      try {
++        voiceId = (await resolveReelVoiceSelection(rawVoice, langRow.language === "en" ? "en" : "es", user)) ?? undefined;
++      } catch (e) {
++        return NextResponse.json({ error: `${e instanceof Error ? e.message : "La voz seleccionada no está disponible."} No se confirmó ni cobró nada.` }, { status: 400 });
++      }
++      if (!voiceId) return NextResponse.json({ error: "La selección de voz no está activa. No se confirmó ni cobró nada." }, { status: 400 });
++    }
+     const result = await confirmLongFormProduction(createServiceClient(), {
+       requestId: id,
+       userId: user.id,
+@@ -79,6 +96,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
+       packaging,
+       cinematicV6: cinematicV6Enabled(user),
+       ...(recraft ? { recraft } : {}),
++      ...(voiceId ? { voiceId } : {}),
+     });
+     if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
+     return NextResponse.json({ plan: result.plan, confirmedAt: result.confirmedAt, alreadyConfirmed: result.alreadyConfirmed });
+diff --git a/src/app/dashboard/long-form/configure/[id]/ConfigureProduction.tsx b/src/app/dashboard/long-form/configure/[id]/ConfigureProduction.tsx
+index 9adaac9e..d4675485 100644
+--- a/src/app/dashboard/long-form/configure/[id]/ConfigureProduction.tsx
++++ b/src/app/dashboard/long-form/configure/[id]/ConfigureProduction.tsx
+@@ -2,6 +2,7 @@
+ 
+ import { useCallback, useEffect, useRef, useState } from "react";
+ import { ReelImageSourcePicker } from "@/app/dashboard/new/ReelImageSourcePicker";
++import { ReelVoicePicker } from "@/app/dashboard/new/ReelVoicePicker";
+ import { useRouter } from "next/navigation";
+ import { Card } from "@/components/ui/Card";
+ import { Button } from "@/components/ui/Button";
+@@ -189,6 +190,7 @@ export function ConfigureProduction({
+   visualBlockText = null,
+   defaultPackaging,
+   ownChannel = false,
++  language = "es",
+ }: {
+   requestId: string;
+   plans: Record<VisualStrategy, ProductionPlan>;
+@@ -202,10 +204,13 @@ export function ConfigureProduction({
+   /** Presentación para YouTube inicial (activada por defecto solo en los canales propios). */
+   defaultPackaging?: LongFormPackaging;
+   ownChannel?: boolean;
++  /** Idioma del documental: catálogo de voces de ese idioma. */
++  language?: "es" | "en";
+ }) {
+   const router = useRouter();
+   // Recraft first for new productions when this account may use it (owner decision 2026-10-21).
+   const [imageSource, setImageSource] = useState<"default" | "recraft">(recraftPlans ? "recraft" : "default");
++  const [voiceId, setVoiceId] = useState("");
+   const useRecraft = imageSource === "recraft" && !!recraftPlans;
+   const plans = useRecraft ? recraftPlans : defaultPlans;
+   const imageForm = useRef<HTMLFormElement>(null);
+@@ -274,9 +279,10 @@ export function ConfigureProduction({
+         const body = new FormData(imageForm.current);
+         body.set("strategy", strategy);
+         if (packaging) body.set("packaging", JSON.stringify(packaging));
++        if (voiceId) body.set("voice_id", voiceId);
+         confirmInit = { method: "POST", body };
+       } else {
+-        confirmInit = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(packaging ? { strategy, packaging } : { strategy }) };
++        confirmInit = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ strategy, ...(packaging ? { packaging } : {}), ...(voiceId ? { voice_id: voiceId } : {}) }) };
+       }
+       const confirmRes = await fetch(`/api/generate/${requestId}/confirm-production`, confirmInit);
+       const confirmResult = await safeParseJsonResponse(confirmRes);
+@@ -342,6 +348,10 @@ export function ConfigureProduction({
+         })}
+       </fieldset>
+ 
++      <Card className="mt-4 p-4">
++        <ReelVoicePicker key={language} language={language} onSelect={setVoiceId} />
++      </Card>
++
+       {recraftPlans && (
+         <Card className="mt-4 p-4">
+           <form ref={imageForm} onSubmit={(e) => e.preventDefault()}>
+diff --git a/src/app/dashboard/long-form/configure/[id]/page.tsx b/src/app/dashboard/long-form/configure/[id]/page.tsx
+index 94733729..e8c69ce7 100644
+--- a/src/app/dashboard/long-form/configure/[id]/page.tsx
++++ b/src/app/dashboard/long-form/configure/[id]/page.tsx
+@@ -69,7 +69,7 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
+     modality: "Documental largo (Long Form, 16:9)",
+     engine: engine.engine === "cinematic-v6" ? "Cinematic V6 (plan v6)" : `Plan estándar (v${plans.balanced.version})`,
+     requestedSeconds: data.duration_seconds ?? null,
+-    voice: plans.balanced.providers.voice === "elevenlabs" ? "ElevenLabs · voz de narración configurada del producto" : plans.balanced.providers.voice,
++    voice: plans.balanced.providers.voice === "elevenlabs" ? "ElevenLabs · la voz que elijas abajo (predeterminada del producto si no eliges)" : plans.balanced.providers.voice,
+     curationPath: visual.applies && canCurateAssets(user) ? `/dashboard/admin/curation/${id}` : null,
+   };
+ 
+@@ -149,6 +149,7 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
+         summary={summary}
+         visualBlockText={visual.ready ? null : visualBlockMessage(visual)}
+         ownChannel={ownChannel}
++        language={data.language === "en" ? "en" : "es"}
+         defaultPackaging={usesAnchoredVisuals(plans.balanced) ? defaultPackaging({ topic: script.topic || data.topic, ownChannel }) : undefined}
+       />
+     </div>
+diff --git a/src/app/dashboard/new/ReelVoicePicker.tsx b/src/app/dashboard/new/ReelVoicePicker.tsx
+index e57f70f9..05327ac0 100644
+--- a/src/app/dashboard/new/ReelVoicePicker.tsx
++++ b/src/app/dashboard/new/ReelVoicePicker.tsx
+@@ -27,7 +27,7 @@ function remember(language: string, scope: string, value: Remembered | null) {
+ type Playback = "idle" | "loading" | "playing" | "error";
+ 
+ /** Mounted with key=language: changing language loads that language's catalogue and remembered choice. */
+-export function ReelVoicePicker({ language }: { language: "es" | "en" }) {
++export function ReelVoicePicker({ language, onSelect }: { language: "es" | "en"; /** Long Form: recibe la voz confirmada ("" = predeterminada). */ onSelect?: (voiceId: string) => void }) {
+   const [catalog, setCatalog] = useState<ReelVoiceCatalog | null>(null);
+   const [selected, setSelected] = useState("");
+   const [error, setError] = useState("");
+@@ -48,7 +48,7 @@ export function ReelVoicePicker({ language }: { language: "es" | "en" }) {
+         setCatalog(data);
+         const stored = data.storageScope ? readRemembered(language, data.storageScope) : null;
+         if (stored && data.enabled) {
+-          if (data.voices.some(v => v.voiceId === stored.voiceId)) setSelected(stored.voiceId);
++          if (data.voices.some(v => v.voiceId === stored.voiceId)) { setSelected(stored.voiceId); onSelect?.(stored.voiceId); }
+           else { setUnavailable(stored); remember(language, data.storageScope!, null); }
+         }
+       }).catch(() => {
+@@ -57,7 +57,7 @@ export function ReelVoicePicker({ language }: { language: "es" | "en" }) {
+         setPending(true);
+       }).finally(() => clearTimeout(timer));
+     return () => { alive = false; clearTimeout(timer); controller.abort(); };
+-  }, [language]);
++  }, [language]); // eslint-disable-line react-hooks/exhaustive-deps -- onSelect is a stable setter
+ 
+   const voice = catalog?.voices.find(v => v.voiceId === selected);
+   const preview = selected ? voice?.previewUrl ?? null : catalog?.defaultPreviewUrl ?? null;
+@@ -67,6 +67,7 @@ export function ReelVoicePicker({ language }: { language: "es" | "en" }) {
+   const choose = (id: string) => {
+     audio.current?.pause(); setPlayback("idle"); setUnavailable(null);
+     setSelected(id);
++    onSelect?.(catalog?.voices.some(x => x.voiceId === id) ? id : "");
+     const v = catalog?.voices.find(x => x.voiceId === id);
+     if (catalog?.storageScope) remember(language, catalog.storageScope, v ? { voiceId: v.voiceId, name: v.name } : null);
+   };
+diff --git a/src/lib/providers/types.ts b/src/lib/providers/types.ts
+index 620dfcc6..0d725063 100644
+--- a/src/lib/providers/types.ts
++++ b/src/lib/providers/types.ts
+@@ -88,6 +88,8 @@ export interface VoiceProvider {
+    * = velocidad normal del proveedor.
+    */
+   synthesize(text: string, language?: ScriptLanguage, speed?: number): Promise<VoiceResult>;
++  /** Voz fija de esta instancia (elegida por el usuario). Ausente = voz predeterminada del idioma. */
++  readonly voiceId?: string;
+ }
+ 
+ /**
+diff --git a/src/lib/providers/voice/real.ts b/src/lib/providers/voice/real.ts
+index 1f7cf00c..1e83d2f7 100644
+--- a/src/lib/providers/voice/real.ts
++++ b/src/lib/providers/voice/real.ts
+@@ -4,6 +4,7 @@ import type { VoiceProvider } from "../types";
+ export function realVoiceProviderFor(voiceId?: string): VoiceProvider {
+   return {
+     name: "elevenlabs",
++    ...(voiceId ? { voiceId } : {}),
+     async synthesize(text, language = "es", speed) {
+       const result = await synthesizeVoice(text, language, speed, voiceId);
+       return { ...result, mimeType: "audio/mpeg", extension: "mp3" };
+diff --git a/src/lib/video/long-form/configure-lookup.ts b/src/lib/video/long-form/configure-lookup.ts
+index a93c9092..5b1749e2 100644
+--- a/src/lib/video/long-form/configure-lookup.ts
++++ b/src/lib/video/long-form/configure-lookup.ts
+@@ -1,7 +1,7 @@
+ import type { SupabaseClient } from "@supabase/supabase-js";
+ import { isLongFormScriptJson, type LongFormScriptJson } from "./script-json";
+ 
+-export type ConfigurableRequest = { id: string; mode: string; topic: string; status: string; duration_seconds: number | null; script_json: LongFormScriptJson; long_form_confirmed_at: string | null };
++export type ConfigurableRequest = { id: string; mode: string; topic: string; status: string; language?: string | null; duration_seconds: number | null; script_json: LongFormScriptJson; long_form_confirmed_at: string | null };
+ export type ConfigureLookup =
+   | { kind: "not_found"; reason: "no_access" | "invalid_id" | "missing" | "not_long_form" }
+   | { kind: "redirect"; to: string }
+@@ -15,7 +15,7 @@ export async function lookupConfigurableRequest(client: SupabaseClient, user: {
+   if (!hasAccess) return { kind: "not_found", reason: "no_access" };
+   if (!UUID.test(id)) return { kind: "not_found", reason: "invalid_id" };
+   const { data } = await client.from("video_requests")
+-    .select("id, mode, topic, status, duration_seconds, script_json, long_form_confirmed_at")
++    .select("id, mode, topic, status, language, duration_seconds, script_json, long_form_confirmed_at")
+     .eq("id", id).eq("user_id", user.id).maybeSingle<Omit<ConfigurableRequest, "script_json"> & { script_json: unknown }>();
+   if (!data) return { kind: "not_found", reason: "missing" };
+   if (data.mode !== "long_form") return { kind: "not_found", reason: "not_long_form" };
+diff --git a/src/lib/video/long-form/confirm-production.test.ts b/src/lib/video/long-form/confirm-production.test.ts
+index dc9b1d80..29ddb7b6 100644
+--- a/src/lib/video/long-form/confirm-production.test.ts
++++ b/src/lib/video/long-form/confirm-production.test.ts
+@@ -247,3 +247,22 @@ test("sin Recraft: el plan y la fila quedan exactamente como antes (OpenAI, sin
+   assert.ok(result.ok && result.plan.providers.image === "openai");
+   assert.equal("reel_image_source" in fake.row, false);
+ });
++
++test("voz elegida (Long Form): se escribe en el MISMO UPDATE de la confirmación y una pestaña vieja no la cambia", async () => {
++  const fake = fakeService(baseRow());
++  const result = await confirmLongFormProduction(fake.client, { requestId: "req-1", userId: "user-1", strategy: "balanced", voiceId: "CeFSZuaHs4SxcBxb9nCr" });
++  assert.ok(result.ok);
++  assert.equal(fake.appliedUpdates(), 1);
++  assert.equal(fake.row.reel_voice_id, "CeFSZuaHs4SxcBxb9nCr");
++  const stale = await confirmLongFormProduction(fake.client, { requestId: "req-1", userId: "user-1", strategy: "balanced", voiceId: "otraVoz12345" });
++  assert.ok(stale.ok && stale.alreadyConfirmed);
++  assert.equal(fake.appliedUpdates(), 1);
++  assert.equal(fake.row.reel_voice_id, "CeFSZuaHs4SxcBxb9nCr");
++});
++
++test("sin voz elegida: la fila no recibe reel_voice_id (voz predeterminada como antes)", async () => {
++  const fake = fakeService(baseRow());
++  const result = await confirmLongFormProduction(fake.client, { requestId: "req-1", userId: "user-1", strategy: "balanced" });
++  assert.ok(result.ok);
++  assert.equal("reel_voice_id" in fake.row, false);
++});
+diff --git a/src/lib/video/long-form/confirm-production.ts b/src/lib/video/long-form/confirm-production.ts
+index 06ff9bed..877541a8 100644
+--- a/src/lib/video/long-form/confirm-production.ts
++++ b/src/lib/video/long-form/confirm-production.ts
+@@ -67,6 +67,12 @@ export async function confirmLongFormProduction(
+      * conditional update as the confirmation (DB trigger: immutable afterwards). Absent = default (OpenAI) images.
+      */
+     recraft?: ReelRecraftStyle;
++    /**
++     * Voz de narración elegida para ESTE documental, ya validada por la ruta contra el catálogo del usuario
++     * (resolveReelVoiceSelection: voces privadas solo con su concesión). Se escribe en el MISMO UPDATE condicional que
++     * confirma (trigger: inmutable después). Ausente = voz predeterminada del producto, como siempre.
++     */
++    voiceId?: string;
+   },
+ ): Promise<ConfirmProductionResult> {
+   if (!isVisualStrategyValue(input.strategy)) return { ok: false, status: 400, error: "Estrategia visual inválida" };
+@@ -139,7 +145,8 @@ export async function confirmLongFormProduction(
+   const { data: updated, error: updateError } = await service
+     .from("video_requests")
+     .update({ long_form_production_plan: plan, long_form_confirmed_at: confirmedAt,
+-      ...(input.recraft ? { reel_image_source: "recraft", reel_recraft_style: input.recraft } : {}) })
++      ...(input.recraft ? { reel_image_source: "recraft", reel_recraft_style: input.recraft } : {}),
++      ...(input.voiceId ? { reel_voice_id: input.voiceId } : {}) })
+     .eq("id", input.requestId)
+     .eq("user_id", input.userId)
+     .eq("status", "script_ready")
+diff --git a/src/lib/video/long-form/long-form-voice.test.ts b/src/lib/video/long-form/long-form-voice.test.ts
+new file mode 100644
+index 00000000..d29c7941
+--- /dev/null
++++ b/src/lib/video/long-form/long-form-voice.test.ts
+@@ -0,0 +1,183 @@
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import { createHash } from "node:crypto";
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import type { FootageProvider } from "@/lib/providers/types";
++import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
++import { memoryResultStore } from "@/lib/paid-calls/result-store";
++import { computeProductionPlan, REAL_LONG_FORM_PROVIDER_NAMES, type ProductionPlan, type ProductionPlanBeatInput } from "./production-plan";
++import { countingProviders, makeStorage } from "./cinematic-simulation";
++import { memoryShotAssetStore } from "./durable-shot-assets";
++import { memoryBudgetStore } from "./production-budget";
++import { memoryOutputDeps } from "./output-finalize";
++import { generateLongFormVideoFromScript, withChosenVoice, LONG_FORM_RENDER_JOB_TIMEOUT_MIN, type LongFormRuntime } from "./produce";
++import type { VoiceProvider } from "@/lib/providers/types";
++import { fixtureVoiceProvider } from "@/lib/providers/voice/fixture";
++import { getVoiceProvider } from "@/lib/providers/voice";
++import { getPricingConfig } from "@/lib/billing/pricing";
++import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
++
++/** Techo del render (fuera del ledger), reservado dentro del techo total. */
++// eslint-disable-next-line @typescript-eslint/no-unused-vars
++const RENDER_USD = MAX_RENDER_ATTEMPTS * LONG_FORM_RENDER_JOB_TIMEOUT_MIN * getPricingConfig().renderUsdPerMinute;
++
++/**
++ * Voz elegida para Long Form (p. ej. «El Duro»): se narra con ESA voz o no se narra. produce() real.
++ * Código real de produce(); proveedores falsos que registran cada llamada; USD 0, sin red.
++ * Solo usa API pública ya existente en la base (los nombres de error se comparan como texto),
++ * para que el archivo compile y falle (ROJO) sobre la versión anterior.
++ */
++globalThis.fetch = (async () => { throw new Error("red prohibida"); }) as typeof fetch;
++
++const TOPIC = "Auroras polares: la tormenta invisible";
++const N1 = "La noche del 10 de mayo de 2024, millones de personas miraron hacia arriba y vieron algo que muchos solo conocían por fotografías. Cortinas de luz verde, rosa y violeta aparecieron sobre lugares donde casi nunca se ven. Hubo reportes desde el sur de Estados Unidos y el norte de la India.";
++const N1_UNDATED = "Una noche de primavera, millones de personas miraron hacia arriba y vieron algo que muchos solo conocían por fotografías. Cortinas de luz verde, rosa y violeta aparecieron sobre lugares donde casi nunca se ven. Hubo reportes desde el sur de Estados Unidos y el norte de la India.";
++const N2 = "Detrás de ese espectáculo había un fenómeno que no se ve a simple vista: una tormenta geomagnética extrema, la primera de nivel G5 desde 2003. Esta es la historia de esa tormenta invisible, y de la luz que la delata.";
++const N3 = "Todo empieza a unos ciento cincuenta millones de kilómetros de aquí. El Sol no solo emite luz y calor. También expulsa sin descanso un flujo de partículas con carga eléctrica: el viento solar. A veces, el Sol hace algo más violento. En las regiones activas, donde los campos magnéticos se concentran y se enredan, pueden producirse fulguraciones y eyecciones de masa coronal: enormes nubes de plasma y campo magnético lanzadas al espacio.";
++
++function auroraBeats(opts: { dated: boolean; evidence?: boolean }): ProductionPlanBeatInput[] {
++  const hookQuote = opts.dated ? "La noche del 10 de mayo de 2024" : "Una noche de primavera";
++  const hook = opts.evidence
++    ? [
++        { description: "fotografía de la aurora del 10 de mayo de 2024 sobre una ciudad", quote: hookQuote, subject: "aurora", era: "2024", beatClass: "EVIDENCE", evidence: { sourceIds: ["nasa-2024-may-storm"] }, motion: false },
++        { description: "fotografía de la aurora rosa y violeta de mayo de 2024", quote: "Cortinas de luz verde, rosa y violeta", subject: "aurora", era: "2024", beatClass: "EVIDENCE", evidence: { sourceIds: ["hayakawa-2025"] }, motion: false },
++        { description: "mapa de los avistamientos de aurora de mayo de 2024", quote: "Hubo reportes desde el sur", subject: "mapa", era: "2024", beatClass: "EVIDENCE", evidence: { sourceIds: ["nasa-2024-may-storm"] }, motion: false },
++      ]
++    : [
++        { description: "green aurora curtains moving over a small town at night", quote: hookQuote, subject: "aurora", beatClass: "PLACE", motion: true },
++        { description: "pink and violet aurora over dark hills", quote: "Cortinas de luz verde, rosa y violeta", subject: "aurora", beatClass: "PLACE", motion: false },
++        { description: "green aurora above town rooftops at night", quote: "Hubo reportes desde el sur", subject: "aurora", beatClass: "PLACE", motion: false },
++      ];
++  return [
++    { id: "b1", type: "hook", narration: opts.dated ? N1 : N1_UNDATED, visuals: hook as never },
++    {
++      id: "b2", type: "setup", narration: N2, visuals: [
++        { description: "diagram of Earth magnetosphere hit by the solar wind", quote: "Detrás de ese espectáculo", subject: "magnetosphere", beatClass: "PROCESS", motion: false },
++        { description: "green aurora curtains moving in the night sky", quote: "Esta es la historia de esa tormenta invisible", subject: "aurora", beatClass: "METAPHOR", motion: true },
++      ] as never,
++    },
++    {
++      id: "b3", type: "discovery", narration: N3, visuals: [
++        { description: "surface of the Sun with moving granulation", quote: "Todo empieza a unos ciento cincuenta millones", subject: "sun surface", beatClass: "PLACE", motion: true },
++        { description: "streams of solar wind particles leaving the Sun", quote: "el viento solar", subject: "solar wind", beatClass: "PROCESS", motion: false },
++        { description: "Sun active region with dark sunspots", quote: "En las regiones activas", subject: "sunspots", beatClass: "PROCESS", motion: false },
++        { description: "diagram of a coronal mass ejection traveling from the Sun to Earth", quote: "eyecciones de masa coronal", subject: "coronal mass ejection", beatClass: "PROCESS", motion: false },
++      ] as never,
++    },
++  ] as ProductionPlanBeatInput[];
++}
++
++const planOf = (beats: ProductionPlanBeatInput[], version?: 3) =>
++  ({ ...computeProductionPlan({ beats, topic: TOPIC, strategy: "economical", providers: REAL_LONG_FORM_PROVIDER_NAMES, aiVideoEnabled: false, ...(version ? { version } : {}) }), confirmedAt: "2026-10-19T15:10:00Z" }) as ProductionPlan;
++
++type Shared = ReturnType<typeof newShared>;
++function newShared() {
++  const storage = makeStorage();
++  const out = memoryOutputDeps({ durationSeconds: 60 });
++  return { storage, out, ledger: memoryLedgerStore(), results: memoryResultStore(), store: memoryShotAssetStore().store, budgetStore: memoryBudgetStore() };
++}
++
++async function run(beats: ProductionPlanBeatInput[], plan: ProductionPlan, opts: { footage?: FootageProvider; shared?: Shared; requestBudget?: unknown; voiceId?: string; voice?: VoiceProvider } = {}) {
++  const events: string[] = [];
++  const sh = opts.shared ?? newShared();
++  const base = countingProviders(events);
++  const footage = opts.footage
++    ? { ...opts.footage, searchImageCandidates: async (q: string, o?: "portrait" | "landscape") => (events.push("stock"), (await opts.footage!.searchImageCandidates?.(q, o)) ?? []) }
++    : base.footageProvider;
++  const runtime: LongFormRuntime = {
++    paidCalls: { ledger: sh.ledger, results: sh.results },
++    store: sh.store,
++    budgetStore: sh.budgetStore,
++    observedUnitMax: {},
++    videoProvider: null,
++    aiVideoEnabled: false,
++    recordCosts: false,
++    resumeBackoffMs: 0,
++    output: sh.out.deps,
++    ...(opts.voiceId ? { voiceId: opts.voiceId } : {}),
++    ...(opts.requestBudget !== undefined ? ({ requestBudget: opts.requestBudget } as object) : {}),
++    uploadArtifact: async (p) => (events.push(`upload:${p.split("/").pop()}`), { path: p, url: `memory://${p}` }),
++    identify: async (b) => ({ sha256: createHash("sha256").update(b).digest("hex"), dhashUnavailable: "test" }),
++    saveVisualReport: async () => { events.push("visual-report"); },
++    render: async () => {
++      events.push("render");
++      const file = path.join(os.tmpdir(), `mp-${Date.now()}-${Math.random().toString(36).slice(2)}.mp4`);
++      fs.writeFileSync(file, "fake-mp4");
++      return file;
++    },
++    renderThumbnail: async () => {
++      const file = path.join(os.tmpdir(), `mp-thumb-${Date.now()}.jpg`);
++      fs.writeFileSync(file, "fake-jpg");
++      return file;
++    },
++  };
++  type RunError = Error & { recoverable?: boolean; missing?: unknown[]; temporary?: unknown[] };
++  let error = null as RunError | null;
++  try {
++    await generateLongFormVideoFromScript({
++      // eslint-disable-next-line @typescript-eslint/no-explicit-any
++      supabase: { storage: sh.storage } as any,
++      requestId: "req-total-budget",
++      topic: TOPIC,
++      beats: beats as never,
++      language: "es",
++      plan,
++      providers: { ...base, footageProvider: footage, ...(opts.voice ? { voiceProvider: opts.voice } : {}) },
++      runtime,
++    });
++  } catch (err) {
++    error = err as RunError;
++  }
++  const n = (e: string) => events.filter((x) => x === e).length;
++  return { events, error, voice: n("voice"), image: n("image"), render: n("render"), sh };
++}
++
++
++
++const DURO = "CeFSZuaHs4SxcBxb9nCr";
++const beats = () => auroraBeats({ dated: false });
++const plan3 = (b: ProductionPlanBeatInput[]) => planOf(b, 3);
++const plentiful = () => countingProviders([]).footageProvider;
++const voiceWith = (events: string[], voiceId?: string): VoiceProvider => ({ name: "elevenlabs", ...(voiceId ? { voiceId } : {}),
++  synthesize: async (t, l, s) => (events.push(`voice:${voiceId ?? "default"}`), fixtureVoiceProvider.synthesize(t, l, s)) });
++const ttsKeys = (sh: Shared) => [...sh.ledger.ops.values()].filter((o) => o.shotId.startsWith("tts:")).map((o) => o.shotId);
++
++test("V1 voz elegida que el proveedor de narración no garantiza → se detiene ANTES de narrar (0 voz, 0 reservas, sin sustitución)", async () => {
++  const b = beats();
++  const ev: string[] = [];
++  const r = await run(b, plan3(b), { footage: plentiful(), voiceId: DURO, voice: voiceWith(ev), requestBudget: false });
++  assert.ok(r.error, "debe negarse");
++  assert.equal(r.error!.name, "LongFormChosenVoiceUnavailableError");
++  assert.equal(ev.length, 0, "ninguna narración con otra voz");
++  assert.equal(r.sh.ledger.ops.size, 0, "ninguna reserva");
++});
++
++test("V2 voz elegida disponible → TODAS las narraciones con esa voz y la caché/ledger quedan ligadas a ella", async () => {
++  const b = beats();
++  const evChosen: string[] = [];
++  const chosen = await run(b, plan3(b), { footage: plentiful(), voiceId: DURO, voice: voiceWith(evChosen, DURO), requestBudget: false });
++  assert.equal(chosen.error, null, chosen.error?.message);
++  assert.ok(evChosen.length >= b.length && evChosen.every((e) => e === `voice:${DURO}`), evChosen.join(","));
++  const evDefault: string[] = [];
++  const def = await run(b, plan3(b), { footage: plentiful(), voice: voiceWith(evDefault), requestBudget: false });
++  assert.equal(def.error, null, def.error?.message);
++  const a = ttsKeys(chosen.sh), d = ttsKeys(def.sh);
++  assert.equal(a.length, d.length);
++  assert.ok(a.every((k) => !d.includes(k)), "la identidad de voz entra en la clave: un audio de otra voz nunca se reutiliza");
++});
++
++test("V3 withChosenVoice: sin voz no cambia nada; proveedor real queda fijado a la voz; inyectado distinto se rechaza", () => {
++  const base = countingProviders([]);
++  assert.equal(withChosenVoice(base as never, undefined, true), base);
++  assert.throws(() => withChosenVoice({ ...base, voiceProvider: voiceWith([], "otraVoz12345") } as never, DURO, true), /no está disponible/);
++  const prev = { ...process.env };
++  try {
++    process.env.ELEVENLABS_API_KEY = "test-not-a-key"; process.env.VOICE_PROVIDER = "elevenlabs";
++    const real = withChosenVoice(base as never, DURO, false);
++    assert.equal(real.voiceProvider.name, "elevenlabs");
++    assert.equal(real.voiceProvider.voiceId, DURO);
++    assert.equal(getVoiceProvider().voiceId, undefined, "la predeterminada no cambia");
++  } finally { process.env = prev; }
++});
+diff --git a/src/lib/video/long-form/produce.ts b/src/lib/video/long-form/produce.ts
+index 44b6ff5b..84fbf453 100644
+--- a/src/lib/video/long-form/produce.ts
++++ b/src/lib/video/long-form/produce.ts
+@@ -45,6 +45,7 @@ import { resolveLongFormProviders, type LongFormProviderSet } from "./mode";
+ import { getRecraftImageProvider } from "@/lib/providers/image";
+ import { allocateWithImagePriority, RECRAFT_PRIORITY_VERSION } from "./image-priority";
+ import type { BeatType } from "./types";
++import { getVoiceProvider } from "@/lib/providers/voice";
+ import { buildLongFormTimeline, type BeatSynthesizer } from "./timeline";
+ import { shotsForSpan } from "./shots";
+ import { assertOpeningValid, CoverValidationError, renderLongFormDoc, renderLongFormThumbnail, type RenderLongFormDocInput } from "./render";
+@@ -189,6 +190,8 @@ export type LongFormRuntime = {
+    * exactly when the confirmed plan pins image provider "recraft"; AI images then use Recraft with this style and
+    * never fall back to stock, a text card or another provider (shot-executor.ts ChosenImageProviderError).
+    */
++  /** Voz elegida y guardada en la solicitud (reel_voice_id, validada al confirmar). Nunca se sustituye en silencio. */
++  voiceId?: string;
+   recraftStyle?: { styleId: string | null; referenceImageUrls: string[]; match: "precise" | "flexible" | null; styleNote: string | null;
+     onStyleId: (styleId: string) => Promise<void>; onMissingStyleId?: "stop" | "same_references"; styleMissing?: boolean;
+     onStyleMissing?: (providerJobId: string | undefined) => Promise<void> };
+@@ -243,6 +246,26 @@ export class LongFormPendingMaterialError extends Error {
+ export { isLongFormScriptJson, type LongFormScriptBeatInput, type LongFormScriptJson } from "./script-json";
+ import type { LongFormScriptBeatInput } from "./script-json";
+ 
++/** La voz elegida no se pudo garantizar: se detiene ANTES de cualquier narración o reserva (sin sustitución). */
++export class LongFormChosenVoiceUnavailableError extends Error {
++  readonly recoverable = false;
++  constructor(readonly voiceId: string) {
++    super(`La voz elegida para este documental (${voiceId}) no está disponible en el proveedor de narración. No se usó otra voz ni se cobró nada.`);
++    this.name = "LongFormChosenVoiceUnavailableError";
++  }
++}
++
++/**
++ * Aplica la voz guardada en la solicitud al proveedor de narración. Real: instancia con esa voz. Inyectado (tests/banco):
++ * debe declarar la misma voz. Nunca se narra con otra voz en silencio; el fixture local (sin clave) no factura.
++ */
++export function withChosenVoice(set: LongFormProviderSet, voiceId: string | undefined, injected: boolean): LongFormProviderSet {
++  if (!voiceId) return set;
++  const voiceProvider = injected ? set.voiceProvider : getVoiceProvider(voiceId);
++  if (voiceProvider.name !== "fixture" && voiceProvider.voiceId !== voiceId) throw new LongFormChosenVoiceUnavailableError(voiceId);
++  return { ...set, voiceProvider };
++}
++
+ export async function generateLongFormVideoFromScript({
+   supabase,
+   requestId,
+@@ -307,7 +330,7 @@ export async function generateLongFormVideoFromScript({
+   if (!replayOnly && chosenRecraft !== Boolean(runtime.recraftStyle)) {
+     throw new Error("La elección de imágenes de este documental no coincide con su plan confirmado. No se ha iniciado la generación.");
+   }
+-  const baseProviders = providers ?? resolveLongFormProviders("real");
++  const baseProviders = withChosenVoice(providers ?? resolveLongFormProviders("real"), runtime.voiceId, Boolean(providers));
+   // The plan pins Recraft: the per-video provider replaces the environment's image provider (FAL_KEY checked here,
+   // before narration or any reservation). Injected test providers must already be "recraft".
+   const resolvedProviders: LongFormProviderSet = chosenRecraft && !providers && !replayOnly ? { ...baseProviders, imageProvider: getRecraftImageProvider() } : baseProviders;
+@@ -417,14 +440,14 @@ export async function generateLongFormVideoFromScript({
+       ? (voiceProvider, beat, lang) =>
+           loadProductionCachedBeatNarration(supabase, voiceProvider.name, beat, lang, {
+             videoId: requestId,
+-            voiceIdentity: getVoiceIdentity(lang === "en" ? "en" : "es"),
++            voiceIdentity: getVoiceIdentity(lang === "en" ? "en" : "es", runtime.voiceId),
+           })
+       : null) ??
+     ((voiceProvider, beat, lang) =>
+       synthesizeBeatNarrationProductionCached(supabase, voiceProvider, beat, lang, {
+         ledger: paidCalls.ledger,
+         videoId: requestId,
+-        voiceIdentity: getVoiceIdentity(lang === "en" ? "en" : "es"),
++        voiceIdentity: getVoiceIdentity(lang === "en" ? "en" : "es", runtime.voiceId),
+         ...(ttsBudgetGuard ? { costGuard: ttsBudgetGuard } : {}),
+       }));
+   let synthesized = 0;
+diff --git a/src/lib/video/run-job.ts b/src/lib/video/run-job.ts
+index a2859db5..024806c6 100644
+--- a/src/lib/video/run-job.ts
++++ b/src/lib/video/run-job.ts
+@@ -243,6 +243,7 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
+               plan: longFormPlan as ProductionPlan,
+               onProgress: onLongFormProgress,
+               runtime: { attempt: row.render_attempts,
++                ...(row.reel_voice_id ? { voiceId: row.reel_voice_id } : {}),
+                 ...(recraft ? { recraftStyle: {
+                   styleId: recraft.styleId,
+                   // A documentary may reach its first AI image hours after start: references stay signed for 6 h.
+diff --git a/supabase/migrations/20261021180000_long_form_voice_selection.sql b/supabase/migrations/20261021180000_long_form_voice_selection.sql
+new file mode 100644
+index 00000000..c7a9cd00
+--- /dev/null
++++ b/supabase/migrations/20261021180000_long_form_voice_selection.sql
+@@ -0,0 +1,27 @@
++-- Voz de narración elegida para Long Form (p. ej. un clon privado concedido como «El Duro»).
++-- Reutiliza la columna reel_voice_id (20261020200444). Aditiva: NULL conserva la voz predeterminada de todo lo existente.
++-- Un Reel la elige al crear (insert). Un Long Form la recibe UNA vez, del servidor, en el MISMO UPDATE condicional que
++-- confirma el plan (confirm-production.ts) y es inmutable después. Sin tablas nuevas ni cambios de permisos.
++set local lock_timeout = '3s';
++
++alter table public.video_requests drop constraint video_requests_reel_voice_id_valid;
++alter table public.video_requests add constraint video_requests_reel_voice_id_valid
++  check (reel_voice_id is null or (mode in ('visual', 'long_form') and reel_voice_id ~ '^[A-Za-z0-9]{8,64}$'));
++
++comment on column public.video_requests.reel_voice_id is
++  'Server-validated narration voice. Reel: chosen at creation. Long Form: set once with the plan confirmation. Null = legacy language default. Immutable afterwards.';
++
++create or replace function public.reel_voice_immutable() returns trigger
++language plpgsql set search_path = '' as $$
++begin
++  if new.reel_voice_id is distinct from old.reel_voice_id then
++    -- Única transición permitida: un Long Form sin voz recibe una en el mismo UPDATE que confirma su plan.
++    if not (old.mode = 'long_form' and old.long_form_confirmed_at is null and new.long_form_confirmed_at is not null
++            and old.reel_voice_id is null) then
++      raise exception 'reel voice is immutable';
++    end if;
++  end if;
++  return new;
++end;
++$$;
++revoke all on function public.reel_voice_immutable() from public, anon, authenticated;
+diff --git a/supabase/migrations/verify/long_form_voice_selection.sql b/supabase/migrations/verify/long_form_voice_selection.sql
+new file mode 100644
+index 00000000..be3333a9
+--- /dev/null
++++ b/supabase/migrations/verify/long_form_voice_selection.sql
+@@ -0,0 +1,29 @@
++-- Disposable local PostgreSQL only: psql -d <throwaway> -f supabase/migrations/verify/long_form_voice_selection.sql (repo root).
++\set ON_ERROR_STOP 1
++create role anon nologin; create role authenticated nologin; create role service_role nologin;
++create table public.video_requests(id uuid primary key default gen_random_uuid(), mode text not null, long_form_confirmed_at timestamptz, status text);
++\i supabase/migrations/20261020200444_reel_voice_selection.sql
++\i supabase/migrations/20261021180000_long_form_voice_selection.sql
++\set ON_ERROR_STOP 0
++-- 1 Reel insert with voice: ok
++insert into video_requests(id,mode,reel_voice_id) values ('00000000-0000-0000-0000-000000000001','visual','CeFSZuaHs4SxcBxb9nCr');
++-- 2 LF confirmed WITH voice in one update: ok
++insert into video_requests(id,mode,status) values ('00000000-0000-0000-0000-000000000002','long_form','script_ready');
++update video_requests set reel_voice_id='CeFSZuaHs4SxcBxb9nCr', long_form_confirmed_at=now() where id='00000000-0000-0000-0000-000000000002';
++-- 3 after confirmation the voice cannot change (EXPECT ERROR)
++update video_requests set reel_voice_id='otraVoz12345' where id='00000000-0000-0000-0000-000000000002';
++-- 4 LF voice without confirming in the same update (EXPECT ERROR)
++insert into video_requests(id,mode,status) values ('00000000-0000-0000-0000-000000000003','long_form','script_ready');
++update video_requests set reel_voice_id='CeFSZuaHs4SxcBxb9nCr' where id='00000000-0000-0000-0000-000000000003';
++-- 5 Reel voice cannot change (EXPECT ERROR)
++update video_requests set reel_voice_id='otraVoz12345' where id='00000000-0000-0000-0000-000000000001';
++-- 6 avatar cannot have it (EXPECT ERROR)
++insert into video_requests(mode,reel_voice_id) values ('avatar','CeFSZuaHs4SxcBxb9nCr');
++-- 7 already-confirmed LF cannot gain one later (EXPECT ERROR)
++insert into video_requests(id,mode,long_form_confirmed_at) values ('00000000-0000-0000-0000-000000000004','long_form',now());
++update video_requests set reel_voice_id='CeFSZuaHs4SxcBxb9nCr' where id='00000000-0000-0000-0000-000000000004';
++-- 8 bad id format (EXPECT ERROR)
++insert into video_requests(mode,reel_voice_id) values ('visual','x');
++-- 9 unrelated updates on confirmed rows still work
++update video_requests set status='rendering' where id='00000000-0000-0000-0000-000000000002';
++select id, mode, reel_voice_id, status from video_requests order by id;
+-- 
+2.47.3
+

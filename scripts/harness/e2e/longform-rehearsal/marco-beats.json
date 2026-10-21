@@ -1,0 +1,68 @@
+[
+ {
+  "type": "hook",
+  "purpose": "Gancho",
+  "visual": "tienda de campaña romana de noche, lámpara de aceite y tablillas de escritura, recreación",
+  "narration": "Imagina que eres el hombre más poderoso del mundo. Y aun así, cada mañana, todo se complica: una epidemia vacía ciudades enteras, en la frontera del Danubio la guerra no termina, y uno de tus generales de confianza se proclama emperador en tu lugar. Eso no es una hipótesis. Fue la vida de Marco Aurelio. Y en medio de todo eso, de noche, en una tienda de campaña, escribía notas para sí mismo sobre cómo no perder la calma. Hoy vamos a abrir esas notas."
+ },
+ {
+  "type": "context",
+  "purpose": "Quién era y qué escribió",
+  "visual": "busto de mármol de Marco Aurelio en un museo",
+  "narration": "Marco Aurelio gobernó Roma entre los años 161 y 180. No escribió un libro para publicar. Escribió en griego, para él mismo, apuntes que hoy llamamos *Meditaciones*. Algunos cuadernos llevan una nota de lugar: uno se escribió entre los cuados, junto al río Gran; otro, en Carnuntum, un campamento junto al Danubio. Conviene entender el contexto. Desde mediados de la década de 160, una epidemia que hoy llamamos peste antonina recorrió el Imperio; los historiadores todavía discuten cuántas personas murieron, pero coinciden en que golpeó ciudades y ejércitos durante años. Al mismo tiempo, pueblos germánicos cruzaron el Danubio y Marco tuvo que pasar buena parte de su reinado en el frente, lejos de Roma. Gobernar, para él, fue sobre todo gestionar crisis encadenadas. Es decir: no son reflexiones de biblioteca. Son ejercicios de alguien que necesitaba mantenerse en pie mientras su mundo temblaba. Por eso funcionan como un manual práctico. Veamos seis de esos ejercicios."
+ },
+ {
+  "type": "discovery",
+  "purpose": "Ejercicio 1: prepararse al amanecer",
+  "visual": "amanecer frío sobre un campamento romano junto al río Danubio, recreación",
+  "narration": "El libro dos empieza con una instrucción curiosa. Al despertar, dice, recuérdate que hoy te encontrarás con gente entrometida, ingrata, insolente o deshonesta (libro 2, sección 1). Suena pesimista, pero no lo es. Marco no se prepara para odiar a nadie; se prepara para que la sorpresa no le robe el juicio. Y añade que esas personas actúan así porque no distinguen el bien del mal, y que él no puede ser dañado por ellas si no se lo permite. La calma, aquí, empieza antes del problema: es anticipar lo probable para no reaccionar desde el susto."
+ },
+ {
+  "type": "discovery",
+  "purpose": "Ejercicio 2: separar el hecho de la opinión",
+  "visual": "calle de ciudad romana vacía en penumbra durante una epidemia, recreación",
+  "narration": "La idea central de las *Meditaciones* cabe en una frase. En el libro ocho, sección cuarenta y siete, escribe que si algo externo te angustia, no es la cosa la que te perturba, sino tu juicio sobre ella, y que ese juicio puedes borrarlo ahora mismo. En el libro cuatro, sección siete, lo resume aún más: quita la opinión y desaparece el «me han hecho daño»; quita el «me han hecho daño» y desaparece el daño. No significa negar los hechos. La peste era real. La guerra era real. Lo que Marco distingue es el hecho —lo que pasó— del relato que añadimos —«esto es una catástrofe, esto no debería pasarme a mí»—. Sobre el hecho a veces no mandamos. Sobre el relato, casi siempre."
+ },
+ {
+  "type": "discovery",
+  "purpose": "Ejercicio 3: el obstáculo como camino",
+  "visual": "legionarios romanos detenidos ante un camino bloqueado por árboles caídos, recreación",
+  "narration": "Cuando un plan se rompe, lo natural es pensar que el día está perdido. Marco propone otra lectura. En el libro cinco, sección veinte, escribe que el impedimento a la acción hace avanzar la acción, y que lo que se interpone en el camino se convierte en el camino. Si alguien bloquea lo que querías hacer, todavía puedes actuar con paciencia, con justicia o con inteligencia frente a ese bloqueo. El objetivo cambia de forma, pero no desaparece. Para un emperador que pasó años en campaña en lugar de en Roma, esto no era una frase motivadora: era la única manera de seguir gobernando."
+ },
+ {
+  "type": "discovery",
+  "purpose": "Ejercicio 4: ser el promontorio",
+  "visual": "promontorio rocoso golpeado por olas en tormenta",
+  "narration": "Hay una imagen que Marco usa para describir la calma. En el libro cuatro, sección cuarenta y nueve, se compara con un promontorio contra el que rompen las olas sin descanso: él permanece firme y el agua furiosa se aquieta a su alrededor. Y se corrige a sí mismo: no digas «qué desgracia que me haya pasado esto», sino «qué suerte que, habiéndome pasado esto, sigo sin quebrarme». La calma no es ausencia de olas. Es no convertirse en ola."
+ },
+ {
+  "type": "discovery",
+  "purpose": "Ejercicio 5: el refugio interior",
+  "visual": "hombre romano sentado en silencio con los ojos cerrados al amanecer, recreación",
+  "narration": "En el libro cuatro, sección tres, Marco observa que la gente busca retiros en el campo, en la costa o en la montaña, y que él mismo los desea. Pero se responde que eso es poco sabio, porque en cualquier momento uno puede retirarse dentro de sí. Ningún lugar es más tranquilo que la propia mente, sobre todo si uno tiene ideas claras a las que volver. Propone hacerlo a menudo y con frases breves, como quien vuelve a casa a recuperar fuerzas. Para alguien que no podía irse de vacaciones de un imperio en guerra, el retiro tenía que ser portátil. Para nosotros, ese retiro puede durar un minuto: cerrar los ojos, respirar y repasar qué depende de mí y qué no."
+ },
+ {
+  "type": "discovery",
+  "purpose": "Ejercicio 6: un problema cada vez",
+  "visual": "mesa con mapas militares romanos iluminada por velas, recreación",
+  "narration": "Hay otra trampa que Marco conocía bien: imaginar de golpe todo lo que podría salir mal. En el libro ocho, sección treinta y seis, se pide no perturbarse imaginando la vida entera, ni acumulando en la mente todas las dificultades que pueden llegar. En su lugar, propone preguntarse ante lo que ocurre ahora: ¿qué hay aquí que sea insoportable? Casi siempre, la respuesta honesta es que lo de hoy se puede llevar. Lo que aplasta es la suma imaginada de mañana."
+ },
+ {
+  "type": "reflection",
+  "purpose": "Por qué le hacía falta: el poder como prueba",
+  "visual": "estatua ecuestre de bronce de Marco Aurelio en Roma",
+  "narration": "Hay un detalle que hace más creíble todo esto. Marco no escribe como alguien que ya ha llegado. Escribe como alguien que se vigila. En el libro seis, sección treinta, se advierte a sí mismo que tenga cuidado de no «cesarizarse», de no teñirse del color del poder. Y se pide seguir siendo sencillo, bueno, íntegro, serio, sin afectación, amigo de la justicia, afectuoso y firme en su deber. En el libro siete, sección sesenta y nueve, describe su ideal de carácter: vivir cada día como si fuera el último, sin agitación, sin apatía y sin fingimiento. Son notas de alguien que sabía que la calma no se hereda con el cargo. Se entrena, todos los días, y se pierde en cuanto uno deja de entrenarla. Ese es, quizá, el mensaje más honesto del libro: incluso el emperador tenía que recordárselo por escrito."
+ },
+ {
+  "type": "tension",
+  "purpose": "La prueba real: la traición de 175",
+  "visual": "mensajero romano a caballo entregando una carta sellada, recreación",
+  "narration": "En el año 175, Avidio Casio, uno de sus generales más capaces, se proclamó emperador en Oriente. La revuelta terminó pronto: el propio Casio fue asesinado por sus hombres. Las fuentes antiguas cuentan que Marco trató a los implicados con una moderación poco habitual en Roma. No sabemos qué sintió exactamente. Pero sí sabemos qué se pedía a sí mismo en sus notas. En el libro once, sección dieciocho, hace una lista de recordatorios para cuando alguien le ofende, y uno de ellos es que las consecuencias de la ira suelen ser mucho más dolorosas que las cosas que la provocan. Otro es que la amabilidad, cuando es sincera, resulta difícil de vencer. Es fácil escribirlo. Aplicarlo con alguien que acaba de intentar quitarte el trono es otra cosa."
+ },
+ {
+  "type": "payoff",
+  "purpose": "Cierre práctico",
+  "visual": "mar en calma al amanecer después de una tormenta",
+  "narration": "Resumamos los seis ejercicios para la próxima vez que todo se complique. Uno: anticipa lo probable para que no te robe el juicio. Dos: separa lo que pasó del relato que le pones. Tres: pregúntate qué acción sigue siendo posible precisamente gracias al obstáculo. Cuatro: sé el promontorio, no la ola. Cinco: ten un refugio interior al que volver en un minuto. Seis: resuelve el problema de hoy, no la suma imaginada de mañana. Y una advertencia del propio Marco, en el libro diez, sección dieciséis: basta de discutir cómo debe ser una buena persona; hay que serlo. Marco Aurelio no tenía una vida tranquila. Tenía un método para estar tranquilo dentro de una vida difícil. Y ese método, casi dos mil años después, sigue cabiendo en una libreta."
+ }
+]

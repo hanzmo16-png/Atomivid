@@ -1,0 +1,114 @@
+From 2fbc025a8c3e0b66252e2dca234268bd3eb155de Mon Sep 17 00:00:00 2001
+From: grok-bot <grok-bot@users.noreply.github.com>
+Date: Wed, 21 Oct 2026 09:50:24 -0500
+Subject: [PATCH 6/6] fix(long-form): the last scene covers the video tail so
+ the render preflight never rejects a paid documentary
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+R8 rehearsal: voice 473.772 s + 0.5 s tail = 474.27200000000005 s → gap_at_end 0.50000000000005 > 0.5 tolerance,
+after voice and 31 Recraft images were paid. RED 1/3 → GREEN 3/3 (video-tail.test.ts). + f-player.cjs (seek/refresh-links check).
+---
+ .../e2e/longform-rehearsal/f-player.cjs       | 19 ++++++++++++
+ src/lib/video/long-form/produce.ts            | 14 ++++++++-
+ src/lib/video/long-form/video-tail.test.ts    | 29 +++++++++++++++++++
+ 3 files changed, 61 insertions(+), 1 deletion(-)
+ create mode 100644 scripts/harness/e2e/longform-rehearsal/f-player.cjs
+ create mode 100644 src/lib/video/long-form/video-tail.test.ts
+
+diff --git a/scripts/harness/e2e/longform-rehearsal/f-player.cjs b/scripts/harness/e2e/longform-rehearsal/f-player.cjs
+new file mode 100644
+index 00000000..f6707b3e
+--- /dev/null
++++ b/scripts/harness/e2e/longform-rehearsal/f-player.cjs
+@@ -0,0 +1,19 @@
++// Ensayo: reproducción, seek y «Actualizar enlaces» SIN re-producir (PR170/PR175). Lee ids de OUT/ids.json. USD 0.
++const {BASE,db,login,log,shot,skipTour,fs,OUT}=require("./common.cjs");const TAG=process.env.TAG||"F";
++(async()=>{const {b,p}=await login();const c=await db();const R=JSON.parse(fs.readFileSync(OUT+"/ids.json","utf8")).requestId;
++ const row=async()=>(await c.query("select status,render_attempts,video_path,updated_at from video_requests where id=$1",[R])).rows[0];
++ const disp=()=>fs.readFileSync("/workspace/atomivid-recraft/.e2e-local/logs/dispatches.jsonl","utf8").split("\n").filter(l=>l.includes(R)).length;
++ const before=await row();const d0=disp();
++ await p.goto(`${BASE}/dashboard/videos/${R}`);await skipTour(p);await p.waitForTimeout(3000);
++ const v=p.locator("video").first();
++ const st=()=>v.evaluate(e=>({t:e.currentTime,d:e.duration,paused:e.paused,rate:e.playbackRate,src:e.currentSrc.slice(0,80),err:e.error&&e.error.code,w:e.videoWidth,h:e.videoHeight}));
++ await v.evaluate(e=>{e.muted=true;return e.play();}).catch(err=>log(TAG,"play() rechazado",String(err)));await p.waitForTimeout(3000);
++ log(TAG,"reproduciendo",await st());
++ await v.evaluate(e=>{e.playbackRate=1.5;e.currentTime=300;});await p.waitForTimeout(4000);
++ const s1=await st();log(TAG,"tras seek a 300 s y velocidad 1.5",s1);await shot(p,`${TAG}-01-seek300`);
++ const btn=p.getByTestId("refresh-links");
++ if(await btn.count()){await btn.first().click();await p.waitForTimeout(6000);const s2=await st();log(TAG,"tras «Actualizar enlaces»",s2);await shot(p,`${TAG}-02-tras-actualizar`);
++  log(TAG,"continuidad: posición conservada",s2.t>=s1.t-1,"velocidad conservada",s2.rate===s1.rate,"sigue reproduciendo",!s2.paused);}
++ else log(TAG,"sin botón refresh-links");
++ const after=await row();log(TAG,"sin re-producción: render_attempts",before.render_attempts,"→",after.render_attempts,"video_path igual",before.video_path===after.video_path,"despachos",d0,"→",disp());
++ await b.close();await c.end();})().catch(e=>{console.error(e);process.exit(1)});
+diff --git a/src/lib/video/long-form/produce.ts b/src/lib/video/long-form/produce.ts
+index 84fbf453..454b4be4 100644
+--- a/src/lib/video/long-form/produce.ts
++++ b/src/lib/video/long-form/produce.ts
+@@ -752,7 +752,7 @@ export async function generateLongFormVideoFromScript({
+     audioUrl: audioUpload.url,
+     musicUrl: runtime.soundCues ? undefined : musicUrl,
+     soundCues: runtime.soundCues,
+-    scenes: shotScenes,
++    scenes: coverVideoTail(shotScenes, finalDurationSeconds),
+     captions,
+     narrationGaps,
+     durationSeconds: finalDurationSeconds,
+@@ -914,6 +914,18 @@ export function directAnchoredScenes(
+   });
+ }
+ 
++/**
++ * La última escena cubre la cola del video (VIDEO_TAIL_SECONDS tras la última palabra). Las escenas se planifican hasta el
++ * final de la voz; sin esto quedaban ~0,5 s sin imagen al final y, por redondeo binario (p. ej. 474.27200000000005 − 473.772),
++ * el preflight del render rechazaba el documental entero DESPUÉS de pagar voz e imágenes (ensayo R8).
++ */
++export function coverVideoTail<T extends { endSeconds: number }>(scenes: T[], durationSeconds: number): T[] {
++  if (scenes.length === 0) return scenes;
++  const last = scenes[scenes.length - 1];
++  if (last.endSeconds >= durationSeconds) return scenes;
++  return [...scenes.slice(0, -1), { ...last, endSeconds: durationSeconds }];
++}
++
+ /** Proyecto(s) del ledger del guion/investigación de este pedido (documentary_script_jobs.request_id = video_requests.id). */
+ async function defaultScriptScopes(supabase: SupabaseClient, requestId: string): Promise<string[]> {
+   if (typeof (supabase as { from?: unknown }).from !== "function") return [];
+diff --git a/src/lib/video/long-form/video-tail.test.ts b/src/lib/video/long-form/video-tail.test.ts
+new file mode 100644
+index 00000000..ff2ab070
+--- /dev/null
++++ b/src/lib/video/long-form/video-tail.test.ts
+@@ -0,0 +1,29 @@
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import { coverVideoTail } from "./produce";
++import { preflightRenderInput } from "./render-preflight";
++
++// Caso real del ensayo R8 (Marco Aurelio): voz de 473.772 s + cola → 474.27200000000005 s.
++const voiceEnd = 473.772;
++// Valores exactos del mensaje del worker (la suma binaria no da 474.272).
++const duration = 474.27200000000005;
++const captions = [{ startSeconds: 1, endSeconds: 3 }];
++const scenes = [{ id: "a", startSeconds: 0, endSeconds: 200 }, { id: "b", startSeconds: 200, endSeconds: voiceEnd }];
++
++test("R8: la última escena cubre la cola → el preflight del render no rechaza un documental ya pagado", () => {
++  const covered = coverVideoTail(scenes, duration);
++  assert.equal(covered[covered.length - 1].endSeconds, duration);
++  assert.deepEqual(preflightRenderInput({ scenes: covered, captions, durationSeconds: duration, audioUrl: "memory://voice.mp3" }), []);
++  assert.equal(scenes[1].endSeconds, voiceEnd, "no muta la entrada");
++});
++
++test("sin cobertura (comportamiento anterior) el mismo caso falla por gap_at_end", () => {
++  const issues = preflightRenderInput({ scenes, captions, durationSeconds: duration, audioUrl: "memory://voice.mp3" });
++  assert.deepEqual(issues.map((i) => i.code), ["gap_at_end"]);
++});
++
++test("coverVideoTail no acorta ni toca escenas que ya cubren el final", () => {
++  const long = [{ id: "a", startSeconds: 0, endSeconds: 500 }];
++  assert.equal(coverVideoTail(long, duration), long);
++  assert.deepEqual(coverVideoTail([], duration), []);
++});
+-- 
+2.47.3
+
