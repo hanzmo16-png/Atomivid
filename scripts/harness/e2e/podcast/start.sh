@@ -23,7 +23,7 @@ bg dispatch node -e 'require("http").createServer((q,s)=>{let b="";q.on("data",d
 # Música: biblioteca local si existe; si no (CI), pistas sintéticas generadas aquí con los nombres de la biblioteca.
 MUSIC=${PODCAST_MUSIC_DIR:-/workspace/reels-libro/musica}
 if [ ! -d "$MUSIC" ]; then MUSIC="$E2E_HOME/synth/musica"; mkdir -p "$MUSIC"
-  (cd "$REPO" && npx tsx -e 'import { PODCAST_MUSIC_LIBRARY as L } from "./src/lib/podcast/v2/music"; console.log(L.map((t) => t.file).join("\n"))') | while read -r f; do [ -n "$f" ] && [ ! -f "$MUSIC/$f" ] && ffmpeg -nostdin -v error -y -f lavfi -i "sine=f=220:d=240,volume=0.3" -f lavfi -i "sine=f=330:d=240,volume=0.2" -filter_complex amix=inputs=2 -b:a 96k "$MUSIC/$f"; done; fi
+  (cd "$REPO" && npx tsx -e 'import { PODCAST_MUSIC_LIBRARY as L } from "./src/lib/podcast/v2/music"; console.log(L.map((t) => t.file).join("\n"))') | while read -r f; do if [ -n "$f" ] && [ ! -f "$MUSIC/$f" ]; then ffmpeg -nostdin -v error -y -f lavfi -i "sine=f=220:d=240,volume=0.3" -f lavfi -i "sine=f=330:d=240,volume=0.2" -filter_complex amix=inputs=2 -b:a 96k "$MUSIC/$f"; fi; done; fi
 cd "$REPO"; set -a; . "$E2E_HOME/secrets/next.env"; set +a
 export NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54821 ELEVENLABS_API_KEY=local-fake-elevenlabs VOICE_PROVIDER=elevenlabs PODCAST_V2_ENABLED=1 \
   PRIVATE_VOICE_GRANTS="DuroPruebaLocal03=pilot-owner@local.test" AVATAR_PREPARATION_OWNER_EMAIL=intruso@local.test PODCAST_MUSIC_DIR=$MUSIC \

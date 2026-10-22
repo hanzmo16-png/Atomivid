@@ -19,7 +19,9 @@ on:
       - "scripts/harness/e2e/**"
 permissions:
   contents: read
-concurrency: { group: podcast-2-1-e2e-${{ github.ref }}, cancel-in-progress: true }
+concurrency:
+  group: podcast-2-1-e2e-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   e2e:
     runs-on: ubuntu-24.04
