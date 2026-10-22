@@ -6,8 +6,12 @@ import { MissingEnvVarError } from "@/lib/env-errors";
 // distingue cuál de las dos es la culpable ni por qué está vacía, y un
 // Error genérico tampoco permite que el código que llama distinga este
 // caso de cualquier otro fallo.
-function readEnv(name: string): string {
-  const value = process.env[name]?.trim();
+//
+// Las NEXT_PUBLIC_* se leen con referencia LITERAL (process.env.NEXT_PUBLIC_X): el bundler de Next sólo sustituye esas
+// en el código de navegador. Con process.env[name] el valor no se inyecta y en el navegador llegaba vacío, así que
+// createClient() del cliente (subida de grabaciones de podcast, subida de curación) fallaba en producción.
+function readEnv(name: string, raw: string | undefined = process.env[name]): string {
+  const value = raw?.trim();
   if (!value) {
     throw new MissingEnvVarError(name);
   }
@@ -15,11 +19,11 @@ function readEnv(name: string): string {
 }
 
 export function getSupabaseUrl(): string {
-  return readEnv("NEXT_PUBLIC_SUPABASE_URL");
+  return readEnv("NEXT_PUBLIC_SUPABASE_URL", process.env.NEXT_PUBLIC_SUPABASE_URL);
 }
 
 export function getSupabaseAnonKey(): string {
-  return readEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+  return readEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 }
 
 export function getSupabaseServiceRoleKey(): string {
