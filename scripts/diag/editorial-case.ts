@@ -6,7 +6,7 @@ const CODE = process.env.CASE_CODE ?? "839857e1";
 async function main() {
   if (process.env.ANTHROPIC_API_KEY) throw Error("Provider credential must not be present");
   const db = createClient(process.env.SUPABASE_URL!.trim(), process.env.SUPABASE_SERVICE_ROLE_KEY!.trim(), { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: jobs, error } = await db.from("documentary_script_jobs").select("*").eq("error_code", CODE);
+  const { data: jobs, error } = await db.from("documentary_script_jobs").select("*").or(`error_code.eq.${CODE},id.eq.${process.env.CASE_JOB ?? "00000000-0000-0000-0000-000000000000"}`);
   if (error) throw Error(`read: ${error.message}`);
   console.log("MATCHES", jobs?.length ?? 0);
   const recent = await db.from("documentary_script_jobs").select("id,topic,status,failure_kind,error_code,editorial_rounds,retry_count,created_at,updated_at").order("created_at", { ascending: false }).limit(12);
