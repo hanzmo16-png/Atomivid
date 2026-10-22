@@ -96,6 +96,23 @@ function publicError(err: unknown): string {
   return "No se pudo generar la narración. Lo ya generado se conserva y no se vuelve a cobrar; inténtalo de nuevo.";
 }
 
+export class V2ProductionNotReadError extends Error {
+  readonly customerMessage = "Este episodio usa la producción por turnos (Podcast 2), que este servidor no tiene activada. No se ha generado ni cobrado nada.";
+  constructor() { super("V2_PRODUCTION_NOT_READ"); this.name = "V2ProductionNotReadError"; }
+}
+
+/** Fail-closed before any paid call: narrating a Podcast 2 row on the 1.x path (flag off on this process, e.g. a worker
+ * whose PODCAST_V2_ENABLED differs from the app's) would read every turn with participant A's voice and charge it.
+ * Only "the column does not exist" (database before the migration) counts as a 1.x row; any other read error refuses. */
+export async function refuseUnreadV2Production(service: SupabaseClient, episodeId: string): Promise<void> {
+  const { data, error } = await service.from("podcast_episodes").select("production").eq("id", episodeId).maybeSingle();
+  if (error) {
+    if (error.code === "42703" || /column .*production.* does not exist/i.test(error.message ?? "")) return;
+    throw new V2ProductionNotReadError();
+  }
+  if ((data as { production?: unknown } | null)?.production != null) throw new V2ProductionNotReadError();
+}
+
 /**
  * One generation run. Claim (CAS) → narrate (gated) → store → ready. Any failure leaves the episode
  * 'failed' with a clear message; chunks already paid stay stored for the next run.
@@ -123,6 +140,7 @@ export async function runGeneration(service: SupabaseClient, episode: PodcastEpi
     if (!ready.ready) throw new SupplyUnavailableError(ready.failure?.provider ?? "elevenlabs", ready.failure?.reason ?? "unavailable");
     const putAudio = async (p: string, bytes: Buffer, contentType: string) => { const { error } = await service.storage.from(BUCKET).upload(p, bytes, { contentType, upsert: true }); if (error) throw new Error("STORAGE"); };
     const production = (episode as PodcastEpisode & { production?: unknown }).production;
+    if (!(production && podcastV2Enabled())) await refuseUnreadV2Production(service, episode.id);
     let patch: Record<string, unknown>;
     if (production && podcastV2Enabled()) {
       const out = await narrateProduction({ ledger: supabaseLedgerStore(service), results: supabaseResultStore(service, BUCKET), modelId: TTS_MODEL_ID, putAudio, capUsd: opts.capUsd ?? null,
@@ -145,10 +163,11 @@ export async function runGeneration(service: SupabaseClient, episode: PodcastEpi
     const capped = err instanceof NarrationCapError;
     const message = err instanceof VoicesUnavailableError ? err.customerMessage
       : err instanceof MusicUnavailableError ? err.message
+      : err instanceof V2ProductionNotReadError ? err.customerMessage
       : capped ? `La narración se detuvo antes de superar el límite autorizado (USD ${err.capUsd.toFixed(2)}; gastado en esta ejecución USD ${err.spentUsd.toFixed(4)}). Lo ya narrado se conserva y no se vuelve a cobrar.`
       : publicError(err);
     await fenced({ status: "failed", run_token: null, error: message });
-    return { error: message, status: capped ? 402 : err instanceof SupplyUnavailableError || err instanceof MusicUnavailableError ? 503 : 500 };
+    return { error: message, status: capped ? 402 : err instanceof SupplyUnavailableError || err instanceof MusicUnavailableError || err instanceof V2ProductionNotReadError ? 503 : 500 };
   } finally {
     clearInterval(heartbeat);
   }
