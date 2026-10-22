@@ -48,3 +48,56 @@ export const CASE_290DE42B_DIRECTION = {
 export const CASE_290DE42B_PARAPHRASE = "Ese cuaderno no se escribió antes de la crisis, como una teoría preparada para enfrentarla. Se escribió durante ella.";
 /** The account had five previous scripts; their openings differ from this one (only the count matters to these checks). */
 export const CASE_290DE42B_HISTORY = Array.from({ length: 5 }, (_, i) => ({ topic: `Guion previo ${i + 1}`, opening: `Apertura distinta ${i + 1}`, ending: "Cierre", structure: [] }));
+
+/** The rest of the same real draft (title, hook, story plan, claims) and its research sources, verbatim from the diagnosis. */
+export const CASE_290DE42B_SOURCES = [
+  { id: "web-1", title: "Emperador Marco Aurelio: biografía, los estoicos, Meditaciones", kind: "secondary" as const },
+  { id: "web-2", title: "Marco Aurelio, el emperador filósofo: las reglas que guiaron su poder y su serenidad", kind: "secondary" as const },
+  { id: "web-3", title: "Marco Aurelio y sus «Meditaciones»: todas las claves del estoicismo", kind: "secondary" as const },
+  { id: "web-4", title: "Marco Aurelio: el filósofo emperador estoico - Red Historia", kind: "secondary" as const },
+  { id: "web-5", title: "Marco Aurelio Meditaciones BIBLIOTECA DIGITAL MINERD DOMINICANA LEE", kind: "secondary" as const },
+  { id: "web-6", title: "Meditaciones de Marco Aurelio: Reflexiones sobre el Estoicismo y el Imperio - Studocu", kind: "secondary" as const },
+];
+const c = (id: string, text: string, support: "sourced" | "inference" | "unverified", sourceIds: string[]) => ({ id, text, support, sourceIds });
+export const CASE_290DE42B_BEATS = [
+  { type: "hook", purpose: "Abrir con una acción concreta y entregar el primer dato útil antes de los 150 palabras: el cuaderno no tenía título ni intención de publicarse.", claims: [
+    c("claim-1", "Meditaciones fue escrita durante las campañas militares de Marco Aurelio en campamentos junto al Danubio.", "sourced", ["web-4"]),
+    c("claim-2", "El texto no tiene un título propio de Marco Aurelio; el nombre 'Meditaciones' es una denominación posterior y común, no original.", "sourced", ["web-1"]),
+    c("claim-3", "Durante este período hubo una gran plaga que afectó a Europa occidental mientras Marco Aurelio hacía campaña contra las tribus germánicas.", "sourced", ["web-2"])] },
+  { type: "setup", purpose: "Retroceder brevemente a la formación de Marco Aurelio y establecer el origen documentado de su giro hacia el estoicismo, conectando rápido con la pregunta de supervivencia.", claims: [
+    c("claim-1", "Marco Aurelio estudió griego y latín, y entre sus tutores estuvieron Herodes Ático y Marco Cornelio Frontón.", "sourced", ["web-1"]),
+    c("claim-2", "Su maestro Quinto Junio Rústico le presentó la obra del estoico Epicteto, algo que Marco Aurelio agradece en Meditaciones.", "sourced", ["web-2"]),
+    c("claim-3", "No es posible fechar con precisión el momento exacto en que el estoicismo se volvió central en su vida.", "inference", ["web-2"])] },
+  { type: "escalation", purpose: "Mostrar la realidad material de su reinado para construir la contradicción central: guerra casi continua, no gobierno sereno.", claims: [
+    c("claim-1", "Marco Aurelio reinó entre el año 161 y el 180 d.C.", "sourced", ["web-3", "web-4"]),
+    c("claim-2", "Las guerras fueron prácticamente continuas desde el 166 hasta su muerte en el 180, con una tregua de tres años entre el 175 y el 178.", "sourced", ["web-6"]),
+    c("claim-3", "Durante los últimos quince años de su reinado pasó más tiempo en las fronteras germánicas que en Roma.", "sourced", ["web-4"]),
+    c("claim-4", "Entre el 170 y el 175, Faustina acompañó a Marco Aurelio en sus campañas.", "sourced", ["web-1"])] },
+  { type: "insight", purpose: "Reencuadrar el estoicismo de Marco Aurelio como práctica en tiempo real, no teoría previa, condensando la idea sin repetir la afirmación factual del bloque anterior, y marcando honestamente el límite de la evidencia sobre la 'crisis' del reinado.", claims: [
+    c("claim-1", "Meditaciones se escribió durante las campañas militares de Marco Aurelio, no antes de ellas.", "sourced", ["web-4"]),
+    c("claim-2", "Una fuente consultada califica el gobierno de Marco Aurelio como el comienzo de una crisis más amplia para el imperio, en un fragmento que aparece incompleto.", "sourced", ["web-6"]),
+    c("claim-3", "No es posible determinar, a partir de las fuentes consultadas, si esa calificación de 'crisis' es una posición consensuada o minoritaria entre historiadores.", "unverified", [])] },
+  { type: "payoff", purpose: "Resolver la pregunta central antes del CTA, explicando por qué el carácter íntimo del texto es su verdadero valor, marcando explícitamente la interpretación como tal, e incluir una invitación a comentar y un CTA breve.", claims: [
+    c("claim-1", "El carácter íntimo y sin pulir del texto, escrito en privado y sin intención de publicación, ayuda a explicar su resonancia posterior.", "inference", ["web-1", "web-4"]),
+    c("claim-2", "La idea de que el estoicismo de Marco Aurelio no es una 'fórmula' extraíble de felicidad es una interpretación propia, no un hecho documentado en las fuentes.", "inference", [])] },
+].map((b, i) => ({ ...b, narration: CASE_290DE42B_NARRATIONS[i] }));
+export const CASE_290DE42B_DRAFT = {
+  creativeDirection: CASE_290DE42B_DIRECTION,
+  title: "El cuaderno secreto que Marco Aurelio escribió en medio de la guerra",
+  workingTitleOptions: ["El cuaderno secreto que Marco Aurelio escribió en medio de la guerra"],
+  hook: "En un campamento militar junto al río Danubio, en algún momento durante esas campañas, un hombre escribe de noche, a solas. Afuera hay guerra contra las tribus germánicas y una plaga que ya ha cruzado media Europa occidental. Ese hombre es el emperador de Roma. Y lo que escribe en ese cuaderno no tiene título, no está dirigido a nadie, no fue pensado para publicarse.",
+  storyPlan: {
+    sections: [
+      { tension: "rise" as const, beatIndex: 0, consequence: "Obliga a preguntarse por qué un emperador necesitaba escribirse notas a sí mismo en medio de una guerra.", newInformation: "El cuaderno conocido como Meditaciones fue escrito en campamentos militares del Danubio, sin título y sin intención de publicación." },
+      { tension: "reflection" as const, beatIndex: 1, consequence: "Establece que el giro hacia el estoicismo tiene un origen documentado, aunque no fechable con precisión, y conecta rápido con la idea de supervivencia.", newInformation: "Su formación retórica se vio desviada por Quinto Junio Rústico, quien le presentó a Epicteto." },
+      { tension: "rise" as const, beatIndex: 2, consequence: "Derriba la imagen de un gobierno sereno y plantea el contraste central del video.", newInformation: "Su reinado real (161-180) estuvo marcado por guerra casi continua desde 166, quince años en la frontera germánica y una plaga simultánea." },
+      { tension: "release" as const, beatIndex: 3, consequence: "Reencuadra el estoicismo como práctica en tiempo real, no teoría previa, y marca honestamente el límite de la evidencia disponible, sin repetir la idea factual del bloque anterior.", newInformation: "El cuaderno se escribió durante esas campañas, no antes; una fuente lo vincula al inicio de una crisis más amplia del imperio, pero ese fragmento está incompleto." },
+      { tension: "reflection" as const, beatIndex: 4, consequence: "Cierra la pregunta central con una conclusión sostenida por los hechos narrados y deja una invitación concreta a seguir explorando.", newInformation: "La resonancia del texto viene de su carácter íntimo y sin pulir; la idea de una 'fórmula' extraíble se marca explícitamente como lectura propia, no como hecho documentado." },
+    ],
+    firstAnswer: "El libro que llamamos Meditaciones no tiene título propio ni fue escrito para publicarse: es un cuaderno personal, y ese nombre se lo pusimos después.",
+    endingAnswer: "El estoicismo de Marco Aurelio no fue una filosofía de retiro contemplativo, sino una herramienta usada noche tras noche dentro del caos real de la guerra, la plaga y la pérdida; por eso el texto suena a nota urgente y no a discurso, y por eso sigue resonando.",
+    openingPromise: "Vamos a entrar al cuaderno privado de un emperador en guerra para entender qué era realmente el estoicismo que practicaba, más allá de la imagen serena que heredamos de él.",
+    centralQuestion: "¿Por qué el texto más citado sobre serenidad estoica fue escrito por un hombre en medio de guerra constante y plaga, sin intención de que nadie más lo leyera?",
+  },
+  beats: CASE_290DE42B_BEATS,
+};
