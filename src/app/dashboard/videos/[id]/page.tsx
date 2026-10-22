@@ -10,6 +10,8 @@ import { getSignedVideoUrl } from "@/lib/storage/signed-url";
 import { selectIfOwned, type OwnedRequestRow } from "@/lib/video/access";
 import { ResultView } from "@/components/video/ResultView";
 import { createServiceClient } from "@/lib/supabase/service";
+import { closeExhaustedStaleAttempt } from "@/lib/video/exhausted-attempt";
+import { EXHAUSTED_ATTEMPT_CLOSED } from "@/lib/video/start-outcome";
 import { loadAvatarRecovery } from "@/lib/video/avatar/recovery";
 import { Alert } from "@/components/ui/Alert";
 import { AutoRefresh } from "@/app/dashboard/AutoRefresh";
@@ -69,6 +71,10 @@ export default async function VideoResultPage({
   const request = selectIfOwned(data, user.id);
   if (!request) {
     notFound();
+  }
+  // Intento colgado sin intentos restantes: estado final aquí mismo (antes quedaba «processing» para siempre).
+  if ((await closeExhaustedStaleAttempt(createServiceClient(), request).catch(() => "changed" as const)) === "closed") {
+    Object.assign(request, { status: "failed", progress_stage: null, error_message: EXHAUSTED_ATTEMPT_CLOSED });
   }
 
   const videoUrl =
