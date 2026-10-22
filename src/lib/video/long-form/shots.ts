@@ -228,6 +228,8 @@ function anchoredShots(
     const intent = intents[i];
     let shotType = cycleShotType(i + (input.typeOffset ?? 0), input.strategy);
     if ((shotType === "text" || shotType === "diagram" || shotType === "map") && !salientFact(fragment)) shotType = "ken_burns_image";
+    // Pasaje con fecha de calendario sin material verificado (v3): tarjeta de texto del propio pasaje, nunca imagen.
+    if (intent.visual.datedPassage) shotType = "text";
     return {
       id: `${input.beatId}-shot-${i + 1}`,
       beatId: input.beatId,
