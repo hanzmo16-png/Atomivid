@@ -473,6 +473,7 @@ export async function generateLongFormVideoFromScript({
           ...spanInput,
           targetCount: plannedShotCounts?.[spanInput.beatId],
           anchoring: anchored ? { words: spanInput.words } : undefined,
+          datedPassageCards: anchored && !usesVisualIdentity(plan),
         });
   const personActions = usesVisualIdentity(plan) ? personActionIndex(beats as { visuals?: unknown }[]) : undefined;
   const timeline = await buildLongFormTimeline(
