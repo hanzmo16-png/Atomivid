@@ -89,9 +89,10 @@ function draft(t: Topic, prompt: string) {
     : t.defect === "unsupported" ? /LA CORRECCIÓN ANTERIOR NO LO RESOLVIÓ/.test(prompt)
     : t.defect === "late-answer" ? /primera respuesta/i.test(prompt) : true);
   // Like a real writer reading the account history: never reuse an opening already used by a recent script.
-  const used = JSON.stringify(history).toLowerCase();
+  const start = (x: string) => x.trim().split(/\s+/).slice(0, 8).join(" ").toLowerCase();
+  const used = new Set((history as { opening?: string }[]).map(h => start(h.opening ?? "")));
   const openings = [...t.facts, ...t.facts.map((f, i) => `${t.facts[(i + 3) % t.facts.length].replace(/\.$/, "")}, y al mismo tiempo ${f.charAt(0).toLowerCase()}${f.slice(1)}`)];
-  const opening = openings.find(o => !used.includes(o.toLowerCase().split(" ").slice(0, 8).join(" "))) ?? openings[0];
+  const opening = openings.find(o => !used.has(start(o))) ?? openings[0];
   const shift = Math.max(0, t.facts.indexOf(opening));
   const narr: string[] = [];
   for (let i = 0; i < beats; i++) {
