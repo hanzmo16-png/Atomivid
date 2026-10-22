@@ -52,7 +52,7 @@ async function downloadAndValidate(
 ): Promise<{ audioBuffer: Buffer; mimeType: string; extension: string }> {
   let res: Response;
   try {
-    res = await fetch(url);
+    res = await fetch(url, { signal: AbortSignal.timeout(120_000) });
   } catch (err) {
     const message = err instanceof Error ? err.message : "error de red desconocido";
     throw new MusicDownloadError(`No se pudo descargar "${label}": ${message}`);

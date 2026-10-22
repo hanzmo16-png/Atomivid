@@ -100,6 +100,9 @@ const sleepWithBeat = async (ms: number, sleep: (ms: number) => Promise<void>) =
     try { await footageWaitBeat?.(); } catch { /* a failed beat never fails the search */ }
   }
 };
+/** Búsqueda/descarga de Pexels: sin límite, una conexión colgada detenía la producción entera. */
+export const PEXELS_REQUEST_TIMEOUT_MS = 30_000;
+export const MEDIA_DOWNLOAD_TIMEOUT_MS = 120_000;
 const pexelsCache = new Map<string, Promise<{ ok: boolean; status: number; body: string }>>();
 export async function pexelsFetch(url: string, apiKey: string, deps: { sleep?: (ms: number) => Promise<void>; now?: () => number; fetchImpl?: typeof fetch } = {}): Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }> {
   const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
@@ -107,7 +110,14 @@ export async function pexelsFetch(url: string, apiKey: string, deps: { sleep?: (
   const doFetch = deps.fetchImpl ?? fetch;
   const run = async () => {
     for (let attempt = 0; attempt < 4; attempt++) {
-      const res = await doFetch(url, { headers: { Authorization: apiKey } });
+      let res: Response;
+      try {
+        res = await doFetch(url, { headers: { Authorization: apiKey }, signal: AbortSignal.timeout(PEXELS_REQUEST_TIMEOUT_MS) });
+      } catch (err) {
+        // Tiempo agotado o red caída: mismo trato acotado que un 5xx (búsqueda gratuita e idempotente).
+        if (attempt < 3) { await sleep(2000 * (attempt + 1)); continue; }
+        throw err;
+      }
       if (res.status === 429) {
         const reset = Number(res.headers.get("x-ratelimit-reset"));
         const retryAfter = Number(res.headers.get("retry-after"));
@@ -243,7 +253,7 @@ export async function fetchSceneImage(
 }
 
 export async function downloadImage(url: string): Promise<Buffer> {
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(MEDIA_DOWNLOAD_TIMEOUT_MS) });
   if (!res.ok) {
     throw new Error(`No se pudo descargar la imagen: ${res.status}`);
   }

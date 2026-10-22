@@ -61,10 +61,13 @@ async function readChunk(handle: fs.FileHandle, offset: number, length: number):
   return bytesRead === length ? buffer : buffer.subarray(0, bytesRead);
 }
 
+/** Cada petición TUS (≤ 6 MB) tiene su límite: el latido de progreso mantendría «vivo» para siempre un PATCH colgado. */
+export const TUS_REQUEST_TIMEOUT_MS = 120_000;
+
 async function tusRequest(f: typeof fetch, url: string, init: RequestInit): Promise<Response> {
   let res: Response;
   try {
-    res = await f(url, init);
+    res = await f(url, { ...init, signal: init.signal ?? AbortSignal.timeout(TUS_REQUEST_TIMEOUT_MS) });
   } catch (err) {
     throw new TusHttpError(null, err instanceof Error ? `${err.name}: ${err.message}` : String(err));
   }
