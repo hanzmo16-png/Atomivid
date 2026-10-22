@@ -55,6 +55,8 @@ jobs:
           grep -q '^# fail 0$' v2-tests.log
       - name: Arnés local
         run: bash scripts/harness/e2e/infra/setup.sh
+      - name: ffmpeg de Playwright (grabación de vídeo de las sesiones)
+        run: node "$E2E_HOME/deps/node_modules/playwright/cli.js" install ffmpeg
       - name: Entorno Podcast
         run: bash scripts/harness/e2e/podcast/start.sh
       - name: Migración y rollback (BD desechable)
