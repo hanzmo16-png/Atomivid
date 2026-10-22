@@ -1,0 +1,25 @@
+name: Read-only editorial case diagnosis (no writes, no provider calls)
+on:
+  push:
+    branches: [claude/hola-sn3dxy]
+    paths: [scripts/diag/editorial-case.ts, .github/workflows/diag-editorial-case.yml]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: diag }
+      - uses: actions/checkout@v4
+        with: { ref: claude/atomivid-mvp-setup-0079jv, path: app }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci --no-audit --no-fund --ignore-scripts
+        working-directory: app
+      - run: cp diag/scripts/diag/editorial-case.ts app/scripts/diag-editorial-case.ts && cd app && npx tsx scripts/diag-editorial-case.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          CASE_CODE: "839857e1"
