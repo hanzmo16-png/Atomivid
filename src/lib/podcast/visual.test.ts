@@ -153,3 +153,11 @@ test("subtítulos de una narración ya pagada: se reconstruyen sin llamar a la v
   assert.ok(words![words!.length - 1].endSeconds <= first.durationSeconds + 0.05);
   assert.equal(await storedNarrationWords({ results, voiceProvider: provider, voiceIdentity: { ...voiceIdentity, voiceId: "otherVoice1" } }, ep), null, "another voice is never reused");
 });
+
+test("búsquedas de stock: sin números escritos, términos abstractos ni verbos en 1.ª plural", async () => {
+  const { sceneQueries, topicOf, anchorOf } = await import("./visual-plan");
+  const script = "La señal duró setenta y dos segundos. La hipótesis del cometa: recibimos una señal del radiotelescopio. La señal no volvió.";
+  const title = "El misterio de la señal Wow!: ¿recibimos un mensaje del espacio?";
+  const q = sceneQueries({ text: "La hipótesis del cometa sobre setenta segundos de señal en el radiotelescopio.", query: "" }, title, topicOf(script, title), anchorOf(script, title));
+  for (const bad of ["setenta", "hipótesis", "recibimos"]) assert.ok(!q.join(" ").includes(bad), `${bad} en ${q.join(" | ")}`);
+});

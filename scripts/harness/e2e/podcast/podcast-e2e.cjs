@@ -311,9 +311,46 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     summary.c8 = { id, recSha, timeline: Object.fromEntries(Object.entries(tl).map(([k, v]) => [k, v.source === "own_recording" ? "rec" : v.reused ? "reuso" : "nuevo"])) };
   }
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary }, null, 1));
+  if (cases.includes("9")) {
+    // Caso 9 — ENSAYO SIMULADO de la prueba real del dueño: misma configuración que el episodio «señal Wow!»
+    // (narración individual, español, emocional, voz El Duro *simulada* por espeak-ng, 16:9), de la UI a la descarga. USD 0.
+    // Música: E2E_WOW_MUSIC=1 la activa (en producción hoy no hay PODCAST_MUSIC_DIR → se recomienda sin música).
+    const script = fs.readFileSync(process.env.WOW_SCRIPT, "utf8").trim();
+    const title = "El misterio de la señal Wow!: ¿recibimos un mensaje del espacio?";
+    const PXLOG = path.join(E2E, "logs/pexels.jsonl"), pxLines = () => (fs.existsSync(PXLOG) ? fs.readFileSync(PXLOG, "utf8").trim().split("\n").filter(Boolean) : []);
+    const DLOG = path.join(E2E, "logs/dispatch.jsonl"), nDisp = () => (fs.existsSync(DLOG) ? fs.readFileSync(DLOG, "utf8").trim().split("\n").filter(Boolean).length : 0);
+    const EGR = path.join(E2E, "logs/egress.jsonl"), egress = () => (fs.existsSync(EGR) ? fs.readFileSync(EGR, "utf8").trim().split("\n").filter((l) => l.includes("egress_refused")) : []), e0 = egress().length;
+    const t0 = ttsCalls().length, p0 = pxLines().length;
+    const id = await createEpisode(s.p, { tag: "c9", title, conversation: false, emotional: true, music: process.env.E2E_WOW_MUSIC === "1", script, voiceA: DURO });
+    await generate(s.p, id, "c9");
+    const a = await ep(id); const calls = ttsCalls().slice(t0);
+    ok("c9: narración lista con El Duro (simulado) en todas las llamadas", a.status === "ready" && calls.length > 0 && calls.every((c) => c.voiceId === DURO), `${a.status} ${calls.length} llamadas ${Number(a.duration_seconds).toFixed(0)} s ${a.error ?? ""}`);
+    const d0 = nDisp(); await s.p.reload(); await s.p.getByRole("button", { name: /Producir ahora/ }).click();
+    for (let i = 0; i < 60 && nDisp() === d0; i++) await s.p.waitForTimeout(500);
+    ok("c9: «Producir ahora» despacha el video", nDisp() > d0);
+    const r = await worker(id, "video"); const fin = await ep(id);
+    ok("c9: video listo sin intervención manual", r.code === 0 && fin.video_status === "ready", `${fin.video_status} ${fin.video_error ?? ""}`);
+    ok("c9: el video no repite llamadas de voz", ttsCalls().length - t0 === calls.length);
+    const qs = pxLines().slice(p0).map((l) => { try { return JSON.parse(l).q; } catch { return null; } }).filter(Boolean);
+    fs.writeFileSync(path.join(OUT, "c9-busquedas-imagenes.json"), JSON.stringify(qs, null, 1));
+    ok("c9: búsquedas de imágenes sin números escritos ni términos abstractos", qs.length > 0 && !qs.some((q) => /setenta|novecientos|hipótesis|recibimos/.test(q)), `${qs.length} búsquedas, ${new Set(qs).size} distintas`);
+    ok("c9: sin salida a red real", egress().length === e0);
+    await s.p.reload(); await shot(s.p, "c9-entregado");
+    const vid = s.p.locator('section[aria-label="Revisión de la entrega"] video');
+    const play = await vid.evaluate(async (v) => { v.muted = true; await v.play().catch(() => {}); await new Promise((r) => setTimeout(r, 4000)); const o = { readyState: v.readyState, t: v.currentTime, d: v.duration, w: v.videoWidth, h: v.videoHeight, err: v.error?.code ?? null }; v.pause(); return o; });
+    await shot(s.p, "c9-reproduciendo");
+    ok("c9: el reproductor de la página reproduce 16:9", play.readyState >= 2 && play.t > 1 && play.w * 9 === play.h * 16 && !play.err, JSON.stringify(play));
+    const [dl] = await Promise.all([s.p.waitForEvent("download"), s.p.getByText(/Descargar video/).click()]);
+    const mp4 = path.join(OUT, "c9-wow.mp4"); await dl.saveAs(mp4);
+    const pr = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration:stream=codec_type,codec_name,width,height", "-of", "json", mp4]).toString());
+    ok("c9: descarga íntegra (sha) H.264+AAC, duración = audio", sha(fs.readFileSync(mp4)) === fin.video_sha256 && pr.streams.some((x) => x.codec_name === "h264") && pr.streams.some((x) => x.codec_name === "aac") && Math.abs(Number(pr.format.duration) - Number(fin.duration_seconds)) <= 2, `${Number(pr.format.duration).toFixed(1)} s`);
+    const led = (await db.query("select provider, status, count(*)::int n, sum(reserved_usd)::float r, sum(committed_usd)::float c from pi_paid_operations where project_id like '%'||$1||'%' or shot_id like '%'||$1||'%' group by 1,2", [id])).rows;
+    fs.writeFileSync(path.join(OUT, "c9-registro-costos.json"), JSON.stringify({ episodio: id, caracteres: script.length, llamadas_tts: calls.length, ledger: led }, null, 1));
+    ok("c9: cada llamada de voz queda registrada en el libro de costos (simulado)", led.filter((x) => x.provider === "elevenlabs").reduce((n, x) => n + x.n, 0) >= calls.length, JSON.stringify(led));
+  }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
-  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13 };
+  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10 };
   const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`)).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));
