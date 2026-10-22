@@ -17,7 +17,7 @@ import { estimatePodcast, podcastDemand, normalizeScript, PODCAST_STALE_RUN_MS, 
 import { listAccountVoices, VoicesUnavailableError } from "./voices";
 import { visibleVoices, type VoiceViewer } from "@/lib/voices/private-voices";
 import { buildProduction, estimateProduction, productionScript, type ProductionInput } from "./v2/production";
-import { narrateProduction } from "./v2/narrate-v2";
+import { MusicUnavailableError, narrateProduction } from "./v2/narrate-v2";
 import { TTS_MODEL_ID } from "@/lib/ai/voice";
 import { PODCAST_MUSIC_LIBRARY } from "./v2/music";
 
@@ -144,10 +144,11 @@ export async function runGeneration(service: SupabaseClient, episode: PodcastEpi
     console.error("[podcast] narración fallida", episode.id, err instanceof Error ? `${err.name}: ${err.message}` : String(err));
     const capped = err instanceof NarrationCapError;
     const message = err instanceof VoicesUnavailableError ? err.customerMessage
+      : err instanceof MusicUnavailableError ? err.message
       : capped ? `La narración se detuvo antes de superar el límite autorizado (USD ${err.capUsd.toFixed(2)}; gastado en esta ejecución USD ${err.spentUsd.toFixed(4)}). Lo ya narrado se conserva y no se vuelve a cobrar.`
       : publicError(err);
     await fenced({ status: "failed", run_token: null, error: message });
-    return { error: message, status: capped ? 402 : err instanceof SupplyUnavailableError ? 503 : 500 };
+    return { error: message, status: capped ? 402 : err instanceof SupplyUnavailableError || err instanceof MusicUnavailableError ? 503 : 500 };
   } finally {
     clearInterval(heartbeat);
   }
