@@ -22,20 +22,14 @@ jobs:
         with: { ref: claude/longform-editorial-unblock, path: fix }
       - run: npm ci --no-audit --no-fund --ignore-scripts
         working-directory: fix
+      - name: Caso 54740b5a (Voyager 1), solo lectura, código de producción
+        run: cp diag/scripts/diag/editorial-case.ts app/scripts/diag-editorial-case.ts && cd app && npx tsx scripts/diag-editorial-case.ts
+        env:
+          CASE_CODE: 54740b5a
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       - name: Alcance en todos los trabajos (solo lectura)
         run: cp diag/scripts/diag/editorial-scope.ts app/scripts/diag-editorial-scope.ts && cd app && npx tsx scripts/diag-editorial-scope.ts
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      - name: Replay sin proveedor (código original, main)
-        run: cp diag/scripts/diag/editorial-replay.ts app/scripts/diag-editorial-replay.ts && cd app && npx tsx scripts/diag-editorial-replay.ts
-        env:
-          CODE_LABEL: original
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      - name: Replay sin proveedor (código corregido)
-        run: cp diag/scripts/diag/editorial-replay.ts fix/scripts/diag-editorial-replay.ts && cd fix && npx tsx scripts/diag-editorial-replay.ts
-        env:
-          CODE_LABEL: corregido
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
