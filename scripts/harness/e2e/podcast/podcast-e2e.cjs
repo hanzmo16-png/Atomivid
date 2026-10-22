@@ -315,7 +315,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     // Caso 9 — ENSAYO SIMULADO de la prueba real del dueño: misma configuración que el episodio «señal Wow!»
     // (narración individual, español, emocional, voz El Duro *simulada* por espeak-ng, 16:9), de la UI a la descarga. USD 0.
     // Música: E2E_WOW_MUSIC=1 la activa (en producción hoy no hay PODCAST_MUSIC_DIR → se recomienda sin música).
-    const script = fs.readFileSync(process.env.WOW_SCRIPT, "utf8").trim();
+    const script = fs.readFileSync(process.env.WOW_SCRIPT || path.join(REPO, "docs/podcast-2-1-prueba-real/guion-wow.txt"), "utf8").trim();
     const title = "El misterio de la señal Wow!: ¿recibimos un mensaje del espacio?";
     const PXLOG = path.join(E2E, "logs/pexels.jsonl"), pxLines = () => (fs.existsSync(PXLOG) ? fs.readFileSync(PXLOG, "utf8").trim().split("\n").filter(Boolean) : []);
     const DLOG = path.join(E2E, "logs/dispatch.jsonl"), nDisp = () => (fs.existsSync(DLOG) ? fs.readFileSync(DLOG, "utf8").trim().split("\n").filter(Boolean).length : 0);

@@ -34,7 +34,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci --no-audit --no-fund
-      - run: npm run typecheck
+      - name: Tipos de rutas de Next (LayoutProps/PageProps) + tsc
+        run: npx next typegen && npm run typecheck
   regression:
     # Suite unitaria completa del repo (Reels, Long Form, avatares, etc.) + build, en la cabeza y en la base del PR/rama.
     # Falla solo si la cabeza introduce fallos que la base no tiene (los preexistentes se listan, no se ocultan).
@@ -58,7 +59,7 @@ jobs:
           for t in head base; do
             ( cd "$t" && npm ci --no-audit --no-fund >/dev/null 2>&1
               NODE_OPTIONS=--test-reporter=tap npm run test:unit > "../unit-$t.log" 2>&1; echo $? > "../unit-$t.exit"
-              npm run typecheck > "../tsc-$t.log" 2>&1; echo $? > "../tsc-$t.exit"
+              { npx next typegen && npm run typecheck; } > "../tsc-$t.log" 2>&1; echo $? > "../tsc-$t.exit"
               npm run build > "../build-$t.log" 2>&1; echo $? > "../build-$t.exit" ) || true
             grep -E '^\s*not ok' "unit-$t.log" | sed -E 's/^\s*not ok [0-9]+ - //; s/ # .*$//' | sort -u > "fail-$t.txt"
             echo "$t: unit=$(cat unit-$t.exit) tsc=$(cat tsc-$t.exit) build=$(cat build-$t.exit) fallos=$(wc -l < fail-$t.txt) $(grep -E '^# (tests|pass|fail|skipped)' unit-$t.log | tr '\n' ' ')"
