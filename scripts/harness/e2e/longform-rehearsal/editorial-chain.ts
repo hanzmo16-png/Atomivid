@@ -48,7 +48,7 @@ const send = async (params: { model: string; max_tokens: number } & Record<strin
     const p = JSON.parse(content) as { narrationExcerpts: { id: string; beatIndex: number }[] };
     const beat = p.narrationExcerpts[0].beatIndex; calls.visual++;
     const ex = p.narrationExcerpts.filter((_, i, a) => i % Math.max(1, Math.floor(a.length / 3)) === 0).slice(0, 3);
-    return text(JSON.stringify({ visuals: ex.map((e, i) => ({ excerptId: e.id, description: SCENES[beat][i % 3], motion: false, subject: SCENES[beat][i % 3].split(" ").slice(0, 2).join(" "), era: "2nd century" })) }));
+    return text(JSON.stringify({ visuals: ex.map((e, i) => ({ excerptId: e.id, description: SCENES[beat][i % 3], motion: false, subject: SCENES[beat][i % 3].split(" ").slice(0, 2).join(" "), era: /^modern /.test(SCENES[beat][i % 3]) ? "present day" : "2nd century" })) }));
   }
   throw Error("simulador: petición no reconocida");
 };
