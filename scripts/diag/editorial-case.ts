@@ -64,6 +64,20 @@ async function main() {
         row.keys = v && Object.keys(v).slice(0, 10).join(",");
         console.log("OP", JSON.stringify(row));
         if (v?.sections && (v.findings || v.firstAnswer)) show(`OP${n}`, v);
+        if (!v && r.content) {
+          // Writer fragments: per creative-direction passage, is it literal in its beat (exactly / ignoring case & spaces)?
+          const { topLevelObjects } = await import("../src/lib/video/long-form/narrative-fragments");
+          const objs = topLevelObjects(text).map(t => { try { return JSON.parse(t); } catch { return null; } }).filter(Boolean);
+          const plan = objs.find((o: any) => o.creativeDirection), beats = objs.filter((o: any) => o.fragment === "beat").sort((a: any, b: any) => a.index - b.index);
+          if (plan) {
+            const d = plan.creativeDirection, norm = (x: string) => x.toLowerCase().replace(/\s+/g, " ").trim();
+            const ps = [["signatureDetail", d.signatureDetail], ["shareableLine", d.shareableLine], ...(d.protectInEdit ?? []).map((p: any, i: number) => [`protectInEdit${i}`, p]), ["commentMoment", d.commentMoment], ["closingCta", d.closingCta]];
+            for (const [name, p] of ps) if (p) { const nar = beats.find((b: any) => b.index === p.beatIndex)?.narration ?? "";
+              console.log(`OP${n}`, "PASSAGE", JSON.stringify({ name, beat: p.beatIndex, exact: nar.includes(p.quote), relaxed: norm(nar).includes(norm(p.quote)), quote: p.quote })); }
+            console.log(`OP${n}`, "LOCAL", JSON.stringify(creativeDirectionIssues(d, beats.map((b: any) => ({ narration: b.narration })), job.input.creativeHistory ?? [])));
+            console.log(`OP${n}`, "WORDS", beats.reduce((k: number, b: any) => k + countWords(b.narration), 0));
+          }
+        }
         if (v?.beats) console.log(`OP${n}`, "NARRATIVE", JSON.stringify({ title: v.title, beats: v.beats.length, words: v.beats.map((b: any) => countWords(b.narration ?? "")) }));
         continue;
       }
