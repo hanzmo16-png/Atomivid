@@ -2,7 +2,7 @@ name: Read-only editorial case diagnosis (no writes, no provider calls)
 on:
   push:
     branches: [claude/hola-sn3dxy]
-    paths: [scripts/diag/editorial-case.ts, scripts/diag/editorial-replay.ts, .github/workflows/diag-editorial-case.yml]
+    paths: [scripts/diag/editorial-case.ts, scripts/diag/editorial-replay.ts, scripts/diag/editorial-scope.ts, .github/workflows/diag-editorial-case.yml]
 permissions:
   contents: read
 jobs:
@@ -22,6 +22,11 @@ jobs:
         with: { ref: claude/longform-editorial-unblock, path: fix }
       - run: npm ci --no-audit --no-fund --ignore-scripts
         working-directory: fix
+      - name: Alcance en todos los trabajos (solo lectura)
+        run: cp diag/scripts/diag/editorial-scope.ts app/scripts/diag-editorial-scope.ts && cd app && npx tsx scripts/diag-editorial-scope.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       - name: Replay sin proveedor (código original, main)
         run: cp diag/scripts/diag/editorial-replay.ts app/scripts/diag-editorial-replay.ts && cd app && npx tsx scripts/diag-editorial-replay.ts
         env:
