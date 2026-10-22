@@ -98,7 +98,9 @@ function draft(t: Topic, prompt: string) {
   for (let i = 0; i < beats; i++) {
     const lead = i === 0 ? opening : t.facts[(i + shift) % t.facts.length];
     const words: string[] = lead.split(" ");
-    let k = 0; while (words.length < per) { words.push(...`Detalle ${i + 1}.${++k}: ${t.facts[(i + k) % t.facts.length].toLowerCase()}`.split(" ")); }
+    // Natural connectors, no digits: the local voice reads numbers as extra words and would distort the duration.
+    const LINKS = ["Además,", "Por eso,", "Al mismo tiempo,", "Mientras tanto,", "Con el tiempo,", "Visto de cerca,", "En otras palabras,", "Y sin embargo,"];
+    let k = 0; while (words.length < per) { k++; words.push(...`${LINKS[(i + k) % LINKS.length]} ${t.facts[(i + k) % t.facts.length].charAt(0).toLowerCase()}${t.facts[(i + k) % t.facts.length].slice(1)}`.split(" ")); }
     narr.push(words.slice(0, per).join(" ").replace(/[^.]$/, m => m + "."));
   }
   if (!fixed && t.defect === "middle-repeat") narr[2] = DEFECT_TEXT["middle-repeat"] + " " + narr[2];
