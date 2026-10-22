@@ -147,8 +147,14 @@ export function editorialScriptHash(beats: EditorialScript["beats"]): string {
   // IDs assigned at persistence are excluded. Bind all authored content used downstream.
   return stableHash(beats.map(b => ({ type: b.type, purpose: b.purpose, narration: b.narration, claims: b.claims, visuals: b.visuals, emotionalTone: b.emotionalTone })), 64);
 }
+/** New jobs record it: structural issues name the exact passage, and the draft keeps every blocking reason. Jobs saved
+ * without it keep the original wording so their already-paid provider responses replay byte for byte. */
+export const EDITORIAL_FEEDBACK_CONTRACT = "passages-v1" as const;
+/** Where a blocking reason came from: the independent reviewer, a local structural check, or the duration budget. */
+export type EditorialIssueSource = "reviewer" | "structure" | "duration";
+export type EditorialIssue = { source: EditorialIssueSource; text: string };
 export class EditorialQualityError extends Error {
-  constructor(readonly reasons: string[], readonly correctionExhausted = false) {
+  constructor(readonly reasons: string[], readonly correctionExhausted = false, readonly reviewerBlocking: number | null = null) {
     super(`El guion necesita más trabajo editorial: ${reasons.slice(0, 2).join(" ").slice(0, 750)} No se inició la producción audiovisual.`);
     this.name = "EditorialQualityError";
   }

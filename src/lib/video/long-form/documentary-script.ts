@@ -7,7 +7,7 @@ import { CitationRepairSchema, canonicalizeEditorialCitations, invalidEditorialC
  * Requires retrieved excerpts or an externally prepared research pack. One shared
  * rewrite budget covers duration and editorial defects; no audiovisual work here.
  */
-import { CreativeDirectionPromptSchema, LegacyCreativeDirectionPromptSchema, CreativeDirectionSchema, creativeDirectionIssues, CREATIVE_WRITER_RULES, CREATIVE_REVIEWER_RULES, narrativeTiming, type CreativeHistoryEntry } from "./creative-direction";
+import { CreativeDirectionPromptSchema, LegacyCreativeDirectionPromptSchema, CreativeDirectionSchema, creativeDirectionIssues, canonicalizeCreativeDirection, CREATIVE_WRITER_RULES, CREATIVE_REVIEWER_RULES, narrativeTiming, type CreativeHistoryEntry } from "./creative-direction";
 import { supplyProtectedAnthropic } from "@/lib/supply/anthropic";
 import { documentaryOutputBudget } from "./script-output-budget";
 import Anthropic from "@anthropic-ai/sdk";
@@ -23,8 +23,8 @@ import { VISUAL_BEAT_CLASSES } from "./visual-intents";
 import { BEAT_TYPES, type LongFormClaim, type LongFormMode, type LongFormSource, type NarrativeBeat } from "./types";
 import { countWords, evaluateNarrationDuration, narrationWordBudget, type DurationEvaluation, LONG_FORM_MAX_BEATS, LONG_FORM_MIN_BEATS } from "./duration-budget";
 import { StoryPlanSchema, LegacyStoryPlanSchema, EditorialReviewSchema, EDITORIAL_VERSION, EDITORIAL_WRITER_RULES, EDITORIAL_REVIEWER_SYSTEM,
-  validateStoryPlan, validateEditorialReview, editorialBlockers, editorialScriptHash, EditorialQualityError,
-  type EditorialReport, type EditorialReview } from "./editorial";
+  validateStoryPlan, validateEditorialReview, editorialBlockers, editorialScriptHash, EditorialQualityError, EDITORIAL_FEEDBACK_CONTRACT,
+  type EditorialReport, type EditorialReview, type EditorialIssue } from "./editorial";
 
 let cachedClient: Anthropic | null = null;
 
@@ -250,6 +250,8 @@ export type DocumentaryDraft = {
   script: z.infer<typeof DocumentaryNarrativeSchema>;
   researchPack: ResearchPack;
   review: EditorialReview | null;
+  /** Every blocking reason of this pass with its origin (reviewer / structure / duration), shown to the owner. */
+  issues?: EditorialIssue[];
 };
 
 function buildSourcesBlock(sources: LongFormSource[]): string {
@@ -292,6 +294,8 @@ export async function generateDocumentaryScript(input: {
   writerContract?: typeof FRAGMENT_CONTRACT;
   /** Owner-requested additional correction rounds after an editorial objection (0–2). */
   extraEditorialRounds?: number;
+  /** passages-v1: structural issues name the failing passage (saved per job; absent = original wording, replay-safe). */
+  editorialFeedback?: typeof EDITORIAL_FEEDBACK_CONTRACT;
   /** Explicit retry may repair one malformed visual scene through the existing spend gate. */
   allowVisualSceneRepair?: boolean;
   /** Test/replay port: replaces the provider call (same params, no network). */
@@ -454,15 +458,16 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
   let evidenceRepairUsed = false;
   const passes = 2 + Math.max(0, Math.min(2, Math.trunc(input.extraEditorialRounds ?? 0)));
   for (let pass = 0; pass < passes; pass++) {
-    const saveDraft = async (review: EditorialReview | null) => input.onDraft?.(structuredClone({
+    const saveDraft = async (review: EditorialReview | null, issues?: EditorialIssue[]) => input.onDraft?.(structuredClone({
       version: 1 as const, status: "unapproved" as const, pass,
-      script: DocumentaryNarrativeSchema.parse(parsed), researchPack: input.researchPack, review,
+      script: DocumentaryNarrativeSchema.parse(parsed), researchPack: input.researchPack, review, ...(issues ? { issues } : {}),
     }));
     await saveDraft(null);
     validateStoryPlan(parsed);
     const evaluation = evaluateNarrationDuration(parsed.beats.reduce((sum, b) => sum + countWords(b.narration), 0), input.targetDurationSeconds);
     const sourceIds = new Set(input.researchPack.sources.map(s => s.id));
-    const localIssues: string[] = creativeDirectionIssues(parsed.creativeDirection, parsed.beats, history);
+    const localIssues: string[] = creativeDirectionIssues(parsed.creativeDirection, parsed.beats, history, history.length,
+      { detail: input.editorialFeedback === EDITORIAL_FEEDBACK_CONTRACT });
     try { assertOriginalHook(parsed.hook); } catch { localIssues.push("Reemplaza la apertura genérica por una situación concreta."); }
     for (const beat of parsed.beats) {
       if (usesBannedOpener(beat.narration)) localIssues.push("Elimina saludos y aperturas genéricas de la narración.");
@@ -507,9 +512,11 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
     }
     await input.onStage?.("Comprobando calidad narrativa");
     reviews.push(reviewed);
-    await saveDraft(reviewed);
-    const issues = [...localIssues, ...editorialBlockers(reviewed)];
+    const reviewerIssues = editorialBlockers(reviewed);
+    const issues = [...localIssues, ...reviewerIssues];
     const durationAcceptable = pass === 0 ? evaluation.withinTolerance : evaluation.withinHardTolerance;
+    await saveDraft(reviewed, [...localIssues.map(text => ({ source: "structure" as const, text })), ...reviewerIssues.map(text => ({ source: "reviewer" as const, text })),
+      ...(durationAcceptable ? [] : [{ source: "duration" as const, text: `La narración dura ~${Math.round(evaluation.estimatedSeconds)} s y la duración pedida es ${input.targetDurationSeconds} s.` }])]);
     const lastPass = pass === passes - 1;
     if (!issues.length && durationAcceptable) {
       // Plan only the approved narration, one short response per beat. Each call
@@ -568,6 +575,8 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
         }
         parsed = DocumentaryScriptSchema.parse(parsed);
       }
+      // Point each creative-direction passage at the exact narration it quotes (case/spacing/typographic quotes only).
+      if (parsed.creativeDirection) parsed.creativeDirection = canonicalizeCreativeDirection(parsed.creativeDirection, parsed.beats);
       input.onEditorialApproved?.({ version: EDITORIAL_VERSION, status: "approved", model: SCRIPT_MODEL,
         creativeDirection: parsed.creativeDirection, historyCount: history.length, publicationTitle: parsed.title,
         scriptHash: editorialScriptHash(parsed.beats), corrected: pass > 0, storyPlan: parsed.storyPlan, reviews });
@@ -575,7 +584,7 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
     }
     if (lastPass) {
       if (!durationAcceptable) throw new LongFormScriptDurationError(evaluation, input.targetDurationSeconds);
-      throw new EditorialQualityError(issues,true);
+      throw new EditorialQualityError(issues, true, reviewerIssues.length);
     }
     const correction = `${prompt}\n\nCORRECCIÓN OBLIGATORIA — ${pass === 0 ? "única revisión permitida" : "corrección adicional solicitada por el propietario"}, editorial y duración juntas.
 El borrador tiene ${evaluation.words} palabras (~${Math.round(evaluation.estimatedSeconds)} s); objetivo ${budget.minWords}-${budget.maxWords}.
