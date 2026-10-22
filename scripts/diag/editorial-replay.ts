@@ -30,15 +30,18 @@ async function main() {
   const { data: owner } = await db.auth.admin.getUserById(job.user_id);
   const kindOf = (p: any) => { const s = typeof p.system === "string" ? p.system : JSON.stringify(p.system ?? "");
     return /Planifica escenas/.test(s) ? "visual-plan" : /editor crítico/.test(s) ? "review" : /guionista documental/.test(s) ? "writer" : "other"; };
-  for (const rounds of [Number(job.editorial_rounds ?? 0), Number(job.editorial_rounds ?? 0) + 1]) {
-    const calls: { kind: string; cached: boolean }[] = []; let boundary: string | null = null; const drafts: unknown[] = [];
-    process.env.ANTHROPIC_API_KEY = "offline-replay-no-provider-key";
-    globalThis.fetch = (async (_u: unknown, init?: { body?: unknown }) => {
-      const params = JSON.parse(String(init?.body)), key = stableHash(params, 16), kind = kindOf(params), hit = saved.get(key);
-      calls.push({ kind, cached: !!hit });
-      if (!hit) { boundary = kind; throw Error("OFFLINE_CACHE_BOUNDARY"); }
-      return new Response(JSON.stringify(hit), { status: 200, headers: { "content-type": "application/json" } });
-    }) as typeof fetch;
+  // ONE transport for every run (the SDK client is cached across runs); per-run state lives in `run`.
+  let run = { calls: [] as { kind: string; cached: boolean }[], boundary: null as string | null };
+  process.env.ANTHROPIC_API_KEY = "offline-replay-no-provider-key";
+  globalThis.fetch = (async (_u: unknown, init?: { body?: unknown }) => {
+    const params = JSON.parse(String(init?.body)), key = stableHash(params, 16), kind = kindOf(params), hit = saved.get(key);
+    run.calls.push({ kind, cached: !!hit });
+    if (!hit) { run.boundary = kind; return new Response(JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: "OFFLINE_CACHE_BOUNDARY" } }), { status: 400, headers: { "content-type": "application/json" } }); }
+    return new Response(JSON.stringify(hit), { status: 200, headers: { "content-type": "application/json" } });
+  }) as typeof fetch;
+  const mode = process.env.REPLAY_ROUNDS === "both" ? [Number(job.editorial_rounds ?? 0), Number(job.editorial_rounds ?? 0) + 1] : [Number(job.editorial_rounds ?? 0) + 1];
+  for (const rounds of mode) {
+    run = { calls: [], boundary: null }; const drafts: unknown[] = [];
     let outcome: Record<string, unknown>;
     try {
       const researchPack = await researchDocumentary({ topic: fields.topic, references: parseSources(fields.sources), openQuestions: parseOpenQuestions(fields.openQuestions) });
@@ -48,10 +51,10 @@ async function main() {
         onDraft: async d => { const r = d.review as EditorialReview | null; drafts.push({ pass: d.pass, reviewed: !!r, reviewerBlockers: r ? editorialBlockers(r).length : null, issues: (d as any).issues ?? null }); } });
       outcome = { result: "approved_offline" };
     } catch (e) {
-      outcome = boundary ? { result: "stopped_at_uncached_call", call: boundary } : { result: "stopped", error: e instanceof Error ? e.name : String(e),
+      outcome = run.boundary ? { result: "stopped_at_uncached_call", call: run.boundary } : { result: "stopped", error: e instanceof Error ? e.name : String(e),
         reasons: e instanceof EditorialQualityError ? e.reasons : undefined, detail: e instanceof Error ? e.message.slice(0, 200) : undefined };
     }
-    console.log("REPLAY", JSON.stringify({ rounds, savedResponses: saved.size, calls, ...outcome }));
+    console.log("REPLAY", JSON.stringify({ code: process.env.CODE_LABEL, rounds, savedResponses: saved.size, calls: run.calls, ...outcome }));
     for (const d of drafts) console.log("DRAFT", JSON.stringify(d));
   }
 }

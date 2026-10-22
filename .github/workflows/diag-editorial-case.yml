@@ -25,10 +25,12 @@ jobs:
       - name: Replay sin proveedor (código original, main)
         run: cp diag/scripts/diag/editorial-replay.ts app/scripts/diag-editorial-replay.ts && cd app && npx tsx scripts/diag-editorial-replay.ts
         env:
+          CODE_LABEL: original
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       - name: Replay sin proveedor (código corregido)
         run: cp diag/scripts/diag/editorial-replay.ts fix/scripts/diag-editorial-replay.ts && cd fix && npx tsx scripts/diag-editorial-replay.ts
         env:
+          CODE_LABEL: corregido
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
