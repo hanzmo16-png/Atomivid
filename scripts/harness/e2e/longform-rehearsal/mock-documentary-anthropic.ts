@@ -75,6 +75,7 @@ const DEFECT_TEXT = {
   unsupported: "Murieron exactamente tres millones de soldados romanos en esa última década, una cifra que lo explica todo.",
   "late-answer": "Antes de hablar de agujeros negros conviene repasar con calma mucha historia de la astronomía antigua y moderna.",
 };
+const VIEWS = ["wide view", "close detail", "seen from above", "in soft light", "side view", "at dusk", "in shadow", "from a distance", "textured detail", "early morning", "low angle", "overhead detail", "quiet scene", "at night", "with mist", "in warm light", "in cold light", "far wide shot"];
 const topicOf = (text: string) => TOPICS.find(t => t.match.test(text)) ?? TOPICS[0];
 
 function draft(t: Topic, prompt: string) {
@@ -165,7 +166,8 @@ http.createServer((req, res) => {
     if (/Planifica escenas/.test(system)) {
       const p = JSON.parse(prompt); const t = topicOf(p.topic ?? "");
       const ex = (p.narrationExcerpts as { id: string; beatIndex: number }[]); const beat = ex[0].beatIndex;
-      const visuals = ex.slice(0, 3).map((e, i) => { const d = t.scenes[(beat + i) % t.scenes.length];
+      // A real planner describes each scene differently; identical intents would (rightly) exhaust unique material.
+      const visuals = ex.slice(0, 3).map((e, i) => { const d = `${t.scenes[(beat + i) % t.scenes.length]}, ${VIEWS[(beat * 3 + i) % VIEWS.length]}`;
         return { excerptId: e.id, description: d, motion: false, subject: d.split(" ").slice(0, 3).join(" "), ...(t.era ? { era: t.era } : {}) }; });
       return message([{ type: "text", text: JSON.stringify({ visuals }) }], "visual", { topic: t.key, beat });
     }
