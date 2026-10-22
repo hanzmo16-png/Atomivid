@@ -16,7 +16,13 @@ const TITLE_WEIGHT = 3;
 
 const STOP = new Set(("a al algo algunas algunos ante antes aquel aquella aquellas aquellos aqui así aunque cada casi como con contra cual cuales cuando de del desde donde dos el ella ellas ello ellos en entre era eran es esa esas ese eso esos esta estaba estado estan estar este esto estos fue fueron ha había hace hacia han hasta hay la las le les lo los más mas me mi mientras mismo mucho muy nada ni no nos nosotros o otra otras otro otros para pero poco por porque que quien quienes se sea según ser si sí sin sobre solo son su sus también tan tanto te tiene tienen todo todos tras tu tú un una uno unos usted ya yo the a an and are as at be but by for from has have he her his i in is it its of on or our she that the their them they this to was we were what when which who will with you your").split(" "));
 
-const contentWords = (text: string) => (text.toLowerCase().normalize("NFC").match(/[\p{L}][\p{L}\p{N}'-]*/gu) ?? []).filter((w) => w.length >= 4 && !STOP.has(w));
+/**
+ * Words that never make a picture on a stock site: spelled-out numbers ("setenta" → nothing visual), discourse and
+ * abstract terms of a documentary ("hipótesis", "respuesta"), and first-person plural verbs ("recibimos", "sabemos").
+ * Left in, they become the "most salient" term of a scene and the search returns unrelated footage.
+ */
+const NON_VISUAL = new Set(("cero tres cuatro cinco seis siete ocho nueve diez once doce trece catorce quince dieciséis veinte treinta cuarenta cincuenta sesenta setenta ochenta noventa cien ciento cientos doscientos trescientos cuatrocientos quinientos seiscientos setecientos ochocientos novecientos mil miles millón millones primera primero segunda segundo tercera tercero cuarta cuarto quinta quinto última último años año días noche veces tiempo parte manera forma tipo caso hecho hechos idea ideas hipótesis hipotesis explicación explicaciones respuesta pregunta propuesta propuestas posible posibles cosa cosas detalle debate lección método historia episodio advertencia honesta fuentes trabajo verdad certeza realidad gracias entonces después luego hoy ahora siempre nunca todavía quizá quizás mismo misma algo nadie cualquier ningún ninguna ninguno uno una unas unos sola solo señala señalaron propuso aparece apareció sigue siguen documentado está están estaba bien mal three four five seven eight nine hundred thousand").split(" "));
+const contentWords = (text: string) => (text.toLowerCase().normalize("NFC").match(/[\p{L}][\p{L}\p{N}'-]*/gu) ?? []).filter((w) => w.length >= 4 && !STOP.has(w) && !NON_VISUAL.has(w) && !/^\p{L}{3,}mos$/u.test(w));
 
 export function topicOf(script: string, title: string): Topic {
   const t = new Map<string, number>();
@@ -34,7 +40,7 @@ function salient(text: string, max = 3, topic?: Topic): string[] {
   });
   const weight = (w: string) => topic?.get(w) ?? 0;
   return [...counts.entries()]
-    .sort((a, b) => weight(b[0]) - weight(a[0]) || b[1].n - a[1].n || b[0].length - a[0].length || a[1].first - b[1].first)
+    .sort((a, b) => b[1].n - a[1].n || weight(b[0]) - weight(a[0]) || b[0].length - a[0].length || a[1].first - b[1].first)
     .slice(0, max)
     .map(([w]) => w);
 }
