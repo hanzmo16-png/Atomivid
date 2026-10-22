@@ -10,8 +10,9 @@ const TOPIC=process.env.TOPIC;const TAG=process.env.TAG||"R";
  fs.writeFileSync(OUT+"/ids.json",JSON.stringify({jobId:j.id,requestId:j.request_id}));log(TAG,"UI: solicitud creada por formulario",j);const R0=j.request_id;
  // B. Guion sintético por RPC productivas (NO UI, NO LLM)
  // APPROVED_SCRIPT: guion ya aprobado por el flujo editorial real (editorial-chain.ts); si no, el sintético de b-inject.
- const inject=process.env.APPROVED_SCRIPT?"scripts/harness/e2e/longform-rehearsal/g-inject-approved.ts":"scripts/harness/e2e/longform-rehearsal/b-inject.ts";
- log(TAG,"NO-UI: guion inyectado por RPC claim/finish",execFileSync("npx",["tsx",inject],{cwd:process.env.REPO_DIR||"/workspace/atomivid-recraft",env:{...process.env,TOPIC,JOB_ID:j.id}}).toString().trim());
+ // AUTONOMOUS=1: nadie inyecta nada — el trabajo avanza solo con runScriptJobStep (h-autonomy.ts) contra el Anthropic simulado.
+ const inject=process.env.AUTONOMOUS?"scripts/harness/e2e/longform-rehearsal/h-autonomy.ts":process.env.APPROVED_SCRIPT?"scripts/harness/e2e/longform-rehearsal/g-inject-approved.ts":"scripts/harness/e2e/longform-rehearsal/b-inject.ts";
+ log(TAG,process.env.AUTONOMOUS?"NO-UI: guion preparado de forma autónoma (runScriptJobStep)":"NO-UI: guion inyectado por RPC claim/finish",execFileSync("npx",["tsx",inject],{cwd:process.env.REPO_DIR||"/workspace/atomivid-recraft",env:{...process.env,TOPIC,JOB_ID:j.id}}).toString().trim());
  // C. Revisar/configurar/confirmar por UI
  await p.goto(`${BASE}/dashboard/long-form/configure/${R0}`);await skipTour(p);
  for (const t of ["Revisar el guion","Ver estructura narrativa"]) await p.getByText(t).first().click().catch(()=>log("no expand",t));
