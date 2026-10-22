@@ -1,4 +1,4 @@
-// Re-run 2026-10-21: owner secret added in GitHub Actions.
+// Re-run 2026-10-22: owner secret reported added in Actions.
 /** Read-only readiness check for the Recraft + chosen-voice pilot (2026-10-21). No writes, no generation, no paid
  * call: Supabase reads (service role), ElevenLabs GET /v1/voices and GET /v1/user/subscription. Prints booleans,
  * counts and labels only — never a secret, an email or a user id. */
