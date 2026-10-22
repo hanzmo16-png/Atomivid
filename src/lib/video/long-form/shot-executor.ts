@@ -32,7 +32,7 @@ import type { ProductionBudget } from "./production-budget";
 import type { AllocatedShot, GenerativeUnitCosts } from "./production-plan";
 import { documentaryImagePrompt, requiresEvidence, requiresIdentity, textCardForShot } from "./visual-intents";
 import { RecraftStyleMissingError } from "@/lib/video/recraft-reel";
-import { checkGeneratedImage, type GeneratedImageQc } from "./generated-image-qc";
+import { checkGeneratedImage, regenerationCanFix, type GeneratedImageQc } from "./generated-image-qc";
 
 /** Regenerations of one scene after an automatic-check rejection (each from the plan's regeneration reserve). */
 export const MAX_QC_REGENERATIONS = 1;
@@ -637,7 +637,12 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
     // Paid and committed, but unusable: recorded (never reused), then regenerated once under a NEW ledger key.
     await deps.store.write({ shotId: shot.id, kind: "ai_image", status: "QC_REJECTED", provider: deps.imageProvider.name, updatedAtIso: new Date().toISOString(),
       ...(noChargeRetry > 0 ? { noChargeFailures: noChargeRetry } : {}), qcRejections: qcRejections + 1 });
-    console.warn(`[atomivid:long-form:qc] imagen rechazada ${shot.id}: ${qcFailed.checks.filter((c) => !c.ok).map((c) => c.detail).join("; ")}`);
+    const detail = qcFailed.checks.filter((c) => !c.ok).map((c) => c.detail).join("; ");
+    console.warn(`[atomivid:long-form:qc] imagen rechazada ${shot.id}: ${detail}`);
+    // Wrong framing or too small is the provider's output size: a regeneration would pay again for the same defect.
+    if (!regenerationCanFix(qcFailed)) {
+      throw new ChosenImageProviderError(shot.id, `el proveedor entregó una imagen que no sirve para 16:9 (${detail}); no se paga otra generación`, false, false, false);
+    }
     return resolveAiImage(shot, deps);
   }
   if (persisted) return persisted;
