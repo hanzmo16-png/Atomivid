@@ -6,7 +6,9 @@ export const ScriptJobFieldsSchema = z.object({
  sources: z.string().max(12000), openQuestions: z.string().max(4000), language: z.enum(["en","es"]),
 });
 export type ScriptJobFields = z.infer<typeof ScriptJobFieldsSchema>;
-export type ScriptJobInput = { fields: ScriptJobFields; creativeHistory: CreativeHistoryEntry[]; recoverLegacyOperator: boolean; referenceContract?: "catalog-v1"; writerContract?: "fragments-v1"; editorialFeedback?: "passages-v1" };
+export type ScriptJobInput = { fields: ScriptJobFields; creativeHistory: CreativeHistoryEntry[]; recoverLegacyOperator: boolean; referenceContract?: "catalog-v1"; writerContract?: "fragments-v1"; editorialFeedback?: "passages-v1";
+ /** auto-v1: shared rubric + targeted corrections; autoCorrections is the automatic budget fixed at enqueue (1–3). */
+ editorialAutonomy?: "auto-v1"; autoCorrections?: number };
 export type ScriptJobSummary = { id: string; topic: string; status: string; stage: string; error_message: string | null; request_id: string; created_at: string; updated_at: string;
  failure_kind?: "technical" | "editorial" | "interrupted" | null; retry_count?: number; editorial_rounds?: number; resubmit_allowance?: number };
 export const SCRIPT_JOB_COLUMNS = "id,topic,status,stage,error_message,request_id,created_at,updated_at,failure_kind,retry_count,editorial_rounds,resubmit_allowance";

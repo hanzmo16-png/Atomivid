@@ -23,7 +23,9 @@ export function documentaryFormError(error: unknown, diagnosticId: string): stri
       ? "El revisor señala un bloque que repite ideas sin hacer avanzar la historia. El guion necesita trabajo editorial; no es un fallo de acceso ni de créditos. "
       : structuralOnly ? "El revisor no tiene objeciones de contenido, pero el guion no pasó una comprobación de estructura (detalle abajo). "
       : "El guion mantiene observaciones editoriales pendientes. ") +
-      (error.correctionExhausted ? "La corrección prevista ya se utilizó. " : "") +
+      (error.correctionExhausted ? (error.correctionsUsed && error.correctionsUsed > 1
+        ? `Atomicvid ya hizo ${error.correctionsUsed} correcciones automáticas con las observaciones de cada revisión y la objeción persiste. `
+        : "La corrección prevista ya se utilizó. ") : "") +
       "Conservamos el borrador y sus observaciones en esta página; no iniciamos otra llamada ni la producción audiovisual." + suffix;
   }
   if (error instanceof LongFormScriptDurationError) return error.message + " Conservamos el borrador; no se inició la producción audiovisual." + suffix;
