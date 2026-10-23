@@ -8,7 +8,16 @@ import os from "node:os";
 import path from "node:path";
 
 export async function runStudioJob(episodeId: string) {
-  if (process.env.PODCAST_V3_ENABLED !== "1") { console.log("STUDIO_DISABLED"); return; }
+  if (process.env.PODCAST_V3_ENABLED !== "1") {
+    // App y worker desalineados (la app autorizó, el worker no tiene el interruptor): no se genera NI se cobra, y el
+    // episodio no queda «autorizado» para siempre: pasa a «failed» con el motivo (se puede reintentar al alinear).
+    console.log("STUDIO_DISABLED");
+    if (/^[0-9a-f-]{36}$/i.test(episodeId) && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      const { createServiceClient } = await import("../../src/lib/supabase/service");
+      await createServiceClient().from("podcast_studio_episodes").update({ status: "failed", error: "El estudio no está activado en el generador (PODCAST_V3_ENABLED). No se hizo ningún cargo.", updated_at: new Date().toISOString() }).eq("id", episodeId).eq("status", "authorized");
+    }
+    return;
+  }
   if (!/^[0-9a-f-]{36}$/i.test(episodeId)) throw new Error("EPISODE_ID missing");
   const { createServiceClient } = await import("../../src/lib/supabase/service");
   const { STUDIO_TABLE, STUDIO_COLUMNS, supabaseStudioLedger, supabaseRunGuard } = await import("../../src/lib/podcast/v3/store");
