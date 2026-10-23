@@ -21,7 +21,9 @@ const h = (s: string) => createHash("sha256").update(s).digest("hex").slice(0, 1
 async function main() {
   if (process.env.ANTHROPIC_API_KEY || process.env.SUPPLY_GUARD_ENFORCED === "true" || process.env.VERCEL_ENV) throw Error("Offline environment required");
   const db = createClient(process.env.SUPABASE_URL!.trim(), process.env.SUPABASE_SERVICE_ROLE_KEY!.trim(), { auth: { persistSession: false, autoRefreshToken: false } });
-  const jobs = await db.from("documentary_script_jobs").select("id,user_id,input,status,retry_count,editorial_rounds").eq("status", "failed");
+  const jobs = await db.from("documentary_script_jobs").select("id,user_id,input,status,retry_count,editorial_rounds")
+    // A named job is replayed in any state (e.g. requeued); without a name only failed jobs, as before.
+    .in("status", process.env.REPLAY_JOB?.trim() ? ["failed", "queued", "running", "completed"] : ["failed"]);
   if (jobs.error) throw Error("read");
   const originalFetch = globalThis.fetch;
   // Optional filter (job id prefix) so one incident can be replayed with production's own per-job options.
