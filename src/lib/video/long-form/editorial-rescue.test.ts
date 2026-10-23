@@ -13,8 +13,9 @@ import { readFileSync } from "node:fs";
 import { stableHash } from "@/lib/production-intelligence/canonical";
 import { narrationCatalog } from "./narration-catalog";
 import { editorialBlockers, type EditorialReport } from "./editorial";
-import { openingEvidence, validateOrRepairOpeningReview, OPENING_UNVERIFIED_EXPLANATION } from "./editorial-opening-repair";
+import { openingEvidence, validateOrRepairOpeningReview } from "./editorial-opening-repair";
 import { DocumentaryResponseError, parseDocumentaryResponse, validateDocumentaryValue } from "./json-response";
+import { scriptFailureKind } from "./script-jobs";
 import { normalizeToContract, extractJsonDocument } from "./response-normalizer";
 import { generateDocumentaryScript, type DocumentaryScript } from "./documentary-script";
 import { creativeFixture } from "./editorial.test-fixtures";
@@ -105,15 +106,16 @@ for (const [name, fx, seconds] of [
     const r = await pipeline(fx, seconds, incidentRepair);
     assert.ok(r.report); assert.equal(r.ledger.paid, 1); assert.deepEqual(editorialBlockers(r.report!.reviews.at(-1)!), []);
   });
-  test(`${name}: respuesta realmente inválida -> NUNCA aprobado (observación editorial, borrador conservado)`, async () => {
+  test(`${name}: respuesta realmente inválida -> error TÉCNICO, nunca aprobado y SIN corrección editorial pagada`, async () => {
     const bad = () => msg({ firstAnswer: { delivered: "yes", evidence: {}, explanation: "" } });
-    const l = ledger(p => { if (isOpeningRepair(p)) return bad(); throw new Error("SIMULATED: corrección pediría nueva llamada"); });
-    let approved = false;
-    await assert.rejects(pipeline(fx, seconds, bad, l).then(r => { approved = !!r.report; }));
-    assert.equal(approved, false);
-    const review = await validateOrRepairOpeningReview({ rawReview: criticReview(fx.script), script: fx.script, model: "t", send: async () => bad() });
-    assert.equal(review.firstAnswer.delivered, false); assert.equal(review.firstAnswer.explanation, OPENING_UNVERIFIED_EXPLANATION);
-    assert.ok(editorialBlockers(review).length > 0);
+    const l = ledger(p => { if (isOpeningRepair(p)) return bad(); throw new Error("unexpected provider call"); });
+    let writerCalls = 0, approved = false;
+    const run = generateDocumentaryScript({ researchPack: { topic: "t", sources: fx.sourceIds.map(id => ({ id, title: id, kind: "secondary" as const })), openQuestions: [] },
+      mode: "curiosity_documentary", language: fx.language, creativeHistory: fx.creativeHistory, targetDurationSeconds: seconds, referenceContract: "catalog-v1",
+      parse: async () => { writerCalls++; return structuredClone(fx.script); }, review: async () => criticReview(fx.script), send: l.send, onEditorialApproved: () => { approved = true; } });
+    const error = await run.then(() => null, e => e);
+    assert.ok(error instanceof DocumentaryResponseError); assert.equal(scriptFailureKind(error), "technical");
+    assert.equal(approved, false); assert.equal(writerCalls, 1, "no se lanzó la corrección editorial");
   });
 }
 
@@ -123,8 +125,7 @@ test("capa B: variantes recuperables aceptadas sin cambiar el significado", asyn
   for (const body of [
     { firstAnswer: { ...base, evidence: { excerptId: id, explanation: "" } } },                 // incidente
     { firstAnswer: { ...base, evidence: { excerptId: id, explanation: null } } },
-    { firstAnswer: { ...base, evidence: { excerptId: id, quote: "Picture it: a narrow mountain pass" } } }, // eco de cita (el servidor la deriva del ID)
-    { firstAnswer: { ...base, evidence: { excerptId: id, beatIndex: 0, explanation: "early" } } },
+    { firstAnswer: { ...base, evidence: { excerptId: id, quote: narrationCatalog(s.beats).find(e => e.id === id)!.quote, beatIndex: 0 } } }, // eco VERIFICADO (allow-list del contrato)
   ]) {
     const r = await validateOrRepairOpeningReview({ rawReview: criticReview(s), script: s, model: "t", send: async () => msg(body) });
     assert.equal(r.firstAnswer.delivered, true); assert.equal(r.firstAnswer.evidence.quote, narrationCatalog(s.beats).find(e => e.id === id)!.quote);

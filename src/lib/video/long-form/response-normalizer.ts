@@ -8,22 +8,20 @@
  *
  * Esta capa separa FORMA de CONTENIDO con un conjunto CERRADO de reglas sin pérdida de significado:
  *  R1 `empty_unknown_key`: clave no reconocida por el esquema con valor null o texto en blanco.
- *  R2 `reference_annotation`: dentro de un objeto de evidencia que YA trae `excerptId` (texto no vacío),
- *     una clave no reconocida y primitiva (quote/beatIndex/explanation/…). El servidor deriva siempre
- *     texto y ubicación del `excerptId` (el crítico principal ya ignoraba estas claves con el esquema
- *     tolerante); el contrato de reparación las rechazaba: era una contradicción interna, no un defecto.
+ *  (R2 genérico RETIRADO tras las auditorías de Claude A2 y ChatGPT P0: descartar primitivas desconocidas
+ *   con contenido podía borrar un veredicto más estricto, p. ej. `evidence.delivered:false`. Los ecos de
+ *   cita/índice solo se aceptan por contrato y verificados contra el catálogo: ver editorial-opening-repair.ts.)
  * Todo lo demás sigue fallando igual: campos ausentes o mal tipados, enums fuera de contrato, valores
  * fuera de rango, claves desconocidas con contenido fuera de una evidencia, objetos/arrays extra.
  * El valor de entrada nunca se muta: la respuesta pagada guardada sigue byte-idéntica para auditoría.
  */
 import { z } from "zod";
 
-export type NormalizationRule = "empty_unknown_key" | "reference_annotation";
+export type NormalizationRule = "empty_unknown_key";
 export type NormalizationAction = { rule: NormalizationRule; path: string };
 export type Normalized = { value: unknown; actions: NormalizationAction[] };
 
 const isBlank = (v: unknown) => v === null || v === undefined || (typeof v === "string" && v.trim() === "");
-const isPrimitive = (v: unknown) => v === null || ["string", "number", "boolean"].includes(typeof v);
 
 function objectAt(root: unknown, path: readonly PropertyKey[]): Record<string, unknown> | null {
   let node: unknown = root;
@@ -34,7 +32,7 @@ function objectAt(root: unknown, path: readonly PropertyKey[]): Record<string, u
   return node !== null && typeof node === "object" && !Array.isArray(node) ? node as Record<string, unknown> : null;
 }
 
-/** Aplica R1/R2 solo donde el propio esquema reporta `unrecognized_keys`. Determinista e idempotente. */
+/** Aplica R1 solo donde el propio esquema reporta `unrecognized_keys`. Determinista e idempotente. */
 export function normalizeToContract<T extends z.ZodType>(schema: T, value: unknown): Normalized {
   let current = value;
   const actions: NormalizationAction[] = [];
@@ -47,11 +45,9 @@ export function normalizeToContract<T extends z.ZodType>(schema: T, value: unkno
       if (current === value) current = structuredClone(value);
       const target = objectAt(current, issue.path);
       if (!target) continue;
-      const isReference = typeof target.excerptId === "string" && target.excerptId.trim() !== "";
       for (const key of (issue as { keys: string[] }).keys) {
         if (!Object.prototype.hasOwnProperty.call(target, key)) continue;
-        const rule: NormalizationRule | null = isBlank(target[key]) ? "empty_unknown_key"
-          : isReference && isPrimitive(target[key]) ? "reference_annotation" : null;
+        const rule: NormalizationRule | null = isBlank(target[key]) ? "empty_unknown_key" : null;
         if (!rule) continue;
         delete target[key];
         actions.push({ rule, path: issue.path.map(String).join(".") });
@@ -69,4 +65,12 @@ export function extractJsonDocument(text: string): unknown {
   const t = text.replace(/^\uFEFF/, "").trim();
   const fenced = t.match(/^```(?:json|JSON)?[ \t]*\r?\n?([\s\S]*?)\r?\n?[ \t]*```$/);
   return JSON.parse(fenced ? fenced[1] : t);
+}
+
+/** Punto ÚNICO de aceptación para todos los contratos de micro-llamadas (revisión, reparaciones de apertura,
+ * funciones, anclas visuales, escenas y plan visual): R1 y luego el esquema completo, sin otra tolerancia. */
+export function acceptContract<T extends z.ZodType>(schema: T, value: unknown) {
+  const normalized = normalizeToContract(schema, value);
+  if (normalized.actions.length) console.warn("[atomivid:documentary-format-normalized]", JSON.stringify(normalized.actions.slice(0, 12)));
+  return schema.safeParse(normalized.value) as ReturnType<T["safeParse"]>;
 }

@@ -22,6 +22,7 @@ import { z } from "zod";
 import { stableHash } from "@/lib/production-intelligence/canonical";
 import { DocumentaryResponseError, jsonResponseSystem, parseDocumentaryResponse, validateDocumentaryValue } from "./json-response";
 import { EditorialReviewSchema } from "./editorial";
+import { acceptContract } from "./response-normalizer";
 import { narrationCatalog } from "./narration-catalog";
 import { LONG_FORM_MAX_BEATS } from "./duration-budget";
 
@@ -65,7 +66,7 @@ export class EditorialFunctionRepairError extends DocumentaryResponseError {
  * o ALGÚN defecto no es exactamente `invalid_value` en sections[n].function.
  */
 export function sectionFunctionRepairTargets(value: unknown, schema: z.ZodType): number[] | null {
-  const parsed = schema.safeParse(value);
+  const parsed = acceptContract(schema, value);
   if (parsed.success) return null;
   const targets = new Set<number>();
   for (const issue of parsed.error.issues) {
@@ -112,7 +113,7 @@ export function functionRepairRequest(input: { original: ReviewResponse; review:
 
 /** Aplica la reparación sobre una COPIA. Exige exactamente las rutas afectadas; nada más cambia. */
 export function applyFunctionRepair(review: unknown, targets: number[], repaired: unknown): unknown {
-  const parsed = FunctionRepairSchema.safeParse(repaired);
+  const parsed = acceptContract(FunctionRepairSchema, repaired);
   if (!parsed.success) throw new EditorialFunctionRepairError(parsed.error.issues.slice(0, 12).map((i) => `${i.code}@repair.${i.path.map(String).join(".")}`));
   const expected = new Set(targets.map((i) => `sections/${i}/function`));
   const seen = new Set<string>();

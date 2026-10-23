@@ -27,11 +27,11 @@ test('no payoff is an editorial blocker, never an automatic approval',async()=>{
 });
 // Rescate 2026-10-23: evidencia tardía/inventada o intento de cambiar otros juicios ya no es un fallo técnico
 // terminal; queda como observación editorial bloqueante (delivered=false). Nunca aprueba.
-test('late or invented evidence and attempts to change other fields never approve',async()=>{
+test('late or invented evidence and attempts to change other fields never approve; other-field edits stay technical',async()=>{
  const {script,raw,late}=fixture();
  for(const id of [late.id,'invented']){const r=await validateOrRepairOpeningReview({rawReview:raw,script,model:'test',send:async()=>response({delivered:true,evidence:{excerptId:id},explanation:'test'})});assert.equal(r.firstAnswer.delivered,false);assert(editorialBlockers(r).length>0);}
- const r=await validateOrRepairOpeningReview({rawReview:raw,script,model:'test',send:async()=>({stop_reason:'end_turn',content:[{type:'text',text:JSON.stringify({firstAnswer:{delivered:true,evidence:{excerptId:openingEvidence(script.beats)[0].id},explanation:'test'},findings:[]})}]})});
- assert.equal(r.firstAnswer.delivered,false);assert.deepEqual(r.findings,raw.findings);assert(editorialBlockers(r).length>0);
+ // Intentar cambiar otros juicios es un fallo de FORMA: sigue siendo técnico (sin corrección editorial pagada).
+ await assert.rejects(validateOrRepairOpeningReview({rawReview:raw,script,model:'test',send:async()=>({stop_reason:'end_turn',content:[{type:'text',text:JSON.stringify({firstAnswer:{delivered:true,evidence:{excerptId:openingEvidence(script.beats)[0].id},explanation:'test'},findings:[]})}]})}));
 });
 test('other review errors do not trigger this repair',async()=>{
  const {script,raw}=fixture();raw.sections[0].excerptId='missing';let calls=0;await assert.rejects(validateOrRepairOpeningReview({rawReview:raw,script,model:'test',send:async()=>{calls++;return response({});}}));assert.equal(calls,0);

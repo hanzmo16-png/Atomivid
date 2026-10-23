@@ -65,7 +65,7 @@ export function anchorCreativeDirectionQuotes<T>(value: T, beats: Beat[]): T {
 }
 
 /** Normalización (capa B) de marcas de edición: si una marca no es literal, se ancla al tramo literal
- * MÁS LARGO compartido con su MISMO bloque (≥12 palabras consecutivas, o ≥8 y ≥50 % de la marca) y único.
+ * MÁS LARGO compartido con su MISMO bloque (≥12 palabras consecutivas, o ≥8 y ≥60 % de la marca, umbral de #190) y único.
  * La narración nunca cambia; una marca sin tramo suficiente sigue bloqueando. Solo para comprobaciones
  * locales e informe aprobado: el prompt del revisor conserva el anclaje de #188 (misma huella del ledger). */
 export function anchorCreativeDirectionSpans<T>(value: T, beats: Beat[]): T {
@@ -95,7 +95,7 @@ export function longestSharedSpan(narration: string, quote: string): string | nu
     }
     prev = cur;
   }
-  if (ties || !(best >= 12 || (best >= 8 && best / q.length >= 0.5))) return null;
+  if (ties || !(best >= 12 || (best >= 8 && best / q.length >= 0.6))) return null;
   const from = nt[end - best + 1], to = nt[end];
   return narration.slice(from.index!, to.index! + to[0].length);
 }

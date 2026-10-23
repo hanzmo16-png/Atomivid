@@ -16,6 +16,7 @@ import { jsonResponseSystem, parseDocumentaryResponse, validateDocumentaryValue,
 import { repairVisualAnchors } from "./visual-anchor-repair";
 import { recoverVisualPlan } from "./visual-scene-repair";
 import { readEditorialJson } from "./editorial-json";
+import { acceptContract } from "./response-normalizer";
 import { repairSectionFunctions, sectionFunctionRepairTargets } from "./editorial-function-repair";
 import { MissingEnvVarError } from "@/lib/env-errors";
 import { assertOriginalHook, usesBannedOpener } from "./originality";
@@ -230,7 +231,7 @@ export function parseVisualPlan(response: Parameters<typeof readDocumentaryJson>
     ? (opts.referenceContract ? CinematicLenientVisualsSchema : CinematicParseVisualsSchema)
     : (opts.referenceContract ? ProductLenientVisualsSchema : ProductParseVisualsSchema);
   const value = readDocumentaryJson(response);
-  const parsed = schema.safeParse(value);
+  const parsed = acceptContract(schema, value);
   if (!parsed.success) throw new VisualPlanBlockedError(allowListedIssuePaths(parsed.error, VISUAL_DIAGNOSTIC_KEYS), sceneShapes(value, VISUAL_DIAGNOSTIC_KEYS));
   return parsed.data as z.infer<typeof CinematicLenientVisualsSchema>;
 }
@@ -480,7 +481,6 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
       prompt: JSON.stringify({ version: EDITORIAL_VERSION, researchPack: input.researchPack,
         targetDurationSeconds: input.targetDurationSeconds, creativeHistory: history, timingEstimate: narrativeTiming(parsed.beats), script: parsed,
         ...(input.referenceContract ? {narrationExcerpts:narrationCatalog(parsed.beats)} : {}) }) });
-    parsed.creativeDirection = checkedDirection;
     let reviewed: EditorialReview;
     if (input.referenceContract) reviewed = await resolveCatalogReview(rawReview, parsed.beats);
     else try { reviewed = validateEditorialReview(rawReview, parsed); }
@@ -517,6 +517,9 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
     const durationAcceptable = pass === 0 ? evaluation.withinTolerance : evaluation.withinHardTolerance;
     const lastPass = pass === passes - 1;
     if (!issues.length && durationAcceptable) {
+      // MEDIO-2: el anclaje por tramo solo se fija al APROBAR. Prompts de revisión y de corrección conservan
+      // la dirección creativa del escritor (anclaje #188): mismas huellas, respuestas pagadas reutilizables.
+      parsed.creativeDirection = checkedDirection;
       // Plan only the approved narration, one short response per beat. Each call
       // is independently cached/accounted; an interruption reuses prior results.
       if (!input.parse) {
