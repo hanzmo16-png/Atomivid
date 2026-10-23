@@ -462,8 +462,12 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
     validateStoryPlan(parsed);
     const evaluation = evaluateNarrationDuration(parsed.beats.reduce((sum, b) => sum + countWords(b.narration), 0), input.targetDurationSeconds);
     const sourceIds = new Set(input.researchPack.sources.map(s => s.id));
-    parsed.creativeDirection = anchorCreativeDirectionQuotes(parsed.creativeDirection, parsed.beats);
-    const localIssues: string[] = creativeDirectionIssues(parsed.creativeDirection, parsed.beats, history);
+    // The critic receives the draft anchored exactly as deployed (#188), so committed critic responses keep
+    // matching on retry. The literal check and the approved report use the extended anchoring (always
+    // original narration text): an editing mark is metadata the critic does not judge.
+    parsed.creativeDirection = anchorCreativeDirectionQuotes(parsed.creativeDirection, parsed.beats, { extended: false });
+    const anchoredDirection = anchorCreativeDirectionQuotes(parsed.creativeDirection, parsed.beats);
+    const localIssues: string[] = creativeDirectionIssues(anchoredDirection, parsed.beats, history);
     try { assertOriginalHook(parsed.hook); } catch { localIssues.push("Reemplaza la apertura genérica por una situación concreta."); }
     for (const beat of parsed.beats) {
       if (usesBannedOpener(beat.narration)) localIssues.push("Elimina saludos y aperturas genéricas de la narración.");
@@ -569,6 +573,7 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
         }
         parsed = DocumentaryScriptSchema.parse(parsed);
       }
+      parsed.creativeDirection = anchoredDirection;
       input.onEditorialApproved?.({ version: EDITORIAL_VERSION, status: "approved", model: SCRIPT_MODEL,
         creativeDirection: parsed.creativeDirection, historyCount: history.length, publicationTitle: parsed.title,
         scriptHash: editorialScriptHash(parsed.beats), corrected: pass > 0, storyPlan: parsed.storyPlan, reviews });

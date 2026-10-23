@@ -49,11 +49,13 @@ type Passage = { beatIndex: number; quote: string };
  * in exactly one other beat), ignoring typography, then inner punctuation; a condensed copy keeps its longest literal
  * run in the cited block (incidents dbc89879 and e8048599, pass 0). A mark that cannot be located literally stays as is, so the existing check still
  * rejects it: nothing is invented and no narration changes. */
-export function anchorCreativeDirectionQuotes<T>(value: T, beats: Beat[]): T {
+export function anchorCreativeDirectionQuotes<T>(value: T, beats: Beat[], opts: { extended?: boolean } = {}): T {
   const parsed = CreativeDirectionSchema.safeParse(value);
   if (!parsed.success) return value;
   // Strictest first; each step returns ORIGINAL narration text, never the model's copy.
-  const steps: ((narration: string, quote: string) => string | null)[] = [locateNormalized, (n, q) => locateWordSequence(n, q)];
+  // `extended: false` is the rule deployed in #188 (typography only). The draft sent to the critic keeps it, so
+  // its request fingerprint, and therefore every committed critic response, stays reusable on retry.
+  const steps: ((narration: string, quote: string) => string | null)[] = opts.extended === false ? [locateNormalized] : [locateNormalized, (n, q) => locateWordSequence(n, q)];
   const anchor = (p: Passage): Passage => {
     if (beats[p.beatIndex]?.narration.includes(p.quote)) return p;
     for (const step of steps) {
@@ -64,7 +66,7 @@ export function anchorCreativeDirectionQuotes<T>(value: T, beats: Beat[]): T {
     }
     // A condensed copy of a sentence of the SAME block: keep its longest unique literal run (>= 12 words, or
     // >= 8 words covering >= 60% of the mark). Only the cited block is searched, so the mark keeps pointing where the writer meant.
-    const run = beats[p.beatIndex] ? longestLiteralRun(beats[p.beatIndex].narration, p.quote) : null;
+    const run = opts.extended !== false && beats[p.beatIndex] ? longestLiteralRun(beats[p.beatIndex].narration, p.quote) : null;
     return run ? { ...p, quote: run } : p;
   };
   const d = parsed.data;
