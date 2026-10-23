@@ -133,7 +133,10 @@ test("editing marks: a condensed copy keeps its longest literal run in the cited
   const condensed = "it never happened, and every number we use is a modern guess built on Herodotus";
   assert.equal(longestLiteralRun(narration, condensed + " alone"), "it never happened, and every number we use is a modern guess built on Herodotus");
   assert.equal(longestLiteralRun(narration, "the armies met at dawn and the river turned red with the blood of thousands"), null, "invented text is never anchored");
-  assert.equal(longestLiteralRun(narration, "every number we use and then a long invented tail that the narration never says anywhere at all"), null, "below the 60% share it stays rejected");
+  assert.equal(longestLiteralRun(narration, "every number we use and then a long invented tail that the narration never says anywhere at all"), null, "a short run below the share stays rejected");
+  // The measured e8048599 shape: 16 literal words of a 35-word mark, then a rewritten tail.
+  const opening = "No ancient source records the battle — it never happened, and every number we use is a modern guess";
+  assert.equal(longestLiteralRun(narration, opening + " that historians copied from one another across many centuries of retelling and doubt"), "No ancient source records the battle — it never happened, and every number we use is a modern guess");
 });
 
 test("the anchored draft passes the literal check without changing narration; an invented mark still fails", () => {

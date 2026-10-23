@@ -62,8 +62,8 @@ export function anchorCreativeDirectionQuotes<T>(value: T, beats: Beat[]): T {
       const others = beats.flatMap((b, i) => { const q = i === p.beatIndex ? null : step(b.narration, p.quote); return q ? [{ beatIndex: i, quote: q }] : []; });
       if (others.length === 1) return others[0];
     }
-    // A condensed copy of a sentence of the SAME block: keep its longest literal run (>= 8 words and
-    // >= 60% of the mark). Only the cited block is searched, so the mark keeps pointing where the writer meant.
+    // A condensed copy of a sentence of the SAME block: keep its longest unique literal run (>= 12 words, or
+    // >= 8 words covering >= 60% of the mark). Only the cited block is searched, so the mark keeps pointing where the writer meant.
     const run = beats[p.beatIndex] ? longestLiteralRun(beats[p.beatIndex].narration, p.quote) : null;
     return run ? { ...p, quote: run } : p;
   };

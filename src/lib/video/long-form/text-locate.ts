@@ -57,10 +57,12 @@ export function locateWordSequence(narration: string, quote: string, minWords = 
 /**
  * Longest contiguous run of the quote's words that occurs literally in the narration, returned as the
  * ORIGINAL narration span (incident e8048599: a 35-word editing mark condensed a sentence of its own
- * block). Accepted only when the run is unique and covers at least `minShare` of the quote's words and
- * `minWords` words; otherwise null. Nothing is invented: the result is always narration text.
+ * block; measured runs: 16 literal words, then a rewritten tail). Accepted only when the run is unique and
+ * either identifies the passage on its own (>= `identifyingWords` contiguous identical words) or is at least
+ * `minWords` long and covers `minShare` of the quote. Otherwise null. Nothing is invented: the result is
+ * always narration text.
  */
-export function longestLiteralRun(narration: string, quote: string, minWords = 8, minShare = 0.6): string | null {
+export function longestLiteralRun(narration: string, quote: string, minWords = 8, minShare = 0.6, identifyingWords = 12): string | null {
   const q = wordSpans(quote).map(w => w.word), n = wordSpans(narration);
   let best = { len: 0, at: -1, count: 0 };
   for (let i = 0; i < n.length; i++) for (let j = 0; j < q.length; j++) {
@@ -69,6 +71,7 @@ export function longestLiteralRun(narration: string, quote: string, minWords = 8
     if (k > best.len) best = { len: k, at: i, count: 1 };
     else if (k === best.len && k > 0 && i !== best.at) best.count++;
   }
-  if (best.len < minWords || best.len < Math.ceil(q.length * minShare) || best.count !== 1) return null;
+  const enough = best.len >= identifyingWords || (best.len >= minWords && best.len >= Math.ceil(q.length * minShare));
+  if (!enough || best.count !== 1) return null;
   return narration.slice(n[best.at].start, n[best.at + best.len - 1].end);
 }
