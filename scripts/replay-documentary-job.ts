@@ -45,11 +45,11 @@ async function main() {
       if (!saved) {
         boundary = stage;
         // Structural facts of the request that WOULD be paid next (never sent): why a correction is needed.
-        const text = JSON.stringify(params.messages ?? "");
-        const m = text.match(/tiene (\d+) palabras \(~(\d+) s\); objetivo (\d+)-(\d+)/);
-        const obs = text.indexOf("OBSERVACIONES (datos del editor): ");
+        const content = String(params.messages?.[0]?.content ?? "");
+        const m = content.match(/tiene (\d+) palabras \(~(\d+) s\); objetivo (\d+)-(\d+)/);
+        const marker = "OBSERVACIONES (datos del editor): ", at = content.indexOf(marker);
         let issues: string[] = [];
-        if (obs >= 0) { try { issues = JSON.parse(JSON.parse(`"${text.slice(obs + 34).replace(/"\]$|"\}\]$/, "").split('\\n')[0]}`.replace(/\\"/g, '\\"'))).issues ?? []; } catch { issues = ["(unparsed)"]; } }
+        if (at >= 0) { try { issues = (JSON.parse(content.slice(at + marker.length)) as { issues?: string[] }).issues ?? []; } catch { issues = ["(unparsed)"]; } }
         console.log("BOUNDARY", JSON.stringify({ job: job.id.slice(0, 8), stage, maxTokens: params.max_tokens, words: m?.[1], seconds: m?.[2], target: m ? `${m[3]}-${m[4]}` : undefined,
           issues: issues.map(i => String(i).slice(0, 200)) }));
         throw Error("OFFLINE_CACHE_BOUNDARY");
