@@ -1,2 +1,2 @@
-MODE=recraft-prepare
-CONFIRM=PREPARE-RECRAFT-CAPS
+MODE=replay
+REPLAY_REF=e8b67f5

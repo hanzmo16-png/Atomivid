@@ -12,7 +12,12 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-        with: { persist-credentials: false }
+        with: { persist-credentials: false, fetch-depth: 0 }
+      - name: Optional code checkout for replay
+        run: |
+          ref=$(sed -n 's/^REPLAY_REF=//p' ops/e8048599.mode)
+          if [ -n "$ref" ]; then cp scripts/ops-e8048599.ts /tmp/ops.ts; cp ops/e8048599.mode /tmp/mode; cp .github/workflows/ops-e8048599.yml /tmp/wf.yml
+            git fetch -q origin claude/long-form-15min-readiness && git checkout -q "$ref" && mkdir -p ops && cp /tmp/mode ops/e8048599.mode && cp /tmp/ops.ts scripts/ops-e8048599.ts; fi
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
@@ -30,5 +35,6 @@ jobs:
         run: |
           set +e
           eval "$(sed -n 's/^\([A-Z_]*\)=\(.*\)$/export \1="\2"/p' ops/e8048599.mode)"
-          npx tsx scripts/ops-e8048599.ts > out.txt 2>&1; echo "exit=$?"
-          node -e 'require("fs").readFileSync("out.txt","utf8").split("\n").filter(l=>/^(JOB|OPS|BUDGET|FAILED|RECRAFT|SNAP|POLICY|FAL)/.test(l)).slice(0,10).forEach((b,i)=>console.log("::notice title=O"+i+"::"+b.slice(0,3800).replace(/%/g,"%25")))'
+          if [ "$MODE" = "replay" ]; then REPLAY_CINEMATIC=true REPLAY_JOB=e8048599 npx tsx scripts/replay-documentary-job.ts > out.txt 2>&1
+          else npx tsx scripts/ops-e8048599.ts > out.txt 2>&1; fi; echo "exit=$?"
+          node -e 'require("fs").readFileSync("out.txt","utf8").split("\n").filter(l=>/^(JOB|OPS|BUDGET|FAILED|RECRAFT|SNAP|POLICY|FAL|REPLAY|BOUNDARY|\[atomivid:documentary-format)/.test(l)).slice(0,10).forEach((b,i)=>console.log("::notice title=O"+i+"::"+b.slice(0,3800).replace(/%/g,"%25")))'
