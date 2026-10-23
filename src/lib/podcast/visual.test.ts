@@ -164,7 +164,7 @@ test("búsquedas de stock: sin números escritos, términos abstractos ni verbos
 
 test("búsquedas de stock: los sustantivos terminados en «-mos» (cosmos, átomos, abismos, ritmos) siguen siendo visuales", async () => {
   const { topicOf } = await import("./visual-plan");
-  const topic = topicOf("El cosmos, los átomos, los abismos marinos y los ritmos del corazón. Sabemos poco y recibimos menos.", "Cosmos");
-  for (const good of ["cosmos", "átomos", "abismos", "ritmos"]) assert.ok(topic.has(good), `${good} falta en ${[...topic.keys()].join(" ")}`);
-  for (const bad of ["sabemos", "recibimos"]) assert.ok(!topic.has(bad), `${bad} en ${[...topic.keys()].join(" ")}`);
+  const topic = topicOf("El cosmos, los átomos, los abismos marinos y los ritmos del corazón. Kilogramos de racimos en tramos extremos. Sabemos poco y recibimos menos. Descubrimos el radar, analizamos datos, observamos el cielo; hicimos pruebas, tuvimos dudas, teníamos miedo y estábamos solos.", "Cosmos");
+  for (const good of ["cosmos", "átomos", "abismos", "ritmos", "kilogramos", "racimos", "tramos", "extremos", "radar"]) assert.ok(topic.has(good), `${good} falta en ${[...topic.keys()].join(" ")}`);
+  for (const bad of ["sabemos", "recibimos", "descubrimos", "analizamos", "observamos", "hicimos", "tuvimos", "teníamos", "estábamos"]) assert.ok(!topic.has(bad), `${bad} en ${[...topic.keys()].join(" ")}`);
 });

@@ -2,13 +2,16 @@
 -- Copia previa: borrar las columnas destruye la producción por turnos de los episodios v2. Se conserva en una tabla
 -- con RLS activa y SIN políticas (solo service role); al re-aplicar la propuesta se restaura con:
 --   update public.podcast_episodes e set production=b.production, production_timeline=b.production_timeline,
---       status=b.prev_status, video_status=b.prev_video_status, budget_usd=b.prev_budget_usd, error=b.prev_error
+--       source=b.prev_source, script=b.prev_script, status=b.prev_status, video_status=b.prev_video_status,
+--       budget_usd=b.prev_budget_usd, error=b.prev_error
 --     from public.podcast_episodes_v2_rollback_backup b where b.id=e.id;
 -- Neutralización: sin la columna `production` (o con el código anterior) un episodio v2 se narraría como 1.x — solo la
 -- voz A, leyendo las etiquetas «A: …» del guion y sintetizando por TTS los turnos con grabación propia — y se cobraría,
--- incluso solo (tick programado). Antes de borrar las columnas, cada episodio v2 queda sin poder generar gasto:
--- presupuesto 0 (la generación y el arranque programado lo exigen), borrador/fallido → fallido con aviso, y video
--- programado/en cola → bloqueado. El estado previo se guarda en la copia para restaurarlo.
+-- incluso solo (tick programado). El presupuesto no basta: «Producir ahora» lo reescribe desde el formulario. Antes de
+-- borrar las columnas cada episodio v2 pasa a source='upload' sin guion: el código 1.x rechaza ahí generar, narrar en
+-- segundo plano y producir video sin grabación lista (una entrega ya lista conserva su audio y no se re-narra). Además:
+-- presupuesto 0, borrador/fallido → fallido, video programado/en cola → bloqueado. El estado previo va a la copia;
+-- una segunda reversión solo lo refresca si la fila ya no está neutralizada (aviso distinto de NEUTRALIZED).
 do $$ begin
   if exists (select 1 from information_schema.columns where table_schema='public' and table_name='podcast_episodes' and column_name='production') then
     create table if not exists public.podcast_episodes_v2_rollback_backup(id uuid primary key, production jsonb, production_timeline jsonb, saved_at timestamptz not null default now());
@@ -16,15 +19,24 @@ do $$ begin
     revoke all on public.podcast_episodes_v2_rollback_backup from anon, authenticated;
     alter table public.podcast_episodes_v2_rollback_backup
       add column if not exists prev_status text, add column if not exists prev_video_status text,
-      add column if not exists prev_budget_usd numeric(12,4), add column if not exists prev_error text;
-    -- prev_* solo al insertar: una segunda ejecución no pisa el estado original con el ya neutralizado.
-    insert into public.podcast_episodes_v2_rollback_backup(id, production, production_timeline, prev_status, prev_video_status, prev_budget_usd, prev_error)
-      select id, production, production_timeline, status, video_status, budget_usd, error from public.podcast_episodes where production is not null or production_timeline is not null
-      on conflict (id) do update set production=excluded.production, production_timeline=excluded.production_timeline, saved_at=now();
+      add column if not exists prev_budget_usd numeric(12,4), add column if not exists prev_error text,
+      add column if not exists prev_source text, add column if not exists prev_script text;
+    insert into public.podcast_episodes_v2_rollback_backup as b(id, production, production_timeline, prev_status, prev_video_status, prev_budget_usd, prev_error, prev_source, prev_script)
+      select id, production, production_timeline, status, video_status, budget_usd, error, source, script from public.podcast_episodes where production is not null or production_timeline is not null
+      on conflict (id) do update set production=excluded.production, production_timeline=excluded.production_timeline, saved_at=now(),
+        -- fila ya neutralizada (re-ejecución): conservar el estado original; fila restaurada y usada: guardar el actual.
+        prev_status = case when excluded.prev_error is distinct from 'NEUTRALIZED: Episodio de Podcast 2.x retirado por reversión; restaurar su producción por turnos para volver a generar.' then excluded.prev_status else b.prev_status end,
+        prev_video_status = case when excluded.prev_error is distinct from 'NEUTRALIZED: Episodio de Podcast 2.x retirado por reversión; restaurar su producción por turnos para volver a generar.' then excluded.prev_video_status else b.prev_video_status end,
+        prev_budget_usd = case when excluded.prev_error is distinct from 'NEUTRALIZED: Episodio de Podcast 2.x retirado por reversión; restaurar su producción por turnos para volver a generar.' then excluded.prev_budget_usd else b.prev_budget_usd end,
+        prev_source = case when excluded.prev_error is distinct from 'NEUTRALIZED: Episodio de Podcast 2.x retirado por reversión; restaurar su producción por turnos para volver a generar.' then excluded.prev_source else b.prev_source end,
+        prev_script = case when excluded.prev_error is distinct from 'NEUTRALIZED: Episodio de Podcast 2.x retirado por reversión; restaurar su producción por turnos para volver a generar.' then excluded.prev_script else b.prev_script end,
+        prev_error = case when excluded.prev_error is distinct from 'NEUTRALIZED: Episodio de Podcast 2.x retirado por reversión; restaurar su producción por turnos para volver a generar.' then excluded.prev_error else b.prev_error end;
     update public.podcast_episodes set
+        source = 'upload',
+        script = null,
         budget_usd = 0,
         status = case when status in ('draft','failed') then 'failed' else status end,
-        error = case when status in ('draft','failed') then 'Episodio de Podcast 2.x retirado por reversión: no se puede generar hasta restaurar su producción por turnos.' else error end,
+        error = 'NEUTRALIZED: Episodio de Podcast 2.x retirado por reversión; restaurar su producción por turnos para volver a generar.',
         video_status = case when video_status in ('scheduled','queued') then 'blocked' else video_status end,
         updated_at = now()
       where production is not null;

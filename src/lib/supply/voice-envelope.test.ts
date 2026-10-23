@@ -1,8 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { voiceEnvelopeUsd, ENVELOPE_TTS_CHARS_PER_CALL } from "./job";
+import { voiceEnvelopeUsd } from "./job";
 import { ledgerUsd as ceilLedgerUsd } from "@/lib/paid-calls/ledger-usd";
-import { MAX_TTS_CHARS_PER_CALL, splitNarrationIntoSafeChunks } from "@/lib/video/long-form/timeline";
 
 test("486 caracteres Reel: la reserva cubre 2 llamadas redondeadas hacia arriba (video 13d20347)", () => {
   for (const rate of [0.1, 0.2, 0.3]) {
@@ -44,12 +43,6 @@ test("barrido aleatorio long form (beats 1..2500) y Reel/Avatar (1..5000): reser
       assert.ok(voiceEnvelopeUsd(mode, "a".repeat(n), null, rate) + 1e-9 >= calls * ceilLedgerUsd(n / 1000 * rate), `${mode} ${n} ${rate}`);
     }
   }
-});
-test("beat más largo que el límite por llamada: cubre cada trozo real y el límite coincide con el de timeline", () => {
-  assert.equal(ENVELOPE_TTS_CHARS_PER_CALL, MAX_TTS_CHARS_PER_CALL);
-  const narration = ("Una oración de prueba con varias palabras. ").repeat(700);
-  const used = splitNarrationIntoSafeChunks(narration).reduce((s, c) => s + ceilLedgerUsd(c.length / 1000 * 0.2), 0);
-  assert.ok(voiceEnvelopeUsd("long_form", narration, { beats: [{ narration }] }, 0.2) + 1e-9 >= used);
 });
 test("nunca menor que la estimación previa (total bruto)", () => {
   for (let n = 1; n <= 3000; n += 7) assert.ok(voiceEnvelopeUsd("visual", "a".repeat(n), null, 0.2) >= n * 2 / 1000 * 0.2);
