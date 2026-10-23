@@ -1,5 +1,7 @@
 /** Lógica de /api/podcast/[id]/turns separada de Next para probarla con manejadores reales y Storage simulado. */
 import { RECORDING_MAX_BYTES, RECORDING_MIME, recordingUploadPath, isRecordingPathFor, sniffAudio } from "@/lib/podcast/recording";
+import { validateScript } from "@/lib/podcast/episode";
+import { UNCERTAIN_CHARGE_MESSAGE } from "@/lib/podcast/pilot";
 import { PodcastProduction, attachRecording, estimateProduction, productionScript } from "./production";
 
 export type TurnDeps = {
@@ -8,6 +10,8 @@ export type TurnDeps = {
   signUpload: (path: string) => Promise<string | null>;
   download: (path: string) => Promise<Buffer | null>;
   save: (patch: Record<string, unknown>) => Promise<boolean>;
+  /** Cobros de voz del episodio con resultado incierto (null: no se pudo leer el registro). */
+  uncertainCharges: () => Promise<number | null>;
 };
 
 export async function applyTurnAction(d: TurnDeps): Promise<{ status: number; body: Record<string, unknown> }> {
@@ -24,6 +28,12 @@ export async function applyTurnAction(d: TurnDeps): Promise<{ status: number; bo
     const token = await d.signUpload(path);
     return token ? { status: 200, body: { path, token } } : { status: 500, body: { error: "No se pudo preparar la subida." } };
   }
+  if (b.action === "attach" || b.action === "edit") {
+    // Mismo criterio que /generate: con un cobro incierto el texto no cambia hasta conciliarlo (o sin registro legible).
+    const uncertain = await d.uncertainCharges();
+    if (uncertain == null) return { status: 503, body: { error: "No se pudo leer el registro de gastos del episodio; inténtalo más tarde." } };
+    if (uncertain > 0) return { status: 409, body: { error: UNCERTAIN_CHARGE_MESSAGE, uncertain } };
+  }
   let next: PodcastProduction;
   if (b.action === "attach") {
     const path = typeof b.path === "string" ? b.path : "";
@@ -39,7 +49,12 @@ export async function applyTurnAction(d: TurnDeps): Promise<{ status: number; bo
     if (!r.success) return { status: 400, body: { error: r.error.issues[0]?.message ?? "Texto inválido." } };
     next = r.data;
   } else return { status: 400, body: { error: "Acción inválida." } };
+  // El límite de guion del episodio (validateScript al crearlo) vale también tras editar turnos: sin él, editar cada
+  // turno hasta su máximo multiplica los caracteres (y el gasto de voz) sin tope.
+  const script = productionScript(next);
+  const invalid = validateScript(script);
+  if (invalid) return { status: 400, body: { error: invalid } };
   const est = estimateProduction(next);
-  const ok = await d.save({ production: next, script: productionScript(next), characters: est.characters, estimated_usd: est.usd, status: "draft", production_timeline: null, audio_path: null });
+  const ok = await d.save({ production: next, script, characters: est.characters, estimated_usd: est.usd, status: "draft", production_timeline: null, audio_path: null });
   return ok ? { status: 200, body: { ok: true, estimate: est } } : { status: 409, body: { error: "El episodio cambió; recarga la página." } };
 }

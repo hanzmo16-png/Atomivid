@@ -8,9 +8,9 @@ on:
     inputs:
       cases: { description: "Casos E2E (coma)", default: "1,2,3,4,5,6,7,8,9" }
   pull_request:
-    branches: [claude/podcast-2-1-closure, main]
+    branches: [claude/podcast-2-1-closure, grok/podcast-2-1-prueba-real, claude/atomivid-mvp-setup-0079jv, main]
   push:
-    branches: [claude/podcast-2-1-closure, "grok/podcast-2-*"]
+    branches: [claude/podcast-2-1-closure, "claude/podcast-2-1-*", "grok/podcast-2-*"]
     paths:
       - ".github/workflows/podcast-2-1-e2e.yml"
       - "src/lib/podcast/**"
@@ -67,6 +67,7 @@ jobs:
           comm -23 fail-head.txt fail-base.txt > fail-new.txt
           echo "Fallos nuevos (cabeza, no en base):"; cat fail-new.txt; echo "Preexistentes (en base):"; cat fail-base.txt
           [ ! -s fail-new.txt ] || { echo "::error::regresión: fallos nuevos"; exit 1; }
+          [ "$(cat unit-head.exit)" = 0 ] || { echo "::error::test:unit termina con código $(cat unit-head.exit) en la cabeza"; exit 1; }
           [ "$(cat tsc-head.exit)" = 0 ] || [ "$(cat tsc-base.exit)" != 0 ] || { echo "::error::typecheck rompe solo en la cabeza"; exit 1; }
           [ "$(cat build-head.exit)" = 0 ] || [ "$(cat build-base.exit)" != 0 ] || { echo "::error::build rompe solo en la cabeza"; exit 1; }
       - if: always()
@@ -121,9 +122,11 @@ jobs:
       - name: Migración y rollback (BD desechable)
         run: set -o pipefail; bash scripts/harness/e2e/podcast/migration-audit.sh 2>&1 | tee migration-audit.log
       - name: E2E casos
+        env:
+          CASES: ${{ inputs.cases || '1,2,3,4,5,6,7,8,9' }}
         run: |
           set -o pipefail
-          bash scripts/harness/e2e/podcast/run.sh ci "${{ inputs.cases || '1,2,3,4,5,6,7,8,9' }}"
+          bash scripts/harness/e2e/podcast/run.sh ci "$CASES"
           grep -Eq '^RESULTADO ([0-9]+)/\1 PASS$' "$E2E_HOME/out/ci.log" || { echo "::error::E2E con fallos"; exit 1; }
       - name: QC de audio de los MP4 descargados (−16±1.5 LUFS, TP ≤ −1 dBTP, sin recorte)
         run: |

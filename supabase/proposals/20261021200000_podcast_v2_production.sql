@@ -7,14 +7,16 @@ alter table public.podcast_episodes
   add column if not exists production_timeline jsonb;
 alter table public.podcast_episodes drop constraint if exists podcast_episodes_production_shape;
 alter table public.podcast_episodes add constraint podcast_episodes_production_shape check (
-  production is null or (
-    production->>'version' = 'podcast-production/1'
+  -- coalesce(..., false): con un array, un escalar o una clave ausente `->>` da NULL, y un CHECK NULL se acepta.
+  production is null or coalesce(
+    jsonb_typeof(production) = 'object'
+    and production->>'version' = 'podcast-production/1'
     and production->>'mode' in ('single','conversation')
     and production->>'style' in ('standard','emotional')
     and jsonb_typeof(production->'turns') = 'array'
     and jsonb_array_length(production->'turns') between 1 and 400
     and pg_column_size(production) <= 262144
-  )
+  , false)
 );
 alter table public.podcast_episodes drop constraint if exists podcast_episodes_timeline_shape;
 alter table public.podcast_episodes add constraint podcast_episodes_timeline_shape check (production_timeline is null or jsonb_typeof(production_timeline) = 'array');

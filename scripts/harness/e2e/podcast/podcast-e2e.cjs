@@ -346,7 +346,8 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     ok("c9: descarga íntegra (sha) H.264+AAC, duración = audio", sha(fs.readFileSync(mp4)) === fin.video_sha256 && pr.streams.some((x) => x.codec_name === "h264") && pr.streams.some((x) => x.codec_name === "aac") && Math.abs(Number(pr.format.duration) - Number(fin.duration_seconds)) <= 2, `${Number(pr.format.duration).toFixed(1)} s`);
     const led = (await db.query("select provider, status, count(*)::int n, sum(reserved_usd)::float r, sum(committed_usd)::float c from pi_paid_operations where project_id like '%'||$1||'%' or shot_id like '%'||$1||'%' group by 1,2", [id])).rows;
     fs.writeFileSync(path.join(OUT, "c9-registro-costos.json"), JSON.stringify({ episodio: id, caracteres: script.length, llamadas_tts: calls.length, ledger: led }, null, 1));
-    ok("c9: cada llamada de voz queda registrada en el libro de costos (simulado)", led.filter((x) => x.provider === "elevenlabs").reduce((n, x) => n + x.n, 0) >= calls.length, JSON.stringify(led));
+    const keys = (await db.query("select idempotency_key k from pi_paid_operations where provider = 'elevenlabs' and (project_id like '%'||$1||'%' or shot_id like '%'||$1||'%')", [id])).rows.map((x) => x.k);
+    ok("c9: cada llamada de voz queda registrada una sola vez en el libro de costos (simulado)", keys.length === calls.length && new Set(keys).size === keys.length, `${keys.length} operaciones, ${new Set(keys).size} claves, ${calls.length} llamadas ${JSON.stringify(led)}`);
   }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).

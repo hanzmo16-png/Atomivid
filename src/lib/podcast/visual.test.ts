@@ -161,3 +161,10 @@ test("búsquedas de stock: sin números escritos, términos abstractos ni verbos
   const q = sceneQueries({ text: "La hipótesis del cometa sobre setenta segundos de señal en el radiotelescopio.", query: "" }, title, topicOf(script, title), anchorOf(script, title));
   for (const bad of ["setenta", "hipótesis", "recibimos"]) assert.ok(!q.join(" ").includes(bad), `${bad} en ${q.join(" | ")}`);
 });
+
+test("búsquedas de stock: los sustantivos terminados en «-mos» (cosmos, átomos, abismos, ritmos) siguen siendo visuales", async () => {
+  const { topicOf } = await import("./visual-plan");
+  const topic = topicOf("El cosmos, los átomos, los abismos marinos y los ritmos del corazón. Sabemos poco y recibimos menos.", "Cosmos");
+  for (const good of ["cosmos", "átomos", "abismos", "ritmos"]) assert.ok(topic.has(good), `${good} falta en ${[...topic.keys()].join(" ")}`);
+  for (const bad of ["sabemos", "recibimos"]) assert.ok(!topic.has(bad), `${bad} en ${[...topic.keys()].join(" ")}`);
+});
