@@ -76,12 +76,27 @@ export async function runStudioJob(episodeId: string) {
   // Arnés E2E local: proveedores simulados (nunca en producción).
   const simulated = process.env.PODCAST_V3_PROVIDERS === "mock" && process.env.ATOMIVID_RUNTIME !== "production";
   const { mockProviders } = await import("../../src/lib/podcast/v3/mocks");
-  const providers = simulated ? mockProviders() : { tts: realTts(spec.language), avatar: wrapped, readiness,
+  // Una sola fuente de tarifas: las de la estimación que el usuario autorizó (guardada con el episodio).
+  const est = (row.estimate ?? {}) as { rates?: { voiceUsdPer1kChars?: number } };
+  const voiceRate = Number(est.rates?.voiceUsdPer1kChars);
+  const rates = Number.isFinite(voiceRate) && voiceRate > 0 ? { voiceUsdPer1kChars: voiceRate } : undefined;
+  console.log("STUDIO_RATES", JSON.stringify(rates ?? { source: "config" }));
+  // Lo pagado se guarda en Storage (privado, carpeta del dueño): un reintento en otro runner lo reutiliza sin pagar.
+  const artifacts = {
+    async put(key: string, local: string) { const p = `${base}/paid/${key.slice(0, 32)}${path.extname(local) || ".bin"}`; await upload(p, local, local.endsWith(".mp4") ? "video/mp4" : local.endsWith(".png") ? "image/png" : "audio/mpeg"); return `storage:${p}`; },
+    async get(ref: string, dest: string) {
+      const p = ref.replace(/^storage:/, "");
+      if (!ref.startsWith("storage:") || !p.startsWith(`${base}/paid/`)) throw new Error("ARTEFACTO_AJENO");
+      const { data } = await service.storage.from(BUCKET).download(p); if (!data) throw new Error("ARTEFACTO_NO_ENCONTRADO");
+      const { writeFile } = await import("node:fs/promises"); await writeFile(dest, Buffer.from(await data.arrayBuffer()));
+    },
+  };
+  const providers = simulated ? mockProviders() : { tts: realTts(spec.language, rates?.voiceUsdPer1kChars), avatar: wrapped, readiness,
     images: realImages({ searchPhotos: async (q) => (await searchScenePhotos(q, spec.format === "9:16" ? "portrait" : "landscape", spec.language)).map((c) => ({ id: c.sourceId, url: c.url, credit: c.photographer })), download: downloadToFile }) };
   console.log("STUDIO_PROVIDERS", simulated ? "mock" : "real adapter (untested live)");
   const progress = (stage: string, pct: number) => { void service.from(STUDIO_TABLE).update({ progress: { stage, pct }, updated_at: new Date().toISOString() }).eq("id", episodeId); };
   try {
-    const r = await runEpisode(spec, { owner, episode: episodeId, dir, providers, small: simulated, ledger: supabaseStudioLedger(service, owner), guard: supabaseRunGuard(service), authorizedUsd: Number(row.authorized_usd), onProgress: progress });
+    const r = await runEpisode(spec, { owner, episode: episodeId, dir, providers, small: simulated, ledger: supabaseStudioLedger(service, owner), guard: supabaseRunGuard(service), authorizedUsd: Number(row.authorized_usd), onProgress: progress, artifacts, rates });
     const video = r.mp4 ? await upload(`${base}/episodio.mp4`, r.mp4, "video/mp4") : null; // solo audio: sin MP4
     const audio = await upload(`${base}/episodio.${spec.audio_export}`, r.audio, spec.audio_export === "mp3" ? "audio/mpeg" : "audio/wav");
     await service.from(STUDIO_TABLE).update({ status: "ready", video_path: video, audio_path: audio, cost_usd: r.spentUsd, progress: { stage: "listo", pct: 100 },

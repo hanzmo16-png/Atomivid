@@ -63,7 +63,7 @@ export async function studioAction(d: ApiDeps, body: Record<string, unknown> | n
     if (p.avatar.kind === "existente" && d.ownsAvatar && !(await d.ownsAvatar(p.avatar.avatar_id))) return { status: 403, body: { error: "Ese avatar no está disponible en tu cuenta." } };
   }
   const pf = await preflight(spec, planningProviders());
-  const estimate = { lines: pf.estimate.lines, totalUsd: pf.estimate.totalUsd, assumptions: pf.estimate.assumptions, turns: pf.turns.length, mood: pf.mood,
+  const estimate = { lines: pf.estimate.lines, totalUsd: pf.estimate.totalUsd, assumptions: pf.estimate.assumptions, rates: pf.estimate.rates, turns: pf.turns.length, mood: pf.mood,
     shots: pf.plan.shots.reduce<Record<string, number>>((m, s) => ({ ...m, [s.kind]: (m[s.kind] ?? 0) + 1 }), {}), overBudget: pf.estimate.totalUsd > spec.budget_usd,
     byProvider: pf.estimate.lines.reduce<Record<string, number>>((m, l) => ({ ...m, [l.provider]: Math.round(((m[l.provider] ?? 0) + l.usd) * 1e4) / 1e4 }), {}),
     providers: visualProviders(d.env ?? process.env), lipTimeline: lipTimeline(pf.plan).slice(0, 40), coverage: shotCoverage(pf.plan),

@@ -12,7 +12,9 @@ import { ceilLedgerUsd } from "@/lib/supply/anthropic-cost";
 import type { EditorialPlan } from "./editorial";
 
 export type CostLine = { concept: "voz" | "avatar" | "imagenes" | "video" | "render"; detail: string; usd: number; provider: string };
-export type CostEstimate = { lines: CostLine[]; totalUsd: number; assumptions: string[] };
+/** Tarifas usadas en la estimación: se guardan con el episodio y el worker reserva con ESTAS (una sola fuente). */
+export type EstimateRates = { voiceUsdPer1kChars: number; avatarUsdPerSecond: number; renderUsdPerMinute: number };
+export type CostEstimate = { lines: CostLine[]; totalUsd: number; assumptions: string[]; rates: EstimateRates };
 const r4 = (n: number) => Math.round(n * 1e4) / 1e4;
 
 export function estimateEpisodeCost(input: {
@@ -36,7 +38,7 @@ export function estimateEpisodeCost(input: {
   lines.push({ concept: "video", detail: input.audioOnly ? "Solo audio: no se genera video" : input.aiVideoSeconds ? `${input.aiVideoSeconds} s de video generativo` : "Sin video generativo (planos compuestos con FFmpeg)", usd: 0, provider: "—" });
   const renderMin = Math.ceil(input.episodeSeconds / 60 * (input.renderMinutesFactor ?? 1.5)) + 3;
   lines.push({ concept: "render", detail: `~${renderMin} min de runner (GitHub Actions) a USD ${p.renderUsdPerMinute}/min`, usd: r4(renderMin * p.renderUsdPerMinute), provider: "GitHub Actions" });
-  return { lines, totalUsd: r4(lines.reduce((s, l) => s + l.usd, 0)), assumptions: [
+  return { lines, totalUsd: r4(lines.reduce((s, l) => s + l.usd, 0)), rates: { voiceUsdPer1kChars: p.elevenLabsUsdPer1kChars, avatarUsdPerSecond: 0.0385, renderUsdPerMinute: p.renderUsdPerMinute }, assumptions: [
     "Voz: tarifa de PRICING_ELEVENLABS_USD_PER_1K_CHARS (o 0,10 por defecto).",
     "Avatar: tarifa observada de HeyGen Avatar IV con foto (estimateHeygenCost), un clip por aparición (en two-shot/sobre el hombro solo habla uno; el otro es un fotograma fijo, sin costo).",
     "Imágenes: Pexels sin costo; recreaciones con Recraft solo si se activan.",

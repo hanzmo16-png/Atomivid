@@ -466,6 +466,21 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     { tag: "c10c", mode: "Conversación con dos avatares", title: "E2E estudio conversación", topic: "la luna Europa", count: 2, voices: [ANA, LEO], avatars: [AV[0][0], AV[1][0]], format: "Vertical 9:16 (Reels/TikTok)", swap: true },
   ];
   if (cases.includes("10")) for (const m of MODES) await studioFlow(s, m.tag, m);
+  if (cases.includes("10")) {
+    // Aislamiento del estudio: otra cuenta no puede ver, autorizar ni descargar episodios ajenos (ni su libro).
+    const own = (await db.query("select id, status, video_path, authorized_usd from podcast_studio_episodes where user_id=$1 and video_path is not null order by created_at desc limit 1", [OWNER.id])).rows[0];
+    if (own) {
+      const o = await session(OTHER, "intruso-estudio");
+      const r = await o.p.evaluate(async (id) => { const g = await fetch(`/api/podcast/v3/${id}`); const a = await fetch(`/api/podcast/v3/${id}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ confirm: true, authorizedUsd: 1 }) }); return [g.status, a.status, await g.text()]; }, own.id);
+      ok("c10-aislamiento: GET y autorizar episodio de estudio ajeno → rechazados sin datos", [403, 404].includes(r[0]) && [403, 404].includes(r[1]) && !r[2].includes(own.video_path), r.slice(0, 2).join(","));
+      const after = (await db.query("select status, authorized_usd from podcast_studio_episodes where id=$1", [own.id])).rows[0];
+      ok("c10-aislamiento: el episodio ajeno queda intacto", after.status === own.status && String(after.authorized_usd) === String(own.authorized_usd), JSON.stringify(after));
+      const tok = await o.p.evaluate(() => { const k = Object.keys(localStorage).find((x) => x.includes("auth-token")); return k ? JSON.parse(localStorage.getItem(k)).access_token : null; }).catch(() => null);
+      const st = (await fetch(`http://127.0.0.1:54821/storage/v1/object/videos/${own.video_path}`, { headers: tok ? { authorization: `Bearer ${tok}` } : {} })).status;
+      ok("c10-aislamiento: MP4 ajeno no descargable sin firma", st >= 400, String(st));
+      await o.ctx.close();
+    } else ok("c10-aislamiento: hay un episodio de estudio entregado para probar", false);
+  }
   if (cases.includes("11")) {
     // Móvil: emulación de iPhone 13 y Pixel 7 (viewport, DPR, UA, táctil) en Chromium; capturas de cada paso.
     const DEV = { "iphone13": { viewport: { width: 390, height: 664 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1" },
@@ -490,5 +505,6 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
   const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[abc]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name))).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));
+  for (const r of results.filter((x) => !x.pass)) console.log(`FALLO_DETALLE FAIL ${r.name} ${String(r.detail).slice(0, 200)}`);
   const failed = results.filter((r) => !r.pass).length; console.log(`POR_CASO ${JSON.stringify(perCase)}`); console.log(`RESULTADO ${results.length - failed}/${results.length} PASS`); process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(2); });

@@ -4,12 +4,12 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, stat } from "node:fs/promises";
+import { mkdtemp, stat, copyFile, rm } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { StudioSpec, STUDIO_VERSION } from "./spec";
-import { runEpisode, MemoryRunGuard, DuplicateRunError, preflight } from "./pipeline";
+import { runEpisode, MemoryRunGuard, DuplicateRunError, preflight, PaidArtifactMissingError, type ArtifactStore } from "./pipeline";
 import { MemoryLedger, UnauthorizedChargeError, UncertainChargeError } from "./cost";
 import { mockProviders } from "./mocks";
 import { ebur128, readPcm, rmsDb, ffprobeDuration } from "./ffmpeg";
@@ -27,11 +27,11 @@ const C = StudioSpec.parse({ ...base, mode: "dialogo", format: "9:16", title: "E
   participants: [{ id: "A", name: "Ana", voice_id: "vozAnaHost", avatar: { kind: "existente", avatar_id: "av-ana" } }, { id: "B", name: "Luis", voice_id: "vozLuisInv", avatar: { kind: "existente", avatar_id: "av-luis" } }],
   visual: { avatar_frequency: 1, avatar_max_seconds: 30, set: "neon" }, music: { enabled: true, mood: "auto" } });
 
-async function render(spec: StudioSpec, opts: { providers?: ReturnType<typeof mockProviders>; ledger?: MemoryLedger; authorizedUsd?: number | null; episode?: string; guard?: MemoryRunGuard } = {}) {
+async function render(spec: StudioSpec, opts: { providers?: ReturnType<typeof mockProviders>; ledger?: MemoryLedger; authorizedUsd?: number | null; episode?: string; guard?: MemoryRunGuard; artifacts?: ArtifactStore } = {}) {
   const providers = opts.providers ?? mockProviders({ tonesOnly: true });
   const ledger = opts.ledger ?? new MemoryLedger();
   const dir = await mkdtemp(path.join(tmpdir(), "p30-render-"));
-  const r = await runEpisode(spec, { owner: "u1", episode: opts.episode ?? "ep", dir, providers, ledger, guard: opts.guard ?? new MemoryRunGuard(), authorizedUsd: opts.authorizedUsd === undefined ? 5 : opts.authorizedUsd, small: true, musicDir: MUSIC });
+  const r = await runEpisode(spec, { owner: "u1", episode: opts.episode ?? "ep", dir, providers, ledger, guard: opts.guard ?? new MemoryRunGuard(), authorizedUsd: opts.authorizedUsd === undefined ? 5 : opts.authorizedUsd, small: true, musicDir: MUSIC, artifacts: opts.artifacts });
   return { r, providers, ledger };
 }
 const gapsDb = async (file: string, timeline: { start: number; end: number }[]) => {
@@ -175,4 +175,45 @@ test("barreras previas: saldo insuficiente o presupuesto menor que la estimació
   const p2 = mockProviders({ tonesOnly: true });
   await assert.rejects(render(StudioSpec.parse({ ...B, budget_usd: 0.01 }), { providers: p2, episode: "ep-tope" }), BudgetExceededError);
   assert.equal(p2.calls.tts.length + p2.calls.avatar.length, 0);
+});
+
+/** Almacén de lo pagado en disco (en el worker real: Supabase Storage). Simula que el runner siguiente es OTRA máquina. */
+async function diskArtifacts(): Promise<ArtifactStore & { puts: number }> {
+  const root = await mkdtemp(path.join(tmpdir(), "p30-paid-"));
+  const st = { puts: 0, async put(key: string, local: string) { st.puts++; const ref = `store:${key.slice(0, 24)}${path.extname(local)}`; await copyFile(local, path.join(root, ref.slice(6))); return ref; },
+    async get(ref: string, dest: string) { await copyFile(path.join(root, ref.slice(6)), dest); } };
+  return st;
+}
+
+test("reintento en OTRO runner: lo pagado (voz y clips) se recupera del almacén — cero llamadas y cero USD nuevos", { timeout: 600_000 }, async () => {
+  const ledger = new MemoryLedger(), providers = mockProviders({ tonesOnly: true }), artifacts = await diskArtifacts();
+  const first = await render(B, { ledger, providers, artifacts, episode: "ep-runner" });
+  const calls = providers.calls.tts.length + providers.calls.avatar.length;
+  assert.equal(artifacts.puts, first.r.paidOps - 0, "todo lo pagado con archivo queda en el almacén");
+  await rm(path.dirname(first.r.mp4!), { recursive: true, force: true }); // el runner anterior desaparece
+  const second = await render(B, { ledger, providers, artifacts, episode: "ep-runner" });
+  assert.equal(second.r.paidOps, 0); assert.equal(providers.calls.tts.length + providers.calls.avatar.length, calls, "sin llamadas nuevas");
+  assert.equal(second.r.spentUsd, first.r.spentUsd, "sin cargo nuevo");
+  assert.ok((await stat(second.r.mp4!)).size > 10_000);
+  // Sin almacén (ruta local de otro runner): falla claro y NO vuelve a pagar.
+  const l2 = new MemoryLedger(), p2 = mockProviders({ tonesOnly: true });
+  const a = await render(B, { ledger: l2, providers: p2, episode: "ep-legacy" });
+  await rm(path.dirname(a.r.mp4!), { recursive: true, force: true });
+  const n2 = p2.calls.tts.length + p2.calls.avatar.length;
+  await assert.rejects(render(B, { ledger: l2, providers: p2, episode: "ep-legacy" }), PaidArtifactMissingError);
+  assert.equal(p2.calls.tts.length + p2.calls.avatar.length, n2, "nunca se repaga lo que no se encuentra");
+});
+
+test("duraciones reales mayores que la estimación: se para ANTES de pedir clips de avatar; al ampliar el monto, la voz se reutiliza", { timeout: 600_000 }, async () => {
+  const providers = mockProviders({ tonesOnly: true, ttsStretch: 2.5 }), ledger = new MemoryLedger(), artifacts = await diskArtifacts();
+  const B2 = StudioSpec.parse({ ...B, visual: { ...B.visual, avatar_max_seconds: 60 } }); // sin tope corto: el clip dura lo que la voz real
+  const pf = await preflight(B2, providers);
+  const exact = Math.round((pf.estimate.totalUsd - pf.estimate.lines.find((l) => l.concept === "render")!.usd) * 1e4) / 1e4;
+  const { BudgetExceededError } = await import("./cost");
+  await assert.rejects(render(B2, { ledger, providers, artifacts, authorizedUsd: exact, episode: "ep-real" }), BudgetExceededError);
+  assert.equal(providers.calls.avatar.length, 0, "ningún clip pedido sin presupuesto para terminar");
+  const tts = providers.calls.tts.length; assert.ok(tts > 0);
+  const ok = await render(B2, { ledger, providers, artifacts, authorizedUsd: 5, episode: "ep-real" });
+  assert.equal(providers.calls.tts.length, tts, "la voz pagada se reutiliza");
+  assert.ok(ok.r.mp4 && providers.calls.avatar.length > 0);
 });

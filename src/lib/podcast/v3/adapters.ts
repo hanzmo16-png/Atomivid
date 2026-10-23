@@ -14,8 +14,8 @@ import { ProviderRejectedError as StudioRejected } from "./cost";
 import type { VisualAsset } from "./editorial";
 import type { AvatarProvider, ImageProvider, TtsProvider } from "./pipeline";
 
-export function realTts(language: "es" | "en"): TtsProvider {
-  const rate = getPricingConfig().elevenLabsUsdPer1kChars;
+/** `rate`: tarifa de la estimación autorizada del episodio (si falta, la de la configuración). */
+export function realTts(language: "es" | "en", rate = getPricingConfig().elevenLabsUsdPer1kChars): TtsProvider {
   return { name: "elevenlabs", label: "real adapter (untested live)", model: "eleven_multilingual_v2", usdFor: (n) => Math.ceil(n / 1000 * rate * 1e4) / 1e4,
     async synth(text, voiceId, dest) {
       try { const r = await synthesizeVoice(text, language, undefined, voiceId); await writeFile(dest, r.audioBuffer); return { actualUsd: Math.ceil(text.length / 1000 * rate * 1e4) / 1e4 }; }

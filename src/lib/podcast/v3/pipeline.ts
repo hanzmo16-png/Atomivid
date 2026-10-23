@@ -8,7 +8,9 @@
  * reservas y el episodio no se cobra al usuario.
  */
 import { createHash } from "node:crypto";
-import { mkdir, readFile, copyFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { getPricingConfig } from "@/lib/billing/pricing";
+import { mkdir, copyFile } from "node:fs/promises";
 import path from "node:path";
 import { ffmpeg, ffprobeDuration } from "./ffmpeg";
 import { assembleVoice, exportAudio, mixAndMaster, transitionTimes, type TimelineEntry } from "./audio";
@@ -40,6 +42,15 @@ export type Providers = { tts: TtsProvider; avatar: AvatarProvider; images: Imag
   /** Verificación GRATUITA previa (credenciales y saldo). Devuelve el motivo del bloqueo o null. Sin ella no se verifica saldo. */
   readiness?: (needs: ProviderNeeds) => Promise<string | null> };
 export class ProviderNotReadyError extends Error { constructor(why: string) { super(`Proveedor no listo: ${why} No se hizo ningún cargo.`); this.name = "ProviderNotReadyError"; } }
+
+/**
+ * Almacén de lo ya PAGADO (voz, clips de avatar, recreaciones). El libro guarda la referencia del almacén, no una ruta
+ * local: un reintento en OTRO runner (los de GitHub son efímeros) recupera el archivo en vez de volver a pagarlo.
+ */
+export interface ArtifactStore { put(key: string, localFile: string): Promise<string>; get(ref: string, localDest: string): Promise<void> }
+export class PaidArtifactMissingError extends Error { constructor(op: string) { super(`Lo ya pagado (${op}) no está disponible para reutilizarlo; no se vuelve a pagar. Requiere revisión.`); this.name = "PaidArtifactMissingError"; } }
+/** Tarifas con las que se ESTIMÓ y AUTORIZÓ el episodio: el worker reserva con estas mismas (una sola fuente). */
+export type StudioRates = { voiceUsdPer1kChars: number };
 
 export interface RunGuard { acquire(episode: string, token: string): Promise<boolean>; release(episode: string, token: string): Promise<void> }
 export class MemoryRunGuard implements RunGuard {
@@ -80,7 +91,7 @@ export async function gatherAssets(turns: Turn[], images: ImageProvider, title: 
 export type Preflight = { turns: Turn[]; names: Record<"A" | "B", string>; plan: EditorialPlan; estimate: CostEstimate; mood: Mood; ttsChars: number; assets: VisualAsset[] };
 
 /** Paso 9 del asistente: plan y costo ANTES de generar (sin llamadas de pago; búsqueda de imágenes gratuita). */
-export async function preflight(spec: StudioSpec, providers: Providers): Promise<Preflight> {
+export async function preflight(spec: StudioSpec, providers: Providers, rates?: StudioRates): Promise<Preflight> {
   const { turns, names } = turnsFor(spec);
   const audioOnly = spec.output === "audio";
   const assets = audioOnly || spec.visual.provider === "solo_set" ? [] : await gatherAssets(turns, providers.images, spec.title, spec.visual.recreations);
@@ -88,7 +99,8 @@ export async function preflight(spec: StudioSpec, providers: Providers): Promise
     recreations: spec.visual.recreations, hasAvatar: { A: hasAvatar(spec, "A"), B: hasAvatar(spec, "B") }, introSeconds: INTRO_SECONDS });
   const ttsChars = turns.reduce((n, t) => n + t.text.length, 0);
   const seconds = INTRO_SECONDS + OUTRO_SECONDS + turns.reduce((n, t) => n + estimateSeconds(t.text) + 0.4, 0);
-  const estimate = estimateEpisodeCost({ ttsChars, plan, recreationImages: plan.shots.filter((s) => s.kind === "recreacion").length, episodeSeconds: seconds,
+  const pricing = rates ? { ...getPricingConfig(), elevenLabsUsdPer1kChars: rates.voiceUsdPer1kChars } : undefined;
+  const estimate = estimateEpisodeCost({ ttsChars, plan, recreationImages: plan.shots.filter((s) => s.kind === "recreacion").length, episodeSeconds: seconds, pricing,
     avatarCreations: spec.participants.filter((p) => p.avatar.kind === "foto").length, renderMinutesFactor: audioOnly ? 0.2 : undefined, audioOnly });
   const mood = spec.music.mood === "auto" ? autoMood(spec.script) : spec.music.mood;
   return { turns, names, plan, estimate, mood, ttsChars, assets };
@@ -102,13 +114,15 @@ export type RunResult = {
   plan: EditorialPlan; timeline: TimelineEntry[]; spentUsd: number; reusedOps: number; paidOps: number; providers: Record<string, ProviderLabel>; charged: true; shotFiles: string[];
 };
 
-export async function runEpisode(spec: StudioSpec, ctx: { owner: string; episode: string; dir: string; providers: Providers; ledger: StudioLedger; guard: RunGuard; authorizedUsd: number | null; small?: boolean; musicDir?: string; onProgress?: (stage: string, pct: number) => void }): Promise<RunResult> {
+export async function runEpisode(spec: StudioSpec, ctx: { owner: string; episode: string; dir: string; providers: Providers; ledger: StudioLedger; guard: RunGuard; authorizedUsd: number | null; small?: boolean; musicDir?: string; onProgress?: (stage: string, pct: number) => void;
+  /** Persistencia de lo pagado entre runners (obligatoria en el worker real). */ artifacts?: ArtifactStore;
+  /** Tarifas del episodio autorizado (las de la estimación guardada). */ rates?: StudioRates }): Promise<RunResult> {
   const token = createHash("sha1").update(`${ctx.episode}:${Date.now()}:${Math.random()}`).digest("hex");
   if (!(await ctx.guard.acquire(ctx.episode, token))) throw new DuplicateRunError();
   const progress = ctx.onProgress ?? (() => {});
   try {
     await mkdir(ctx.dir, { recursive: true });
-    const pf = await preflight(spec, ctx.providers);
+    const pf = await preflight(spec, ctx.providers, ctx.rates);
     // Autorización explícita: el usuario aprobó un monto ≥ estimación; el tope efectivo es min(autorizado, presupuesto del episodio).
     const authorized = ctx.authorizedUsd != null && ctx.authorizedUsd + 1e-9 >= pf.estimate.totalUsd - pf.estimate.lines.find((l) => l.concept === "render")!.usd;
     const budget = Math.min(spec.budget_usd, ctx.authorizedUsd ?? 0);
@@ -123,10 +137,20 @@ export async function runEpisode(spec: StudioSpec, ctx: { owner: string; episode
       if (why) throw new ProviderNotReadyError(why);
     }
     let reused = 0, paid = 0;
-    const pay = async (provider: string, op: string, payload: unknown, usd: number, call: () => Promise<{ result: string; actualUsd: number }>) => {
-      const r = await paidOnce(ctx.ledger, { key: opKey({ owner: ctx.owner, episode: ctx.episode, provider, op, payload }), owner: ctx.owner, episode: ctx.episode, provider, op, usd, budgetUsd: budget, authorized }, call);
+    const keyOf = (provider: string, op: string, payload: unknown) => opKey({ owner: ctx.owner, episode: ctx.episode, provider, op, payload });
+    /** `dest`: archivo local que produce la operación. Con almacén, el libro guarda la referencia persistente. */
+    const pay = async (provider: string, op: string, payload: unknown, usd: number, call: () => Promise<{ result: string; actualUsd: number }>, dest?: string) => {
+      const key = keyOf(provider, op, payload);
+      const store = dest ? ctx.artifacts : undefined;
+      const r = await paidOnce(ctx.ledger, { key, owner: ctx.owner, episode: ctx.episode, provider, op, usd, budgetUsd: budget, authorized },
+        store ? async () => { const out = await call(); return { result: await store.put(key, out.result), actualUsd: out.actualUsd }; } : call);
       if (r.reused) reused++; else paid++;
-      return r.result;
+      if (!dest) return r.result;
+      if (!r.reused) return dest;
+      // Reutilización: traer lo pagado del almacén; una ruta local antigua solo vale si sigue existiendo.
+      if (store && !r.result.startsWith("/")) { try { await store.get(r.result, dest); return dest; } catch { throw new PaidArtifactMissingError(op); } }
+      if (existsSync(r.result)) return r.result;
+      throw new PaidArtifactMissingError(op);
     };
     // 0) Avatares desde foto: preparación idempotente (una vez por foto y episodio, registrada en el libro).
     const prepared: Partial<Record<"A" | "B", string>> = {};
@@ -141,10 +165,12 @@ export async function runEpisode(spec: StudioSpec, ctx: { owner: string; episode
     progress("voz", 5);
     const voiceOf = (s: "A" | "B") => spec.participants.find((p) => p.id === s)?.voice_id ?? spec.participants[0].voice_id;
     const turnAudio = [];
+    const ttsKey = new Map<string, string>();
     for (const [i, t] of pf.turns.entries()) {
       const dest = path.join(ctx.dir, `tts-${t.id}.mp3`);
       const payload = { voice: voiceOf(t.speaker), model: ctx.providers.tts.model, text: t.text };
-      const file = await pay(ctx.providers.tts.name, "tts", payload, ctx.providers.tts.usdFor(t.text.length), async () => { const r = await ctx.providers.tts.synth(t.text, payload.voice, dest); return { result: dest, actualUsd: r.actualUsd }; });
+      const file = await pay(ctx.providers.tts.name, "tts", payload, ctx.providers.tts.usdFor(t.text.length), async () => { const r = await ctx.providers.tts.synth(t.text, payload.voice, dest); return { result: dest, actualUsd: r.actualUsd }; }, dest);
+      ttsKey.set(t.id, keyOf(ctx.providers.tts.name, "tts", payload));
       turnAudio.push({ turn_id: t.id, speaker: t.speaker, file, pause_after: (i + 1) % 6 === 0 && i < pf.turns.length - 1 ? 1.2 : undefined });
       progress("voz", 5 + Math.round(30 * (i + 1) / pf.turns.length));
     }
@@ -155,6 +181,17 @@ export async function runEpisode(spec: StudioSpec, ctx: { owner: string; episode
       recreations: spec.visual.recreations, hasAvatar: { A: hasAvatar(spec, "A"), B: hasAvatar(spec, "B") }, introSeconds: voice.timeline[0]?.start ?? INTRO_SECONDS });
     const issues = planIssues(plan);
     if (issues.length) throw new Error(`Plan editorial inválido: ${issues.join("; ")}`);
+    // Segundo control con duraciones REALES: si los clips de avatar ya no caben en el tope, se para ANTES de pedirlos
+    // (la voz pagada queda guardada y se reutiliza al reintentar con un monto mayor). Lo ya liquidado de avatar se reutiliza.
+    if (spec.output !== "audio") {
+      const isAv = (k: string) => k === "avatar_a" || k === "avatar_b" || k === "two_shot" || k === "over_shoulder";
+      const rf = shotFrames(plan.shots, voice.duration);
+      const need = Math.round(plan.shots.reduce((n, s, i) => n + (isAv(s.kind) ? ctx.providers.avatar.usdFor(Math.max(1, rf[i] / FPS)) : 0), 0) * 1e4) / 1e4;
+      const rows = await ctx.ledger.byEpisode(ctx.episode);
+      const settledAvatar = rows.filter((x) => x.op === "avatar_clip" && x.state === "settled").reduce((n, x) => n + (x.actual_usd ?? x.reserved_usd), 0);
+      const free = budget - (await committedUsd(ctx.ledger, ctx.episode)) + settledAvatar;
+      if (need > free + 1e-9) throw new BudgetExceededError(need, Math.round(free * 1e4) / 1e4);
+    }
     // 3) Música y master.
     progress("musica", 40);
     const musicDir = (await ensureBundledMusic(ctx.musicDir)).dir;
@@ -186,16 +223,18 @@ export async function runEpisode(spec: StudioSpec, ctx: { owner: string; episode
         // Audio del tramo (desde el máster de voz) → el proveedor anima exactamente esa voz: sincronía labial con el máster.
         const seg = path.join(ctx.dir, `avatar-audio-${i}.wav`);
         await ffmpeg(["-y", "-v", "error", "-ss", (shot.start).toFixed(3), "-t", secs.toFixed(3), "-i", voice.file, "-c:a", "pcm_s16le", seg]);
-        const segHash = createHash("sha256").update(await readFile(seg)).digest("hex");
+        // Clave del clip: entradas deterministas (voz pagada del turno + tramo), no los bytes del máster (otra versión de
+        // ffmpeg en otro runner daría otros bytes y se pagaría el mismo clip dos veces).
+        const offset = Math.round((shot.start - line.start) * 1000) / 1000;
         const dest = path.join(ctx.dir, `avatar-${sp}-${i}.mp4`);
         const usd = ctx.providers.avatar.usdFor(secs);
-        src.speakingClip = await pay(ctx.providers.avatar.name, "avatar_clip", { avatar: avatarRef(spec, sp), audio: segHash }, usd, async () => { const r = await ctx.providers.avatar.render(prepared[sp] ?? avatarRef(spec, sp), seg, secs, dest, usd); return { result: dest, actualUsd: r.actualUsd }; });
+        src.speakingClip = await pay(ctx.providers.avatar.name, "avatar_clip", { avatar: avatarRef(spec, sp), tts: ttsKey.get(shot.turn_id!), offset, seconds: Math.round(secs * 1000) / 1000 }, usd, async () => { const r = await ctx.providers.avatar.render(prepared[sp] ?? avatarRef(spec, sp), seg, secs, dest, usd); return { result: dest, actualUsd: r.actualUsd }; }, dest);
         if (shot.kind === "two_shot" || shot.kind === "over_shoulder") src.listenerStill = await stillFor(sp === "A" ? "B" : "A");
       } else if (shot.asset_id) {
         const asset = pf.assets.find((a) => a.id === shot.asset_id)!;
         const dest = path.join(ctx.dir, `img-${asset.id.replace(/[^\w-]/g, "_")}.png`);
         if (asset.kind === "recreacion" && ctx.providers.images.recreate) {
-          src.image = await pay(ctx.providers.images.name, "recreacion", { prompt: asset.query }, ctx.providers.images.recreateUsd ?? 0, async () => { const r = await ctx.providers.images.recreate!(asset.query, dest); return { result: dest, actualUsd: r.actualUsd }; });
+          src.image = await pay(ctx.providers.images.name, "recreacion", { prompt: asset.query }, ctx.providers.images.recreateUsd ?? 0, async () => { const r = await ctx.providers.images.recreate!(asset.query, dest); return { result: dest, actualUsd: r.actualUsd }; }, dest);
         } else { await ctx.providers.images.fetch(asset, dest); src.image = dest; }
       }
       clips.push(await renderShot(ctx.dir, i, shot, frames[i], src, { set: spec.visual.set, frame: fr, swap: spec.visual.swap_sides, small: !!ctx.small, fade: true }));

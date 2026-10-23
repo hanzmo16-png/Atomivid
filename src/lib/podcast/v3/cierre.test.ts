@@ -90,3 +90,14 @@ test("estimaciones de referencia (10 min) coherentes con tarifas públicas: voz 
   assert.ok(avatarUsd >= d.avatarSeconds * 0.0385 * 0.5 && avatarUsd <= d.avatarSeconds * 0.0385 + 0.01 * 40, `${avatarUsd} vs ${d.avatarSeconds}s`);
   assert.ok(m.solo_audio.estimate.totalUsd < 1.0, `solo audio ${m.solo_audio.estimate.totalUsd}`);
 });
+
+test("una sola fuente de tarifas: la estimación guarda sus tarifas y el worker estima/reserva con ellas", async () => {
+  const { preflight } = await import("./pipeline");
+  const { planningProviders } = await import("./api");
+  const spec = StudioSpec.parse({ version: STUDIO_VERSION, mode: "narracion", output: "audio", title: "T", script: "Primer párrafo sobre volcanes y lava.\n\nSegundo párrafo sobre islas.", target_minutes: 1, participants: [{ id: "A", name: "A", voice_id: "voiceAnaHost1" }], visual: { provider: "solo_set" }, music: {}, budget_usd: 5 });
+  const a = await preflight(spec, planningProviders(), { voiceUsdPer1kChars: 0.1 }), b = await preflight(spec, planningProviders(), { voiceUsdPer1kChars: 0.2 });
+  assert.equal(a.estimate.rates.voiceUsdPer1kChars, 0.1); assert.equal(b.estimate.rates.voiceUsdPer1kChars, 0.2);
+  const voz = (e: typeof a) => e.estimate.lines.find((l) => l.concept === "voz")!.usd;
+  assert.ok(Math.abs(voz(b) - 2 * voz(a)) <= 0.0002, `${voz(a)} vs ${voz(b)}`);
+  assert.equal(a.estimate.rates.avatarUsdPerSecond, 0.0385);
+});

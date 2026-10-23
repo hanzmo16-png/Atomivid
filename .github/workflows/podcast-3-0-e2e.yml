@@ -184,8 +184,9 @@ jobs:
           [ -f migration-audit.log ] && echo "::notice title=migración 2.x::$(grep -c '^PASS' migration-audit.log) PASS · $(tail -n 1 migration-audit.log)"
           [ -f migration-audit-v3.log ] && echo "::notice title=migración 3.0::$(grep -c '^PASS' migration-audit-v3.log) PASS · $(grep -c '^FAIL' migration-audit-v3.log) FAIL · $(grep -E '^(FAIL|PASS aislamiento|PASS anon)' migration-audit-v3.log | tr '\n' '|' | cut -c1-700)"
           f="$E2E_HOME/out/ci.log"; [ -f "$f" ] || exit 0
-          echo "::notice title=E2E::$(grep -E '^RESULTADO' "$f" | tail -1) · $(grep -Ec '^PASS c10' "$f") PASS modos estudio · $(grep -Ec '^PASS c11-' "$f") PASS móvil · $(grep -Ec '^FAIL' "$f") FAIL"
-          grep -E '^FAIL' "$f" | head -6 | while read -r l; do echo "::warning title=E2E fallo::${l:0:300}"; done
+          echo "::notice title=E2E::$(grep -E '^RESULTADO' "$f" | tail -1) · $(grep -Ec '^PASS c10' "$f") PASS modos estudio · $(grep -Ec '^PASS c11-' "$f") PASS móvil · $(grep -Ec '(^|[^A-Z])FAIL ' "$f") FAIL"
+          echo "::notice title=E2E por caso::$(grep -o 'POR_CASO.*' "$f" | tail -1 | cut -c1-900)"
+          grep -E '(^|[^A-Z])FAIL ' "$f" | head -6 | while read -r l; do echo "::warning title=E2E fallo::${l:0:300}"; done
           echo "::notice title=E2E modos::$(grep -E 'c10a|c10d' "$f" | grep -E 'solo audio|reproductor|descarga' | cut -c1-120 | tr '\n' '|' | cut -c1-900)"
       - name: QC de audio de los MP4 descargados (−16±1.5 LUFS, TP ≤ −1 dBTP, sin recorte)
         run: |
