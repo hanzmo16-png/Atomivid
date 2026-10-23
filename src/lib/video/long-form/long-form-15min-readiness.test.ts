@@ -44,7 +44,8 @@ test("block-5 shape is left untouched: with fewer than two real scenes the exist
 });
 
 test("malformed scenes are never removed: any scene field keeps the entry and the block still blocks", () => {
-  for (const bad of [{ id: "x", description: 5 }, { description: "only a description" }, { excerptId: "rev:b5:w0" }, "a string entry", null, ["array"]]) {
+  for (const bad of [{ id: "x", description: 5 }, { description: "only a description" }, { excerptId: "rev:b5:w0" }, "a string entry", null, ["array"],
+    { note: "Spartans brace behind their shields" }, { UNKNOWN_SYNTHETIC_KEY: "unknown data" }, { id: "x", extra: { nested: true } }]) {
     const visuals = [scene(0), bad, scene(1), scene(2)];
     assert.throws(() => parseVisualPlan(resp({ visuals }), opts), VisualPlanBlockedError, JSON.stringify(bad));
   }
@@ -52,7 +53,7 @@ test("malformed scenes are never removed: any scene field keeps the entry and th
 });
 
 test("stub removal is idempotent and counts multiple stubs", () => {
-  const once = dropSceneStubs({ visuals: [STUB, scene(0), { note: "" }, scene(1), scene(2)] }) as { visuals: unknown[] };
+  const once = dropSceneStubs({ visuals: [STUB, scene(0), { note: "" }, { ref: 7, flag: true }, scene(1), scene(2)] }) as { visuals: unknown[] };
   assert.equal(once.visuals.length, 3);
   assert.equal(dropSceneStubs(once), once);
 });

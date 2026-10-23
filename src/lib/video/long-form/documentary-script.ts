@@ -224,8 +224,8 @@ export const VISUAL_DIAGNOSTIC_KEYS: ReadonlySet<string> = new Set(["visuals", "
 const SCENE_CONTRACT_KEYS = new Set([...Object.keys(VisualSchema.shape), "excerptId"]);
 /**
  * Incident 150fb502 (2026-10-23, job e8048599, blocks 5 and 6): the planner returned, among valid scenes, an
- * entry `{ "id": "<4 chars>" }` — no description, motion, subject, passage or any other scene field. It is not
- * a malformed scene but an entry with no scene content, so removing it loses nothing. It is removed only when at
+ * entry `{ "id": "<4 chars>" }` — no scene field, and only a short identifier as value. It is not a malformed
+ * scene but an entry with no scene content, so removing it loses nothing. It is removed only when at
  * least TWO entries that do carry scene fields remain (the contract minimum); otherwise the block is left exactly
  * as received, so the existing repair/blocking path (and any response already paid for it) is unchanged. Entries
  * with ANY scene field are never touched here: a malformed scene still blocks the whole plan. Input not mutated.
@@ -233,8 +233,13 @@ const SCENE_CONTRACT_KEYS = new Set([...Object.keys(VisualSchema.shape), "excerp
 export function dropSceneStubs(value: unknown): unknown {
   const visuals = (value as { visuals?: unknown } | null)?.visuals;
   if (!Array.isArray(visuals)) return value;
+  // A value carries no scene content only if it is blank or a single short token (an identifier such as the
+  // 4-character id of the incident). Any descriptive text — even under an unknown key — is NOT a stub: it may be a
+  // misplaced scene, so it keeps the existing repair/blocking path.
+  const contentless = (v: unknown) => v === null || typeof v === "number" || typeof v === "boolean"
+    || (typeof v === "string" && (v.trim() === "" || /^\S{1,24}$/.test(v.trim())));
   const isStub = (scene: unknown) => !!scene && typeof scene === "object" && !Array.isArray(scene)
-    && !Object.keys(scene as object).some(k => SCENE_CONTRACT_KEYS.has(k));
+    && !Object.keys(scene as object).some(k => SCENE_CONTRACT_KEYS.has(k)) && Object.values(scene as object).every(contentless);
   const stubs = visuals.filter(isStub).length;
   if (!stubs || visuals.length - stubs < 2) return value;
   console.warn("[atomivid:documentary-format-normalized]", JSON.stringify([{ rule: "scene_stub", removed: stubs, kept: visuals.length - stubs }]));
