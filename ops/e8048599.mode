@@ -1,2 +1,2 @@
-MODE=post
-REPLAY_REF=2cc9a22
+MODE=replay
+REPLAY_REF=a3222eb
