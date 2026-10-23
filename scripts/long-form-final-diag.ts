@@ -154,7 +154,23 @@ async function capacity() {
   } finally { await client.end(); }
 }
 
-const steps: Record<string, () => Promise<void>> = { review, schema, local, holds, capacity, migrations, jobs, requests, supply, vercel: vercelProbe };
+async function costs() {
+  const { client } = await connectResolved();
+  try {
+    await client.query("begin read only");
+    const reqs = (await client.query(`select id::text id, duration_seconds, status, created_at, long_form_production_plan->'allocation' alloc, long_form_production_plan->'estimate' est,
+      reel_image_source, reel_voice_id is not null custom_voice from public.video_requests where mode='long_form' and status='completed' order by created_at desc limit 4`)).rows;
+    for (const r of reqs) {
+      const ops = (await client.query(`select provider, method, status, count(*) n, round(sum(coalesce(committed_usd,0))::numeric,4) usd from public.pi_paid_operations
+        where project_id like $1 group by 1,2,3 order by 1,2`, [r.id + "%"])).rows;
+      log("REAL_COST", { id: r.id.slice(0, 8), minutes: r.duration_seconds / 60, created: r.created_at, images: r.reel_image_source, customVoice: r.custom_voice,
+        estimate: clip(JSON.stringify(r.est), 400), allocation: clip(JSON.stringify(r.alloc), 300), ops, totalUsd: ops.reduce((a: number, o: any) => a + Number(o.usd), 0) });
+    }
+    await client.query("rollback");
+  } finally { await client.end(); }
+}
+
+const steps: Record<string, () => Promise<void>> = { review, schema, local, holds, capacity, costs, migrations, jobs, requests, supply, vercel: vercelProbe };
 (async () => {
   for (const m of (process.argv[2] ?? "").split(",").filter(Boolean)) {
     if (!steps[m]) throw Error(`unknown ${m}`);
