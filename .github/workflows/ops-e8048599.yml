@@ -5,6 +5,7 @@ on:
     paths: [ops/e8048599.mode]
 permissions:
   contents: read
+  actions: read
 concurrency: { group: ops-e8048599, cancel-in-progress: false }
 jobs:
   ops:
@@ -17,7 +18,7 @@ jobs:
         run: |
           ref=$(sed -n 's/^REPLAY_REF=//p' ops/e8048599.mode)
           if [ -n "$ref" ]; then cp scripts/ops-e8048599.ts /tmp/ops.ts; cp ops/e8048599.mode /tmp/mode; cp .github/workflows/ops-e8048599.yml /tmp/wf.yml
-            git fetch -q origin claude/long-form-15min-readiness && cp scripts/ops-quality-e8048599.ts /tmp/q.ts; git checkout -q "$ref" && mkdir -p ops && cp /tmp/mode ops/e8048599.mode && cp /tmp/ops.ts scripts/ops-e8048599.ts && cp /tmp/q.ts scripts/ops-quality-e8048599.ts; fi
+            git fetch -q origin claude/long-form-15min-readiness claude/atomivid-mvp-setup-0079jv && cp scripts/ops-quality-e8048599.ts /tmp/q.ts; cp scripts/ops-step-e8048599.ts /tmp/st.ts; git checkout -q "$ref" && mkdir -p ops && cp /tmp/mode ops/e8048599.mode && cp /tmp/ops.ts scripts/ops-e8048599.ts && cp /tmp/q.ts scripts/ops-quality-e8048599.ts && cp /tmp/st.ts scripts/ops-step-e8048599.ts; fi
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
@@ -33,11 +34,13 @@ jobs:
           FAL_ADMIN_KEY: ${{ secrets.FAL_ADMIN_KEY }}
           FAL_KEY: ${{ secrets.FAL_KEY != '' && 'set' || '' }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set +e
           echo "::notice title=PING::step started"
           eval "$(sed -n 's/^\([A-Z_]*\)=\(.*\)$/export \1="\2"/p' ops/e8048599.mode)"
-          if [ "$MODE" = "quality" ]; then npx tsx scripts/ops-quality-e8048599.ts > out.txt 2>&1
+          if [ "$MODE" = "step" ]; then npx tsx scripts/ops-step-e8048599.ts > out.txt 2>&1
+          elif [ "$MODE" = "quality" ]; then npx tsx scripts/ops-quality-e8048599.ts > out.txt 2>&1
           elif [ "$MODE" = "replay" ]; then REPLAY_CINEMATIC=true REPLAY_JOB=e8048599 npx tsx scripts/replay-documentary-job.ts > out.txt 2>&1
           else npx tsx scripts/ops-e8048599.ts > out.txt 2>&1; fi; rc=$?; echo "::notice title=RC::exit=$rc lines=$(wc -l < out.txt)"
-          node -e 'require("fs").readFileSync("out.txt","utf8").split("\n").filter(l=>/^(JOB|OPS|BUDGET|FAILED|RECRAFT|SNAP|POLICY|FAL|REPLAY|BOUNDARY|MUSIC|VOICE|\[atomivid:documentary-format)/.test(l)).slice(0,10).forEach((b,i)=>console.log("::notice title=O"+i+"::"+b.slice(0,3800).replace(/%/g,"%25"))); const all=require("fs").readFileSync("out.txt","utf8"); console.log("::notice title=TAIL::"+all.slice(-2500).replace(/%/g,"%25").replace(/\n/g,"%0A"))'
+          node -e 'require("fs").readFileSync("out.txt","utf8").split("\n").filter(l=>/^(JOB|OPS|BUDGET|FAILED|RECRAFT|SNAP|POLICY|FAL|REPLAY|BOUNDARY|MUSIC|VOICE|PROD|PRECHECK|STOP|STEP|END|DRY|\[atomivid:documentary-format)/.test(l)).slice(0,40).forEach((b,i)=>console.log("::notice title=O"+i+"::"+b.slice(0,3800).replace(/%/g,"%25"))); const all=require("fs").readFileSync("out.txt","utf8"); console.log("::notice title=TAIL::"+all.slice(-2500).replace(/%/g,"%25").replace(/\n/g,"%0A"))'
