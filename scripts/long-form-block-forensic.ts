@@ -26,14 +26,17 @@ async function main() {
     if (++block < Number(process.env.MIN_BLOCK ?? 0)) continue;
     log("DIAG_BLOCK", { n: block, at: o.created_at, stop: r.stop_reason, out: r.usage?.output_tokens, scenes: v.visuals.length, beatsHit, positions,
       dupIds: ids.length - new Set(ids).size,
-      odd: v.visuals.flatMap((s: any, i: number) => {
+      classes: v.visuals.reduce((m: any, sc: any) => (m[String(sc?.beatClass ?? "none")] = (m[String(sc?.beatClass ?? "none")] ?? 0) + 1, m), {}),
+      identities: [...new Set(v.visuals.map((sc: any) => sc?.identity?.name ?? sc?.identity?.person ?? (sc?.identity ? Object.keys(sc.identity).join("+") : null)).filter(Boolean))].slice(0, 6),
+      evidence: v.visuals.filter((sc: any) => sc?.evidence).length, impact3: v.visuals.filter((sc: any) => sc?.impact === 3).length,
+      oddCount: v.visuals.filter((sc: any) => !(sc && typeof sc.description === "string")).length, _odd: process.env.ODD ? v.visuals.flatMap((s: any, i: number) => {
         const keys = Object.keys(s ?? {});
         if (keys.includes("description") && typeof s.description === "string") return [];
         return [{ i, keys: keys.map(k => /^[A-Za-z_]{1,40}$/.test(k) ? k : "(non-label)"),
           values: keys.map(k => { const x = s[k]; const t = typeof x;
             return t === "string" ? { len: x.length, looksJson: /^\s*[{[]/.test(x), parsedKeys: (() => { try { const p = JSON.parse(x); return p && typeof p === "object" ? Object.keys(p).slice(0, 15) : null; } catch { return null; } })(),
               words: x.split(/\s+/).length, hasExcerptRef: /:b\d+:w\d+/.test(x) } : t }) }];
-      }) });
+      }) : undefined });
   }
 }
 main().catch(e => { console.error("FAILED", String(e).slice(0, 200)); process.exitCode = 1; });
