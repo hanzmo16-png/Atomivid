@@ -116,12 +116,27 @@ const spentNothing = (events: string[]) => {
 // P0-01 — v3 (ruta por defecto) con acontecimiento fechado: fallo cerrado ANTES de gastar
 // ---------------------------------------------------------------------------------------------
 
-test("P0-01 dry3-v3-en: v3 + «10 de mayo de 2024» ilustrado con stock → IMPEDIMENTO DE ENTREGA antes de cualquier gasto", async () => {
+test("P0-01 dry3-v3-en: v3 + «10 de mayo de 2024» con escena anclada → el pasaje fechado sale como tarjeta de texto, nunca como imagen", async () => {
+  // Antes: IMPEDIMENTO DE ENTREGA sin salida automática (54740b5a/Voyager). Ahora la escena citada en la oración
+  // fechada se planifica como tarjeta del propio pasaje; el stock solo ilustra pasajes sin fecha.
   const beats = auroraBeats({ dated: true });
   const plan = planOf(beats, 3);
   assert.equal(plan.version, 3);
+  let report: { scenes: { narrationFragment?: string; intent?: { description?: string }; display: string; provenance: string }[] } | undefined;
+  const { events, error } = await produceOffline(beats, plan, { topic: TOPIC, onReport: (r) => (report = r as never) });
+  assert.equal(error, null, `no debe fallar: ${(error as Error)?.message}`);
+  assert.equal(count(events, "render"), 1);
+  // Toda escena narrada sobre la fecha (por cita o por tiempo) y la escena cuya cita es la oración fechada.
+  const datedScenes = report!.scenes.filter((s) => /10 de mayo|mayo de 2024/.test(s.narrationFragment ?? "") || s.intent?.description === "green aurora curtains moving over a small town at night" && s.narrationFragment?.startsWith("La noche"));
+  assert.ok(datedScenes.length >= 1, "el pasaje fechado tiene escena");
+  for (const s of datedScenes) assert.deepEqual([s.display, s.provenance], ["card", "text_card"], JSON.stringify(s));
+  assert.ok(report!.scenes.some((s) => s.provenance.startsWith("stock")), "los pasajes sin fecha siguen ilustrados");
+});
+
+test("P0-01 fallo cerrado: v3 fechado con escena SIN cita → IMPEDIMENTO DE ENTREGA antes de cualquier gasto", async () => {
+  const beats = auroraBeats({ dated: true }).map((b) => b.id === "b1" ? { ...b, visuals: [{ description: "green aurora curtains moving over a small town at night", subject: "aurora", beatClass: "PLACE", motion: true }] as never } : b);
+  const plan = planOf(beats, 3);
   const { events, error } = await produceOffline(beats, plan, { topic: TOPIC, footageProvider: syntheticCatalog() });
-  assert.ok(error, `debe fallar cerrado; eventos: ${events.join(",")}`);
   assert.ok(error instanceof LongFormVisualQualityError, `tipo: ${(error as Error)?.name}`);
   assert.match((error as Error).message, /IMPEDIMENTO DE ENTREGA/);
   assert.match((error as Error).message, /10 de mayo de 2024/);

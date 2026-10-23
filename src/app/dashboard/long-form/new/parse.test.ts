@@ -37,3 +37,13 @@ test("ambas funciones devuelven arreglo vacío ante entrada vacía o solo espaci
   assert.deepEqual(parseSources("   \n  \n"), []);
   assert.deepEqual(parseOpenQuestions(""), []);
 });
+
+test("briefFieldConflict: el caso 54740b5a (texto «9 minutos, español», campos 7 / en) se detiene antes de gastar; sin contradicción no molesta", async () => {
+  const { briefFieldConflict } = await import("./parse");
+  const voyager = "Crea un documental cinematográfico para YouTube titulado: \"Voyager 1: la nave que abandonó el sistema solar\". Duración: 9 minutos. Idioma: español latinoamericano.";
+  assert.match(briefFieldConflict(voyager, 7, "en")!, /dice 9 minutos/);
+  assert.match(briefFieldConflict(voyager, 9, "en")!, /narración en español/);
+  assert.equal(briefFieldConflict(voyager, 9, "es"), null);
+  assert.equal(briefFieldConflict("Voyager 1: la nave que abandonó el sistema solar", 7, "es"), null);
+  assert.equal(briefFieldConflict("Los 300 de las Termópilas", 7, "es"), null, "a number that is not a duration is ignored");
+});

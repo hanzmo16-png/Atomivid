@@ -13,7 +13,7 @@ import { isInternalProductionOwner } from "@/lib/billing/internal-production";
 import { generateDocumentaryScript, LongFormScriptDurationError } from "./documentary-script";
 import { FRAGMENT_CONTRACT } from "./narrative-fragments";
 import { researchDocumentary, RESEARCH_VERSION } from "./research";
-import { EDITORIAL_VERSION, EditorialQualityError, type EditorialReport } from "./editorial";
+import { EDITORIAL_VERSION, EDITORIAL_FEEDBACK_CONTRACT, EDITORIAL_AUTONOMY_CONTRACT, MAX_AUTO_CORRECTIONS, autoCorrectionBudget, EditorialQualityError, type EditorialReport } from "./editorial";
 import { documentaryFormError } from "./form-error";
 import { ScriptJobFieldsSchema, type ScriptJobFields, type ScriptJobInput } from "./script-job-types";
 import { parseOpenQuestions, parseSources } from "@/app/dashboard/long-form/new/parse";
@@ -25,7 +25,8 @@ export async function enqueueScriptJob(session: SupabaseClient, user: {id:string
  if(readError) throw new Error("No se pudo comprobar la solicitud guardada.");
  if(existing) return existing as {id:string;status:string};
  const creativeHistory=await loadCreativeHistory(session,user.id);
- const input:ScriptJobInput={fields,creativeHistory,recoverLegacyOperator:isInternalProductionOwner(user),referenceContract:"catalog-v1",writerContract:FRAGMENT_CONTRACT};
+ const input:ScriptJobInput={fields,creativeHistory,recoverLegacyOperator:isInternalProductionOwner(user),referenceContract:"catalog-v1",writerContract:FRAGMENT_CONTRACT,editorialFeedback:EDITORIAL_FEEDBACK_CONTRACT,
+  editorialAutonomy:EDITORIAL_AUTONOMY_CONTRACT,autoCorrections:autoCorrectionBudget()};
  const {error}=await service.from("documentary_script_jobs").upsert({user_id:user.id,input_hash:inputHash,topic:fields.topic,input},
    {onConflict:"user_id,input_hash",ignoreDuplicates:true});
  if(error) throw new Error("No se pudo guardar la preparación. No se inició ninguna generación.");
@@ -55,12 +56,15 @@ export async function runScriptJobStep(id:string, service=createServiceClient())
   let editorial:EditorialReport|undefined;
   if(input.referenceContract!==undefined && input.referenceContract!=="catalog-v1")throw new Error("Unsupported saved reference contract");
   if(input.writerContract!==undefined && input.writerContract!==FRAGMENT_CONTRACT)throw new Error("Unsupported saved writer contract");
+  if(input.editorialFeedback!==undefined && input.editorialFeedback!==EDITORIAL_FEEDBACK_CONTRACT)throw new Error("Unsupported saved editorial feedback contract");
+  if(input.editorialAutonomy!==undefined && (input.editorialAutonomy!==EDITORIAL_AUTONOMY_CONTRACT || !Number.isInteger(input.autoCorrections) || input.autoCorrections!<1 || input.autoCorrections!>MAX_AUTO_CORRECTIONS))
+   throw new Error("Unsupported saved editorial autonomy contract");
   const script=await withDocumentaryStep(()=>withDocumentarySupplyContext(job.user_id,
    documentaryScopeInput(input,fields),
    input.recoverLegacyOperator && isInternalProductionOwner(owner.user),async()=>{
     await update({stage:"Investigando fuentes"});
     const researchPack=await researchDocumentary({topic:fields.topic,references:parseSources(fields.sources),openQuestions:parseOpenQuestions(fields.openQuestions)});
-    const beats=await generateDocumentaryScript({researchPack,creativeHistory:input.creativeHistory,referenceContract:input.referenceContract,writerContract:input.writerContract,extraEditorialRounds:job.editorial_rounds??0,mode:"curiosity_documentary",language:fields.language,
+    const beats=await generateDocumentaryScript({researchPack,creativeHistory:input.creativeHistory,referenceContract:input.referenceContract,writerContract:input.writerContract,editorialFeedback:input.editorialFeedback,editorialAutonomy:input.editorialAutonomy,autoCorrections:input.autoCorrections,extraEditorialRounds:job.editorial_rounds??0,mode:"curiosity_documentary",language:fields.language,
      targetDurationSeconds:Number(fields.durationMinutes)*60,cinematicV6:cinematicV6Enabled(owner.user),allowVisualSceneRepair:(job.retry_count??0)>0,onStage:stage=>update({stage}),
      onDraft:draft=>update({editorial_checkpoint:draft}),onEditorialApproved:r=>{editorial=r;}});
     if(!editorial) throw new Error("Editorial approval missing");

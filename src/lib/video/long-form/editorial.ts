@@ -137,18 +137,30 @@ export function editorialBlockers(review: EditorialReview): string[] {
   ];
 }
 /** The same review cannot both accept the close as the promised resolution and
- * reject it as repetition: a final block that the reviewer says resolves the
- * promise is a callback. Explicit blocking findings still apply to it. */
+ * reject it as repetition. The writer must resolve the promise BEFORE the CTA and
+ * close with it, so once the reviewer confirms the resolution (validated to sit in
+ * the second half), the final block is that required close/CTA — a callback, not a
+ * stalled section — whether the resolution is in it or just before it (54740b5a).
+ * Explicit blocking findings (padding, unsupported claims…) still apply to it, and a
+ * restated MIDDLE block still blocks. */
 function closingCallback(review: EditorialReview, beatIndex: number): boolean {
   const last = Math.max(...review.sections.map(s => s.beatIndex));
-  return beatIndex === last && review.ending.resolvesPromise && review.ending.evidence.beatIndex === last;
+  return beatIndex === last && review.ending.resolvesPromise;
 }
 export function editorialScriptHash(beats: EditorialScript["beats"]): string {
   // IDs assigned at persistence are excluded. Bind all authored content used downstream.
   return stableHash(beats.map(b => ({ type: b.type, purpose: b.purpose, narration: b.narration, claims: b.claims, visuals: b.visuals, emotionalTone: b.emotionalTone })), 64);
 }
+/** New jobs record it: structural issues name the exact passage, and the draft keeps every blocking reason. Jobs saved
+ * without it keep the original wording so their already-paid provider responses replay byte for byte. */
+export const EDITORIAL_FEEDBACK_CONTRACT = "passages-v1" as const;
+/** Where a blocking reason came from: the independent reviewer, a local structural check, or the duration budget. */
+export type EditorialIssueSource = "reviewer" | "structure" | "duration";
+export type EditorialIssue = { source: EditorialIssueSource; text: string };
 export class EditorialQualityError extends Error {
-  constructor(readonly reasons: string[], readonly correctionExhausted = false) {
+  constructor(readonly reasons: string[], readonly correctionExhausted = false, readonly reviewerBlocking: number | null = null,
+    /** Corrections actually attempted before stopping (automatic + owner-requested). */
+    readonly correctionsUsed: number | null = null) {
     super(`El guion necesita más trabajo editorial: ${reasons.slice(0, 2).join(" ").slice(0, 750)} No se inició la producción audiovisual.`);
     this.name = "EditorialQualityError";
   }
@@ -181,3 +193,27 @@ export function editorialApprovalError(script: { beats: unknown[]; editorial?: u
 export class EditorialTimingEvidenceError extends Error {
   constructor() { super("La primera recompensa marcada aparece después de la apertura."); this.name = "EditorialTimingEvidenceError"; }
 }
+
+/** New jobs record it (job input): writer and reviewer share EDITORIAL_RUBRIC, corrections receive targeted
+ * instructions and the job corrects itself up to its saved automatic-correction budget. Jobs saved without it keep
+ * their original prompts so already-paid responses replay byte for byte. */
+export const EDITORIAL_AUTONOMY_CONTRACT = "auto-v1" as const;
+/** Automatic corrections after the first draft for new jobs: LONG_FORM_EDITORIAL_AUTO_CORRECTIONS, clamped to 1–3. */
+export const DEFAULT_AUTO_CORRECTIONS = 2, MAX_AUTO_CORRECTIONS = 3;
+export function autoCorrectionBudget(raw: string | undefined = process.env.LONG_FORM_EDITORIAL_AUTO_CORRECTIONS): number {
+  const n = Number(raw?.trim() || DEFAULT_AUTO_CORRECTIONS);
+  return Number.isInteger(n) ? Math.min(MAX_AUTO_CORRECTIONS, Math.max(1, n)) : DEFAULT_AUTO_CORRECTIONS;
+}
+
+/** One rubric, sent to BOTH the writer and the reviewer: what blocks approval and what never does. */
+export const EDITORIAL_RUBRIC = `CRITERIOS QUE BLOQUEAN LA APROBACIÓN (los mismos para quien escribe y para quien revisa):
+1. Primera respuesta: un dato, respuesta o contradicción concreta dentro de las primeras 150 palabras.
+2. Resolución: la promesa principal se resuelve en la segunda mitad y antes del CTA. Un límite honesto del conocimiento es una resolución válida.
+3. Progresión: cada bloque intermedio aporta información nueva, una consecuencia, una contradicción o un cambio respaldado. Un bloque intermedio que solo repite lo ya dicho bloquea.
+4. Cierre: el último bloque, después de la resolución, puede reflexionar, dar la frase memorable y el CTA. Debe decir qué significa lo contado o qué cambia; un cierre largo que solo resume es relleno (padding).
+5. Afirmaciones: nada se presenta como hecho sin respaldo en el material; inferencias y dudas se dicen como tales en la propia narración.
+6. Sin relleno, promesas repetidas con sinónimos, cebos de interacción ni marcadores sin resolver.
+Todo lo demás (ritmo, estilo, frases mejorables) son sugerencias y no bloquean.`;
+export const REVIEWER_RUBRIC_RULES = `${EDITORIAL_RUBRIC}
+Aplica exactamente estos criterios. Clasifica el último bloque posterior a la resolución como resolution o consequence cuando aporta significado; restatement es solo para un bloque que repite sin avanzar. Si el cierre únicamente resume, señálalo como padding blocking con su pasaje.
+Cada observación blocking debe nombrar el pasaje exacto y una reparación concreta y realizable por el guionista sin inventar hechos.`;

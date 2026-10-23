@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
 import { enqueueScriptJob, retryScriptJob } from "@/lib/video/long-form/script-jobs";
 import { dispatchScriptJob } from "@/lib/video/long-form/script-job-dispatch";
+import { briefFieldConflict } from "./parse";
 
 const MIN_DURATION_MINUTES = 3;
 const MAX_DURATION_MINUTES = 30;
@@ -69,6 +70,9 @@ export async function createLongFormVideoRequest(formData: FormData) {
       submittedFields,
     );
   }
+
+  const conflict = briefFieldConflict(topic, durationMinutes, language as "es" | "en");
+  if (conflict) longFormFormRedirect(conflict, submittedFields);
 
   if (sourcesRaw.length > 12000 || openQuestionsRaw.length > 4000) {
     longFormFormRedirect("Acorta las referencias a 12.000 caracteres y las preguntas a 4.000.", submittedFields);
