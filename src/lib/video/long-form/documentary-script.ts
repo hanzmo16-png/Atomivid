@@ -220,6 +220,26 @@ const ProductParseVisualsSchema = z.object({ visuals: z.array(ProductVisualSchem
 /** Contract field names a visual-plan diagnostic may name (scene keys, nested contract keys, excerptId). */
 export const VISUAL_DIAGNOSTIC_KEYS: ReadonlySet<string> = new Set(["visuals", "excerptId",
   ...Object.keys(VisualSchema.shape), ...Object.keys(VisualSchema.shape.identity.unwrap().shape), ...Object.keys(VisualSchema.shape.evidence.unwrap().shape)]);
+/** Contract fields of a scene: any one of them makes an entry a (possibly malformed) scene. */
+const SCENE_CONTRACT_KEYS = new Set([...Object.keys(VisualSchema.shape), "excerptId"]);
+/**
+ * Incident 150fb502 (2026-10-23, job e8048599, blocks 5 and 6): the planner returned, among valid scenes, an
+ * entry `{ "id": "<4 chars>" }` — no description, motion, subject, passage or any other scene field. It is not
+ * a malformed scene but an entry with no scene content, so removing it loses nothing. It is removed only when at
+ * least TWO entries that do carry scene fields remain (the contract minimum); otherwise the block is left exactly
+ * as received, so the existing repair/blocking path (and any response already paid for it) is unchanged. Entries
+ * with ANY scene field are never touched here: a malformed scene still blocks the whole plan. Input not mutated.
+ */
+export function dropSceneStubs(value: unknown): unknown {
+  const visuals = (value as { visuals?: unknown } | null)?.visuals;
+  if (!Array.isArray(visuals)) return value;
+  const isStub = (scene: unknown) => !!scene && typeof scene === "object" && !Array.isArray(scene)
+    && !Object.keys(scene as object).some(k => SCENE_CONTRACT_KEYS.has(k));
+  const stubs = visuals.filter(isStub).length;
+  if (!stubs || visuals.length - stubs < 2) return value;
+  console.warn("[atomivid:documentary-format-normalized]", JSON.stringify([{ rule: "scene_stub", removed: stubs, kept: visuals.length - stubs }]));
+  return { ...(value as object), visuals: visuals.filter(scene => !isStub(scene)) };
+}
 /**
  * Parse one beat's visual plan, all or nothing (same acceptance schemas as before). A malformed
  * scene is never dropped or filled in: the whole block is blocked with VisualPlanBlockedError,
@@ -230,7 +250,7 @@ export function parseVisualPlan(response: Parameters<typeof readDocumentaryJson>
   const schema = opts.cinematic
     ? (opts.referenceContract ? CinematicLenientVisualsSchema : CinematicParseVisualsSchema)
     : (opts.referenceContract ? ProductLenientVisualsSchema : ProductParseVisualsSchema);
-  const value = readDocumentaryJson(response);
+  const value = dropSceneStubs(readDocumentaryJson(response));
   const parsed = acceptContract(schema, value);
   if (!parsed.success) throw new VisualPlanBlockedError(allowListedIssuePaths(parsed.error, VISUAL_DIAGNOSTIC_KEYS), sceneShapes(value, VISUAL_DIAGNOSTIC_KEYS));
   return parsed.data as z.infer<typeof CinematicLenientVisualsSchema>;

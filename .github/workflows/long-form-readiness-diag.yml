@@ -29,6 +29,7 @@ jobs:
             case $step in
               state) npx tsx scripts/long-form-readiness-diag.ts ;;
               replay) REPLAY_JOB=${JOB:-e8048599} npx tsx scripts/replay-documentary-job.ts ;;
+              replay-v6) echo "DIAG cinematic=true"; REPLAY_CINEMATIC=true REPLAY_JOB=${JOB:-e8048599} npx tsx scripts/replay-documentary-job.ts ;;
               replay-cine) for c in true false; do echo "DIAG cinematic=$c"; REPLAY_CINEMATIC=$c REPLAY_JOB=${JOB:-e8048599} npx tsx scripts/replay-documentary-job.ts; done ;;
               block6) MIN_BLOCK=5 npx tsx scripts/long-form-block-forensic.ts ;;
               *) [ -f "scripts/$step.ts" ] && npx tsx "scripts/$step.ts" ;;

@@ -74,7 +74,9 @@ export async function providerConfigReport(env: Record<string, string | undefine
     voices = { ok: false, error: e instanceof VoicesUnavailableError ? e.customerMessage : "error" };
   }
   const state = (k: string) => (env[k] === undefined ? "missing" : env[k]!.trim() ? "present" : "blank") as "present" | "blank" | "missing";
-  const keys = Object.fromEntries(["ELEVENLABS_API_KEY", "HEYGEN_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "RUNWAY_API_KEY", "PEXELS_API_KEY", "GH_WORKER_TOKEN", "GH_WORKER_REPO", "SUPABASE_SERVICE_ROLE_KEY"].map((k) => [k, state(k)]));
+  const keys = Object.fromEntries(["ELEVENLABS_API_KEY", "HEYGEN_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "RUNWAY_API_KEY", "PEXELS_API_KEY", "GH_WORKER_TOKEN", "GH_WORKER_REPO", "SUPABASE_SERVICE_ROLE_KEY",
+    // Long Form 15-min readiness (2026-10-23): presence only — Recraft balance refresh and voice selection flags.
+    "FAL_KEY", "FAL_ADMIN_KEY", "REEL_VOICE_SELECTION_ENABLED", "RECRAFT_REEL_ENABLED", "RECRAFT_PILOT_OWNER_USER_ID", "INTERNAL_PRODUCTION_OWNER_USER_ID", "ELEVENLABS_VOICE_ID", "ELEVENLABS_VOICE_ID_EN", "PRIVATE_VOICE_GRANTS"].map((k) => [k, state(k)]));
   return { keys, vercelEnv: env.VERCEL_ENV ?? null, commit: env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null, elevenlabsKey,
     elevenEnvNames: Object.keys(env).filter((k) => /ELEVEN|HEYGEN/i.test(k)).sort(), voices, heygen: await heygenProbe(env, fetchImpl) };
 }
