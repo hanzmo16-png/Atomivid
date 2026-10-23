@@ -1,0 +1,32 @@
+name: Long Form final — pruebas editoriales con anotaciones
+on:
+  push:
+    branches: [claude/youtube-long-form-final]
+    paths: [ops/long-form-final-tests.mode]
+permissions:
+  contents: read
+jobs:
+  t:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run and annotate failures
+        run: |
+          set +e
+          npm run test:editorial -- --test-reporter=tap > tap.txt 2>&1
+          echo "exit=$?"
+          node -e '
+            const t=require("fs").readFileSync("tap.txt","utf8").split("\n");
+            const out=[];
+            t.forEach((l,i)=>{ if(/^\s*not ok/.test(l)) out.push(t.slice(i,i+40).join("\n")); });
+            if(!out.length) out.push(t.slice(-60).join("\n"));
+            out.slice(0,10).forEach((b,i)=>console.log("::notice title=F"+i+"::"+b.slice(0,3500).replace(/%/g,"%25").replace(/\r/g,"").replace(/\n/g,"%0A")));
+          '
