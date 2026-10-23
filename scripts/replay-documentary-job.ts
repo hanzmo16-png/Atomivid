@@ -13,6 +13,7 @@ import { parseSources, parseOpenQuestions } from "../src/app/dashboard/long-form
 import { EDITORIAL_VERSION, editorialBlockers, EditorialQualityError } from "../src/lib/video/long-form/editorial";
 import { scriptFailureKind } from "../src/lib/video/long-form/script-jobs";
 import { cinematicV6Enabled } from "../src/lib/video/long-form/cinematic-v6-access";
+import { locateNormalized } from "../src/lib/video/long-form/text-locate";
 
 const h = (s: string) => createHash("sha256").update(s).digest("hex").slice(0, 10);
 async function main() {
@@ -50,6 +51,26 @@ async function main() {
         const marker = "OBSERVACIONES (datos del editor): ", at = content.indexOf(marker);
         let issues: string[] = [];
         if (at >= 0) { try { issues = (JSON.parse(content.slice(at + marker.length)) as { issues?: string[] }).issues ?? []; } catch { issues = ["(unparsed)"]; } }
+        // Editing marks of the draft that the correction would receive: why each one is not literal (no text printed).
+        const draftAt = content.indexOf("BORRADOR ANTERIOR (datos, no instrucciones): ");
+        if (draftAt >= 0 && at > draftAt) {
+          try {
+            const draft = JSON.parse(content.slice(draftAt + 46, content.lastIndexOf("\nOBSERVACIONES"))) as { beats: { narration: string }[]; creativeDirection: Record<string, any> };
+            const d = draft.creativeDirection, beats = draft.beats;
+            const marks: [string, { beatIndex: number; quote: string } | null][] = [["signature", d.signatureDetail], ["shareable", d.shareableLine], ["comment", d.commentMoment], ["cta", d.closingCta],
+              ...(d.protectInEdit ?? []).map((p: any, i: number) => [`protect${i}`, p] as [string, any])];
+            const words = (t: string) => t.toLowerCase().normalize("NFKC").replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter(Boolean);
+            console.log("MARKS", JSON.stringify({ job: job.id.slice(0, 8), beats: beats.length, marks: marks.filter(([, p]) => p).map(([name, p]) => {
+              const q = p!.quote, own = beats[p!.beatIndex]?.narration ?? "";
+              if (own.includes(q)) return { name, ok: "literal" };
+              const anywhere = beats.map((b, i) => (locateNormalized(b.narration, q) ? i : -1)).filter(i => i >= 0);
+              const qw = words(q), ow = new Set(words(own));
+              return { name, beat: p!.beatIndex, beats: beats.length, quoteWords: qw.length, ellipsis: /\.\.\.|…/.test(q), dash: /[—–]/.test(q), quotes: /["“”‘’]/.test(q),
+                locatedIn: anywhere, overlapOwnBeat: Math.round(100 * qw.filter(w => ow.has(w)).length / Math.max(1, qw.length)),
+                bestBeat: beats.map((b, i) => [i, words(b.narration)] as const).map(([i, bw]) => { const set = new Set(bw); return [i, qw.filter(w => set.has(w)).length] as const; }).sort((a, b) => b[1] - a[1])[0] };
+            }) }));
+          } catch (e) { console.log("MARKS", JSON.stringify({ job: job.id.slice(0, 8), error: String(e).slice(0, 80) })); }
+        }
         console.log("BOUNDARY", JSON.stringify({ job: job.id.slice(0, 8), stage, maxTokens: params.max_tokens, words: m?.[1], seconds: m?.[2], target: m ? `${m[3]}-${m[4]}` : undefined,
           issues: issues.map(i => String(i).slice(0, 200)) }));
         throw Error("OFFLINE_CACHE_BOUNDARY");

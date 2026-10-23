@@ -24,7 +24,7 @@ jobs:
           const t = require("fs").readFileSync(file, "utf8").split("\n");
           let out = [];
           if (mode === "tap") { t.forEach((l, i) => { if (/^\s*not ok/.test(l)) out.push(t.slice(i, i + 22).join("\n")); }); out.push(t.filter(l => /^# (tests|pass|fail)/.test(l)).join(" | ")); }
-          else out = t.filter(l => /^(REPLAY|FAIL|STOP|BOUNDARY)/.test(l));
+          else out = t.filter(l => /^(REPLAY|FAIL|STOP|BOUNDARY|MARKS)/.test(l));
           out.slice(0, 9).forEach((b, i) => console.log(`::notice title=${tag}${i}::` + b.slice(0, 3500).replace(/%/g, "%25").replace(/\r/g, "").replace(/\n/g, "%0A")));
           JS
       - name: 1) New regression tests against the PREVIOUS production code (e68da2b) — expected to fail
