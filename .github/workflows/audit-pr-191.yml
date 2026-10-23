@@ -10,13 +10,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      PR_SHA: 239b675
+      PR_SHA: 1e6c80f
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false, fetch-depth: 0 }
       - name: Worktree of the audited SHA (PR files are never modified in the repository)
         run: |
-          git fetch -q origin grok/rescate-motor-editorial claude/editorial-format-root-cause
+          git fetch -q origin grok/rescate-motor-editorial claude/editorial-format-root-cause claude/long-form-15min-readiness
           git worktree add -q "$RUNNER_TEMP/pr" "$PR_SHA"
           git worktree add -q "$RUNNER_TEMP/p190" origin/claude/editorial-format-root-cause
           git worktree add -q "$RUNNER_TEMP/prod" e68da2b
@@ -95,6 +95,16 @@ jobs:
           ONLY_DATA=1 npx tsx scripts/zz-postdeploy.ts > "$RUNNER_TEMP/post.txt" 2>&1
           sed -i 's/^\(PROBE\|JOB_E8048599\|PAID_OPS_SINCE_DEPLOY\|RUNNING_SCRIPT_JOBS\|MODE\|PODCAST\|FAILED\)/REPLAY \1/' "$RUNNER_TEMP/post.txt"
           node "$RUNNER_TEMP/ann.js" "$RUNNER_TEMP/post.txt" POST lines
+      - name: 7) Real replay of e8048599 with the branch's own harness (cinematic flag as in production)
+        working-directory: ${{ runner.temp }}/pr
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set +e
+          REPLAY_CINEMATIC=true REPLAY_JOB=e8048599 npx tsx scripts/replay-documentary-job.ts > "$RUNNER_TEMP/r7.txt" 2>&1
+          node "$RUNNER_TEMP/ann.js" "$RUNNER_TEMP/r7.txt" R7 lines
+          grep -h "documentary-format-normalized" "$RUNNER_TEMP/r7.txt" | head -3 | sed 's/^/::notice title=R7N::/'
       - name: 5) Modality isolation (who imports the changed modules)
         working-directory: ${{ runner.temp }}/pr
         run: |
