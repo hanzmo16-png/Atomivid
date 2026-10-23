@@ -22,9 +22,9 @@ export function ffprobeDuration(file: string): Promise<number> {
 }
 
 /** Lee PCM mono f32 (para medir energía/espectro en pruebas y QC). */
-export function readPcm(file: string, rate = 16000, extra: string[] = []): Promise<Float32Array> {
+export function readPcm(file: string, rate = 16000, extra: string[] = [], channels = 1): Promise<Float32Array> {
   return new Promise((resolve, reject) => {
-    const p = spawn(process.env.FFMPEG_BIN || "ffmpeg", ["-v", "error", "-i", file, ...extra, "-map", "0:a:0", "-ac", "1", "-ar", String(rate), "-f", "f32le", "-"]);
+    const p = spawn(process.env.FFMPEG_BIN || "ffmpeg", ["-v", "error", "-i", file, ...extra, "-map", "0:a:0", "-ac", String(channels), "-ar", String(rate), "-f", "f32le", "-"]);
     const chunks: Buffer[] = [];
     p.stdout.on("data", (d) => chunks.push(d));
     p.on("error", reject);
@@ -46,7 +46,8 @@ export async function ebur128(file: string): Promise<{ lufs: number; truePeak: n
   const tail = stderr.slice(stderr.lastIndexOf("Summary:"));
   const lufs = Number(/I:\s+(-?[\d.]+|-inf) LUFS/.exec(tail)?.[1]);
   const truePeak = Number(/Peak:\s+(-?[\d.]+|-inf) dBFS/.exec(tail.slice(tail.indexOf("True peak")))?.[1]);
-  const pcm = await readPcm(file, 48000);
+  // Recortes por canal y a la frecuencia original (una mezcla a mono sumaría canales correlacionados y daría falsos recortes).
+  const pcm = await readPcm(file, 48000, [], 2);
   let clipped = 0; for (const x of pcm) if (Math.abs(x) >= 0.999) clipped++;
   return { lufs, truePeak, clipped };
 }
