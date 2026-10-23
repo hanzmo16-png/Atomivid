@@ -44,6 +44,7 @@ jobs:
           elif [ "$MODE" = "forensic" ]; then (MODE=read npx tsx scripts/ops-e8048599.ts; MIN_BLOCK=7 JOB=e8048599 npx tsx scripts/long-form-block-forensic.ts) > out.txt 2>&1
           elif [ "$MODE" = "step" ]; then npx tsx scripts/ops-step-e8048599.ts > out.txt 2>&1
           elif [ "$MODE" = "quality" ]; then npx tsx scripts/ops-quality-e8048599.ts > out.txt 2>&1
+          elif [ "$MODE" = "supply" ]; then npx tsx scripts/ops-supply-read.ts > out.txt 2>&1
           elif [ "$MODE" = "replay" ]; then REPLAY_CINEMATIC=true REPLAY_JOB=e8048599 npx tsx scripts/replay-documentary-job.ts > out.txt 2>&1
           else npx tsx scripts/ops-e8048599.ts > out.txt 2>&1; fi; rc=$?; echo "::notice title=RC::exit=$rc lines=$(wc -l < out.txt)"
           node -e 'require("fs").readFileSync("out.txt","utf8").split("\n").filter(l=>/^(JOB|OPS|BUDGET|FAILED|RECRAFT|SNAP|POLICY|FAL|REPLAY|BOUNDARY|MUSIC|VOICE|PROD|PRECHECK|STOP|STEP|END|DRY|DIAG_|PROBE|JOB_E8048599|PAID_OPS|RUNNING_SCRIPT|MODE|PODCAST|\[atomivid:documentary-format)/.test(l)).slice(0,40).forEach((b,i)=>console.log("::notice title=O"+i+"::"+b.slice(0,3800).replace(/%/g,"%25"))); const all=require("fs").readFileSync("out.txt","utf8"); console.log("::notice title=TAIL::"+all.slice(-2500).replace(/%/g,"%25").replace(/\n/g,"%0A"))'

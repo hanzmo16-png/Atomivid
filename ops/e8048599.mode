@@ -1,2 +1,2 @@
-MODE=forensic
-REPLAY_REF=a3222eb
+MODE=supply
+REPLAY_REF=2cc9a22
