@@ -18,7 +18,7 @@ jobs:
         run: |
           ref=$(sed -n 's/^REPLAY_REF=//p' ops/e8048599.mode)
           if [ -n "$ref" ]; then cp scripts/ops-e8048599.ts /tmp/ops.ts; cp ops/e8048599.mode /tmp/mode; cp .github/workflows/ops-e8048599.yml /tmp/wf.yml
-            git fetch -q origin claude/long-form-15min-readiness claude/atomivid-mvp-setup-0079jv && cp scripts/ops-quality-e8048599.ts /tmp/q.ts; cp scripts/ops-step-e8048599.ts /tmp/st.ts; cp scripts/ops-unreadable-e8048599.ts /tmp/un.ts; git checkout -q "$ref" && mkdir -p ops && cp /tmp/mode ops/e8048599.mode && cp /tmp/ops.ts scripts/ops-e8048599.ts && cp /tmp/q.ts scripts/ops-quality-e8048599.ts && cp /tmp/st.ts scripts/ops-step-e8048599.ts && cp /tmp/un.ts scripts/ops-unreadable-e8048599.ts; fi
+            git fetch -q origin claude/long-form-15min-readiness claude/atomivid-mvp-setup-0079jv claude/json-syntax-12045fcd && cp scripts/ops-quality-e8048599.ts /tmp/q.ts; cp scripts/ops-step-e8048599.ts /tmp/st.ts; cp scripts/ops-unreadable-e8048599.ts /tmp/un.ts; git checkout -q "$ref" && mkdir -p ops && cp /tmp/mode ops/e8048599.mode && cp /tmp/ops.ts scripts/ops-e8048599.ts && cp /tmp/q.ts scripts/ops-quality-e8048599.ts && cp /tmp/st.ts scripts/ops-step-e8048599.ts && cp /tmp/un.ts scripts/ops-unreadable-e8048599.ts; fi
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
