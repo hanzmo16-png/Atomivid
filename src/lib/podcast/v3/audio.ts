@@ -5,12 +5,12 @@
  */
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { measureLoudness, masteringFilter } from "@/lib/video/audio-master";
 import { ffmpeg, ffprobeDuration, ebur128 } from "./ffmpeg";
 import { AMBIENT_FILES, STINGS, trackFor, type BundledTrack } from "./music-library";
 import type { Mood } from "./spec";
 
-export const MASTER = { lufs: -16, tolerance: 1, truePeakMax: -1, truePeakTarget: -1.5 } as const;
+// truePeakTarget/Check dejan ~1 dB de margen para el códec con pérdida (AAC/MP3 suben el pico real al decodificar).
+export const MASTER = { lufs: -16, tolerance: 1, truePeakMax: -1, truePeakCheck: -2, truePeakTarget: -2.5 } as const;
 export type TurnAudio = { turn_id: string; speaker: "A" | "B"; file: string; pause_after?: number };
 export type TimelineEntry = { turn_id: string; speaker: "A" | "B"; start: number; end: number };
 
@@ -85,15 +85,29 @@ export async function mixAndMaster(dir: string, voiceFile: string, o: MixOptions
     "-i", m(STINGS.intro), "-i", m(STINGS.transicion),
     "-stream_loop", "-1", "-t", total.toFixed(3), "-i", m(ambient ? AMBIENT_FILES[o.ambient as keyof typeof AMBIENT_FILES] : AMBIENT_FILES.lluvia)];
   const mix = path.join(dir, "mix.wav");
-  await ffmpeg(["-y", "-v", "error", ...inputs, "-filter_complex", graph, "-map", "[mix]", "-ar", "48000", "-c:a", "pcm_s24le", mix]);
+  await ffmpeg(["-y", "-v", "error", ...inputs, "-filter_complex", graph, "-map", "[mix]", "-ac", "1", "-ar", "48000", "-c:a", "pcm_s24le", mix]);
   const master = path.join(dir, "master.wav");
-  const before = await measureLoudness(mix);
-  await ffmpeg(["-y", "-v", "error", "-i", mix, "-af", masteringFilter(before, MASTER.truePeakTarget), "-ar", "48000", "-c:a", "pcm_s24le", master]);
+  // Máster: ganancia lineal hasta −16 LUFS + limitador de picos sobremuestreado (×4) a −3 dBFS; una segunda vuelta
+  // corrige lo que el limitador le quite a la sonoridad. (loudnorm en modo lineal no llega a −16 con picos altos.)
+  const lim = `aresample=192000,alimiter=limit=${Math.pow(10, (MASTER.truePeakTarget - 0.5) / 20).toFixed(4)}:attack=1:release=50:level=false,aresample=48000`;
+  let gain = MASTER.lufs - (await ebur128(mix)).lufs;
+  for (let i = 0; i < 5; i++) {
+    await ffmpeg(["-y", "-v", "error", "-i", mix, "-af", `volume=${gain.toFixed(2)}dB,${lim}`, "-c:a", "pcm_s24le", master]);
+    const m = await ebur128(master);
+    if (Math.abs(m.lufs - MASTER.lufs) <= 0.15) break;
+    gain += MASTER.lufs - m.lufs;
+  }
   let q = await ebur128(master);
-  if (q.truePeak > MASTER.truePeakMax || q.clipped > 0) {
+  if (q.truePeak > MASTER.truePeakCheck || q.clipped > 0) {
     const fixed = path.join(dir, "master-tp.wav");
-    await ffmpeg(["-y", "-v", "error", "-i", master, "-af", `volume=${(MASTER.truePeakTarget - q.truePeak - 0.3).toFixed(2)}dB`, "-c:a", "pcm_s24le", fixed]);
+    await ffmpeg(["-y", "-v", "error", "-i", master, "-af", `aresample=192000,alimiter=limit=${Math.pow(10, (MASTER.truePeakTarget - 0.5) / 20).toFixed(4)}:attack=0.5:release=40:level=false,aresample=48000`, "-c:a", "pcm_s24le", fixed]);
     q = await ebur128(fixed);
+    // Último recurso (limitador insuficiente): bajar ganancia. Prioridad: no recortar antes que clavar −16 LUFS.
+    if (q.truePeak > MASTER.truePeakCheck || q.clipped > 0) {
+      const safe = path.join(dir, "master-safe.wav");
+      await ffmpeg(["-y", "-v", "error", "-i", fixed, "-af", `volume=${(MASTER.truePeakTarget - q.truePeak - 0.3).toFixed(2)}dB`, "-c:a", "pcm_s24le", safe]);
+      return { master: safe, ...(await ebur128(safe)), track };
+    }
     return { master: fixed, ...q, track };
   }
   return { master, ...q, track };

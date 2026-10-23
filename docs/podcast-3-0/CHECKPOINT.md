@@ -7,5 +7,5 @@
 - [x] 2 Tests (18 puros + 5 render) + demos
 - [x] 3 UI asistente + API + worker + migración propuesta
 - [x] 4 Workflow podcast-3-0-e2e (typecheck, regression, render+demos, e2e 1–10); E2E caso 10 local 37/37
-- [ ] 5 PR borrador + CI verde
+- [~] 5 PR #189 borrador abierto; E2E 105/105 en CI; corregido QC (falsos recortes por downmix → máster mono + limitador)
 - [ ] 6 Evidencia Drive + informe + solicitud de auditoría + comentario PR

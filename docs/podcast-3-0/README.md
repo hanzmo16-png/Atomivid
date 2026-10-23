@@ -15,7 +15,7 @@
 
 ## Audio
 - Biblioteca musical propia CC0 (8 ambientes, cortinas, ambientes) — `assets/podcast-music/LICENSE.md`. Corrige que en producción no había música (faltaba `PODCAST_MUSIC_DIR`): el flujo 2.x usa esta biblioteca cuando la variable no existe.
-- Ducking por sidechain, fundidos, cortinas, ambiente; máster a **−16 LUFS, pico real ≤ −1 dBTP, sin recortes** (loudnorm en dos pasadas + verificación ebur128).
+- Ducking por sidechain, fundidos, cortinas, ambiente; máster mono a **−16 LUFS, pico real ≤ −1 dBTP, sin recortes** (ganancia lineal + limitador sobremuestreado a −3 dBFS, verificado con ebur128 en el MP4 final).
 - Las pruebas verifican que la música **está presente** (energía en las pausas ≥ 15 dB por encima de la versión sin música).
 
 ## Planificador editorial
