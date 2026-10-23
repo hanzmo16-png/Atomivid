@@ -10,7 +10,9 @@ export type ReelVoice = {
 export type ReelVoiceCatalog = { storageScope?: string; enabled: boolean; voices: ReelVoice[]; defaultPreviewUrl: string | null; defaultName?: string | null };
 
 // Public Voice Library voices already approved for this product. Private clones need an explicit server grant.
-const APPROVED_LIBRARY_VOICES = new Set(["uYlzyj2kIZo3HfBB21vF", "TbvhqFC7AApJv7hnNvmY"]);
+// cCYjmrGZaI86GUJ7F2Nn = "David - Audiobook & Documentary" (professional library voice, American English): the
+// narrator of the published Thermopylae documentary (Storage video-004-thermopylae/narration/S1..S9 and voice/setup.json).
+const APPROVED_LIBRARY_VOICES = new Set(["uYlzyj2kIZo3HfBB21vF", "TbvhqFC7AApJv7hnNvmY", "cCYjmrGZaI86GUJ7F2Nn"]);
 export const validVoiceId = (id: string) => /^[A-Za-z0-9]{8,64}$/.test(id);
 export const REEL_TTS_MODEL = "eleven_multilingual_v2";
 
@@ -30,10 +32,13 @@ export function reelVoiceChoices(voices: AccountVoice[], language: "es" | "en", 
   // Private clones: only the granted viewer, only when trained for the model in use. No preview needed (it may not exist).
   const mine = unique.filter(v => isPrivateVoice(v) && canUsePrivateVoice(v.voiceId, ctx.viewer, ctx.env) && supportsModel(v, model))
     .sort(byLanguage).map(toChoice("private"));
-  const publicVoices = unique.filter(v => !isPrivateVoice(v) && v.previewUrl
-    && (v.category === "premade" || APPROVED_LIBRARY_VOICES.has(v.voiceId)))
-    .sort(byLanguage).slice(0, 3).map(v => toChoice(v.category === "premade" ? "stock" : "library")(v));
-  return [...mine, ...publicVoices];
+  // Approved library voices are always offered (they were chosen for this product); the cap of three applies to the
+  // provider's premade stock only, so an approved narrator can never be pushed out by alphabetical order.
+  const library = unique.filter(v => !isPrivateVoice(v) && v.previewUrl && v.category !== "premade" && APPROVED_LIBRARY_VOICES.has(v.voiceId))
+    .sort(byLanguage).map(toChoice("library"));
+  const stock = unique.filter(v => !isPrivateVoice(v) && v.previewUrl && v.category === "premade")
+    .sort(byLanguage).slice(0, 3).map(toChoice("stock"));
+  return [...mine, ...library, ...stock];
 }
 
 /** Empty/absent means the unchanged legacy voice. Never silently replace an explicit selection. */

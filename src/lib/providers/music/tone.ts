@@ -47,7 +47,9 @@ const STYLE_TONE_MAP: Record<string, MusicTone[]> = {
 const TONE_KEYWORDS: Record<MusicTone, string[]> = {
   motivational: ["motivacion", "supera", "logra", "meta", "disciplina", "motivation", "achieve", "goal"],
   corporate: ["negocio", "empresa", "startup", "finanzas", "productividad", "business", "company", "finance"],
-  cinematic: ["cine", "pelicula", "dramatico", "epico", "historia de", "cinematic", "epic", "movie"],
+  // Battle/empire vocabulary (2026-10-23): a war documentary otherwise scored no cinematic signal at all.
+  cinematic: ["cine", "pelicula", "dramatico", "epico", "historia de", "cinematic", "epic", "movie",
+    "batalla", "guerra", "ejercito", "imperio", "guerrero", "battle", "war", "army", "empire", "warrior", "legion"],
   inspirational: ["inspira", "superacion", "sueño", "transforma", "inspire", "dream", "transform"],
   tension: ["miedo", "terror", "oscuro", "misterio", "peligro", "horror", "fear", "dark", "mystery", "suspenso"],
   reflective: ["reflexion", "calma", "piensa", "consciencia", "mindfulness", "reflect", "calm"],

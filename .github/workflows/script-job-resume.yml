@@ -1,0 +1,41 @@
+name: Reanudar un guion Long Form (autorizado por el propietario)
+# Puts ONE failed script job back in the queue after a deployed fix and dispatches the normal worker.
+# No generation here: the worker replays every saved paid response for free. Preconditions are checked
+# against the current row (see src/lib/video/long-form/script-job-resume.ts). Manual dispatch only.
+on:
+  workflow_dispatch:
+    inputs:
+      job_id: { description: "documentary_script_jobs.id (uuid completo)", required: true, type: string }
+      expected_error_code: { description: "Código de error que viste en la app", required: true, type: string }
+      expected_retry_count: { description: "retry_count actual", required: true, type: string }
+      confirm: { description: "Escribe RESUME-<primeros 8 caracteres del job>", required: true, type: string }
+permissions:
+  contents: write
+concurrency:
+  group: script-job-resume-${{ inputs.job_id }}
+  cancel-in-progress: false
+jobs:
+  resume:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Requeue (fail-closed preconditions, compare-and-swap)
+        run: npx tsx scripts/resume-script-job.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          JOB_ID: ${{ inputs.job_id }}
+          EXPECTED_ERROR_CODE: ${{ inputs.expected_error_code }}
+          EXPECTED_RETRY_COUNT: ${{ inputs.expected_retry_count }}
+          CONFIRM: ${{ inputs.confirm }}
+      - name: Dispatch the normal script worker
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_ID: ${{ inputs.job_id }}
+        run: |
+          gh api repos/${{ github.repository }}/dispatches -f event_type=prepare-documentary-script -F "client_payload[jobId]=$JOB_ID"
