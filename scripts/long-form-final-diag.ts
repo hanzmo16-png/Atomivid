@@ -10,6 +10,8 @@ import { connectResolved } from "./lib/supabase-db";
 import { scriptJobSignature, SCRIPT_JOB_PATH } from "../src/lib/video/long-form/script-job-auth";
 import { editorialBlockers } from "../src/lib/video/long-form/editorial";
 import { evaluateNarrationDuration } from "../src/lib/video/long-form/duration-budget";
+import { creativeDirectionIssues } from "../src/lib/video/long-form/creative-direction";
+import { assertOriginalHook, usesBannedOpener } from "../src/lib/video/long-form/originality";
 
 const out = process.env.DIAG_OUT ?? "diag.jsonl";
 const h10 = (s: string) => createHash("sha256").update(String(s)).digest("hex").slice(0, 10);
@@ -108,7 +110,27 @@ async function schema() {
   } finally { await client.end(); }
 }
 
-const steps: Record<string, () => Promise<void>> = { review, schema, migrations, jobs, requests, supply, vercel: vercelProbe };
+async function local() {
+  const s = db();
+  const { data } = await s.from("documentary_script_jobs").select("id,editorial_checkpoint,input").eq("status", "failed").eq("failure_kind", "editorial").order("created_at", { ascending: false }).limit(3);
+  for (const j of (data ?? []) as Record<string, any>[]) {
+    const d = j.editorial_checkpoint, p = d?.script ?? {}, beats = p.beats ?? [], history = (j.input?.creativeHistory ?? []).slice(0, 5);
+    const ids = new Set((d?.researchPack?.sources ?? []).map((x: any) => x.id));
+    const issues: string[] = creativeDirectionIssues(p.creativeDirection, beats, history);
+    try { assertOriginalHook(p.hook); } catch (e) { issues.push("HOOK: " + clip(String((e as Error).message), 120)); }
+    const bad: unknown[] = [];
+    beats.forEach((b: any, i: number) => {
+      if (usesBannedOpener(b.narration)) issues.push(`OPENER@${i}`);
+      for (const c of b.claims ?? []) if ((c.sourceIds ?? []).some((x: string) => !ids.has(x)) || (c.support === "sourced" && !(c.sourceIds ?? []).length)) bad.push({ beat: i, support: c.support, ids: c.sourceIds });
+    });
+    const cd = p.creativeDirection;
+    log("LOCAL", { id: String(j.id).slice(0, 8), history: history.length, issues: issues.map((x) => clip(x, 160)), badClaims: bad.slice(0, 8), sourceIds: [...ids].slice(0, 20),
+      cd: cd ? { finalists: cd.finalists, chosen: cd.chosenAngle, devices: (cd.angles ?? []).map((a: any) => a.device), avoided: cd.avoidedPatterns?.length, protect: (cd.protectInEdit ?? []).map((x: any) => x.beatIndex), cta: cd.closingCta?.beatIndex,
+        quotesOk: [cd.signatureDetail, cd.shareableLine, ...(cd.protectInEdit ?? []), ...(cd.commentMoment ? [cd.commentMoment] : []), ...(cd.closingCta ? [cd.closingCta] : [])].map((x: any) => x && beats[x.beatIndex]?.narration?.includes(x.quote)) } : null });
+  }
+}
+
+const steps: Record<string, () => Promise<void>> = { review, schema, local, migrations, jobs, requests, supply, vercel: vercelProbe };
 (async () => {
   for (const m of (process.argv[2] ?? "").split(",").filter(Boolean)) {
     if (!steps[m]) throw Error(`unknown ${m}`);
