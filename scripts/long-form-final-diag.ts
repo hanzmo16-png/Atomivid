@@ -10,7 +10,7 @@ import { connectResolved } from "./lib/supabase-db";
 import { scriptJobSignature, SCRIPT_JOB_PATH } from "../src/lib/video/long-form/script-job-auth";
 import { editorialBlockers } from "../src/lib/video/long-form/editorial";
 import { evaluateNarrationDuration } from "../src/lib/video/long-form/duration-budget";
-import { creativeDirectionIssues } from "../src/lib/video/long-form/creative-direction";
+import { creativeDirectionIssues, anchorCreativeDirectionQuotes } from "../src/lib/video/long-form/creative-direction";
 import { assertOriginalHook, usesBannedOpener } from "../src/lib/video/long-form/originality";
 
 const out = process.env.DIAG_OUT ?? "diag.jsonl";
@@ -124,7 +124,8 @@ async function local() {
       for (const c of b.claims ?? []) if ((c.sourceIds ?? []).some((x: string) => !ids.has(x)) || (c.support === "sourced" && !(c.sourceIds ?? []).length)) bad.push({ beat: i, support: c.support, ids: c.sourceIds });
     });
     const cd = p.creativeDirection;
-    log("LOCAL", { id: String(j.id).slice(0, 8), history: history.length, issues: issues.map((x) => clip(x, 160)), badClaims: bad.slice(0, 8), sourceIds: [...ids].slice(0, 20),
+    const anchored = creativeDirectionIssues(anchorCreativeDirectionQuotes(p.creativeDirection, beats), beats, history);
+    log("LOCAL", { id: String(j.id).slice(0, 8), history: history.length, afterAnchor: anchored.map((x) => clip(x, 160)), issues: issues.map((x) => clip(x, 160)), badClaims: bad.slice(0, 8), sourceIds: [...ids].slice(0, 20),
       cd: cd ? { finalists: cd.finalists, chosen: cd.chosenAngle, devices: (cd.angles ?? []).map((a: any) => a.device), avoided: cd.avoidedPatterns?.length, protect: (cd.protectInEdit ?? []).map((x: any) => x.beatIndex), cta: cd.closingCta?.beatIndex,
         quotesOk: [cd.signatureDetail, cd.shareableLine, ...(cd.protectInEdit ?? []), ...(cd.commentMoment ? [cd.commentMoment] : []), ...(cd.closingCta ? [cd.closingCta] : [])].map((x: any) => x && beats[x.beatIndex]?.narration?.includes(x.quote)) } : null });
   }

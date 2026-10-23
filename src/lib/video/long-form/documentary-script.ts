@@ -7,7 +7,7 @@ import { CitationRepairSchema, canonicalizeEditorialCitations, invalidEditorialC
  * Requires retrieved excerpts or an externally prepared research pack. One shared
  * rewrite budget covers duration and editorial defects; no audiovisual work here.
  */
-import { CreativeDirectionPromptSchema, LegacyCreativeDirectionPromptSchema, CreativeDirectionSchema, creativeDirectionIssues, CREATIVE_WRITER_RULES, CREATIVE_REVIEWER_RULES, narrativeTiming, type CreativeHistoryEntry } from "./creative-direction";
+import { CreativeDirectionPromptSchema, LegacyCreativeDirectionPromptSchema, CreativeDirectionSchema, creativeDirectionIssues, anchorCreativeDirectionQuotes, CREATIVE_WRITER_RULES, CREATIVE_REVIEWER_RULES, narrativeTiming, type CreativeHistoryEntry } from "./creative-direction";
 import { supplyProtectedAnthropic } from "@/lib/supply/anthropic";
 import { documentaryOutputBudget } from "./script-output-budget";
 import Anthropic from "@anthropic-ai/sdk";
@@ -462,6 +462,7 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
     validateStoryPlan(parsed);
     const evaluation = evaluateNarrationDuration(parsed.beats.reduce((sum, b) => sum + countWords(b.narration), 0), input.targetDurationSeconds);
     const sourceIds = new Set(input.researchPack.sources.map(s => s.id));
+    parsed.creativeDirection = anchorCreativeDirectionQuotes(parsed.creativeDirection, parsed.beats);
     const localIssues: string[] = creativeDirectionIssues(parsed.creativeDirection, parsed.beats, history);
     try { assertOriginalHook(parsed.hook); } catch { localIssues.push("Reemplaza la apertura genérica por una situación concreta."); }
     for (const beat of parsed.beats) {
