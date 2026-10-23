@@ -7,6 +7,7 @@ const log = (t: string, v: unknown) => console.log(t, JSON.stringify(v));
 async function main() {
   const mode = process.env.MODE ?? "read";
   if (mode === "recraft-read") return recraftRead();
+  if (mode === "recraft-prepare") return recraftPrepare();
   const db = createClient(process.env.SUPABASE_URL!.trim(), process.env.SUPABASE_SERVICE_ROLE_KEY!.trim(), { auth: { persistSession: false, autoRefreshToken: false } });
   const { data: jobs } = await db.from("documentary_script_jobs").select("*").order("created_at", { ascending: false }).limit(50);
   const j = (jobs ?? []).find((x: any) => String(x.id).startsWith("e8048599")) as any;
@@ -28,6 +29,21 @@ async function main() {
     }
   } finally { await client.end(); }
 }
+/** Owner-authorised (2026-10-23 15:56): Recraft caps $10/day, $50/month. Written PREPARED, NOT enabled: the fal
+ * balance cannot be read (no FAL_ADMIN_KEY), so the policy stays closed (enabled=false, baseline 0). */
+async function recraftPrepare() {
+  if (process.env.CONFIRM !== "PREPARE-RECRAFT-CAPS") throw Error("confirmation missing");
+  const { client } = await connectResolved();
+  try {
+    const evidence = "2026-10-23 owner authorisation (Leonidas vs Attila): daily cap USD 10, monthly cap USD 50, one call at a time, at most 250 images/day (~USD 0.04 each). "
+      + "Kept DISABLED with baseline 0 until an Admin-scoped FAL_ADMIN_KEY lets the monitor read the real fal.ai balance; caps are ceilings, not spending authorisations.";
+    const r = await client.query(`update public.pi_supply_policies set unit_cost_usd = 1, daily_cap_usd = 10, monthly_cap_usd = 50, max_concurrent = 1, max_daily_calls = 250,
+      evidence = $1, updated_at = now() where provider = 'recraft' and enabled = false and baseline = 0 returning provider, enabled, baseline, unit_cost_usd, daily_cap_usd, monthly_cap_usd, max_concurrent, max_daily_calls`, [evidence]);
+    log("POLICY", r.rows);
+    log("RECRAFT_STATE", (await client.query("select public.pi_supply_state('recraft') s")).rows[0].s);
+  } finally { await client.end(); }
+}
+
 async function recraftRead() {
   const { client } = await connectResolved();
   try {

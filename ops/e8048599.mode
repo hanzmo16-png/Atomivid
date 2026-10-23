@@ -1,2 +1,2 @@
-MODE=recraft-read
-X=2
+MODE=recraft-prepare
+CONFIRM=PREPARE-RECRAFT-CAPS
