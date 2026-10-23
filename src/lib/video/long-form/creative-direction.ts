@@ -40,8 +40,46 @@ export type CreativeDirection = z.infer<typeof CreativeDirectionSchema>;
 export type CreativeHistoryEntry = { topic: string; opening: string; ending: string; device?: string; promise?: string; structure: string[] };
 type Beat = { narration: string; purpose?: string; type?: string };
 
-/** Structural/quote checks complement the critic's semantic judgment; no fabricated originality score. */
-export function creativeDirectionIssues(value: unknown, beats: Beat[], history: CreativeHistoryEntry[] = [], historyCount = history.length): string[] {
+const SINGLE_QUOTES = "'’‘`´", DOUBLE_QUOTES = '"“”«»', DASHES = "—–-";
+/** The exact narration text a creative-direction passage points at, or null when it is not in that beat. A writer that
+ * pulls a sentence out of the narration naturally capitalises its first letter ("Lo que…" for "…y lo que…") or swaps
+ * typographic quotes/dashes/spacing; that is the same passage. A paraphrase or different words never match. */
+export function locateLiteralPassage(narration: string, quote: string): string | null {
+  if (narration.includes(quote)) return quote;
+  const q = quote.trim();
+  if (!q) return null;
+  let pattern = "";
+  for (const ch of q) {
+    if (/\s/.test(ch)) { if (!pattern.endsWith("\\s+")) pattern += "\\s+"; }
+    else if (SINGLE_QUOTES.includes(ch)) pattern += `[${SINGLE_QUOTES}]`;
+    else if (DOUBLE_QUOTES.includes(ch)) pattern += `[${DOUBLE_QUOTES}]`;
+    else if (DASHES.includes(ch)) pattern += `[${DASHES}]`;
+    else pattern += ch.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+  }
+  return narration.match(new RegExp(pattern, "iu"))?.[0] ?? null;
+}
+type Passage = { beatIndex: number; quote: string };
+const passageEntries = (d: CreativeDirection): [string, Passage][] => [["signatureDetail", d.signatureDetail], ["shareableLine", d.shareableLine],
+  ...d.protectInEdit.map((p, i): [string, Passage] => [`protectInEdit[${i}]`, p]),
+  ...(d.commentMoment ? [["commentMoment", d.commentMoment] as [string, Passage]] : []), ...(d.closingCta ? [["closingCta", d.closingCta] as [string, Passage]] : [])];
+/** Rewrites each passage to the exact narration it points at (see locateLiteralPassage). Applied to an approved script
+ * after review, so prompts, cached provider responses and the narration itself are untouched; unlocatable passages stay as they are. */
+export function canonicalizeCreativeDirection<T>(value: T, beats: Beat[]): T {
+  const result = CreativeDirectionSchema.safeParse(value);
+  if (!result.success) return value;
+  const fix = (p: Passage): Passage => { const exact = locateLiteralPassage(beats[p.beatIndex]?.narration ?? "", p.quote); return exact ? { ...p, quote: exact } : p; };
+  const d = structuredClone(value) as T & CreativeDirection;
+  d.signatureDetail = fix(d.signatureDetail); d.shareableLine = fix(d.shareableLine);
+  d.protectInEdit = d.protectInEdit.map(fix);
+  if (d.commentMoment) d.commentMoment = fix(d.commentMoment);
+  if (d.closingCta) d.closingCta = fix(d.closingCta);
+  return d;
+}
+
+/** Structural/quote checks complement the critic's semantic judgment; no fabricated originality score.
+ * With detail, a passage problem names which passage and why, so a correction can fix it (passages-v1 jobs only:
+ * older jobs keep the exact original text so their saved provider responses still replay). */
+export function creativeDirectionIssues(value: unknown, beats: Beat[], history: CreativeHistoryEntry[] = [], historyCount = history.length, opts: { detail?: boolean } = {}): string[] {
   const result = CreativeDirectionSchema.safeParse(value);
   if (!result.success) return ["Completa la dirección creativa con siete ángulos breves y pasajes reales del guion."];
   const d = result.data, issues: string[] = [];
@@ -49,9 +87,11 @@ export function creativeDirectionIssues(value: unknown, beats: Beat[], history: 
     issues.push("Descarta cuatro ángulos y selecciona uno de los tres finalistas distintos.");
   if (new Set(d.angles.map(a => a.device)).size < 4 || new Set(d.angles.map(a => a.premise.trim().toLowerCase())).size !== 7)
     issues.push("Los siete ángulos deben diferir de premisa y explorar al menos cuatro dispositivos narrativos.");
-  const passages = [d.signatureDetail, d.shareableLine, ...d.protectInEdit, ...(d.commentMoment ? [d.commentMoment] : []), ...(d.closingCta ? [d.closingCta] : [])];
-  if (passages.some(p => countWords(p.quote) < 3 || !beats[p.beatIndex]?.narration.includes(p.quote)))
+  const badPassages = passageEntries(d).filter(([, p]) => countWords(p.quote) < 3 || !locateLiteralPassage(beats[p.beatIndex]?.narration ?? "", p.quote));
+  if (badPassages.length && !opts.detail)
     issues.push("Las marcas de edición, el detalle propio, la frase compartible y el cierre deben citar narración literal.");
+  for (const [name, p] of opts.detail ? badPassages : [])
+    issues.push(`creativeDirection.${name} (bloque ${p.beatIndex + 1}) debe copiar palabra por palabra una frase de la narración de ese bloque; ahora dice «${p.quote.slice(0, 160)}», que no aparece allí. Copia la frase exacta o elige otra que sí exista; no cambies la narración para encajarla.`);
   if (new Set(d.protectInEdit.map(p => `${p.beatIndex}:${p.quote}`)).size !== 3)
     issues.push("Selecciona tres momentos distintos que deben preservarse al editar.");
   if (d.closingCta && d.closingCta.beatIndex !== beats.length - 1)
