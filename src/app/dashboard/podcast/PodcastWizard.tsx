@@ -34,6 +34,8 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled }: { voice
   const [status, setStatus] = useState<Status | null>(null);
   const poll = useRef<ReturnType<typeof setInterval> | null>(null);
   // Borrador persistente: volver atrás o recargar no pierde nada.
+  // Hidratación desde localStorage (solo existe en el cliente): un único setState al montar.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setD(loadDraft(localStorage.getItem(WIZARD_STORAGE_KEY))); setLoaded(true); }, []);
   useEffect(() => { if (loaded) localStorage.setItem(WIZARD_STORAGE_KEY, JSON.stringify(d)); }, [d, loaded]);
   const set = (patch: Partial<WizardDraft>) => setD((x) => ({ ...x, ...patch }));
@@ -91,7 +93,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled }: { voice
     const tick = async () => { try { const s = (await api(`/api/podcast/v3/${d.episodeId}`)) as unknown as Status; setStatus(s); if (s.episode.status === "ready" || s.episode.status === "failed") { if (poll.current) clearInterval(poll.current); if (s.episode.status === "ready" && d.step === 10) set({ step: 11 }); } } catch { /* reintenta en el siguiente ciclo */ } };
     void tick(); poll.current = setInterval(tick, 4000);
     return () => { if (poll.current) clearInterval(poll.current); };
-  }, [d.episodeId, d.step]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [d.episodeId, d.step]);
 
   const input = "w-full rounded border border-border-strong bg-surface-raised px-2 py-1 text-sm";
   const choice = (on: boolean) => `rounded-lg border p-3 text-left text-sm ${on ? "border-accent bg-surface" : "border-border"}`;

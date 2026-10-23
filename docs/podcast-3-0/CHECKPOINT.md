@@ -1,13 +1,11 @@
 # CHECKPOINT Podcast 3.0 (Grok)
-- Rama: grok/podcast-3-0 desde claude/atomivid-mvp-setup-0079jv @948557d (rama por defecto/producción; ya contiene #178/#181/#184/#186/#187).
-- Worktree: /workspace/p30/repo (node_modules hardlink de /workspace/p21r/repo).
-- Aviso Drive Solicitudes: T-20261023-0700-grok-01__para-todos__AVISO-PODCAST-3-0.md (id 1pjSijaOmwczXDUVsVOsxwiQ0VYgbM_z1).
-- Notas Drive: migración v2 YA aplicada en prod (ChatGPT ENT-20261022-2200); PRICING 0.2 y PRIVATE_VOICE_GRANTS presentes; PODCAST_V2_ENABLED sin definir.
+- Rama: grok/podcast-3-0 desde claude/atomivid-mvp-setup-0079jv @948557d. Worktree /workspace/p30/repo. E2E local: E2E_HOME=/workspace/p30/e2e E2E_PGPORT=55632 PG_BIN=/workspace/pg17/bin.
+- Aviso Drive Solicitudes id 1pjSijaOmwczXDUVsVOsxwiQ0VYgbM_z1. Entregas 1z8C1ZnE8rh9iUUiEYQrNU-x7VMzCI4SJ, Solicitudes 1WJ4FpKjMvOpn60i3diyy7sL7uDQfZp9W.
 ## Hitos
 - [x] 0 Contexto y aviso
-- [ ] 1 Librería v3 (spec, guion, editorial, música, mezcla, costos, composición, pipeline)
-- [ ] 2 Tests + demos
-- [ ] 3 UI wizard + API + migración propuesta
-- [ ] 4 CI workflow
-- [ ] 5 PR + CI verde
-- [ ] 6 Evidencia Drive + informe + auditoría
+- [x] 1 Librería v3
+- [x] 2 Tests (18 puros + 5 render) + demos
+- [x] 3 UI asistente + API + worker + migración propuesta
+- [x] 4 Workflow podcast-3-0-e2e (typecheck, regression, render+demos, e2e 1–10); E2E caso 10 local 37/37
+- [ ] 5 PR borrador + CI verde
+- [ ] 6 Evidencia Drive + informe + solicitud de auditoría + comentario PR

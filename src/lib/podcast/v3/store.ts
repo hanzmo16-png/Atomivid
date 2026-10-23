@@ -13,24 +13,24 @@ export const STUDIO_COLUMNS = "id,user_id,title,mode,spec,status,estimate,estima
 export type StudioStatus = "draft" | "authorized" | "generating" | "ready" | "failed";
 export type StudioEpisodeRow = { id: string; user_id: string; title: string; mode: string; spec: unknown; status: StudioStatus; estimate: unknown; estimated_usd: number | null; authorized_usd: number | null;
   authorized_at: string | null; run_started_at: string | null; progress: { stage: string; pct: number } | null; result: Record<string, unknown> | null; video_path: string | null; audio_path: string | null; cost_usd: number | null; error: string | null; created_at: string; updated_at: string };
-export class StudioMigrationMissingError extends Error { constructor() { super("Podcast 3.0 requiere aplicar la migración del estudio (pendiente de autorización)."); this.name = "StudioMigrationMissingError"; } }
-const missing = (e: { code?: string; message?: string } | null) => !!e && (e.code === "42P01" || e.code === "PGRST205" || /does not exist|schema cache/i.test(e.message ?? ""));
+export class StudioMigrationMissingError extends Error { detail?: string; constructor(detail?: string) { super("Podcast 3.0 requiere aplicar la migración del estudio (pendiente de autorización)."); this.name = "StudioMigrationMissingError"; this.detail = detail; } }
+const missing = (e: { code?: string; message?: string } | null) => !!e && (e.code === "42P01" || e.code === "PGRST205" || /relation .* does not exist|schema cache/i.test(e.message ?? ""));
 
 export function supabaseStudioLedger(service: SupabaseClient, userId: string): StudioLedger {
   return {
     async get(key) {
       const { data, error } = await service.from(STUDIO_OPS_TABLE).select("*").eq("key", key).maybeSingle();
-      if (missing(error)) throw new StudioMigrationMissingError(); if (error) throw new Error("LEDGER_READ");
+      if (missing(error)) throw new StudioMigrationMissingError(`${error?.code ?? ""} ${error?.message ?? ""}`.trim()); if (error) throw new Error("LEDGER_READ");
       return data ? { key: data.key, owner: data.user_id, episode: data.episode_id, provider: data.provider, op: data.op, state: data.state, reserved_usd: Number(data.reserved_usd), actual_usd: data.actual_usd == null ? null : Number(data.actual_usd), result: data.result ?? undefined } : undefined;
     },
     async put(r: LedgerRow) {
       if (r.owner !== userId) throw new Error("ACCESO_DENEGADO");
       const { error } = await service.from(STUDIO_OPS_TABLE).upsert({ key: r.key, user_id: r.owner, episode_id: r.episode, provider: r.provider, op: r.op, state: r.state, reserved_usd: r.reserved_usd, actual_usd: r.actual_usd, result: r.result ?? null, updated_at: new Date().toISOString() });
-      if (missing(error)) throw new StudioMigrationMissingError(); if (error) throw new Error("LEDGER_WRITE");
+      if (missing(error)) throw new StudioMigrationMissingError(`${error?.code ?? ""} ${error?.message ?? ""}`.trim()); if (error) throw new Error("LEDGER_WRITE");
     },
     async byEpisode(episode) {
       const { data, error } = await service.from(STUDIO_OPS_TABLE).select("*").eq("episode_id", episode).eq("user_id", userId);
-      if (missing(error)) throw new StudioMigrationMissingError(); if (error) throw new Error("LEDGER_READ");
+      if (missing(error)) throw new StudioMigrationMissingError(`${error?.code ?? ""} ${error?.message ?? ""}`.trim()); if (error) throw new Error("LEDGER_READ");
       return (data ?? []).map((d) => ({ key: d.key, owner: d.user_id, episode: d.episode_id, provider: d.provider, op: d.op, state: d.state, reserved_usd: Number(d.reserved_usd), actual_usd: d.actual_usd == null ? null : Number(d.actual_usd), result: d.result ?? undefined }));
     },
   };
@@ -41,10 +41,17 @@ export function supabaseRunGuard(service: SupabaseClient, staleMs = 45 * 60_000)
   return {
     async acquire(episode, token) {
       const uuid = toUuid(token);
-      const stale = new Date(Date.now() - staleMs).toISOString();
-      const { data, error } = await service.from(STUDIO_TABLE).update({ status: "generating", run_token: uuid, run_started_at: new Date().toISOString(), error: null })
-        .eq("id", episode).or(`status.eq.authorized,status.eq.failed,and(status.eq.generating,run_started_at.lt.${stale})`).select("id");
-      if (missing(error)) throw new StudioMigrationMissingError();
+      const cur = await service.from(STUDIO_TABLE).select("status, run_started_at").eq("id", episode).maybeSingle();
+      if (missing(cur.error)) throw new StudioMigrationMissingError(`${cur.error?.code ?? ""} ${cur.error?.message ?? ""}`.trim());
+      if (cur.error || !cur.data) return false;
+      const row = cur.data as { status: string; run_started_at: string | null };
+      const stale = row.status === "generating" && (!row.run_started_at || Date.parse(row.run_started_at) < Date.now() - staleMs);
+      if (!(row.status === "authorized" || row.status === "failed" || stale)) return false;
+      // Compare-and-set: solo gana quien vea el mismo estado (y la misma marca de inicio) que leyó.
+      let q = service.from(STUDIO_TABLE).update({ status: "generating", run_token: uuid, run_started_at: new Date().toISOString(), error: null }).eq("id", episode).eq("status", row.status);
+      q = row.run_started_at ? q.eq("run_started_at", row.run_started_at) : q.is("run_started_at", null);
+      const { data, error } = await q.select("id");
+      if (missing(error)) throw new StudioMigrationMissingError(`${error?.code ?? ""} ${error?.message ?? ""}`.trim());
       return !error && (data?.length ?? 0) === 1;
     },
     async release(episode, token) { await service.from(STUDIO_TABLE).update({ run_token: null }).eq("id", episode).eq("run_token", toUuid(token)); },

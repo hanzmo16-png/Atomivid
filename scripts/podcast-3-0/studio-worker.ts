@@ -67,7 +67,7 @@ export async function runStudioJob(episodeId: string) {
   } catch (e) {
     const msg = e instanceof Error ? e.message.slice(0, 400) : "Error";
     await service.from(STUDIO_TABLE).update({ status: "failed", error: msg, updated_at: new Date().toISOString() }).eq("id", episodeId);
-    console.log("STUDIO_FAILED", e instanceof Error ? e.name : "unknown");
+    console.log("STUDIO_FAILED", e instanceof Error ? e.name : "unknown", e instanceof Error && "detail" in e ? String((e as { detail?: string }).detail ?? "").slice(0, 200) : "");
     throw e;
   }
 }
