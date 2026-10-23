@@ -1,0 +1,234 @@
+/** Podcast 3.0 — pruebas puras (sin red, sin ffmpeg, sin proveedores). */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { StudioSpec, STUDIO_VERSION, validateSpec, voiceAvailability, EL_DURO_VOICE_ID } from "./spec";
+import { parseLabeledScript, narrationTurns, generateConversation, templateConversation, coherenceIssues } from "./script";
+import { planEpisode, planIssues, pickAsset, type VisualAsset } from "./editorial";
+import { estimateEpisodeCost, MemoryLedger, paidOnce, opKey, committedUsd, releaseUndelivered, ProviderRejectedError, BudgetExceededError, UnauthorizedChargeError, UncertainChargeError } from "./cost";
+import { mixGraph, transitionTimes } from "./audio";
+import { shotFrames, wrap, subtitlePages, FPS } from "./compose";
+import { autoMood, trackExpression, BUNDLED_TRACKS, licenseManifest, V2_MOOD_MAP } from "./music-library";
+import { defaultDraft, loadDraft, stepErrors, draftToSpec, draftToV2 } from "./wizard";
+import { studioAction, authorizeAction, type ApiDeps } from "./api";
+import { turnsFor } from "./pipeline";
+import type { AccountVoice } from "@/lib/podcast/voices";
+
+const V = (voiceId: string, name: string, extra: Partial<AccountVoice> = {}): AccountVoice => ({ voiceId, name, category: "premade", language: "es", accent: null, gender: null, previewUrl: null, ...extra } as AccountVoice);
+const VOICES = [V("voiceAnaHost1", "Ana"), V("voiceLuisGuest", "Luis"), V(EL_DURO_VOICE_ID, "duro hans", { category: "cloned", isOwner: true } as Partial<AccountVoice>)];
+const OWNER = { id: "u1", email: "hans@example.com", email_confirmed_at: "2026-01-01" };
+const GRANT = { PRIVATE_VOICE_GRANTS: `${EL_DURO_VOICE_ID}=hans@example.com` };
+const spec = (over: Record<string, unknown> = {}) => StudioSpec.parse({ version: STUDIO_VERSION, mode: "dialogo", title: "T", script: "Ana: Hola, ¿qué tal?\nLuis: Muy bien, gracias por invitarme.\nAna: ¿Qué es Europa?\nLuis: Una luna con océano bajo el hielo.", target_minutes: 1,
+  participants: [{ id: "A", name: "Ana", voice_id: "voiceAnaHost1", avatar: { kind: "existente", avatar_id: "a1" } }, { id: "B", name: "Luis", voice_id: "voiceLuisGuest", avatar: { kind: "existente", avatar_id: "a2" } }],
+  visual: {}, music: {}, budget_usd: 5, ...over });
+
+test("spec: conversación válida; voces iguales, sin avatar y El Duro sin concesión se rechazan", () => {
+  assert.deepEqual(validateSpec(spec(), VOICES, OWNER, {}), []);
+  const same = spec({ participants: [{ id: "A", name: "Ana", voice_id: "voiceAnaHost1", avatar: { kind: "existente", avatar_id: "a" } }, { id: "B", name: "Luis", voice_id: "voiceAnaHost1", avatar: { kind: "existente", avatar_id: "b" } }] });
+  assert.ok(validateSpec(same, VOICES, OWNER, {}).some((i) => /distintas/.test(i.message)));
+  const noAv = spec({ participants: [{ id: "A", name: "Ana", voice_id: "voiceAnaHost1" }, { id: "B", name: "Luis", voice_id: "voiceLuisGuest" }] });
+  assert.ok(validateSpec(noAv, VOICES, OWNER, {}).some((i) => /avatar/.test(i.message)));
+  const duro = spec({ mode: "avatar", participants: [{ id: "A", name: "Hans", voice_id: EL_DURO_VOICE_ID, avatar: { kind: "existente", avatar_id: "a" } }] });
+  assert.ok(validateSpec(duro, VOICES, OWNER, {}).some((i) => /El Duro no está autorizada/.test(i.message)), "sin concesión: rechazada, nunca sustituida");
+  assert.deepEqual(validateSpec(duro, VOICES, OWNER, GRANT), [], "con concesión: válida");
+  assert.ok(validateSpec(duro, VOICES, { ...OWNER, email: "otro@example.com" }, GRANT).length > 0, "otra cuenta: rechazada");
+});
+
+test("spec: El Duro sin concesión aparece como NO disponible (no se oculta ni se sustituye)", () => {
+  const list = voiceAvailability(VOICES, OWNER, {});
+  const d = list.find((v) => v.voiceId === EL_DURO_VOICE_ID);
+  assert.equal(d?.available, false);
+  assert.equal(voiceAvailability(VOICES, OWNER, GRANT).find((v) => v.voiceId === EL_DURO_VOICE_ID)?.available, true);
+  assert.equal(voiceAvailability(VOICES, { ...OWNER, email: "otra@example.com" }, GRANT).some((v) => v.voiceId === EL_DURO_VOICE_ID), false, "concedida a otra cuenta: oculta");
+});
+
+test("spec: foto sin consentimiento explícito no pasa el esquema", () => {
+  assert.throws(() => spec({ participants: [{ id: "A", name: "Ana", voice_id: "voiceAnaHost1", avatar: { kind: "foto", photo_path: "u1/p.jpg", consent: { given: false, at: "x", text: "xxxxxxxxxxxx" } } }] }));
+  assert.throws(() => spec({ participants: [{ id: "A", name: "Ana", voice_id: "voiceAnaHost1", avatar: { kind: "foto", photo_path: "u1/../x.jpg", consent: { given: true, at: "x", text: "xxxxxxxxxxxx" } } }] }));
+});
+
+test("guion: etiquetas de hablante (nombres, A/B, [B], guiones) → turnos A/B con tipo", () => {
+  const p = parseLabeledScript("Ana: Hola a todos.\n— Luis: Gracias, Ana.\nAna: ¿Por qué Europa?\ncontinúa la pregunta\n[Luis]: Porque hay agua.\nAna: Gracias.");
+  assert.ok(p);
+  assert.deepEqual(p.turns.map((t) => t.speaker), ["A", "B", "A", "B", "A"]);
+  assert.equal(p.turns[2].kind, "pregunta");
+  assert.match(p.turns[2].text, /continúa la pregunta/);
+  assert.equal(p.labels.A, "Ana"); assert.equal(p.labels.B, "Luis");
+  assert.equal(parseLabeledScript("Solo un párrafo sin etiquetas."), null);
+  assert.equal(parseLabeledScript("A: uno\nB: dos\nC: tres"), null, "más de dos hablantes no es un diálogo A/B");
+  assert.deepEqual(parseLabeledScript("Luis: hola\nAna: hola", { A: "Ana", B: "Luis" })!.turns.map((t) => t.speaker), ["B", "A"], "los nombres dados mandan");
+});
+
+test("guion: narración con dos voces alterna por párrafo", () => {
+  assert.deepEqual(narrationTurns("uno\n\ndos\n\ntres", 2).map((t) => t.speaker), ["A", "B", "A"]);
+  assert.deepEqual(narrationTurns("uno\n\ndos", 1).map((t) => t.speaker), ["A", "A"]);
+});
+
+test("generador: LLM simulado coherente se usa; si falla o es incoherente, plantilla determinista", async () => {
+  const good = async () => "Ana: Hola, hoy hablamos de volcanes.\nLuis: Gracias por invitarme.\nAna: ¿Qué es un volcán?\nLuis: Una abertura por donde sale magma.\nAna: Gracias.";
+  const r1 = await generateConversation({ topic: "volcanes", hostName: "Ana", guestName: "Luis", minutes: 1 }, good);
+  assert.equal(r1.source, "llm"); assert.equal(r1.turns.length, 5);
+  const r2 = await generateConversation({ topic: "volcanes", hostName: "Ana", guestName: "Luis", minutes: 1 }, async () => { throw new Error("x"); });
+  assert.equal(r2.source, "plantilla"); assert.match(r2.note ?? "", /plantilla/);
+  const r3 = await generateConversation({ topic: "volcanes", hostName: "Ana", guestName: "Luis", minutes: 1 }, async () => "Ana: monólogo\nAna: otro\nAna: más\nAna: y más");
+  assert.equal(r3.source, "plantilla");
+  const t = templateConversation({ topic: "la señal Wow!", hostName: "Ana", guestName: "Luis", minutes: 5 });
+  assert.deepEqual(coherenceIssues(t), []);
+  assert.equal(t[0].kind, "apertura"); assert.equal(t[t.length - 1].kind, "cierre");
+  assert.ok(t.some((x) => x.kind === "pregunta") && t.some((x) => x.kind === "reaccion"));
+  assert.deepEqual(templateConversation({ topic: "x y z", hostName: "A1", guestName: "B1", minutes: 3 }), templateConversation({ topic: "x y z", hostName: "A1", guestName: "B1", minutes: 3 }), "determinista");
+});
+
+const assets: VisualAsset[] = [
+  { id: "f1", query: "europa luna hielo", kind: "foto", tags: ["europa", "luna", "hielo"] },
+  { id: "f2", query: "oceano agua", kind: "foto", tags: ["oceano", "agua", "océano"] },
+  { id: "r1", query: "recreacion europa", kind: "recreacion", tags: ["europa", "oceano"] },
+  { id: "x1", query: "gatos", kind: "foto", tags: ["gatos"] },
+];
+
+test("editorial: material real antes que recreación; nunca imágenes ajenas al turno ni repetidas", () => {
+  assert.equal(pickAsset("La luna Europa tiene hielo", assets, new Set(), true)?.asset.id, "f1");
+  assert.equal(pickAsset("Hablemos de Europa", assets, new Set(["f1"]), true)?.asset.id, "r1");
+  assert.equal(pickAsset("Hablemos de Europa", assets, new Set(["f1"]), false), null);
+  assert.equal(pickAsset("Nada que ver aquí", assets, new Set(), true), null, "sin coincidencias: ninguna (no se fuerza una imagen ajena)");
+  const turns = Array.from({ length: 6 }, (_, i) => ({ id: `T00${i + 1}`, speaker: "A" as const, text: "Europa luna hielo océano agua", kind: "narracion" as const }));
+  const plan = planEpisode({ mode: "narracion", turns, assets, avatarFrequency: 0, avatarMaxSeconds: 20, recreations: true, hasAvatar: { A: false, B: false }, introSeconds: 3 });
+  assert.deepEqual(planIssues(plan), []);
+  assert.equal(new Set(plan.assetsUsed).size, plan.assetsUsed.length);
+  assert.ok(!plan.assetsUsed.includes("x1"), "la imagen de gatos nunca aparece");
+  const rec = plan.shots.find((s) => s.kind === "recreacion");
+  assert.equal(rec?.label, "Recreación", "toda recreación lleva la etiqueta en pantalla");
+  assert.ok(plan.shots.filter((s) => s.turn_id).every((s) => ["imagen", "recreacion", "archivo", "transicion"].includes(s.kind)), "modo A sin avatar");
+});
+
+test("editorial: frecuencia y duración máxima del avatar controlan apariciones; resto del turno → imagen/transición", () => {
+  const turns = Array.from({ length: 10 }, (_, i) => ({ id: `T${String(i + 1).padStart(3, "0")}`, speaker: "A" as const, text: "x".repeat(600) + " europa", kind: "narracion" as const }));
+  const p = planEpisode({ mode: "avatar", turns, assets, avatarFrequency: 0.3, avatarMaxSeconds: 8, recreations: false, hasAvatar: { A: true, B: false } });
+  const av = p.shots.filter((s) => s.kind === "avatar_a");
+  assert.equal(av.length, 3, "30 % de 10 turnos");
+  assert.ok(av.every((s) => s.end - s.start <= 8 + 1e-9));
+  assert.equal(p.shots[0].kind, "avatar_a", "el presentador abre el episodio");
+  assert.deepEqual(planIssues(p), []);
+});
+
+test("editorial: conversación usa sobre el hombro, two-shot y primeros planos sin saltos entre primeros planos", () => {
+  const { turns } = turnsFor(spec());
+  const p = planEpisode({ mode: "dialogo", turns: turns.map((t) => ({ ...t, seconds: 4 })), assets, avatarFrequency: 1, avatarMaxSeconds: 30, recreations: true, hasAvatar: { A: true, B: true } });
+  const kinds = p.shots.map((s) => s.kind);
+  assert.ok(kinds.includes("over_shoulder") && kinds.includes("two_shot"), kinds.join());
+  for (let i = 1; i < kinds.length; i++) assert.ok(!(/avatar_/.test(kinds[i]) && /avatar_/.test(kinds[i - 1]) && kinds[i] !== kinds[i - 1]), `salto ${kinds[i - 1]}→${kinds[i]}`);
+  assert.ok(p.shots.filter((s) => s.kind === "over_shoulder").every((s) => s.facing === s.speaker), "habla quien mira a cámara");
+});
+
+test("costos: desglose voz/avatar/imágenes/video/render con tarifas del código", () => {
+  const plan = planEpisode({ mode: "avatar", turns: [{ id: "T001", speaker: "A", text: "x".repeat(150), kind: "narracion", seconds: 10 }], assets: [], avatarFrequency: 1, avatarMaxSeconds: 60, recreations: false, hasAvatar: { A: true, B: false } });
+  const e = estimateEpisodeCost({ ttsChars: 1000, plan, recreationImages: 2, episodeSeconds: 600, pricing: { elevenLabsUsdPer1kChars: 0.2, scriptInputUsdPer1MTokens: 2, scriptOutputUsdPer1MTokens: 10, renderUsdPerMinute: 0.006, musicUsdPerTrack: 0 } });
+  const by = Object.fromEntries(e.lines.map((l) => [l.concept, l.usd]));
+  assert.equal(by.voz, 0.2); assert.equal(by.avatar, 0.39); assert.equal(by.imagenes, 0.07); assert.equal(by.video, 0); assert.equal(by.render, 0.108);
+  assert.equal(e.totalUsd, 0.768);
+});
+
+test("costos: una llamada por clave; reintento reutiliza; rechazo libera; incierto bloquea; sin autorización o sin presupuesto no llama", async () => {
+  const L = new MemoryLedger();
+  const base = { owner: "u1", episode: "e1", provider: "p", op: "tts", usd: 0.5, budgetUsd: 1, authorized: true };
+  let calls = 0;
+  const call = async () => { calls++; return { result: "file", actualUsd: 0.5 }; };
+  const k1 = opKey({ owner: "u1", episode: "e1", provider: "p", op: "tts", payload: { t: 1 } });
+  assert.equal(k1, opKey({ owner: "u1", episode: "e1", provider: "p", op: "tts", payload: { t: 1 } }));
+  await paidOnce(L, { ...base, key: k1 }, call);
+  const again = await paidOnce(L, { ...base, key: k1 }, call);
+  assert.equal(calls, 1); assert.equal(again.reused, true);
+  await assert.rejects(paidOnce(L, { ...base, key: "k-other-1", usd: 0.6 }, call), BudgetExceededError);
+  assert.equal(calls, 1, "sin presupuesto no se llama al proveedor");
+  await assert.rejects(paidOnce(L, { ...base, key: "k2", authorized: false }, call), UnauthorizedChargeError);
+  await assert.rejects(paidOnce(L, { ...base, key: "k3", usd: 0.1 }, async () => { throw new ProviderRejectedError("429"); }));
+  assert.equal((await L.get("k3"))?.state, "released");
+  await paidOnce(L, { ...base, key: "k3", usd: 0.1 }, async () => ({ result: "ok", actualUsd: 0.1 }));
+  assert.equal((await L.get("k3"))?.state, "settled", "un rechazo sin cargo se puede reintentar");
+  await assert.rejects(paidOnce(L, { ...base, key: "k4", usd: 0.1 }, async () => { throw new Error("timeout"); }));
+  assert.equal((await L.get("k4"))?.state, "uncertain");
+  await assert.rejects(paidOnce(L, { ...base, key: "k4", usd: 0.1 }, call), UncertainChargeError);
+  assert.equal(await committedUsd(L, "e1"), 0.7);
+  await L.put({ key: "k5", owner: "u1", episode: "e1", provider: "p", op: "x", state: "reserved", reserved_usd: 0.2, actual_usd: null });
+  assert.equal(await releaseUndelivered(L, "e1"), 1);
+  assert.equal(await committedUsd(L, "e1"), 0.7, "reserva sin liquidar liberada al no entregar");
+  await assert.rejects(paidOnce(L, { ...base, owner: "intruso", key: k1 }, call), /ACCESO_DENEGADO/);
+});
+
+test("audio: grafo con ducking por sidechain, fundidos, cortinas y ambiente; sin música no hay cama", () => {
+  const g = mixGraph({ total: 60, musicGainDb: -8, stings: true, transitions: [20, 40], ambient: true, music: true }).graph;
+  assert.match(g, /sidechaincompress/); assert.match(g, /afade=t=in/); assert.match(g, /afade=t=out:st=56/);
+  assert.match(g, /adelay=20000\|20000/); assert.match(g, /amix=inputs=6/);
+  const off = mixGraph({ total: 60, musicGainDb: -8, stings: true, transitions: [20], ambient: false, music: false }).graph;
+  assert.doesNotMatch(off, /sidechaincompress|\[1:a\]/); assert.match(off, /amix=inputs=1/);
+  assert.deepEqual(transitionTimes(Array.from({ length: 13 }, (_, i) => ({ turn_id: `T${i}`, speaker: "A", start: i * 10, end: i * 10 + 9 }))), [59.02, 119.02]);
+});
+
+test("música: biblioteca propia CC0 con manifiesto; ambiente automático; puente con Podcast 2.x", () => {
+  assert.equal(BUNDLED_TRACKS.length, 8);
+  for (const t of BUNDLED_TRACKS) { assert.equal(t.license, "CC0 1.0"); assert.ok(licenseManifest().includes(t.file)); assert.match(trackExpression(t), /^0\.08\*/); }
+  assert.equal(autoMood("Un misterio inexplicable: la señal desconocida"), "misterio");
+  assert.equal(autoMood("texto neutro"), "documental");
+  assert.deepEqual(Object.keys(V2_MOOD_MAP).sort(), ["calm", "enthusiasm", "reflection", "revelation", "suspense"]);
+});
+
+test("composición: fotogramas acumulados = duración del audio (sincronía A/V); subtítulos paginados sin perder texto", () => {
+  const shots = [{ start: 0, end: 3.013 }, { start: 3.013, end: 7.5 }, { start: 7.5, end: 12.987 }];
+  const f = shotFrames(shots, 12.987);
+  assert.equal(f.reduce((a, b) => a + b, 0), Math.round(12.987 * FPS));
+  const long = "palabra ".repeat(60).trim();
+  const pages = subtitlePages(long, 40);
+  assert.equal(pages.join(" ").replace(/\n/g, " ").split(" ").length, 60);
+  assert.ok(pages.every((p) => p.split("\n").length <= 2));
+  assert.equal(wrap("a b c", 100), "a b c");
+});
+
+test("asistente: borrador persistente tolerante, validación por paso y especificación", () => {
+  const d = { ...defaultDraft(), mode: "dialogo" as const, count: 2 as const, title: "T", script: "Ana: hola que tal\nLuis: muy bien gracias" };
+  const restored = loadDraft(JSON.stringify({ ...d, step: 4 }));
+  assert.equal(restored.step, 4); assert.equal(restored.title, "T");
+  assert.deepEqual(loadDraft("{roto"), defaultDraft());
+  assert.ok(stepErrors(defaultDraft(), 0, { unavailableVoices: [] }).length);
+  const p4 = stepErrors({ ...d, participants: [{ ...d.participants[0], voice_id: EL_DURO_VOICE_ID }, d.participants[1]] }, 4, { unavailableVoices: [EL_DURO_VOICE_ID] });
+  assert.ok(p4.some((e) => /no está disponible/.test(e)));
+  assert.ok(stepErrors({ ...d, participants: [{ ...d.participants[0], avatar: { kind: "foto", photo_path: "x", consent: false, consent_at: null } }, d.participants[1]] }, 4, { unavailableVoices: [] }).some((e) => /consentimiento/.test(e)));
+  assert.ok(stepErrors(d, 9, { unavailableVoices: [] }).some((e) => /autorizar/.test(e)));
+  const s = draftToSpec({ ...d, participants: [{ ...d.participants[0], name: "Ana", voice_id: "voiceAnaHost1", avatar: { kind: "existente", avatar_id: "a1" } }, { ...d.participants[1], name: "Luis", voice_id: "voiceLuisGuest", avatar: { kind: "existente", avatar_id: "a2" } }] });
+  assert.ok(StudioSpec.safeParse({ version: STUDIO_VERSION, ...s, script: s.script + " suficiente texto" }).success);
+  const v2 = draftToV2({ ...d, mode: "narracion", count: 2, script: "uno largo\n\ndos largo", participants: [{ ...d.participants[0], voice_id: "a" }, { ...d.participants[1], voice_id: "b" }] }, true);
+  assert.equal(v2.production?.mode, "conversation"); assert.match(v2.script, /^A: uno largo\n\nB: dos largo$/);
+  assert.equal(draftToV2({ ...d, mode: "narracion", count: 1 }, false).production, null, "sin v2: flujo 1.x intacto");
+});
+
+const deps = (over: Partial<ApiDeps> = {}): ApiDeps => ({ userId: "u1", viewer: OWNER, voices: async () => VOICES, enabled: true, llm: null,
+  insert: async () => ({ id: "11111111-1111-4111-8111-111111111111" }), load: async () => null, authorize: async () => true, dispatch: async () => true, ...over });
+const body = (s = spec()) => ({ spec: { ...s, version: undefined } });
+
+test("API: guion por plantilla sin LLM; estimación gratis; crear con estudio apagado → 503; sobre presupuesto → 402", async () => {
+  const sc = await studioAction(deps(), { action: "script", topic: "volcanes", hostName: "Ana", guestName: "Luis", minutes: 2 });
+  assert.equal(sc.status, 200); assert.equal(sc.body.source, "plantilla"); assert.match(String(sc.body.script), /^Ana: /);
+  const est = await studioAction(deps(), { action: "estimate", ...body() });
+  assert.equal(est.status, 200); assert.ok((est.body.estimate as { totalUsd: number }).totalUsd > 0);
+  assert.equal((await studioAction(deps({ enabled: false }), { action: "create", ...body() })).status, 503);
+  assert.equal((await studioAction(deps(), { action: "create", ...body(spec({ budget_usd: 0.01 })) })).status, 402);
+  assert.equal((await studioAction(deps({ insert: async () => "missing" }), { action: "create", ...body() })).status, 503, "migración no aplicada: 503, nada se cobra");
+  assert.equal((await studioAction(deps(), { action: "create", ...body() })).status, 200);
+});
+
+test("API: aislamiento — foto o avatar de otra cuenta → 403", async () => {
+  const foreign = spec({ participants: [{ id: "A", name: "Ana", voice_id: "voiceAnaHost1", avatar: { kind: "foto", photo_path: "otro/podcast-studio/photos/x.jpg", consent: { given: true, at: "x", text: "consentimiento explícito" } } }, { id: "B", name: "Luis", voice_id: "voiceLuisGuest", avatar: { kind: "existente", avatar_id: "a2" } }] });
+  assert.equal((await studioAction(deps(), { action: "create", ...body(foreign) })).status, 403);
+  assert.equal((await studioAction(deps({ ownsAvatar: async () => false }), { action: "create", ...body() })).status, 403);
+});
+
+test("API: autorizar exige confirmación explícita, monto ≥ estimación y ≤ presupuesto; sin duplicar", async () => {
+  const row = { id: "e1", user_id: "u1", title: "T", mode: "dialogo", spec: spec(), status: "draft", estimate: {}, estimated_usd: 1, authorized_usd: null, authorized_at: null, run_started_at: null, progress: null, result: null, video_path: null, audio_path: null, cost_usd: null, error: null, created_at: "", updated_at: "" } as const;
+  const D = (over: Partial<ApiDeps> = {}) => deps({ load: async () => ({ ...row }) as never, ...over });
+  assert.equal((await authorizeAction(D(), "e1", { authorizedUsd: 2 })).status, 400, "sin confirmación");
+  assert.equal((await authorizeAction(D(), "e1", { confirm: true, authorizedUsd: 0.5 })).status, 402, "menos que la estimación");
+  assert.equal((await authorizeAction(D(), "e1", { confirm: true, authorizedUsd: 6 })).status, 402, "más que el presupuesto");
+  assert.equal((await authorizeAction(D({ authorize: async () => false }), "e1", { confirm: true, authorizedUsd: 2 })).status, 409, "carrera: CAS perdido");
+  assert.equal((await authorizeAction(D({ load: async () => ({ ...row, status: "generating" }) as never }), "e1", { confirm: true, authorizedUsd: 2 })).status, 409);
+  assert.equal((await authorizeAction(D({ load: async () => ({ ...row, user_id: "otro" }) as never }), "e1", { confirm: true, authorizedUsd: 2 })).status, 404);
+  const ok = await authorizeAction(D(), "e1", { confirm: true, authorizedUsd: 2 });
+  assert.equal(ok.status, 200); assert.equal(ok.body.dispatched, true);
+});

@@ -28,7 +28,10 @@ function worker(id, kind) {
 }
 async function createEpisode(p, o) {
   await p.goto(`${BASE}/dashboard/podcast`);
-  await p.getByLabel("Título").fill(o.title);
+  // Podcast 3.0: el formulario clásico vive dentro de «Formulario clásico» (el asistente es la vista principal).
+  const classic = p.getByText("Formulario clásico (grabación propia, guion A/B)");
+  if (await classic.count()) await classic.click();
+  await p.getByLabel("Título", { exact: true }).fill(o.title);
   if (o.conversation) await p.getByLabel("Conversación (2 participantes)").check();
   if (o.emotional) await p.getByLabel("Emocional (director de voz)").check();
   if (o.music) await p.getByLabel(/Música de fondo/).check();

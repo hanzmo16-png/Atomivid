@@ -52,8 +52,15 @@ export const AMBIENT_FILES = { lluvia: "amb-lluvia.wav", viento: "amb-viento.wav
 
 let pending: Promise<{ dir: string; tracks: BundledTrack[] }> | null = null;
 /** Genera (una vez por proceso/directorio) las pistas, cortinas y ambientes en `dir` y escribe LICENSES.md. */
-export function ensureBundledMusic(dir = path.join(tmpdir(), LIBRARY_VERSION)): Promise<{ dir: string; tracks: BundledTrack[] }> {
+export function ensureBundledMusic(dir = path.join(tmpdir(), LIBRARY_VERSION), only?: Mood[]): Promise<{ dir: string; tracks: BundledTrack[] }> {
+  if (only) return generate(dir, only);
   if (pending && dir === path.join(tmpdir(), LIBRARY_VERSION)) return pending;
+  const p = generate(dir);
+  if (dir === path.join(tmpdir(), LIBRARY_VERSION)) { pending = p; p.catch(() => { pending = null; }); }
+  return p;
+}
+
+function generate(dir: string, only?: Mood[]): Promise<{ dir: string; tracks: BundledTrack[] }> {
   const p = (async () => {
     await mkdir(dir, { recursive: true });
     const make = async (file: string, args: string[]) => {
@@ -63,17 +70,16 @@ export function ensureBundledMusic(dir = path.join(tmpdir(), LIBRARY_VERSION)): 
       await ffmpeg(["-y", "-v", "error", ...args, "-ar", "48000", "-ac", "2", "-c:a", "pcm_s16le", tmp]);
       await rename(tmp, out);
     };
-    for (const tr of BUNDLED_TRACKS)
-      await make(tr.file, ["-f", "lavfi", "-i", `aevalsrc='${trackExpression(tr)}':s=48000:d=${LOOP_SECONDS}`, "-af", "lowpass=f=3200,aecho=0.8:0.6:90|170:0.22|0.12,loudnorm=I=-20:TP=-3:LRA=7"]);
+    for (const tr of BUNDLED_TRACKS.filter((x) => !only || only.includes(x.mood)))
+      await make(tr.file, ["-f", "lavfi", "-i", `aevalsrc='${trackExpression(tr)}':s=48000:d=${LOOP_SECONDS}`, "-af", "lowpass=f=3200,aecho=0.8:0.6:90|170:0.22|0.12,loudnorm=I=-14:TP=-2:LRA=7"]);
     await make(STINGS.intro, ["-f", "lavfi", "-i", "aevalsrc='0.5*sin(2*PI*(110+220*t)*t)*exp(-1.6*t)+0.3*sin(2*PI*55*t)*exp(-3*t)':s=48000:d=2.2", "-af", "afade=t=out:st=1.6:d=0.6,aecho=0.8:0.5:120:0.3,loudnorm=I=-20:TP=-3"]);
     await make(STINGS.transicion, ["-f", "lavfi", "-i", "anoisesrc=d=1.2:c=pink:a=0.4:s=48000", "-af", "highpass=f=400,lowpass=f=5000,afade=t=in:d=0.5,afade=t=out:st=0.6:d=0.6,loudnorm=I=-24:TP=-6"]);
     await make(AMBIENT_FILES.lluvia, ["-f", "lavfi", "-i", "anoisesrc=d=20:c=pink:a=0.3:s=48000:seed=7", "-af", "highpass=f=800,lowpass=f=9000,loudnorm=I=-30:TP=-8"]);
     await make(AMBIENT_FILES.viento, ["-f", "lavfi", "-i", "anoisesrc=d=20:c=brown:a=0.4:s=48000:seed=11", "-af", "lowpass=f=600,volume='0.6+0.4*sin(2*PI*0.08*t)':eval=frame,loudnorm=I=-30:TP=-8"]);
     await make(AMBIENT_FILES.noche, ["-f", "lavfi", "-i", "aevalsrc='0.3*sin(2*PI*4200*t)*gt(sin(2*PI*1.3*t)\\,0.9)+0.1*sin(2*PI*90*t)':s=48000:d=20", "-af", "volume=-22dB"]);
     await writeFile(path.join(dir, "LICENSES.md"), licenseManifest());
-    return { dir, tracks: BUNDLED_TRACKS };
+    return { dir, tracks: BUNDLED_TRACKS.filter((x) => !only || only.includes(x.mood)) };
   })();
-  if (dir === path.join(tmpdir(), LIBRARY_VERSION)) { pending = p; p.catch(() => { pending = null; }); }
   return p;
 }
 
@@ -103,3 +109,14 @@ export function autoMood(text: string): Mood {
 
 /** Puente con Podcast 2.x (narrate-v2): moods del director emocional → pistas propias. Mismo tipo MusicTrack. */
 export const V2_MOOD_MAP: Record<"calm" | "suspense" | "revelation" | "reflection" | "enthusiasm", Mood> = { calm: "documental", suspense: "suspenso", revelation: "misterio", reflection: "nostalgico", enthusiasm: "inspirador" };
+
+/**
+ * Biblioteca para Podcast 2.x (narrate-v2) cuando PODCAST_MUSIC_DIR no existe (caso de producción: el último episodio
+ * real salió sin música). Mismo contrato MusicTrack: archivo presente + listado en LICENSES.md.
+ */
+export async function bundledV2Music(dir?: string): Promise<{ dir: string; library: { file: string; title: string; artist: string; license: "CC0 1.0"; source_url: string; moods: string[] }[] }> {
+  const moods = [...new Set(Object.values(V2_MOOD_MAP))];
+  const r = await ensureBundledMusic(dir ?? path.join(tmpdir(), LIBRARY_VERSION), moods);
+  return { dir: r.dir, library: r.tracks.map((t) => ({ file: t.file, title: t.title, artist: t.author, license: t.license, source_url: "repo:src/lib/podcast/v3/music-library.ts",
+    moods: Object.entries(V2_MOOD_MAP).filter(([, m]) => m === t.mood).map(([k]) => k) })) };
+}
