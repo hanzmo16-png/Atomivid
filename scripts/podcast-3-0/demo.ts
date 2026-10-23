@@ -9,13 +9,16 @@ import { MemoryLedger } from "../../src/lib/podcast/v3/cost";
 import { mockProviders } from "../../src/lib/podcast/v3/mocks";
 import { ebur128, readPcm, rmsDb } from "../../src/lib/podcast/v3/ffmpeg";
 import { NARRACION, AVATAR, DIALOGO } from "./fixtures";
+import { StudioSpec } from "../../src/lib/podcast/v3/spec";
+// Podcast 2.1 «Solo audio»: dos voces, música, sin imágenes (proveedor visual «solo_set»); el entregable es el MP3.
+const SOLO_AUDIO = StudioSpec.parse({ ...NARRACION, title: "Solo audio: la señal Wow!", visual: { ...NARRACION.visual, provider: "solo_set", recreations: false } });
 
 async function main() {
   const out = path.resolve(process.argv[2] ?? "podcast-3-0-demo");
   const small = process.argv[3] !== "full";
   await mkdir(out, { recursive: true });
   const summary: Record<string, unknown>[] = [];
-  for (const [name, spec] of [["modo-a-narracion", NARRACION], ["modo-b-avatar", AVATAR], ["modo-c-dialogo", DIALOGO]] as const) {
+  for (const [name, spec] of [["modo-0-solo-audio", SOLO_AUDIO], ["modo-a-narracion", NARRACION], ["modo-b-avatar", AVATAR], ["modo-c-dialogo", DIALOGO]] as const) {
     const providers = mockProviders();
     const ledger = new MemoryLedger();
     const pf = await preflight(spec, providers);
