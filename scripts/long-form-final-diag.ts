@@ -10,6 +10,8 @@ import { connectResolved } from "./lib/supabase-db";
 import { scriptJobSignature, SCRIPT_JOB_PATH } from "../src/lib/video/long-form/script-job-auth";
 import { editorialBlockers } from "../src/lib/video/long-form/editorial";
 import { evaluateNarrationDuration } from "../src/lib/video/long-form/duration-budget";
+import { documentaryLedgerScopeFor } from "../src/lib/video/long-form/script-jobs";
+import { z } from "zod";
 import { creativeDirectionIssues, anchorCreativeDirectionQuotes } from "../src/lib/video/long-form/creative-direction";
 import { assertOriginalHook, usesBannedOpener } from "../src/lib/video/long-form/originality";
 
@@ -185,7 +187,51 @@ async function watch() {
   void WATCH_JOB;
 }
 
-const steps: Record<string, () => Promise<void>> = { review, schema, local, holds, capacity, costs, watch, migrations, jobs, requests, supply, vercel: vercelProbe };
+function shape(v: unknown, depth = 0): unknown {
+  if (v === null) return "null";
+  if (Array.isArray(v)) return depth > 3 ? `array(${v.length})` : [`array(${v.length})`, v.length ? shape(v[0], depth + 1) : null];
+  if (typeof v === "object") { if (depth > 3) return "object"; const o: Record<string, unknown> = {}; for (const [k, x] of Object.entries(v as object)) o[k] = shape(x, depth + 1); return o; }
+  if (typeof v === "string") return `string(${v.length})`;
+  return typeof v;
+}
+const RepairSchemaCopy = z.object({ firstAnswer: z.object({ delivered: z.boolean(), evidence: z.object({ excerptId: z.string().min(1).max(80) }).strict(), explanation: z.string().min(1).max(1600) }).strict() }).strict();
+async function forensic() {
+  const s = db();
+  const code = process.env.ERROR_CODE ?? "23d86d0a";
+  const { data: jobs } = await s.from("documentary_script_jobs").select("*").eq("error_code", code);
+  const j = (jobs ?? [])[0] as Record<string, any> | undefined;
+  if (!j) return log("FORENSIC", { code, found: false });
+  log("FORENSIC_JOB", { id: String(j.id).slice(0, 8), status: j.status, stage: j.stage, kind: j.failure_kind, lang: j.input?.fields?.language, minutes: j.input?.fields?.durationMinutes, contract: j.input?.referenceContract, writer: j.input?.writerContract,
+    retries: j.retry_count, rounds: j.editorial_rounds, resubmits: j.resubmit_allowance, created: j.created_at, updated: j.updated_at, checkpointPass: j.editorial_checkpoint?.pass, checkpointReview: !!j.editorial_checkpoint?.review,
+    beats: j.editorial_checkpoint?.script?.beats?.length, error: clip(j.error_message, 300) });
+  const scope = documentaryLedgerScopeFor(j as any);
+  const { data: ops } = await s.from("pi_paid_operations").select("*").eq("provider", "anthropic").eq("project_id", scope).order("created_at", { ascending: true });
+  log("FORENSIC_LEDGER", { scope: String(scope).slice(0, 12), ops: ops?.length ?? 0, usd: (ops ?? []).reduce((a: number, o: any) => a + Number(o.committed_usd ?? 0), 0) });
+  for (const [i, o] of ((ops ?? []) as any[]).entries()) {
+    const row: Record<string, unknown> = { i, st: o.status, m: o.method, usd: o.committed_usd, at: o.created_at };
+    if (o.status === "COMMITTED" && o.result_ref && !String(o.result_ref).startsWith("rejected:")) {
+      const { data: f } = await s.storage.from("videos").download(o.result_ref);
+      if (f) {
+        const r = JSON.parse(await f.text());
+        row.model = r.model; row.stop = r.stop_reason; row.out = r.usage?.output_tokens;
+        const t = (r.content ?? []).filter((b: any) => b.type === "text").map((b: any) => b.text ?? "").join("").trim();
+        row.fenced = /^```/.test(t); row.len = t.length;
+        let v: any; try { v = JSON.parse(t.replace(/^```(?:json)?\s*\n([\s\S]*?)\n```$/i, "$1")); row.json = true; } catch { row.json = false; row.head = clip(t.slice(0, 60).replace(/[A-Za-z]/g, "a"), 60); }
+        if (v) {
+          row.keys = Object.keys(v).slice(0, 12);
+          if (v.firstAnswer && Object.keys(v).length <= 3) {
+            const p = RepairSchemaCopy.safeParse(v);
+            row.openingRepair = { valid: p.success, shape: shape(v), issues: p.success ? [] : p.error.issues.map(x => ({ code: x.code, path: x.path, keys: (x as any).keys, expected: (x as any).expected, max: (x as any).maximum })) };
+            row.excerptIdValue = typeof v.firstAnswer?.evidence?.excerptId === "string" ? clip(v.firstAnswer.evidence.excerptId, 40) : null;
+          }
+        }
+      }
+    }
+    log("FORENSIC_OP", row);
+  }
+}
+
+const steps: Record<string, () => Promise<void>> = { forensic, review, schema, local, holds, capacity, costs, watch, migrations, jobs, requests, supply, vercel: vercelProbe };
 (async () => {
   for (const m of (process.argv[2] ?? "").split(",").filter(Boolean)) {
     if (!steps[m]) throw Error(`unknown ${m}`);
