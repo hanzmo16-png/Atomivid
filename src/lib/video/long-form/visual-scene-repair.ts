@@ -2,7 +2,7 @@ import { z } from "zod";
 import { stableHash } from "@/lib/production-intelligence/canonical";
 import { anthropicReservation, ceilLedgerUsd } from "@/lib/supply/anthropic-cost";
 import { getPricingConfig } from "@/lib/billing/pricing";
-import { DocumentaryResponseError, VisualPlanBlockedError, jsonResponseSystem, readDocumentaryJson } from "./json-response";
+import { DocumentaryResponseError, VisualPlanBlockedError, jsonResponseSystem, readDocumentaryJson, validateDocumentaryValue } from "./json-response";
 import type { NarrationExcerpt } from "./narration-catalog";
 
 type Message = Parameters<typeof readDocumentaryJson>[0];
@@ -70,7 +70,7 @@ export async function recoverVisualPlan<T extends { visuals: unknown[] }>(input:
   const response = await input.send(params);
   // Fixed error text: no unknown field names or response content can reach worker logs.
   let replacement: z.infer<typeof schema>;
-  try { replacement = schema.parse(readDocumentaryJson(response)); } catch { throw blocked(); }
+  try { replacement = validateDocumentaryValue(schema, readDocumentaryJson(response)); } catch { throw blocked(); }
   const id = (replacement.scene as { excerptId?: unknown })?.excerptId;
   if (typeof id !== "string" || !eligible.some(e => e.id === id)) throw blocked();
   const repaired = structuredClone(value) as { visuals: unknown[] };

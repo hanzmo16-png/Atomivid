@@ -1,0 +1,55 @@
+name: Editorial format — evidencia del incidente 23d86d0a (sin proveedores)
+# Temporary evidence workflow for this branch only. No provider is contacted (the replay intercepts every
+# provider request and only serves COMMITTED ledger responses); no row or file is written.
+on:
+  push:
+    branches: [claude/editorial-format-root-cause]
+    paths: [ops/editorial-format-evidence.mode]
+permissions:
+  contents: read
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false, fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Annotate helper
+        run: |
+          cat > "$RUNNER_TEMP/ann.js" <<'JS'
+          const [file, tag, mode] = process.argv.slice(2);
+          const t = require("fs").readFileSync(file, "utf8").split("\n");
+          let out = [];
+          if (mode === "tap") { t.forEach((l, i) => { if (/^\s*not ok/.test(l)) out.push(t.slice(i, i + 22).join("\n")); }); out.push(t.filter(l => /^# (tests|pass|fail)/.test(l)).join(" | ")); }
+          else out = t.filter(l => /^(REPLAY|FAIL|STOP)/.test(l));
+          out.slice(0, 9).forEach((b, i) => console.log(`::notice title=${tag}${i}::` + b.slice(0, 3500).replace(/%/g, "%25").replace(/\r/g, "").replace(/\n/g, "%0A")));
+          JS
+      - name: 1) New regression tests against the PREVIOUS production code (e68da2b) — expected to fail
+        run: |
+          set +e
+          mkdir -p "$RUNNER_TEMP/old" && git worktree add -q "$RUNNER_TEMP/old" e68da2b
+          cp src/lib/video/long-form/editorial-format-recovery.test.ts "$RUNNER_TEMP/old/src/lib/video/long-form/"
+          ln -s "$PWD/node_modules" "$RUNNER_TEMP/old/node_modules"
+          (cd "$RUNNER_TEMP/old" && node --import tsx --test --test-reporter=tap src/lib/video/long-form/editorial-format-recovery.test.ts) > old.tap 2>&1
+          node "$RUNNER_TEMP/ann.js" old.tap OLD tap
+      - name: 2) Editorial suite on the corrected code
+        run: |
+          set +e
+          npm run test:editorial -- --test-reporter=tap > new.tap 2>&1; echo "exit=$?"
+          node "$RUNNER_TEMP/ann.js" new.tap NEW tap
+      - name: 3) Offline replay of the real incident job — previous code, then corrected code
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          CINEMATIC_V6_ENABLED_EMAILS: ${{ secrets.CINEMATIC_V6_ENABLED_EMAILS }}
+          REPLAY_JOB: ${{ 'e8048599' }}
+        run: |
+          set +e
+          cp scripts/replay-documentary-job.ts "$RUNNER_TEMP/old/scripts/replay-documentary-job.ts"
+          (cd "$RUNNER_TEMP/old" && npx tsx scripts/replay-documentary-job.ts) 2>&1 | sed 's/^REPLAY/REPLAY old /' > replay.txt
+          npx tsx scripts/replay-documentary-job.ts 2>&1 | sed 's/^REPLAY/REPLAY new /' >> replay.txt
+          REPLAY_JOB= npx tsx scripts/replay-documentary-job.ts 2>&1 | sed 's/^REPLAY/REPLAY all-failed-new /' >> replay.txt
+          node "$RUNNER_TEMP/ann.js" replay.txt RPL lines

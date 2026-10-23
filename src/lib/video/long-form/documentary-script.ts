@@ -12,7 +12,7 @@ import { supplyProtectedAnthropic } from "@/lib/supply/anthropic";
 import { documentaryOutputBudget } from "./script-output-budget";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { jsonResponseSystem, parseDocumentaryResponse, validateDocumentaryValue, DocumentaryResponseError, readDocumentaryJson, allowListedIssuePaths, sceneShapes, VisualPlanBlockedError } from "./json-response";
+import { jsonResponseSystem, parseDocumentaryResponse, validateDocumentaryValue, acceptDocumentaryValue, DocumentaryResponseError, readDocumentaryJson, allowListedIssuePaths, sceneShapes, VisualPlanBlockedError } from "./json-response";
 import { repairVisualAnchors } from "./visual-anchor-repair";
 import { recoverVisualPlan } from "./visual-scene-repair";
 import { readEditorialJson } from "./editorial-json";
@@ -230,7 +230,7 @@ export function parseVisualPlan(response: Parameters<typeof readDocumentaryJson>
     ? (opts.referenceContract ? CinematicLenientVisualsSchema : CinematicParseVisualsSchema)
     : (opts.referenceContract ? ProductLenientVisualsSchema : ProductParseVisualsSchema);
   const value = readDocumentaryJson(response);
-  const parsed = schema.safeParse(value);
+  const parsed = acceptDocumentaryValue(schema, value);
   if (!parsed.success) throw new VisualPlanBlockedError(allowListedIssuePaths(parsed.error, VISUAL_DIAGNOSTIC_KEYS), sceneShapes(value, VISUAL_DIAGNOSTIC_KEYS));
   return parsed.data as z.infer<typeof CinematicLenientVisualsSchema>;
 }

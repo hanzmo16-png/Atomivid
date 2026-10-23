@@ -12,15 +12,18 @@ import { generateDocumentaryScript } from "../src/lib/video/long-form/documentar
 import { parseSources, parseOpenQuestions } from "../src/app/dashboard/long-form/new/parse";
 import { EDITORIAL_VERSION, editorialBlockers, EditorialQualityError } from "../src/lib/video/long-form/editorial";
 import { scriptFailureKind } from "../src/lib/video/long-form/script-jobs";
+import { cinematicV6Enabled } from "../src/lib/video/long-form/cinematic-v6-access";
 
 const h = (s: string) => createHash("sha256").update(s).digest("hex").slice(0, 10);
 async function main() {
   if (process.env.ANTHROPIC_API_KEY || process.env.SUPPLY_GUARD_ENFORCED === "true" || process.env.VERCEL_ENV) throw Error("Offline environment required");
   const db = createClient(process.env.SUPABASE_URL!.trim(), process.env.SUPABASE_SERVICE_ROLE_KEY!.trim(), { auth: { persistSession: false, autoRefreshToken: false } });
-  const jobs = await db.from("documentary_script_jobs").select("id,user_id,input,status").eq("status", "failed");
+  const jobs = await db.from("documentary_script_jobs").select("id,user_id,input,status,retry_count,editorial_rounds").eq("status", "failed");
   if (jobs.error) throw Error("read");
   const originalFetch = globalThis.fetch;
-  for (const job of jobs.data ?? []) {
+  // Optional filter (job id prefix) so one incident can be replayed with production's own per-job options.
+  const only = process.env.REPLAY_JOB?.trim();
+  for (const job of (jobs.data ?? []).filter(j => !only || j.id.startsWith(only))) {
     if (!job.input?.fields) { console.log("REPLAY", JSON.stringify({ job: job.id.slice(0, 8), replayable: false, reason: "no saved input (pre-durable attempt)" })); continue; }
     const fields = job.input.fields;
     const scope = documentarySupplyScope(job.user_id, { ...fields, editorialVersion: EDITORIAL_VERSION, researchVersion: RESEARCH_VERSION, creativeHistory: job.input.creativeHistory,
@@ -48,6 +51,9 @@ async function main() {
       const researchPack = await researchDocumentary({ topic: fields.topic, references: parseSources(fields.sources), openQuestions: parseOpenQuestions(fields.openQuestions) });
       await generateDocumentaryScript({ researchPack, creativeHistory: job.input.creativeHistory, referenceContract: job.input.referenceContract, writerContract: job.input.writerContract,
         mode: "curiosity_documentary", language: fields.language, targetDurationSeconds: Number(fields.durationMinutes) * 60,
+        // Same per-job options as runScriptJobStep (script-jobs.ts), so request fingerprints match production.
+        extraEditorialRounds: job.editorial_rounds ?? 0, allowVisualSceneRepair: (job.retry_count ?? 0) > 0,
+        cinematicV6: await db.auth.admin.getUserById(job.user_id).then(r => cinematicV6Enabled(r.data?.user ?? null)).catch(() => false),
         onStage: async l => { stage = l; stages.push(l); },
         onEditorialApproved: r => { approved = true; blockersAtApproval = editorialBlockers(r.reviews.at(-1)!).length; } });
       outcome = { result: "approved" };

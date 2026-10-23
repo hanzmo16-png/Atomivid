@@ -101,8 +101,69 @@ export function readDocumentaryJson(response: {
   catch { throw new DocumentaryResponseError("El modelo devolvió un documento que no se pudo leer."); }
 }
 
+/** A value that carries no information: null/undefined or a blank string. An empty array or object is NOT
+ * treated as empty: in a repair contract `findings: []` can mean "clear the findings", which must keep failing. */
+function isEmptyValue(value: unknown): boolean {
+  return value === null || value === undefined || (typeof value === "string" && value.trim() === "");
+}
+
+function objectAt(root: unknown, path: readonly PropertyKey[]): Record<string, unknown> | null {
+  let node: unknown = root;
+  for (const key of path) {
+    if (node === null || typeof node !== "object") return null;
+    node = (node as Record<PropertyKey, unknown>)[key];
+  }
+  return node !== null && typeof node === "object" && !Array.isArray(node) ? node as Record<string, unknown> : null;
+}
+
+/**
+ * The ONE lossless normalisation applied before accepting a model's JSON document (incident 23d86d0a,
+ * 2026-10-23: the opening-payoff check answered with every required field valid plus an extra
+ * `evidence.explanation: ""`, and a `.strict()` contract turned a correct, paid answer into a
+ * terminal failure).
+ *
+ * Contracts here are prompt-only (no provider-side grammar), so harmless shape noise is expected.
+ * Exactly one class is recoverable: a key the schema does NOT recognise whose value is null or a blank
+ * string (see isEmptyValue). It carries no information, so removing it cannot change meaning. Everything else
+ * still fails exactly as before: missing or mistyped fields, out-of-range values, unknown enum labels
+ * and unknown keys WITH content (possibly misplaced content). The schema decides which keys are
+ * unknown, so a recognised nullable field (e.g. `commentMoment: null`) is never touched. The input is
+ * not mutated; the committed raw response in the ledger stays byte-identical for audit and replay.
+ */
+export function normalizeRecoverableFormat<T extends z.ZodType>(schema: T, value: unknown): { value: unknown; removed: string[] } {
+  let current = value;
+  const removed: string[] = [];
+  for (let round = 0; round < 8; round++) {
+    const parsed = schema.safeParse(current);
+    if (parsed.success) break;
+    let changed = false;
+    for (const issue of parsed.error.issues) {
+      if (issue.code !== "unrecognized_keys") continue;
+      if (current === value) current = structuredClone(value);
+      const target = objectAt(current, issue.path);
+      if (!target) continue;
+      for (const key of (issue as { keys: string[] }).keys) {
+        if (Object.prototype.hasOwnProperty.call(target, key) && isEmptyValue(target[key])) {
+          delete target[key];
+          removed.push([...issue.path.map(String), "*"].join("."));
+          changed = true;
+        }
+      }
+    }
+    if (!changed) break;
+  }
+  return { value: current, removed };
+}
+
+/** Schema check after the lossless normalisation; logs only structural paths (never key names or values). */
+export function acceptDocumentaryValue<T extends z.ZodType>(schema: T, value: unknown) {
+  const normalized = normalizeRecoverableFormat(schema, value);
+  if (normalized.removed.length) console.warn("[atomivid:documentary-format-normalized]", JSON.stringify(normalized.removed.slice(0, 12)));
+  return schema.safeParse(normalized.value);
+}
+
 export function validateDocumentaryValue<T extends z.ZodType>(schema: T, value: unknown): z.infer<T> {
-  const parsed = schema.safeParse(value);
+  const parsed = acceptDocumentaryValue(schema, value);
   if (!parsed.success) {
     throw new DocumentaryResponseError("La respuesta no cumple el formato editorial requerido.", schemaIssuePaths(parsed.error));
   }

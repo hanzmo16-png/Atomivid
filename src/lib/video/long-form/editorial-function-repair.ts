@@ -20,7 +20,7 @@
  */
 import { z } from "zod";
 import { stableHash } from "@/lib/production-intelligence/canonical";
-import { DocumentaryResponseError, jsonResponseSystem, parseDocumentaryResponse, validateDocumentaryValue } from "./json-response";
+import { DocumentaryResponseError, jsonResponseSystem, parseDocumentaryResponse, validateDocumentaryValue, acceptDocumentaryValue } from "./json-response";
 import { EditorialReviewSchema } from "./editorial";
 import { narrationCatalog } from "./narration-catalog";
 import { LONG_FORM_MAX_BEATS } from "./duration-budget";
@@ -112,7 +112,7 @@ export function functionRepairRequest(input: { original: ReviewResponse; review:
 
 /** Aplica la reparación sobre una COPIA. Exige exactamente las rutas afectadas; nada más cambia. */
 export function applyFunctionRepair(review: unknown, targets: number[], repaired: unknown): unknown {
-  const parsed = FunctionRepairSchema.safeParse(repaired);
+  const parsed = acceptDocumentaryValue(FunctionRepairSchema, repaired);
   if (!parsed.success) throw new EditorialFunctionRepairError(parsed.error.issues.slice(0, 12).map((i) => `${i.code}@repair.${i.path.map(String).join(".")}`));
   const expected = new Set(targets.map((i) => `sections/${i}/function`));
   const seen = new Set<string>();
