@@ -104,3 +104,22 @@ test("A11 retry after interruption: one paid call, same verdict (incident shape)
   const b = await validateOrRepairOpeningReview({ rawReview: raw, script, model: "t", send: send as never });
   assert.equal(paid, 1); assert.deepEqual(a, b); assert.equal(a.firstAnswer.delivered, true);
 });
+
+test("A12 isolate: inner-comma + 12-word mark (PR #190 case) under span anchoring", () => {
+  const s = editorialFixture(); const d = structuredClone(s.creativeDirection);
+  const target = s.beats[2].narration.split(" ").slice(0, 12);
+  d.protectInEdit[1] = { beatIndex: 2, quote: target.slice(0, 6).join(" ") + ", " + target.slice(6).join(" ") + " (abridged)" };
+  const span = longestSharedSpan(s.beats[2].narration, d.protectInEdit[1].quote);
+  const anchored = anchorCreativeDirectionSpans(d, s.beats) as typeof d;
+  console.log("A12", JSON.stringify({ span: span ? span.split(/\s+/).length : null, protect: anchored.protectInEdit.map(p => ({ b: p.beatIndex, literal: s.beats[p.beatIndex].narration.includes(p.quote), words: p.quote.split(/\s+/).length })),
+    distinct: new Set(anchored.protectInEdit.map(p => `${p.beatIndex}:${p.quote}`)).size, issues: creativeDirectionIssues(anchored, s.beats) }));
+});
+
+test("A13 coverage gap: repair contracts parsed outside validateDocumentaryValue keep rejecting empty extra keys", async () => {
+  const { applyVisualAnchorRepair } = await import("./visual-anchor-repair");
+  const catalog = [{ id: "r:b0:w0", beatIndex: 0, quote: "one two three four five" }, { id: "r:b0:w5", beatIndex: 0, quote: "six seven eight nine ten" }];
+  const raw = { visuals: [{ excerptId: "missing", description: "a" }, { excerptId: "r:b0:w5", description: "b" }] };
+  let rejected = false;
+  try { applyVisualAnchorRepair(raw, catalog, [0], { replacements: [{ index: 0, excerptId: "r:b0:w0", reason: "" }] }); } catch { rejected = true; }
+  console.log("A13", JSON.stringify({ visualAnchorEmptyExtraKeyRejected: rejected }));
+});

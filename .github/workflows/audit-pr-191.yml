@@ -30,7 +30,7 @@ jobs:
           const [file, tag, mode] = process.argv.slice(2);
           const t = require("fs").readFileSync(file, "utf8").split("\n");
           let out = [];
-          if (mode === "tap") { t.forEach((l, i) => { if (/^\s*not ok/.test(l)) out.push(t.slice(i, i + 14).join("\n")); }); out.push(t.filter(l => /^# (tests|pass|fail)|A8_SPAN/.test(l)).join(" | ")); }
+          if (mode === "tap") { t.forEach((l, i) => { if (/^\s*not ok/.test(l)) out.push(t.slice(i, i + 14).join("\n")); }); out.push(t.filter(l => /^# (tests|pass|fail)|A8_SPAN|A12|A13/.test(l)).join(" | ")); }
           else out = t.filter(l => /^(REPLAY|RESCATE_REPLAY|BOUNDARY|MARKS|ERR)/.test(l));
           out.slice(0, 9).forEach((b, i) => console.log(`::notice title=${tag}${i}::` + b.slice(0, 3800).replace(/%/g, "%25").replace(/\r/g, "").replace(/\n/g, "%0A")));
           JS
