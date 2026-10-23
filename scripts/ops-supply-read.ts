@@ -8,7 +8,8 @@ async function main() {
   }
   const { data: pol } = await db.from("pi_supply_policies").select("provider,enabled,unit,baseline,daily_cap_usd,monthly_cap_usd").order("provider");
   console.log("POLICY", JSON.stringify(pol));
-  for (const t of ["podcast_studio_episodes", "podcast_studio_operations"]) { const { count, error } = await db.from(t).select("*", { head: true, count: "exact" }); console.log("PODCAST", JSON.stringify({ table: t, exists: !error, rows: count, error: error?.code ?? null })); }
+  for (const t of ["podcast_studio_episodes", "podcast_studio_operations"]) { const r = await db.from(t).select("*", { count: "exact" }).limit(1); console.log("PODCAST", JSON.stringify({ table: t, status: r.status, rows: r.count, error: r.error ? `${r.error.code} ${r.error.message}`.slice(0, 160) : null })); }
+  console.log("PODCAST", JSON.stringify({ dbPassword: !!process.env.SUPABASE_DB_PASSWORD }));
   const { data: eps } = await db.from("podcast_studio_episodes").select("status,mode,created_at,cost_usd").order("created_at", { ascending: false }).limit(10);
   console.log("PODCAST", JSON.stringify({ recentEpisodes: eps }));
   const { data: ops } = await db.from("podcast_studio_operations").select("provider,op,state,reserved_usd,actual_usd,created_at").order("created_at", { ascending: false }).limit(20);
