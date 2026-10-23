@@ -410,7 +410,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     await W().getByLabel("Autorizo el cargo").check(); await snap("paso10a-autorizar");
     await W().getByRole("button", { name: "Generar episodio" }).click();
     await W().getByTestId("wizard-progress").waitFor(); await snap("paso10b-progreso");
-    const row0 = (await db.query("select * from podcast_studio_episodes where user_id=$1 and title=$2 order by created_at desc limit 1", [OWNER.id, m.title])).rows[0];
+    let row0; for (let i = 0; i < 40; i++) { row0 = (await db.query("select * from podcast_studio_episodes where user_id=$1 and title=$2 order by created_at desc limit 1", [OWNER.id, m.title])).rows[0]; if (row0?.status === "authorized") break; await S.p.waitForTimeout(500); }
     ok(`${tag}: episodio autorizado y trabajo despachado`, row0?.status === "authorized" && fs.readFileSync(path.join(E2E, "logs/dispatch.jsonl"), "utf8").slice(disp0).includes(row0.id), row0?.status);
     // Recuperación: recargar a mitad de la generación vuelve al paso Generación con el mismo episodio.
     await S.p.reload(); ok(`${tag}: recarga durante la generación conserva el episodio y el paso`, /Paso 10/.test(await stepTitle()) && await W().getByTestId("wizard-progress").isVisible());

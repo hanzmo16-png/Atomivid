@@ -85,8 +85,9 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
         router.push(`/dashboard/podcast/${String(r.id)}`);
         return;
       }
-      const created = d.episodeId ? { id: d.episodeId } : await api("/api/podcast/v3", { action: "create", spec: draftToSpec(d) });
-      set({ episodeId: String(created.id) });
+      // El borrador creado se guarda aparte: el paso de progreso solo aparece cuando la autorización quedó registrada.
+      const created = d.draftId ? { id: d.draftId } : await api("/api/podcast/v3", { action: "create", spec: draftToSpec(d) });
+      set({ draftId: String(created.id) });
       const r = await api(`/api/podcast/v3/${String(created.id)}`, { confirm: true, authorizedUsd: d.budgetUsd });
       if (r.note) setNote(String(r.note));
       set({ step: STEP.generacion, episodeId: String(created.id) });
@@ -301,7 +302,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
               <p>{status ? (status.episode.status === "failed" ? "No se pudo terminar. No se te cobra un episodio no entregado." : status.episode.status === "ready" ? "Listo" : STAGE[status.episode.progress?.stage ?? ""] ?? "En cola…") : "Iniciando…"}</p>
               <div className="mt-2 h-2 w-full rounded bg-surface"><div className="h-2 rounded bg-accent" style={{ width: `${status?.episode.status === "ready" ? 100 : status?.episode.progress?.pct ?? 2}%` }} /></div>
               {status?.episode.error && <p className="mt-2 text-danger">{status.episode.error}</p>}
-              {status?.episode.status === "failed" && <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={() => { set({ episodeId: null, authorized: false }); }}>Reintentar (no se cobra dos veces lo ya generado)</Button>}
+              {status?.episode.status === "failed" && <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={() => { set({ draftId: d.episodeId, episodeId: null, authorized: false }); }}>Reintentar (no se cobra dos veces lo ya generado)</Button>}
               <p className="mt-2 text-xs text-ink-muted">Puedes cerrar esta página: el episodio sigue generándose y aparecerá en «Tus episodios».</p>
             </div>
           )}

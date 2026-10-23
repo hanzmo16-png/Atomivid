@@ -18,7 +18,7 @@ export type WizardDraft = {
   participants: [WizardParticipant, WizardParticipant];
   set: StudioSet; swap: boolean; subtitles: boolean; avatarFrequency: number; avatarMaxSeconds: number; recreations: boolean;
   musicEnabled: boolean; mood: Mood | "auto"; volumeDb: number; stings: boolean; ambient: "ninguno" | "lluvia" | "viento" | "noche";
-  format: "16:9" | "9:16"; audioExport: "mp3" | "wav"; budgetUsd: number; authorized: boolean; episodeId: string | null;
+  format: "16:9" | "9:16"; audioExport: "mp3" | "wav"; budgetUsd: number; authorized: boolean; episodeId: string | null; draftId?: string | null;
 };
 const P = (name: string): WizardParticipant => ({ name, role: "", gender: "neutro", style: "", personality: "", voice_id: "", voice_kind: "sintetica", avatar: { kind: "ninguno" } });
 export const defaultDraft = (): WizardDraft => ({ step: 0, modality: null, mode: null, language: "es", provider: "pexels", intensity: "media", intro: true, outro: true, ducking: true, title: "", topic: "", script: "", minutes: 5, count: 1, participants: [P("Anfitrión"), P("Invitado")],
