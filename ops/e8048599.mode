@@ -1,2 +1,2 @@
-MODE=replay
+MODE=forensic
 REPLAY_REF=a3222eb
