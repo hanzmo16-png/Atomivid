@@ -25,7 +25,9 @@ test("the critic's own blocking finding on that closing block still blocks it", 
   const { script, review, last } = outroReview();
   review.findings.push({ kind: "padding", severity: "blocking", evidence: [{ beatIndex: last, quote: script.beats[last].narration.split(" ").slice(0, 6).join(" ") }],
     explanation: "El cierre rellena sin aportar.", repair: "Acórtalo." });
-  assert.equal(editorialBlockers(review).length, 1);
+  const blockers = editorialBlockers(review);
+  assert.ok(blockers.some(b => b.includes("El cierre rellena sin aportar.")));
+  assert.ok(blockers.some(b => b.includes(`bloque ${last + 1}`)), "the closing exemption no longer applies");
 });
 
 test("a restatement in the middle, or a closing block far from the resolution, still blocks", () => {
@@ -48,7 +50,9 @@ test("editing marks with typographic/edge/case differences are re-anchored to th
   d.shareableLine.quote = `“${exact.replace(/'/g, "’").toUpperCase()}.”`;
   assert.ok(creativeDirectionIssues(d, s.beats).length, "precondition: the unanchored mark fails the literal check");
   const anchored = anchorCreativeDirectionQuotes(d, s.beats);
-  assert.equal(anchored.shareableLine.quote, exact);
+  // The original span is returned (edge punctuation of the model's copy is not part of the match).
+  assert.ok(s.beats[anchored.shareableLine.beatIndex].narration.includes(anchored.shareableLine.quote));
+  assert.equal(anchored.shareableLine.quote, exact.replace(/[\s"'.,;:!?]+$/, ""));
   assert.deepEqual(creativeDirectionIssues(anchored, s.beats), []);
   assert.deepEqual(s.beats, original, "narration is never modified");
 });
