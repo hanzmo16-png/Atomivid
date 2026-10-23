@@ -48,27 +48,33 @@ $D -c "insert into public.podcast_episodes(user_id,title,source,script,voice_id)
 # Episodios v2 que la reversión debe dejar sin poder cobrar (borrador con video programado; listo)
 $D -c "insert into public.podcast_episodes(id,user_id,title,source,script,voice_id,status,video_status,scheduled_at,budget_usd,production) values
  ('11111111-0000-4000-8000-0000000000a3','$U1','v2 programado','tts','A: hola\n\nB: adiós','v1','draft','scheduled',now(),5,'$PV'),
- ('11111111-0000-4000-8000-0000000000a4','$U1','v2 listo','tts','A: hola','v1','ready','none',null,3,'$PV')"
+ ('11111111-0000-4000-8000-0000000000a4','$U1','v2 listo','tts','A: hola','v1','ready','none',null,3,'$PV'),
+ ('11111111-0000-4000-8000-0000000000a5','$U1','v2 generando','tts','A: hola','v1','generating','none',null,3,'$PV')"
 # Rollback
 $D -c "create table bk as select id,production,production_timeline from public.podcast_episodes where production is not null or production_timeline is not null"
 $D -f $RB >/dev/null && $D -f $RB >/dev/null && ok "rollback aplica y es re-ejecutable" || bad "rollback"
 [ "$(SNAP)" = "$H0" ] && ok "filas v1 intactas tras rollback" || bad "v1 cambiadas tras rollback"
 [ "$($D -c "select count(*) from public.podcast_episodes where id='11111111-0000-4000-8000-0000000000a2'")" = 1 ] && ok "episodio v2 sobrevive al rollback como fila (sin producción)" || bad "episodio v2 perdido"
-[ "$($D -c "select count(*) from public.podcast_episodes_v2_rollback_backup")" = 3 ] && ok "rollback guarda copia de producción v2" || bad "sin copia"
+[ "$($D -c "select count(*) from public.podcast_episodes_v2_rollback_backup")" = 4 ] && ok "rollback guarda copia de producción v2" || bad "sin copia"
 [ "$($D -c "select status||'/'||video_status||'/'||budget_usd||'/'||source||'/'||coalesce(script,'-') from public.podcast_episodes where id='11111111-0000-4000-8000-0000000000a3'")" = "failed/blocked/0.0000/upload/-" ] && ok "v2 programado neutralizado (fallido, video bloqueado, presupuesto 0, sin guion TTS)" || bad "v2 programado sigue generable"
 [ "$($D -c "select status||'/'||budget_usd||'/'||source from public.podcast_episodes where id='11111111-0000-4000-8000-0000000000a4'")" = "ready/0.0000/upload" ] && ok "v2 listo conserva su entrega con presupuesto 0" || bad "v2 listo"
+[ "$($D -c "select status from public.podcast_episodes where id='11111111-0000-4000-8000-0000000000a5'")" = "failed" ] && ok "v2 «generando» huérfano pasa a fallido" || bad "v2 generando atascado"
 [ "$($D -c "select prev_status||'/'||prev_video_status||'/'||prev_budget_usd||'/'||prev_source||'/'||prev_script from public.podcast_episodes_v2_rollback_backup where id='11111111-0000-4000-8000-0000000000a3'")" = "draft/scheduled/5.0000/tts/A: hola\n\nB: adiós" ] && ok "estado previo guardado en la copia" || bad "estado previo perdido"
 [ "$($D -c "select relrowsecurity from pg_class where oid='public.podcast_episodes_v2_rollback_backup'::regclass")" = t ] && ok "copia con RLS activa" || bad "copia sin RLS"
 CB=$($D -c "begin; set local role authenticated; set local request.jwt.claim.sub='$U1'; select count(*) from public.podcast_episodes_v2_rollback_backup; commit;" 2>&1 || true) ; CB=$(echo "$CB" | tail -1); case "$CB" in 0|*denied*) ok "authenticated no lee la copia ($CB)";; *) bad "copia legible: $CB";; esac
 echo "INFO antes sin copia: rollback DESTRUCTIVO para datos v2: $($D -c "select count(*) from bk") fila(s) con production/timeline se pierden si no hay copia previa"
 [ "$POL0" = "$($D -c "select string_agg(policyname||cmd||array_to_string(roles,',')||coalesce(qual,''),'|' order by policyname) from pg_policies where tablename='podcast_episodes'")" ] && ok "RLS igual tras rollback" || bad "RLS tras rollback"
 # Re-aplicar y restaurar desde copia
-REST="update public.podcast_episodes e set production=b.production, production_timeline=b.production_timeline, source=b.prev_source, script=b.prev_script, status=b.prev_status, video_status=b.prev_video_status, budget_usd=b.prev_budget_usd, error=b.prev_error from public.podcast_episodes_v2_rollback_backup b where b.id=e.id"
-$D -f $MIG >/dev/null 2>&1 && $D -c "update public.podcast_episodes e set production=b.production, production_timeline=b.production_timeline, source=b.prev_source, script=b.prev_script, status=b.prev_status, video_status=b.prev_video_status, budget_usd=b.prev_budget_usd, error=b.prev_error from public.podcast_episodes_v2_rollback_backup b where b.id=e.id" && ok "re-migrar + restaurar copia" || bad "re-migrar"
-[ "$($D -c "select count(*) from public.podcast_episodes where production is not null")" = 3 ] && ok "datos v2 restaurados desde copia" || bad "restauración"
-[ "$($D -c "select status||'/'||video_status||'/'||budget_usd||'/'||source from public.podcast_episodes where id='11111111-0000-4000-8000-0000000000a3'")" = "draft/scheduled/5.0000/tts" ] && ok "estado previo restaurado" || bad "estado previo no restaurado"
+REST="update public.podcast_episodes e set production=b.production, production_timeline=b.production_timeline, source=b.prev_source, script=b.prev_script, status=case when b.prev_status='generating' then 'failed' else b.prev_status end, video_status=case when b.prev_video_status in ('scheduled','queued') then 'blocked' else b.prev_video_status end, budget_usd=b.prev_budget_usd, error=b.prev_error from public.podcast_episodes_v2_rollback_backup b where b.id=e.id and e.error=b.marker"
+# Ventana de reversión: el dueño sube su grabación a un episodio neutralizado (el código 1.x lo permite): la restauración no lo toca.
+$D -c "update public.podcast_episodes set status='ready', audio_path='u1/rec.m4a', error=null where id='11111111-0000-4000-8000-0000000000a4'"
+$D -f $MIG >/dev/null 2>&1 && $D -c "$REST" && ok "re-migrar + restaurar copia" || bad "re-migrar"
+[ "$($D -c "select count(*) from public.podcast_episodes where production is not null")" = 3 ] && ok "datos v2 restaurados desde copia (solo filas aún neutralizadas)" || bad "restauración"
+[ "$($D -c "select source||'/'||status||'/'||audio_path from public.podcast_episodes where id='11111111-0000-4000-8000-0000000000a4'")" = "upload/ready/u1/rec.m4a" ] && ok "fila cambiada durante la reversión se conserva" || bad "restauración pisó un cambio del dueño"
+[ "$($D -c "select status||'/'||video_status||'/'||budget_usd||'/'||source||'/'||coalesce(scheduled_at::text,'-') from public.podcast_episodes where id='11111111-0000-4000-8000-0000000000a3'")" = "draft/blocked/5.0000/tts/-" ] && ok "estado previo restaurado (video programado vuelve bloqueado, sin hora)" || bad "estado previo no restaurado"
 # Segundo ciclo: tras restaurar, el episodio avanza (listo, presupuesto 20); otra reversión debe guardar ESE estado.
 $D -c "update public.podcast_episodes set status='ready', video_status='ready', budget_usd=20, error=null where id='11111111-0000-4000-8000-0000000000a3'"
+$D -c "update public.podcast_episodes set production='$PV' where id='11111111-0000-4000-8000-0000000000a4'"
 $D -f $RB >/dev/null && $D -f $MIG >/dev/null 2>&1 && $D -c "$REST" >/dev/null
 [ "$($D -c "select status||'/'||video_status||'/'||budget_usd from public.podcast_episodes where id='11111111-0000-4000-8000-0000000000a3'")" = "ready/ready/20.0000" ] && ok "segundo ciclo de reversión restaura el estado más reciente" || bad "segundo ciclo restaura estado viejo"
 echo "RESUMEN fallos=$FAILS"
