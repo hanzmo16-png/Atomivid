@@ -1,0 +1,36 @@
+name: Long Form 15 min — diagnóstico (solo lectura)
+on:
+  push:
+    branches: [claude/long-form-15min-readiness]
+    paths: [ops/long-form-readiness.mode]
+permissions:
+  contents: read
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      CINEMATIC_V6_ENABLED_EMAILS: ${{ secrets.CINEMATIC_V6_ENABLED_EMAILS }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Diagnose and replay
+        run: |
+          set +e
+          mode=$(head -1 ops/long-form-readiness.mode | tr -d '[:space:]')
+          for step in ${mode//,/ }; do
+            case $step in
+              state) npx tsx scripts/long-form-readiness-diag.ts ;;
+              replay) REPLAY_JOB=${JOB:-e8048599} npx tsx scripts/replay-documentary-job.ts ;;
+              *) [ -f "scripts/$step.ts" ] && npx tsx "scripts/$step.ts" ;;
+            esac
+          done > out.txt 2>&1
+          node -e '
+            const t=require("fs").readFileSync("out.txt","utf8").split("\n").filter(l=>/^(JOB|REQUEST|REPLAY|BOUNDARY|MARKS|FAILED|DIAG|\[documentary\]|\[atomivid)/.test(l));
+            t.slice(0,40).forEach((b,i)=>console.log("::notice title=R"+i+"::"+b.slice(0,3800).replace(/%/g,"%25")));
+            if(!t.length) console.log("::notice title=R0::"+require("fs").readFileSync("out.txt","utf8").slice(-3000).replace(/%/g,"%25").replace(/\n/g,"%0A"));'
