@@ -1,0 +1,77 @@
+name: Auditoría independiente PR 191 (solo lectura, sin proveedores)
+on:
+  push:
+    branches: [claude/audit-pr-191]
+    paths: [audit/**, .github/workflows/audit-pr-191.yml]
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PR_SHA: 43b865d
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false, fetch-depth: 0 }
+      - name: Worktree of the audited SHA (PR files are never modified in the repository)
+        run: |
+          git fetch -q origin grok/rescate-motor-editorial claude/editorial-format-root-cause
+          git worktree add -q "$RUNNER_TEMP/pr" "$PR_SHA"
+          git worktree add -q "$RUNNER_TEMP/p190" origin/claude/editorial-format-root-cause
+          git -C "$RUNNER_TEMP/pr" log --oneline -1
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+        working-directory: ${{ runner.temp }}/pr
+      - name: Helper
+        run: |
+          cat > "$RUNNER_TEMP/ann.js" <<'JS'
+          const [file, tag, mode] = process.argv.slice(2);
+          const t = require("fs").readFileSync(file, "utf8").split("\n");
+          let out = [];
+          if (mode === "tap") { t.forEach((l, i) => { if (/^\s*not ok/.test(l)) out.push(t.slice(i, i + 14).join("\n")); }); out.push(t.filter(l => /^# (tests|pass|fail)|A8_SPAN/.test(l)).join(" | ")); }
+          else out = t.filter(l => /^(REPLAY|RESCATE_REPLAY|BOUNDARY|MARKS|ERR)/.test(l));
+          out.slice(0, 9).forEach((b, i) => console.log(`::notice title=${tag}${i}::` + b.slice(0, 3800).replace(/%/g, "%25").replace(/\r/g, "").replace(/\n/g, "%0A")));
+          JS
+      - name: 1) PR's own suites at the audited SHA
+        working-directory: ${{ runner.temp }}/pr
+        run: |
+          set +e
+          npm run test:rescate -- --test-reporter=tap > "$RUNNER_TEMP/rescate.tap" 2>&1
+          npm run test:editorial -- --test-reporter=tap > "$RUNNER_TEMP/editorial.tap" 2>&1
+          node "$RUNNER_TEMP/ann.js" "$RUNNER_TEMP/rescate.tap" RESC tap
+          node "$RUNNER_TEMP/ann.js" "$RUNNER_TEMP/editorial.tap" EDIT tap
+      - name: 2) Adversarial audit tests against the audited SHA
+        working-directory: ${{ runner.temp }}/pr
+        run: |
+          set +e
+          cp "$GITHUB_WORKSPACE/audit/pr191-adversarial.test.ts" src/lib/video/long-form/zz-audit-adversarial.test.ts
+          node --import tsx --test --test-reporter=tap src/lib/video/long-form/zz-audit-adversarial.test.ts > "$RUNNER_TEMP/adv.tap" 2>&1
+          node "$RUNNER_TEMP/ann.js" "$RUNNER_TEMP/adv.tap" ADV tap
+      - name: 3) PR #190 regression tests against the audited SHA (equivalence check)
+        working-directory: ${{ runner.temp }}/pr
+        run: |
+          set +e
+          cp "$RUNNER_TEMP/p190/src/lib/video/long-form/editorial-format-recovery.test.ts" src/lib/video/long-form/zz-p190.test.ts
+          node --import tsx --test --test-reporter=tap src/lib/video/long-form/zz-p190.test.ts > "$RUNNER_TEMP/p190.tap" 2>&1
+          node "$RUNNER_TEMP/ann.js" "$RUNNER_TEMP/p190.tap" P190 tap
+      - name: 4) Real-data replay (read-only; COMMITTED ledger responses only; any new call is a boundary)
+        working-directory: ${{ runner.temp }}/pr
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          CINEMATIC_V6_ENABLED_EMAILS: ${{ secrets.CINEMATIC_V6_ENABLED_EMAILS }}
+        run: |
+          set +e
+          RESCATE_CONFIRM_READ_ONLY=1 npx tsx scripts/rescate-replay-incident.ts --job=e8048599 > "$RUNNER_TEMP/replay.txt" 2>&1
+          cp "$GITHUB_WORKSPACE/audit/replay-documentary-job.ts" scripts/zz-audit-replay.ts
+          sed -i 's/anchorCreativeDirectionQuotes(d, beats)/anchorCreativeDirectionSpans(d, beats)/; s/import { anchorCreativeDirectionQuotes, creativeDirectionIssues }/import { anchorCreativeDirectionSpans, creativeDirectionIssues }/' scripts/zz-audit-replay.ts
+          for j in e8048599 dbc89879 290de42b; do REPLAY_JOB=$j npx tsx scripts/zz-audit-replay.ts 2>&1 | sed "s/^REPLAY/REPLAY pr191 /" >> "$RUNNER_TEMP/replay.txt"; done
+          grep -v "^\(REPLAY\|RESCATE\|BOUNDARY\|MARKS\)" "$RUNNER_TEMP/replay.txt" | head -5 | sed 's/^/ERR /' >> "$RUNNER_TEMP/replay.txt"
+          node "$RUNNER_TEMP/ann.js" "$RUNNER_TEMP/replay.txt" RPL lines
+      - name: 5) Modality isolation (who imports the changed modules)
+        working-directory: ${{ runner.temp }}/pr
+        run: |
+          r=$(grep -rln "response-normalizer\|long-form/json-response\|./json-response" src scripts --include=*.ts --include=*.tsx | grep -v "long-form/" | tr '\n' ' ')
+          echo "::notice title=ISO::importers outside long-form: [${r}]"
