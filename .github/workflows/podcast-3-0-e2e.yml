@@ -11,7 +11,7 @@ on:
   pull_request:
     branches: [claude/atomivid-mvp-setup-0079jv, main]
   push:
-    branches: ["grok/podcast-3-*"]
+    branches: ["grok/podcast-3-*", "grok/podcast-estudio-*"]
     paths:
       - ".github/workflows/podcast-3-0-e2e.yml"
       - "scripts/podcast-3-0/**"

@@ -7,7 +7,7 @@
  */
 export type Speaker = "A" | "B";
 export type Turn = { id: string; speaker: Speaker; text: string; kind: TurnKind };
-export type TurnKind = "pregunta" | "respuesta" | "comentario" | "reaccion" | "narracion" | "apertura" | "cierre";
+export type TurnKind = "pregunta" | "respuesta" | "comentario" | "reaccion" | "narracion" | "apertura" | "cierre" | "desacuerdo" | "transicion";
 
 export const turnId = (i: number) => `T${String(i + 1).padStart(3, "0")}`;
 
@@ -15,6 +15,8 @@ export function classifyTurn(text: string, i: number, n: number): TurnKind {
   const t = text.trim();
   if (i === 0) return "apertura";
   if (i === n - 1) return "cierre";
+  if (/^(no estoy de acuerdo|discrepo|no del todo|yo no (lo )?dir[ií]a|perdona,? pero|no creo que)/i.test(t)) return "desacuerdo";
+  if (/^(volviendo a|pasemos a|cambiando de tema|y otra cosa|hablemos ahora)/i.test(t)) return "transicion";
   if (/[?¿]/.test(t)) return "pregunta";
   if (t.length < 40 && /^(¡|wow|vaya|increíble|claro|exacto|no puede ser|qué|ja)/i.test(t)) return "reaccion";
   return t.length > 160 ? "respuesta" : "comentario";
@@ -59,7 +61,7 @@ export function narrationTurns(text: string, voices: 1 | 2): Turn[] {
 }
 
 export type LlmFn = (prompt: string) => Promise<string>;
-export type GenerateInput = { topic: string; hostName: string; guestName: string; guestRole?: string; minutes: number; language?: "es" | "en" };
+export type GenerateInput = { topic: string; hostName: string; guestName: string; guestRole?: string; minutes: number; language?: "es" | "en"; hostPersonality?: string; guestPersonality?: string };
 
 /** ~150 palabras habladas por minuto; turnos de 25–60 palabras. */
 export const WORDS_PER_MINUTE = 150;
@@ -69,7 +71,8 @@ export function conversationPrompt(i: GenerateInput): string {
     `Escribe un guion de podcast en español latinoamericano sobre: «${i.topic}».`,
     `Participantes: ${i.hostName} (anfitrión) y ${i.guestName}${i.guestRole ? ` (${i.guestRole})` : ""}.`,
     `Duración aproximada: ${i.minutes} minutos (~${i.minutes * WORDS_PER_MINUTE} palabras).`,
-    "Formato estricto: una línea por turno, «Nombre: texto». Alterna preguntas, respuestas, comentarios y reacciones breves.",
+    ...(i.hostPersonality || i.guestPersonality ? [`Personalidades: ${i.hostName}: ${i.hostPersonality || "neutral"}; ${i.guestName}: ${i.guestPersonality || "neutral"}.`] : []),
+    "Formato estricto: una línea por turno, «Nombre: texto». Alterna preguntas, respuestas, comentarios, reacciones breves, al menos un desacuerdo razonado y transiciones entre bloques.",
     "Coherencia: cada turno responde al anterior. No inventes citas ni datos verificables; si algo es especulación, dilo.",
     "Abre con una presentación y cierra con una despedida.",
   ].join("\n");
@@ -86,8 +89,10 @@ export function templateConversation(i: GenerateInput): Turn[] {
   const blocks: [Speaker, string][][] = [
     [["A", `Empecemos por lo básico: ¿qué es lo primero que alguien debería saber sobre ${t}?`],
      ["B", `Que no es tan simple como parece. Hay hechos documentados y hay mucha especulación alrededor; conviene separarlos desde el principio.`],
-     ["A", "Interesante. Esa distinción entre lo comprobado y lo que se supone es clave."]],
-    [["A", `¿Cuál fue el momento que cambió la forma en que entendemos ${t}?`],
+     ["A", "Interesante. Esa distinción entre lo comprobado y lo que se supone es clave."],
+     ["B", "No del todo: a veces lo que se supone también merece atención, siempre que se diga que es una hipótesis."],
+     ["A", "Discrepo un poco, pero acepto el matiz: lo importante es no venderlo como un hecho."]],
+    [["A", `Pasemos a la historia. ¿Cuál fue el momento que cambió la forma en que entendemos ${t}?`],
      ["B", "Hubo un punto de inflexión: cuando aparecieron registros que se podían revisar de forma independiente. A partir de ahí la conversación se volvió más seria."],
      ["A", "¡Vaya! No lo había visto así."]],
     [["A", "¿Y qué es lo que todavía no sabemos?"],

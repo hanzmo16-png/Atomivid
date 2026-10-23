@@ -12,6 +12,7 @@ import { keywords, type VisualAsset } from "./editorial";
 import { estimateHeygenCost } from "@/lib/providers/avatar/heygen";
 import { getPricingConfig } from "@/lib/billing/pricing";
 import type { StudioEpisodeRow } from "./store";
+import { requireProvider, ProviderUnavailableError, visualProviders, lipTimeline, shotCoverage } from "./studio";
 
 /** Proveedores de PLANIFICACIÓN (sin red, sin costo): solo para estimar; nunca generan medios. */
 export function planningProviders(): Providers {
@@ -31,6 +32,7 @@ export type ApiDeps = {
   dispatch: (id: string) => Promise<boolean>;
   /** El avatar existente pertenece al usuario y está listo (aislamiento por usuario). */
   ownsAvatar?: (avatarId: string) => Promise<boolean>;
+  env?: Record<string, string | undefined>;
 };
 type Out = { status: number; body: Record<string, unknown> };
 const DISABLED: Out = { status: 503, body: { error: "Los modos de estudio (avatar y conversación) se activan tras autorizar la migración y PODCAST_V3_ENABLED. La narración sigue disponible." } };
@@ -42,13 +44,15 @@ export async function studioAction(d: ApiDeps, body: Record<string, unknown> | n
     if (topic.length < 3) return { status: 400, body: { error: "Escribe un tema de al menos 3 caracteres." } };
     const minutes = Math.min(30, Math.max(1, Number(b.minutes) || 5));
     const host = String(b.hostName ?? "Anfitrión").slice(0, 60) || "Anfitrión", guest = String(b.guestName ?? "Invitado").slice(0, 60) || "Invitado";
-    const r = await generateConversation({ topic, hostName: host, guestName: guest, guestRole: String(b.guestRole ?? "").slice(0, 120), minutes }, b.useAi === true ? d.llm : null);
+    const r = await generateConversation({ topic, hostName: host, guestName: guest, guestRole: String(b.guestRole ?? "").slice(0, 120), minutes, hostPersonality: String(b.hostPersonality ?? "").slice(0, 160), guestPersonality: String(b.guestPersonality ?? "").slice(0, 160) }, b.useAi === true ? d.llm : null);
     const names = { A: host, B: guest };
     return { status: 200, body: { script: r.turns.map((t) => `${names[t.speaker]}: ${t.text}`).join("\n"), source: r.source, note: r.note ?? null, turns: r.turns.length } };
   }
   const parsed = StudioSpec.safeParse({ ...((b.spec as object) ?? {}), version: STUDIO_VERSION });
   if (!parsed.success) return { status: 400, body: { error: parsed.error.issues[0]?.message ?? "Datos inválidos.", path: parsed.error.issues[0]?.path } };
   const spec: Spec = parsed.data;
+  // Proveedor visual elegido: si no está disponible se rechaza con el motivo; nunca se sustituye en silencio.
+  try { requireProvider(spec.visual.provider, d.env ?? process.env); } catch (e) { if (e instanceof ProviderUnavailableError) return { status: 409, body: { error: e.message, provider: spec.visual.provider } }; throw e; }
   let voices: AccountVoice[];
   try { voices = await d.voices(); } catch { return { status: 503, body: { error: "No se pudieron consultar las voces; inténtalo más tarde." } }; }
   const issues = validateSpec(spec, voices, d.viewer);
@@ -59,7 +63,10 @@ export async function studioAction(d: ApiDeps, body: Record<string, unknown> | n
   }
   const pf = await preflight(spec, planningProviders());
   const estimate = { lines: pf.estimate.lines, totalUsd: pf.estimate.totalUsd, assumptions: pf.estimate.assumptions, turns: pf.turns.length, mood: pf.mood,
-    shots: pf.plan.shots.reduce<Record<string, number>>((m, s) => ({ ...m, [s.kind]: (m[s.kind] ?? 0) + 1 }), {}), overBudget: pf.estimate.totalUsd > spec.budget_usd };
+    shots: pf.plan.shots.reduce<Record<string, number>>((m, s) => ({ ...m, [s.kind]: (m[s.kind] ?? 0) + 1 }), {}), overBudget: pf.estimate.totalUsd > spec.budget_usd,
+    byProvider: pf.estimate.lines.reduce<Record<string, number>>((m, l) => ({ ...m, [l.provider]: Math.round(((m[l.provider] ?? 0) + l.usd) * 1e4) / 1e4 }), {}),
+    providers: visualProviders(d.env ?? process.env), lipTimeline: lipTimeline(pf.plan).slice(0, 40), coverage: shotCoverage(pf.plan),
+    turnList: pf.turns.slice(0, 60).map((t) => ({ id: t.id, speaker: t.speaker, kind: t.kind, text: t.text.slice(0, 140) })) };
   if (b.action === "estimate") return { status: 200, body: { estimate } };
   if (b.action === "create") {
     if (!d.enabled) return DISABLED;

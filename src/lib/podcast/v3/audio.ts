@@ -46,24 +46,27 @@ export type MixOptions = {
   musicDir: string; enabled: boolean; mood: Mood; volumeDb: number; stings: boolean; ambient: "ninguno" | keyof typeof AMBIENT_FILES;
   /** Momentos (s) de transición de bloque donde suena la cortina corta (nunca encima de voz: se colocan en pausas). */
   transitions: number[]; duckDb?: number;
+  /** Podcast 2.1 estudio: ducking bajo el diálogo (por defecto sí), cortina de entrada y de cierre. */
+  ducking?: boolean; intro?: boolean; outro?: boolean;
 };
 
 /** Grafo de mezcla (exportado para pruebas sin ffmpeg). Entradas: 0 voz, 1 música, 2 cortina, 3 transición, 4 ambiente. */
-export function mixGraph(o: { total: number; musicGainDb: number; stings: boolean; transitions: number[]; ambient: boolean; music: boolean }): { graph: string; inputs: number } {
+export function mixGraph(o: { total: number; musicGainDb: number; stings: boolean; transitions: number[]; ambient: boolean; music: boolean; ducking?: boolean; intro?: boolean; outro?: boolean }): { graph: string; inputs: number } {
   const g: string[] = [];
   g.push(`[0:a]aresample=48000,pan=stereo|c0=c0|c1=c0,asplit=2[v][sc]`);
   const mixIn = ["[v]"];
   if (o.music) {
     g.push(`[1:a]volume=${o.musicGainDb.toFixed(2)}dB,afade=t=in:d=2.5,afade=t=out:st=${Math.max(0, o.total - 4).toFixed(3)}:d=4[bed]`);
     // Ducking: la música baja bajo la voz (≈10–14 dB) y vuelve en las pausas; ataque/relajación suaves (sin bombeo).
-    g.push(`[bed][sc]sidechaincompress=threshold=0.012:ratio=12:attack=25:release=450:knee=4[duck]`);
-    mixIn.push("[duck]");
+    if (o.ducking !== false) { g.push(`[bed][sc]sidechaincompress=threshold=0.012:ratio=12:attack=25:release=450:knee=4[duck]`); mixIn.push("[duck]"); }
+    else { g.push(`[sc]anullsink`); mixIn.push("[bed]"); }
   } else g.push(`[sc]anullsink`);
   if (o.music && o.stings) {
-    g.push(`[2:a]volume=-3dB[s0]`); mixIn.push("[s0]");
-    if (o.transitions.length) {
-      g.push(`[3:a]asplit=${o.transitions.length}${o.transitions.map((_, i) => `[tr${i}]`).join("")}`);
-      o.transitions.forEach((ts, i) => { const ms = Math.round(ts * 1000); g.push(`[tr${i}]adelay=${ms}|${ms}[td${i}]`); mixIn.push(`[td${i}]`); });
+    if (o.intro !== false) { g.push(`[2:a]volume=-3dB[s0]`); mixIn.push("[s0]"); } else g.push(`[2:a]anullsink`);
+    const trs = o.outro ? [...o.transitions, Math.max(0, o.total - 3)] : o.transitions;
+    if (trs.length) {
+      g.push(`[3:a]asplit=${trs.length}${trs.map((_, i) => `[tr${i}]`).join("")}`);
+      trs.forEach((ts, i) => { const ms = Math.round(ts * 1000); g.push(`[tr${i}]adelay=${ms}|${ms}[td${i}]`); mixIn.push(`[td${i}]`); });
     }
   }
   if (o.ambient) { g.push(`[4:a]volume=-6dB,afade=t=in:d=3,afade=t=out:st=${Math.max(0, o.total - 3).toFixed(3)}:d=3[amb]`); mixIn.push("[amb]"); }
@@ -78,7 +81,7 @@ export async function mixAndMaster(dir: string, voiceFile: string, o: MixOptions
   // Pistas a −14 LUFS; la ganancia lleva la cama a volume_db LUFS antes del ducking.
   const musicGainDb = o.volumeDb - -14;
   const ambient = o.ambient !== "ninguno";
-  const { graph } = mixGraph({ total, musicGainDb, stings: o.stings, transitions: o.transitions, ambient, music: o.enabled });
+  const { graph } = mixGraph({ total, musicGainDb, stings: o.stings, transitions: o.transitions, ambient, music: o.enabled, ducking: o.ducking, intro: o.intro, outro: o.outro });
   const m = (f: string) => path.join(o.musicDir, f);
   const inputs = ["-i", voiceFile,
     "-stream_loop", "-1", "-t", total.toFixed(3), "-i", track ? m(track.file) : m(trackFor("documental").file),

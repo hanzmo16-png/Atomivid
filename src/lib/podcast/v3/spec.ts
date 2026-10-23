@@ -39,6 +39,10 @@ export const StudioParticipant = z.object({
   id: z.enum(["A", "B"]),
   name: z.string().trim().min(1).max(60),
   role: z.string().trim().max(120).default(""),
+  /** Podcast 2.1 estudio: identidad del participante (guía de voz/actuación del guion; no cambia la voz elegida). */
+  gender: z.enum(["femenino", "masculino", "neutro"]).default("neutro"),
+  style: z.string().trim().max(80).default(""),
+  personality: z.string().trim().max(160).default(""),
   voice_id: VoiceId,
   voice_kind: z.enum(["sintetica", "clonada"]).default("sintetica"),
   /** Avatar existente del usuario (id interno o del proveedor), o "foto" con consentimiento explícito. */
@@ -67,6 +71,8 @@ export const StudioSpec = z.object({
     avatar_frequency: z.number().min(0).max(1).default(0.5),
     avatar_max_seconds: z.number().min(3).max(120).default(20),
     recreations: z.boolean().default(true),
+    /** Proveedor visual elegido: nunca se sustituye en silencio (ver providers.ts). */
+    provider: z.enum(["pexels", "recraft", "solo_set"]).default("pexels"),
   }),
   music: z.object({
     enabled: z.boolean().default(true),
@@ -74,6 +80,10 @@ export const StudioSpec = z.object({
     volume_db: z.number().min(-40).max(-12).default(-22),
     stings: z.boolean().default(true),
     ambient: z.enum(AMBIENTS).default("ninguno"),
+    intensity: z.enum(["suave", "media", "alta"]).default("media"),
+    intro: z.boolean().default(true),
+    outro: z.boolean().default(true),
+    ducking: z.boolean().default(true),
   }),
   format: z.enum(["16:9", "9:16"]).default("16:9"),
   audio_export: z.enum(["mp3", "wav"]).default("mp3"),

@@ -188,7 +188,7 @@ test("asistente: borrador persistente tolerante, validación por paso y especifi
   assert.equal(restored.step, 4); assert.equal(restored.title, "T");
   assert.deepEqual(loadDraft("{roto"), defaultDraft());
   assert.ok(stepErrors(defaultDraft(), 0, { unavailableVoices: [] }).length);
-  const p4 = stepErrors({ ...d, participants: [{ ...d.participants[0], voice_id: EL_DURO_VOICE_ID }, d.participants[1]] }, 4, { unavailableVoices: [EL_DURO_VOICE_ID] });
+  const p4 = stepErrors({ ...d, participants: [{ ...d.participants[0], voice_id: EL_DURO_VOICE_ID }, d.participants[1]] }, 3, { unavailableVoices: [EL_DURO_VOICE_ID] }); // paso «Voces»
   assert.ok(p4.some((e) => /no está disponible/.test(e)));
   assert.ok(stepErrors({ ...d, participants: [{ ...d.participants[0], avatar: { kind: "foto", photo_path: "x", consent: false, consent_at: null } }, d.participants[1]] }, 4, { unavailableVoices: [] }).some((e) => /consentimiento/.test(e)));
   assert.ok(stepErrors(d, 9, { unavailableVoices: [] }).some((e) => /autorizar/.test(e)));

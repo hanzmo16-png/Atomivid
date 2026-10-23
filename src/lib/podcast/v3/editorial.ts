@@ -74,7 +74,7 @@ export function planEpisode(input: PlanInput): EditorialPlan {
       const capped = Math.min(dur, input.avatarMaxSeconds);
       if (input.mode === "dialogo" && input.hasAvatar.A && input.hasAvatar.B) {
         // Variedad editorial en conversación: pregunta → sobre el hombro (quien pregunta de espaldas); reacción/comentario corto → two-shot; resto → primer plano.
-        const kind: ShotKind = turn.kind === "pregunta" ? "over_shoulder" : (turn.kind === "reaccion" || turn.kind === "apertura" || turn.kind === "cierre") ? "two_shot" : turn.speaker === "A" ? "avatar_a" : "avatar_b";
+        const kind: ShotKind = turn.kind === "pregunta" ? "over_shoulder" : (turn.kind === "reaccion" || turn.kind === "apertura" || turn.kind === "cierre" || turn.kind === "transicion") ? "two_shot" : turn.speaker === "A" ? "avatar_a" : "avatar_b";
         shot = { kind, facing: turn.speaker, reason: kind === "two_shot" ? "Plano de conversación (two-shot) compuesto: los dos avatares en el set." : kind === "over_shoulder" ? "Sobre el hombro compuesto: habla quien mira a cámara." : "Primer plano de quien habla." };
       } else shot = { kind: turn.speaker === "A" ? "avatar_a" : "avatar_b", reason: "El avatar presenta este turno." };
       // Duración máxima por aparición: el resto del turno pasa a imagen relacionada (la voz sigue).

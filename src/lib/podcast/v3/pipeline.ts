@@ -72,7 +72,7 @@ export type Preflight = { turns: Turn[]; names: Record<"A" | "B", string>; plan:
 /** Paso 9 del asistente: plan y costo ANTES de generar (sin llamadas de pago; búsqueda de imágenes gratuita). */
 export async function preflight(spec: StudioSpec, providers: Providers): Promise<Preflight> {
   const { turns, names } = turnsFor(spec);
-  const assets = await gatherAssets(turns, providers.images, spec.title, spec.visual.recreations);
+  const assets = spec.visual.provider === "solo_set" ? [] : await gatherAssets(turns, providers.images, spec.title, spec.visual.recreations);
   const plan = planEpisode({ mode: spec.mode, turns, assets, avatarFrequency: spec.mode === "narracion" ? 0 : spec.visual.avatar_frequency, avatarMaxSeconds: spec.visual.avatar_max_seconds,
     recreations: spec.visual.recreations, hasAvatar: { A: hasAvatar(spec, "A"), B: hasAvatar(spec, "B") }, introSeconds: INTRO_SECONDS });
   const ttsChars = turns.reduce((n, t) => n + t.text.length, 0);
@@ -127,7 +127,7 @@ export async function runEpisode(spec: StudioSpec, ctx: { owner: string; episode
     // 3) Música y master.
     progress("musica", 40);
     const musicDir = (await ensureBundledMusic(ctx.musicDir)).dir;
-    const mix = await mixAndMaster(ctx.dir, voice.file, { musicDir, enabled: spec.music.enabled, mood: pf.mood, volumeDb: spec.music.volume_db, stings: spec.music.stings, ambient: spec.music.ambient, transitions: transitionTimes(voice.timeline) });
+    const mix = await mixAndMaster(ctx.dir, voice.file, { musicDir, enabled: spec.music.enabled, mood: pf.mood, volumeDb: spec.music.volume_db, stings: spec.music.stings || spec.music.intro || spec.music.outro, ambient: spec.music.ambient, transitions: spec.music.stings ? transitionTimes(voice.timeline) : [], ducking: spec.music.ducking, intro: spec.music.intro, outro: spec.music.outro });
     const audioOut = path.join(ctx.dir, `episodio.${spec.audio_export}`);
     await exportAudio(mix.master, audioOut, spec.audio_export);
     // 4) Planos: avatar (de pago, por turno, recortado a la duración máxima), imágenes, recreaciones, composición.

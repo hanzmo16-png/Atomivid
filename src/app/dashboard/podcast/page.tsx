@@ -12,6 +12,7 @@ import { NewEpisode } from "./NewEpisode";
 import { PodcastWizard, type WizardAvatar } from "./PodcastWizard";
 import { voiceAvailability } from "@/lib/podcast/v3/spec";
 import { listStudioEpisodes } from "@/lib/podcast/v3/store";
+import { studioFlag, visualProviders } from "@/lib/podcast/v3/studio";
 
 const STUDIO_STATUS: Record<string, string> = { draft: "Borrador", authorized: "Autorizado", generating: "Generando", ready: "Listo", failed: "Con error" };
 const STUDIO_MODE: Record<string, string> = { narracion: "narración", avatar: "avatar", dialogo: "conversación" };
@@ -33,8 +34,13 @@ export default async function PodcastPage() {
   let voices: AccountVoice[] = [], voicesError: string | null = null;
   try { voices = visibleVoices(await listAccountVoices(), user); } catch (e) { voicesError = e instanceof VoicesUnavailableError ? e.customerMessage : "No se pudieron consultar las voces."; }
 
-  const v3Enabled = process.env.PODCAST_V3_ENABLED === "1";
-  const studioEpisodes = v3Enabled ? (await listStudioEpisodes(service, user.id)) ?? [] : [];
+  // Estudio visible: PODCAST_V3_ENABLED=1 o Vercel Preview (por defecto). La GENERACIÓN solo con PODCAST_V3_ENABLED=1
+  // (exige la migración propuesta): en Preview el flujo completo se recorre y estima, pero no despacha trabajos.
+  const flag = studioFlag();
+  const v3Enabled = flag.enabled;
+  const generationEnabled = process.env.PODCAST_V3_ENABLED === "1";
+  const previewNotice = flag.source === "preview" ? "Vista previa (Vercel Preview): el estudio se muestra activado solo aquí. Puedes recorrer los 10 pasos y ver costos; la generación real está desactivada hasta aplicar la migración y PODCAST_V3_ENABLED=1." : null;
+  const studioEpisodes = generationEnabled ? (await listStudioEpisodes(service, user.id)) ?? [] : [];
   const { data: avatarRows } = await service.from("avatars").select("id,name").eq("user_id", user.id).eq("status", "ready").order("created_at", { ascending: false }).limit(20);
   const avatars = (avatarRows ?? []) as WizardAvatar[];
   const wizardVoices = voicesError ? [] : voiceAvailability(voices, user);
@@ -58,7 +64,7 @@ export default async function PodcastPage() {
         </section>
       )}
       {voicesError && <p className="mt-3 text-sm text-danger">{voicesError}</p>}
-      <PodcastWizard voices={wizardVoices} avatars={avatars} v2Enabled={podcastV2Enabled()} v3Enabled={v3Enabled} />
+      <PodcastWizard voices={wizardVoices} avatars={avatars} v2Enabled={podcastV2Enabled()} v3Enabled={v3Enabled} generationEnabled={generationEnabled} providers={visualProviders()} previewNotice={previewNotice} />
       <details className="mt-4 rounded-lg border border-border p-3">
         <summary className="cursor-pointer text-sm font-medium text-ink">Formulario clásico (grabación propia, guion A/B)</summary>
         <NewEpisode voices={voices} voicesError={voicesError} usdPer1kChars={getPricingConfig().elevenLabsUsdPer1kChars} maxChars={PODCAST_MAX_CHARS} v2Enabled={podcastV2Enabled()} />
