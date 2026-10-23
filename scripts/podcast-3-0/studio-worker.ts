@@ -14,6 +14,7 @@ export async function runStudioJob(episodeId: string) {
   const { STUDIO_TABLE, STUDIO_COLUMNS, supabaseStudioLedger, supabaseRunGuard } = await import("../../src/lib/podcast/v3/store");
   const { StudioSpec } = await import("../../src/lib/podcast/v3/spec");
   const { runEpisode } = await import("../../src/lib/podcast/v3/pipeline");
+  const { lipTimeline, lipViolations, shotCoverage } = await import("../../src/lib/podcast/v3/studio");
   const { realTts, realAvatar, realImages } = await import("../../src/lib/podcast/v3/adapters");
   const { searchScenePhotos } = await import("../../src/lib/ai/footage");
   const { downloadToFile } = await import("../../src/lib/podcast/visual-assets");
@@ -62,7 +63,9 @@ export async function runStudioJob(episodeId: string) {
     const video = await upload(`${base}/episodio.mp4`, r.mp4, "video/mp4");
     const audio = await upload(`${base}/episodio.${spec.audio_export}`, r.audio, spec.audio_export === "mp3" ? "audio/mpeg" : "audio/wav");
     await service.from(STUDIO_TABLE).update({ status: "ready", video_path: video, audio_path: audio, cost_usd: r.spentUsd, progress: { stage: "listo", pct: 100 },
-      result: { duration: r.durationSeconds, lufs: r.lufs, true_peak: r.truePeak, music: r.musicTrack, mood: r.mood, shots: r.plan.shots.map((s) => ({ kind: s.kind, start: s.start, end: s.end, label: s.label ?? null })), providers: r.providers }, error: null, updated_at: new Date().toISOString() }).eq("id", episodeId);
+      result: { duration: r.durationSeconds, lufs: r.lufs, true_peak: r.truePeak, music: r.musicTrack, mood: r.mood, shots: r.plan.shots.map((s) => ({ kind: s.kind, speaker: s.speaker, start: s.start, end: s.end, label: s.label ?? null })), providers: r.providers,
+        // Podcast 2.1: línea de tiempo de labios por segmento y su verificación contra la voz real (nadie habla fuera de su turno).
+        lips: lipTimeline(r.plan).map((x) => ({ start: x.start, end: x.end, shot: x.shot, A: x.lips.A, B: x.lips.B })), lip_violations: lipViolations(lipTimeline(r.plan), r.timeline), coverage: shotCoverage(r.plan) }, error: null, updated_at: new Date().toISOString() }).eq("id", episodeId);
     console.log("STUDIO_READY", JSON.stringify({ usd: r.spentUsd, paid: r.paidOps, reused: r.reusedOps }));
   } catch (e) {
     const msg = e instanceof Error ? e.message.slice(0, 400) : "Error";

@@ -96,7 +96,7 @@ export function planEpisode(input: PlanInput): EditorialPlan {
       shot = { ...shot, kind: "over_shoulder", facing: turn.speaker, reason: "Cambio de hablante encadenado: sobre el hombro para no saltar entre primeros planos." };
     shots.push({ turn_id: turn.id, speaker: turn.speaker, start, end, ...shot });
     lastKind = shot.kind; t = end;
-    if (i === n - 1 && used.size === 0 && input.mode === "narracion") issues.push("Ninguna imagen relacionada: revisa las búsquedas visuales.");
+    if (i === n - 1 && used.size === 0 && input.mode === "narracion" && input.assets.length > 0) issues.push("Ninguna imagen relacionada: revisa las búsquedas visuales.");
   });
   const ids = shots.filter((s) => s.asset_id).map((s) => s.asset_id!);
   if (new Set(ids).size !== ids.length) issues.push("Imagen repetida en el plan.");
