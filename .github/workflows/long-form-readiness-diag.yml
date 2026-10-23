@@ -13,6 +13,8 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       CINEMATIC_V6_ENABLED_EMAILS: ${{ secrets.CINEMATIC_V6_ENABLED_EMAILS }}
+      ELEVENLABS_API_KEY: ${{ contains(github.event.head_commit.message, '[voice-meta]') && secrets.ELEVENLABS_API_KEY || '' }}
+      ELEVENLABS_VOICE_ID: ${{ contains(github.event.head_commit.message, '[voice-meta]') && secrets.ELEVENLABS_VOICE_ID || '' }}
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
