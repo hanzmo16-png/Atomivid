@@ -60,10 +60,10 @@ En el incidente, la comprobación «primera recompensa de la apertura» respondi
 - `.github/workflows/rescate-motor-editorial.yml` (nuevo, Node 22), `package.json` (`test:rescate`, y las nuevas pruebas en `test:unit`/`test:editorial`)
 
 ## 8. Resultados de pruebas (sin llamadas pagadas; proveedores simulados)
-- `test:rescate`: 23/23 (rescue 16 + repro 2 + opening-repair 5 adaptadas).
+- `test:rescate`: 23/23 (editorial-rescue 15 + repro 2 + opening-repair 6, una adaptada a la capa C).
 - Reproducción contra `e68da2b`: **2/2 fallan con «La respuesta no cumple el formato editorial requerido»** (el error de producción); en la rama pasan.
 - `test:editorial` 172/172 · `test:spend` 406/406 · `tsc --noEmit` limpio (tras `next typegen`) · eslint sin errores en archivos tocados.
-- `test:unit` local (Node 20): 2206/2212; los 6 fallos (`recovery-flow`, `attempt-state`) fallan igual en `e68da2b` por falta de WebSocket nativo en Node 20 → ambiental. CI en Node 22: ver enlaces del PR.
+- `test:unit` local (Node 20): 2206/2212; los 6 fallos (`recovery-flow`, `attempt-state`) fallan igual en `e68da2b` por falta de WebSocket nativo en Node 20 → ambiental. **CI en Node 22 (commit a9d519a): suite unitaria completa, tipos y lint verdes.**
 - REAL vs SIMULADO: el borrador y el historial creativo son datos reales persistidos; las respuestas del crítico y de la comprobación son simulaciones con la forma del incidente.
 
 ## 9. Riesgos residuales
@@ -71,3 +71,9 @@ En el incidente, la comprobación «primera recompensa de la apertura» respondi
 
 ## 10. Veredicto
 **GO condicionado para revisión independiente / NO-GO para despliegue inmediato** hasta: (a) ejecutar el replay read-only contra el ledger real; (b) decidir entre esta rama y #190; (c) revisión de un tercero (no me apruebo a mí mismo).
+
+## 11. CI (GitHub Actions, commit a9d519a)
+- Rescate motor editorial (Node 22) — pull_request: success — https://github.com/hanzmo16-png/Atomivid/actions/runs/39989870674 (incluye el paso que exige que e68da2b falle con el error original)
+- Rescate motor editorial (Node 22) — push: success — https://github.com/hanzmo16-png/Atomivid/actions/runs/39989843100
+- E2E fixture evidence (no paid providers): success — https://github.com/hanzmo16-png/Atomivid/actions/runs/39989870740
+- podcast-2-1-e2e: typecheck y regression success; e2e en curso al redactar — https://github.com/hanzmo16-png/Atomivid/actions/runs/39989870840
