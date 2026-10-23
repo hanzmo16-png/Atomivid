@@ -92,7 +92,7 @@ jobs:
         run: |
           set +e
           cp "$GITHUB_WORKSPACE/audit/postdeploy.ts" scripts/zz-postdeploy.ts
-          npx tsx scripts/zz-postdeploy.ts > "$RUNNER_TEMP/post.txt" 2>&1
+          ONLY_DATA=1 npx tsx scripts/zz-postdeploy.ts > "$RUNNER_TEMP/post.txt" 2>&1
           sed -i 's/^\(PROBE\|JOB_E8048599\|PAID_OPS_SINCE_DEPLOY\|RUNNING_SCRIPT_JOBS\|MODE\|PODCAST\|FAILED\)/REPLAY \1/' "$RUNNER_TEMP/post.txt"
           node "$RUNNER_TEMP/ann.js" "$RUNNER_TEMP/post.txt" POST lines
       - name: 5) Modality isolation (who imports the changed modules)

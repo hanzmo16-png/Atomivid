@@ -34,8 +34,9 @@ async function probe(origin: string) {
 }
 async function data() {
   const db = createClient(process.env.SUPABASE_URL!.trim(), key, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: jobs } = await db.from("documentary_script_jobs").select("*").like("id", "e8048599%");
-  const j = (jobs ?? [])[0] as Record<string, any>;
+  const { data: jobs, error: je } = await db.from("documentary_script_jobs").select("*").order("created_at", { ascending: false }).limit(50);
+  if (je) log("JOB_READ_ERROR", { code: je.code, message: je.message.slice(0, 80) });
+  const j = (jobs ?? []).find((x: any) => String(x.id).startsWith("e8048599")) as Record<string, any>;
   if (j) {
     const scope = documentaryLedgerScopeFor(j as never);
     const { data: ops } = await db.from("pi_paid_operations").select("status,committed_usd,created_at").eq("project_id", scope);
@@ -51,10 +52,10 @@ async function data() {
   const { data: stuck } = await db.from("documentary_script_jobs").select("id,status,updated_at").eq("status", "running");
   log("RUNNING_SCRIPT_JOBS", (stuck ?? []).map((s: any) => ({ id: String(s.id).slice(0, 8), updated: s.updated_at })));
   for (const mode of ["visual", "avatar", "long_form"]) {
-    const { data: r } = await db.from("video_requests").select("status,updated_at").eq("mode", mode).order("updated_at", { ascending: false }).limit(5);
-    log("MODE", { mode, last: (r ?? []).map((x: any) => `${x.status}@${String(x.updated_at).slice(0, 16)}`) });
+    const { data: r, error: me } = await db.from("video_requests").select("*").eq("mode", mode).order("created_at", { ascending: false }).limit(4);
+    log("MODE", { mode, error: me?.message?.slice(0, 60), last: (r ?? []).map((x: any) => `${x.status}@${String(x.updated_at ?? x.created_at).slice(0, 16)}`) });
   }
   const { data: pe } = await db.from("podcast_episodes").select("status,video_status,updated_at").order("updated_at", { ascending: false }).limit(5);
   log("PODCAST", (pe ?? []).map((x: any) => `${x.status}/${x.video_status}@${String(x.updated_at).slice(0, 16)}`));
 }
-(async () => { for (const o of ["https://atomicvid.app", "https://atomivid.vercel.app"]) await probe(o); await data(); })().catch(e => { console.error("FAILED", String(e).slice(0, 200)); process.exitCode = 1; });
+(async () => { if (process.env.ONLY_DATA !== "1") for (const o of ["https://atomicvid.app", "https://atomivid.vercel.app"]) await probe(o); await data(); })().catch(e => { console.error("FAILED", String(e).slice(0, 200)); process.exitCode = 1; });
