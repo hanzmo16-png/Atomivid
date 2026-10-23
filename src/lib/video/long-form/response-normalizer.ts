@@ -69,8 +69,8 @@ export function extractJsonDocument(text: string): unknown {
 
 /** Punto ÚNICO de aceptación para todos los contratos de micro-llamadas (revisión, reparaciones de apertura,
  * funciones, anclas visuales, escenas y plan visual): R1 y luego el esquema completo, sin otra tolerancia. */
-export function acceptContract<T extends z.ZodType>(schema: T, value: unknown) {
+export function acceptContract<T extends z.ZodType>(schema: T, value: unknown): z.ZodSafeParseResult<z.output<T>> {
   const normalized = normalizeToContract(schema, value);
   if (normalized.actions.length) console.warn("[atomivid:documentary-format-normalized]", JSON.stringify(normalized.actions.slice(0, 12)));
-  return schema.safeParse(normalized.value) as ReturnType<T["safeParse"]>;
+  return schema.safeParse(normalized.value) as z.ZodSafeParseResult<z.output<T>>;
 }

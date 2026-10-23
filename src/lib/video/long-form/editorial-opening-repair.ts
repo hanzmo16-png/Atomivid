@@ -78,7 +78,7 @@ export class OpeningVerdictContradictionError extends DocumentaryResponseError {
 export function assertNoVerdictContradiction(document: unknown): void {
   const fa = (document as { firstAnswer?: Record<string, unknown> } | null)?.firstAnswer;
   const ev = fa && typeof fa.evidence === "object" && fa.evidence ? fa.evidence as Record<string, unknown> : null;
-  if (!ev) return;
+  if (!fa || !ev) return;
   for (const key of VERDICT_KEYS) if (Object.prototype.hasOwnProperty.call(ev, key) && ev[key] !== null && ev[key] !== "" && ev[key] !== fa[key]) throw new OpeningVerdictContradictionError(key);
 }
 /** Allow-list POR CONTRATO (sustituye al R2 genérico): solo `quote` y `beatIndex` dentro de firstAnswer.evidence,

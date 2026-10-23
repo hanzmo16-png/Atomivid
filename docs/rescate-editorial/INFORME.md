@@ -1,5 +1,7 @@
 # Operación rescate del motor editorial — informe independiente (Grok)
 
+> **Actualización «CIERRE DEFINITIVO PR #191» (2026-10-23):** la sección 12 sustituye a lo que contradiga en las secciones 4, 8, 9 y 10 (R2 genérico retirado, capa C limitada a contenido, umbral 60 %).
+
 Fecha: 2026-10-23 · Rama: `grok/rescate-motor-editorial` (base `e68da2b`, producción con #188) · PR borrador, sin merge ni despliegue.
 
 ## 1. Diagnóstico de causa raíz (en palabras simples)
@@ -77,3 +79,38 @@ En el incidente, la comprobación «primera recompensa de la apertura» respondi
 - Rescate motor editorial (Node 22) — push: success — https://github.com/hanzmo16-png/Atomivid/actions/runs/39989843100
 - E2E fixture evidence (no paid providers): success — https://github.com/hanzmo16-png/Atomivid/actions/runs/39989870740
 - podcast-2-1-e2e: typecheck y regression success; e2e en curso al redactar — https://github.com/hanzmo16-png/Atomivid/actions/runs/39989870840
+
+## 12. Cierre definitivo — respuesta a las auditorías de Claude (comentario en #191) y ChatGPT (ATOMIVID_20261023_1215CUN__chatgpt__AUDITORIA-PR191-MOTOR-EDITORIAL.md)
+
+### ALTO-1 (Claude) / P0 (ChatGPT): R2 descartaba contenido con significado → RESUELTO
+- R2 genérico **eliminado** de `response-normalizer.ts`. La normalización genérica es SOLO R1 (clave desconocida null/blanco).
+- Allow-list **por contrato** en `editorial-opening-repair.ts` (`dropVerifiedEvidenceEchoes`): solo `quote` y `beatIndex` dentro de `firstAnswer.evidence`, y solo si coinciden con el texto y el bloque del `excerptId` en el catálogo. Un eco distinto se conserva y el esquema estricto lo rechaza.
+- Contradicción explícita (`assertNoVerdictContradiction`): si la evidencia trae una clave de veredicto (`delivered`, `resolvesPromise`, `severity`, `function`, `supported`, `verified`, `verdict`, `approved`) con valor distinto del veredicto padre → `OpeningVerdictContradictionError` (técnico, issue `contradiction@firstAnswer.evidence.delivered`). Nunca se borra la contradicción y nunca se aprueba.
+- Una apertura que el modelo declaró fallida (`delivered=false`) nunca se convierte en aprobada y conserva la explicación del modelo.
+- Pruebas: `editorial-rescue-audit.test.ts` → A2, `supported:false`/`confidence`/`contradicted`/`verified`/`explanation`/`note`, eco no coincidente, `delivered=false` preservado. El A2 original de Claude (que registraba `delivered=true`) ahora falla con `OpeningVerdictContradictionError`, que es lo esperado.
+
+### ALTO-2 (Claude) / P1 (ChatGPT): la capa C gastaba una corrección pagada por fallos técnicos → RESUELTO
+- Truncado (`max_tokens`), JSON ilegible, prosa, objeto vacío, tipos erróneos, campos ausentes y contenido extra se propagan como `DocumentaryResponseError` → `failure_kind=technical` (reintento técnico; reutiliza la respuesta guardada; sin corrección editorial).
+- La capa C queda **solo** para un resultado de CONTENIDO bien formado: `delivered=true` con evidencia tardía o inexistente → `delivered=false` (observación editorial).
+- Pruebas: A1 (cinco formas técnicas → técnico); para los tres formatos, una respuesta inválida termina como técnica con **1 sola llamada al escritor** (no hay corrección).
+
+### MEDIO-1: cobertura → RESUELTO
+`acceptContract` (R1 + esquema completo) es el único punto de aceptación en: `applyVisualAnchorRepair`, `recoverVisualPlan` (respuesta de escena), `applyFunctionRepair` y `sectionFunctionRepairTargets`, `parseVisualPlan`, además de `validateDocumentaryValue`. Pruebas: clave vacía extra aceptada y clave con contenido rechazada en cada uno (A13 de Claude ahora da `visualAnchorEmptyExtraKeyRejected:false`).
+
+### MEDIO-2: huella del escritor en la corrección → RESUELTO
+El anclaje por tramo se usa para las comprobaciones locales y solo se escribe en `parsed.creativeDirection` **al aprobar**. Los prompts de revisión y de corrección conservan la dirección creativa del escritor (anclaje #188) → mismas claves del ledger. Prueba MEDIO-2 (mutación verificada: con la asignación antigua la prueba falla). Prueba de idempotencia: misma clave de ledger antes y después de normalizar.
+
+### BAJO
+- Umbral de anclaje igualado a #190: ≥12 palabras o ≥8 y **≥60 %**. Prueba con 8/15 palabras (53 %) → ya no ancla. La marca real de e8048599 sigue anclando (15 palabras).
+- `e8048599` tiene `retry_count=2`: queda **1** reintento técnico (MAX 3).
+
+### Reproducción de incidentes (REAL vs SIMULADO)
+- **e8048599** (REAL: borrador e historial creativo; SIMULADO: respuesta de la comprobación con la forma del ledger). Solo necesita R1. Aprobación de apertura con 1 llamada simulada, reintento con 0. Contra `e68da2b` falla con el error original (paso de CI). Replay de Claude con las respuestas reales a `43b865d`: reutiliza las 5 (0,2781 USD), `normalizations:1` (R1), `unverifiedOpening:0`, llega a «Afinando la historia» (la corrección requerirá una llamada nueva). Esta rama no cambia esa ruta: R1 sigue igual y la capa C no se activa.
+- **dbc89879** y **290de42b** (REAL: borrador + revisión RESUELTA guardada en `editorial_checkpoint`, SELECT): revisión válida, 0 bloqueos, 0 problemas locales; pipeline aprobado sin llamadas nuevas (`editorial-rescue-real-jobs.test.ts`).
+- Respuestas CRUDAS del proveedor: en Storage, **no legibles sin credenciales de servicio** (no usadas por mí). Evidencia con respuestas reales: solo el replay de Claude a `43b865d`, run https://github.com/hanzmo16-png/Atomivid/actions/runs/39994804692.
+
+### Resultados locales (Node 20)
+`test:rescate` 39/39 · `test:editorial` 184/184 · `test:spend` 406/406 · `test:saas` 419/421 · `test:unit` 2218/2224 · `tsc` limpio · eslint limpio en long-form. Los 8 fallos (`recovery-flow`, `attempt-state`) son ambientales (no hay WebSocket nativo en Node 20) e idénticos en `e68da2b`; en CI con Node 22 pasan.
+
+### Riesgos pendientes
+1. Aprobación final de e8048599: probablemente 1 corrección pagada; necesita autorización explícita. 2. Contradicciones en texto libre (p. ej. `explanation` que niega `delivered=true`) no se detectan de forma determinista; sigue mandando el veredicto estructurado y la revisión crítica. 3. #190 sigue abierto y entra en conflicto: si se integra #191, cerrar #190. 4. Prompts de reparación aún inducen ruido (cambiarlos requiere versionar el contrato).

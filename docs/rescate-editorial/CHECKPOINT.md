@@ -5,3 +5,5 @@ Rama: grok/rescate-motor-editorial (base e68da2b = producción con #188). No toc
 - [x] Fase 3 incidentes: ambos códigos = mismo job e8048599 (reintentos); script de replay read-only scripts/rescate-replay-incident.ts (NO ejecutado: Storage no accesible por SQL)
 - [x] Fase 4 tests: editorial-rescue*.test.ts + workflow rescate-motor-editorial.yml
 - [x] Fase 5 PR borrador #191 (https://github.com/hanzmo16-png/Atomivid/pull/191); Google Doc en Drive/Entregas
+
+- [x] Cierre definitivo: ALTO-1, ALTO-2, MEDIO-1, MEDIO-2 y BAJO resueltos (ver INFORME §12)
