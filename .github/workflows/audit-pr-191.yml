@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      PR_SHA: 43b865d
+      PR_SHA: ed7afd4
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false, fetch-depth: 0 }
@@ -19,6 +19,7 @@ jobs:
           git fetch -q origin grok/rescate-motor-editorial claude/editorial-format-root-cause
           git worktree add -q "$RUNNER_TEMP/pr" "$PR_SHA"
           git worktree add -q "$RUNNER_TEMP/p190" origin/claude/editorial-format-root-cause
+          git worktree add -q "$RUNNER_TEMP/prod" e68da2b
           git -C "$RUNNER_TEMP/pr" log --oneline -1
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
@@ -30,7 +31,7 @@ jobs:
           const [file, tag, mode] = process.argv.slice(2);
           const t = require("fs").readFileSync(file, "utf8").split("\n");
           let out = [];
-          if (mode === "tap") { t.forEach((l, i) => { if (/^\s*not ok/.test(l)) out.push(t.slice(i, i + 14).join("\n")); }); out.push(t.filter(l => /^# (tests|pass|fail)|A8_SPAN|A12|A13/.test(l)).join(" | ")); }
+          if (mode === "tap") { t.forEach((l, i) => { if (/^\s*not ok/.test(l)) out.push(t.slice(i, i + 14).join("\n")); }); out.push(t.filter(l => /^# (tests|pass|fail)|A8_SPAN|A12|A13|RA_FINGERPRINT|FP_OPENING/.test(l)).join(" | ")); }
           else out = t.filter(l => /^(REPLAY|RESCATE_REPLAY|BOUNDARY|MARKS|ERR)/.test(l));
           out.slice(0, 9).forEach((b, i) => console.log(`::notice title=${tag}${i}::` + b.slice(0, 3800).replace(/%/g, "%25").replace(/\r/g, "").replace(/\n/g, "%0A")));
           JS
@@ -49,6 +50,19 @@ jobs:
           cp "$GITHUB_WORKSPACE/audit/pr191-adversarial.test.ts" src/lib/video/long-form/zz-audit-adversarial.test.ts
           node --import tsx --test --test-reporter=tap src/lib/video/long-form/zz-audit-adversarial.test.ts > "$RUNNER_TEMP/adv.tap" 2>&1
           node "$RUNNER_TEMP/ann.js" "$RUNNER_TEMP/adv.tap" ADV tap
+      - name: 2b) Re-audit battery (ed7afd4) and production fingerprint comparison
+        working-directory: ${{ runner.temp }}/pr
+        run: |
+          set +e
+          cp "$GITHUB_WORKSPACE/audit/pr191-reaudit.test.ts" src/lib/video/long-form/zz-reaudit.test.ts
+          cp "$GITHUB_WORKSPACE/audit/fingerprint.test.ts" src/lib/video/long-form/zz-fp.test.ts
+          node --import tsx --test --test-reporter=tap src/lib/video/long-form/zz-reaudit.test.ts > "$RUNNER_TEMP/re.tap" 2>&1
+          node --import tsx --test --test-reporter=tap src/lib/video/long-form/zz-fp.test.ts >> "$RUNNER_TEMP/re.tap" 2>&1
+          cp "$GITHUB_WORKSPACE/audit/fingerprint.test.ts" "$RUNNER_TEMP/prod/src/lib/video/long-form/zz-fp.test.ts"
+          ln -s "$PWD/node_modules" "$RUNNER_TEMP/prod/node_modules"
+          (cd "$RUNNER_TEMP/prod" && node --import tsx --test --test-reporter=tap src/lib/video/long-form/zz-fp.test.ts) 2>&1 | sed 's/FP_OPENING/FP_OPENING_PROD/' >> "$RUNNER_TEMP/re.tap"
+          sed -i 's/FP_OPENING_PROD/FP_OPENING prod/' "$RUNNER_TEMP/re.tap"
+          node "$RUNNER_TEMP/ann.js" "$RUNNER_TEMP/re.tap" REA tap
       - name: 3) PR #190 regression tests against the audited SHA (equivalence check)
         working-directory: ${{ runner.temp }}/pr
         run: |
