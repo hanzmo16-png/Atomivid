@@ -361,7 +361,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     const stepTitle = async () => (await W().getByTestId("wizard-step-title").textContent()) ?? "";
     const snap = (n) => shot(S.p, `${tag}-${n}`);
     const disp0 = fs.existsSync(path.join(E2E, "logs/dispatch.jsonl")) ? fs.readFileSync(path.join(E2E, "logs/dispatch.jsonl"), "utf8").length : 0;
-    await S.p.goto(`${BASE}/dashboard/podcast`); await S.p.evaluate(() => localStorage.removeItem("atomivid.podcast.asistente.v2")); await S.p.reload();
+    await S.p.goto(`${BASE}/dashboard/podcast`); await S.p.evaluate(() => localStorage.removeItem("atomivid.podcast.asistente.v2")); await S.p.reload(); await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
     await W().getByRole("radio", { name: new RegExp(m.mode) }).click(); await snap("paso01-modalidad"); await next();
     await W().getByLabel("Título del episodio").fill(m.title);
     if (m.topic) {
@@ -372,7 +372,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       ok(`${tag}: conversación generada por turnos con identidad (plantilla sin costo)`, /^\S[^:]{0,40}: /m.test(sc) && new Set(sc.split("\n").filter(Boolean).map((l) => l.split(":")[0])).size === 2 && /\?/.test(sc), `${sc.split("\n").length} turnos`);
     } else await W().getByLabel("Guion").fill(m.script);
     await snap("paso02-tema");
-    await next(); await W().getByRole("button", { name: "Atrás" }).click(); await S.p.reload();
+    await next(); await W().getByRole("button", { name: "Atrás" }).click(); await S.p.reload(); await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
     ok(`${tag}: atrás + recarga conserva el borrador`, (await W().getByLabel("Título del episodio").inputValue()) === m.title && /Paso 2/.test(await stepTitle()));
     await next();
     if (m.count === 2 && m.mode === "Solo audio") await W().getByLabel("Dos voces que se alternan").check();
@@ -413,7 +413,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     let row0; for (let i = 0; i < 40; i++) { row0 = (await db.query("select * from podcast_studio_episodes where user_id=$1 and title=$2 order by created_at desc limit 1", [OWNER.id, m.title])).rows[0]; if (row0?.status === "authorized") break; await S.p.waitForTimeout(500); }
     ok(`${tag}: episodio autorizado y trabajo despachado`, row0?.status === "authorized" && fs.readFileSync(path.join(E2E, "logs/dispatch.jsonl"), "utf8").slice(disp0).includes(row0.id), row0?.status);
     // Recuperación: recargar a mitad de la generación vuelve al paso Generación con el mismo episodio.
-    await S.p.reload(); await W().getByTestId("wizard-progress").waitFor({ timeout: 20000 }).catch(() => {}); ok(`${tag}: recarga durante la generación conserva el episodio y el paso`, /Paso 10/.test(await stepTitle()) && await W().getByTestId("wizard-progress").isVisible());
+    await S.p.reload(); await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor(); await W().getByTestId("wizard-progress").waitFor({ timeout: 20000 }).catch(() => {}); ok(`${tag}: recarga durante la generación conserva el episodio y el paso`, /Paso 10/.test(await stepTitle()) && await W().getByTestId("wizard-progress").isVisible());
     const w = await worker(row0.id, "studio");
     const row = (await db.query("select * from podcast_studio_episodes where id=$1", [row0.id])).rows[0];
     ok(`${tag}: worker del estudio entrega el episodio (proveedores SIMULADOS)`, w.code === 0 && row.status === "ready" && /STUDIO_PROVIDERS mock/.test(w.out), `${row.status} ${row.error ?? ""}`);

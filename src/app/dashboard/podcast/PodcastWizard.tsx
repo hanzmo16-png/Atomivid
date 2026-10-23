@@ -108,7 +108,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   const tag = (i: number) => (i === 0 ? "A" : "B");
   const started = !!d.episodeId;
   return (
-    <Card className="mt-4 p-3 sm:p-4" data-testid="podcast-wizard">
+    <Card className="mt-4 p-3 sm:p-4" data-testid="podcast-wizard" data-hydrated={loaded ? "1" : "0"} aria-busy={!loaded}>
       {previewNotice && <p className="mb-2 rounded bg-surface p-2 text-xs text-ink-muted" data-testid="preview-notice">{previewNotice}</p>}
       <ol className="flex gap-1 overflow-x-auto pb-1 text-xs" aria-label="Pasos">
         {STEPS.map((s, i) => (
