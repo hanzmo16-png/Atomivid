@@ -88,3 +88,28 @@ test("existing ledger reuses the exact repair; uncertain results never resubmit"
   await assert.rejects(recoverVisualPlan(options(fixture(), send)));
   assert.equal(calls, 1);
 });
+
+test("150fb502: adjacent neighbours (id-only stub) repair from the beat's unused excerpts, never a duplicate", async () => {
+  const raw = { visuals: [scene(0), { id: "s1b2" }, ...[1, 3, 4, 5, 8, 11, 15].map(scene)] };
+  const requests: Params[] = [];
+  const result = await recoverVisualPlan(options(raw, async params => { requests.push(params); return message({ index: 1, scene: scene(2) }); }));
+  assert.equal(requests.length, 1);
+  const sent = JSON.parse((requests[0].messages as Array<{ content: string }>)[0].content) as { eligibleExcerpts: Array<{ id: string }> };
+  const used = new Set([0, 1, 3, 4, 5, 8, 11, 15].map(i => catalog[i].id));
+  assert.ok(sent.eligibleExcerpts.length > 0 && sent.eligibleExcerpts.every(e => !used.has(e.id)));
+  assert.equal(result.visuals.length, 9);
+  assert.deepEqual(result.visuals[1], scene(2));
+  for (const reply of [{ index: 1, scene: scene(1) }, { index: 1, scene: { id: "s1b2" } }]) {
+    let calls = 0;
+    await assert.rejects(recoverVisualPlan(options(raw, async () => { calls++; return message(reply); })), DocumentaryResponseError);
+    assert.equal(calls, 1);
+  }
+});
+
+test("150fb502: no unused excerpt left in the beat never calls the provider", async () => {
+  const small = catalog.slice(0, 11);
+  const visuals = [scene(0), { id: "s1b2" }, ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(scene)];
+  let calls = 0;
+  await assert.rejects(recoverVisualPlan({ ...options({ visuals }, async () => { calls++; return message({}); }), catalog: small }));
+  assert.equal(calls, 0);
+});
