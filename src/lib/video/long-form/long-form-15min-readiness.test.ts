@@ -14,7 +14,7 @@ const resp = (body: unknown) => ({ stop_reason: "end_turn", content: [{ type: "t
 const scene = (i: number) => ({ description: `Spartan hoplites hold the pass at dawn ${i}`, motion: i % 2 === 0, subject: "hoplites", action: "marching",
   place: "Thermopylae", era: "480 BC", alternates: ["phalanx"], beatClass: "PLACE", impact: 2, impactReason: "sets the stakes", excerptId: `rev:b5:w${i * 4}` });
 const STUB = { id: "s1_b" };                                   // exact shape of incident 150fb502 (one 4-char key value)
-const opts = { cinematic: true, referenceContract: true };
+const opts = { cinematic: true, referenceContract: true, dropStubs: true };
 
 test("150fb502 shape: 10 scenes with a {id} stub between two adjacent anchors parses into the 9 real scenes", () => {
   const visuals = [scene(0), STUB, ...Array.from({ length: 8 }, (_, i) => scene(i + 1))];
@@ -126,4 +126,9 @@ test("owner resume requeues once with compare-and-swap and keeps retry_count", a
   assert.equal(patches.length, 1); assert.ok(!("retry_count" in patches[0]));
   const again = await resumeScriptJob(svc, req);
   assert.equal(again.ok, false, "a second resume is refused: the job is no longer failed");
+});
+
+test("without stub removal (repair-first path) the stub still blocks, so the #193 scene repair runs first", () => {
+  const visuals = [scene(0), STUB, ...Array.from({ length: 8 }, (_, i) => scene(i + 1))];
+  assert.throws(() => parseVisualPlan(resp({ visuals }), { cinematic: true, referenceContract: true }), VisualPlanBlockedError);
 });

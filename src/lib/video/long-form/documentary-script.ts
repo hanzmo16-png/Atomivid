@@ -251,11 +251,11 @@ export function dropSceneStubs(value: unknown): unknown {
  * which carries allow-listed "code@path" issues and bounded per-scene key/type shapes (never values,
  * narration or unknown key names).
  */
-export function parseVisualPlan(response: Parameters<typeof readDocumentaryJson>[0], opts: { cinematic: boolean; referenceContract: boolean }) {
+export function parseVisualPlan(response: Parameters<typeof readDocumentaryJson>[0], opts: { cinematic: boolean; referenceContract: boolean; dropStubs?: boolean }) {
   const schema = opts.cinematic
     ? (opts.referenceContract ? CinematicLenientVisualsSchema : CinematicParseVisualsSchema)
     : (opts.referenceContract ? ProductLenientVisualsSchema : ProductParseVisualsSchema);
-  const value = dropSceneStubs(readDocumentaryJson(response));
+  const value = opts.dropStubs ? dropSceneStubs(readDocumentaryJson(response)) : readDocumentaryJson(response);
   const parsed = acceptContract(schema, value);
   if (!parsed.success) throw new VisualPlanBlockedError(allowListedIssuePaths(parsed.error, VISUAL_DIAGNOSTIC_KEYS), sceneShapes(value, VISUAL_DIAGNOSTIC_KEYS));
   return parsed.data as z.infer<typeof CinematicLenientVisualsSchema>;
@@ -584,8 +584,17 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
             catalog: [...catalog.values()], context: params.messages[0].content, model: SCRIPT_MODEL, send, onStage: input.onStage,
           }); }
           catch (error) {
-            if (error instanceof VisualPlanBlockedError) console.error("[documentary] visual plan blocked", { beat: i, issues: error.issues, shapes: error.shapes });
-            throw error;
+            // 150fb502: the one-scene repair (#193) keeps the scene's slot when it is enabled and possible. When it is
+            // not enabled, not possible or its reply is invalid, an entry with NO scene content is removed for free
+            // (dropSceneStubs: only if two real scenes remain) instead of failing the whole paid script.
+            if (!(error instanceof DocumentaryResponseError)) throw error;
+            let recovered: typeof raw | null = null;
+            try { recovered = parseVisualPlan(response, { cinematic, referenceContract: Boolean(input.referenceContract), dropStubs: true }); } catch { recovered = null; }
+            if (!recovered) {
+              if (error instanceof VisualPlanBlockedError) console.error("[documentary] visual plan blocked", { beat: i, issues: error.issues, shapes: error.shapes });
+              throw error;
+            }
+            raw = recovered;
           }
           const resolveAnchors = () => ({ visuals: raw.visuals.flatMap(({ excerptId, quote, ...visual }: { excerptId?: string; quote?: string } & Omit<z.infer<typeof VisualSchema>, "quote">) => {
             const anchored = (excerptId ? catalog.get(excerptId)?.quote : undefined) ?? (quote ? locateNormalized(beat.narration, quote) : null);

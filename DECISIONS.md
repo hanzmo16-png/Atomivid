@@ -349,10 +349,11 @@ trae 10 entradas; la entrada 1 es `{ "id": "<4 caracteres>" }`, sin ningún camp
 aparece en el bloque 5. La reparación de una escena no se ejecutó en el bloque 6 porque sus vecinas apuntan
 a fragmentos consecutivos del catálogo (89 y 90): no queda pasaje elegible entre ellas.
 
-**Corrección.** `dropSceneStubs`: una entrada sin NINGÚN campo del contrato de escena se elimina solo si
-quedan al menos dos escenas reales; si no, el bloque queda intacto y sigue la ruta de reparación existente
-(el bloque 5 conserva su reparación ya pagada). Una escena con cualquier campo, aunque esté malformada,
-sigue bloqueando. Replay: 16/16 respuestas reutilizadas; el bloque 6 pasa y el siguiente paso es el bloque 7.
+**Corrección (combinada con #193 de Grok).** Primero la reparación de una escena (#193: si las vecinas son
+contiguas usa fragmentos no usados del bloque), que conserva la cobertura visual con una llamada acotada. Si la
+reparación no está habilitada, no es posible o su respuesta es inválida, `dropSceneStubs` elimina gratis una
+entrada SIN contenido de escena (ningún campo del contrato y solo un identificador corto o valores vacíos),
+únicamente si quedan al menos dos escenas reales. Texto descriptivo bajo una clave desconocida nunca se elimina.
 
 **Defectos adicionales demostrados y corregidos.**
 - Confirmar con Recraft fija la elección de forma inmutable; con la política de gasto `recraft` cerrada
