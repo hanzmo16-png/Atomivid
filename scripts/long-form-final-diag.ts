@@ -140,7 +140,21 @@ async function holds() {
   log("OPEN_JOB_RESERVATIONS", (res ?? []).map((r: any) => ({ p: r.provider, project: String(r.project_id).slice(0, 24), attempt: r.render_attempt, units: r.reserved_units, usd: r.reserved_usd, used: r.consumed_usd, at: r.created_at })));
 }
 
-const steps: Record<string, () => Promise<void>> = { review, schema, local, holds, migrations, jobs, requests, supply, vercel: vercelProbe };
+async function capacity() {
+  const { client } = await connectResolved();
+  try {
+    await client.query("begin read only");
+    for (const p of ["anthropic", "openai", "elevenlabs", "recraft", "veo", "runway"]) {
+      const r = (await client.query("select public.pi_supply_state($1) s", [p]).catch((e: Error) => ({ rows: [{ s: { error: e.message.slice(0, 80) } }] }))).rows[0].s;
+      log("CAPACITY", { p, level: r.level, reason: r.reason, free: r.free, held: r.held, active: r.activeCalls ?? r.active_calls, today: r.todayCalls ?? r.today_calls, daily: r.dailySpend, monthly: r.monthlySpend, checked: r.checkedAt, keys: Object.keys(r).slice(0, 25) });
+    }
+    const act = (await client.query(`select provider, status, method, left(project_id,24) project, updated_at from public.pi_paid_operations where method <> 'capacity_hold' and status in ('SUBMITTED','PROVIDER_JOB_RECORDED','RECONCILIATION_REQUIRED') order by updated_at desc limit 15`)).rows;
+    log("ACTIVE_OR_UNRECONCILED", act);
+    await client.query("rollback");
+  } finally { await client.end(); }
+}
+
+const steps: Record<string, () => Promise<void>> = { review, schema, local, holds, capacity, migrations, jobs, requests, supply, vercel: vercelProbe };
 (async () => {
   for (const m of (process.argv[2] ?? "").split(",").filter(Boolean)) {
     if (!steps[m]) throw Error(`unknown ${m}`);
