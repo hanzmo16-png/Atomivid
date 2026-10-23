@@ -8,6 +8,8 @@ import { Onboarding } from "@/components/onboarding/Onboarding";
 import { NavLink } from "./NavLink";
 import { isLongFormEnabled, isLongFormAllowlisted } from "@/lib/video/long-form/access";
 import { isCommandCenterAdmin } from "@/lib/command-center/access";
+import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
+import { studioFlag } from "@/lib/podcast/v3/studio";
 
 export default async function DashboardLayout({
   children,
@@ -29,6 +31,9 @@ export default async function DashboardLayout({
   const showLongFormDryRun = isLongFormEnabled() && isLongFormAllowlisted(user);
   // Command Center: owner/admin only (same gate as its page and API); plain navigation.
   const showCommandCenter = isCommandCenterAdmin(user);
+  // Podcast (estudio audiovisual): mismo gate que la página /dashboard/podcast + interruptor del estudio
+  // (PODCAST_V3_ENABLED=1, o activado por defecto solo en Vercel Preview). Solo navegación.
+  const showPodcast = canAccessLongFormBeta(user) && studioFlag().enabled;
 
   return (
     <div className="min-h-screen">
@@ -59,6 +64,14 @@ export default async function DashboardLayout({
                 Dry Run Long Form
               </NavLink>
             )}
+            {showPodcast && (
+              <NavLink
+                href="/dashboard/podcast"
+                className="hidden rounded-md px-3 py-2 text-sm font-medium transition-colors sm:inline-block"
+              >
+                Podcast
+              </NavLink>
+            )}
             {showCommandCenter && (
               <NavLink
                 href="/dashboard/command-center"
@@ -83,7 +96,7 @@ export default async function DashboardLayout({
           </nav>
         </div>
         <div className="border-t border-border px-4 py-2 sm:hidden">
-          <div className="flex gap-4 text-sm font-medium">
+          <div className="flex gap-4 overflow-x-auto whitespace-nowrap text-sm font-medium">
             <NavLink href="/dashboard" exact>
               Historial
             </NavLink>
@@ -91,6 +104,7 @@ export default async function DashboardLayout({
             {showLongFormDryRun && (
               <NavLink href="/dashboard/long-form/visual-test-v2">Dry Run Long Form</NavLink>
             )}
+            {showPodcast && <NavLink href="/dashboard/podcast">Podcast</NavLink>}
             {showCommandCenter && <NavLink href="/dashboard/command-center">Command Center</NavLink>}
           </div>
         </div>
