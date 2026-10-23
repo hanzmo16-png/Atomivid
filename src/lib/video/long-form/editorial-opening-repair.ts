@@ -5,6 +5,7 @@ import { LenientReferencedReviewSchema, narrationCatalog, resolveReviewReference
 import { DocumentaryResponseError, jsonResponseSystem, parseDocumentaryResponse } from "./json-response";
 
 export const OPENING_REPAIR_CONTRACT = "opening-payoff-evidence-repair-v1";
+export const OPENING_UNVERIFIED_EXPLANATION = "No se pudo verificar una recompensa concreta dentro de las primeras 150 palabras: el revisor la citó más tarde y la comprobación acotada no aportó evidencia válida. Entrega un dato, respuesta o contradicción útil antes de la palabra 150.";
 const RepairSchema = z.object({ firstAnswer: z.object({ delivered: z.boolean(), evidence: z.object({ excerptId: z.string().min(1).max(80) }).strict(), explanation: z.string().min(1).max(1600) }).strict() }).strict();
 type Send = (params: { model: string; max_tokens: number } & Record<string, unknown>) => Promise<{ stop_reason: string | null; content: Array<{ type: string; text?: string }> }>;
 
@@ -45,9 +46,22 @@ export async function validateOrRepairOpeningReview(input: { rawReview: unknown;
       opening: input.script.beats.map(b => b.narration).join(" ").trim().split(/\s+/).slice(0, 150).join(" "), eligibleExcerpts: candidates }) }],
     ...(input.model === "claude-sonnet-5" ? { output_config: { effort: "low" as const } } : {}),
   };
-  const repaired = parseDocumentaryResponse(RepairSchema, await input.send(params));
-  if (!candidates.some(e => e.id === repaired.firstAnswer.evidence.excerptId)) throw new DocumentaryResponseError("La comprobación de apertura eligió evidencia fuera del límite permitido.");
-  const copy = { ...structuredClone(raw), firstAnswer: repaired.firstAnswer };
+  // La llamada (y su huella del ledger) no cambia: una respuesta ya pagada se reutiliza al reintentar.
+  const response = await input.send(params);
+  let firstAnswer: z.infer<typeof RepairSchema>["firstAnswer"];
+  try {
+    const repaired = parseDocumentaryResponse(RepairSchema, response);
+    if (!candidates.some(e => e.id === repaired.firstAnswer.evidence.excerptId)) throw new DocumentaryResponseError("La comprobación de apertura eligió evidencia fuera del límite permitido.");
+    firstAnswer = repaired.firstAnswer;
+  } catch (error) {
+    if (!(error instanceof DocumentaryResponseError)) throw error;
+    // Capa C: una recompensa temprana que NO se pudo verificar es una observación EDITORIAL (no aprobada),
+    // no un fallo técnico terminal que destruye el borrador. Nunca aprueba: delivered=false bloquea y la
+    // corrección prevista pide una recompensa concreta en las primeras 150 palabras. Sin llamada extra.
+    console.warn("[atomivid:opening-payoff-unverified]", JSON.stringify(error.issues.slice(0, 12)));
+    firstAnswer = { delivered: false, evidence: { excerptId: candidates[0].id }, explanation: OPENING_UNVERIFIED_EXPLANATION };
+  }
+  const copy = { ...structuredClone(raw), firstAnswer };
   const second = resolveReviewReferences(copy, input.script.beats);
   if (!second.review) throw new DocumentaryResponseError("La comprobación de apertura no tiene evidencia válida.");
   return validateEditorialReview(second.review, input.script);

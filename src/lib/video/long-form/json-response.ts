@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { extractJsonDocument, normalizeToContract } from "./response-normalizer";
 
 /** Complex editorial documents exceed Anthropic's compiled-grammar budget.
  * Keep the complete contract in the prompt and validate locally AFTER the raw
@@ -96,13 +97,16 @@ export function readDocumentaryJson(response: {
   const text = response.content.filter(b => b.type === "text").map(b => b.text ?? "").join("").trim();
   // Accept only a whole JSON document (optionally wrapped in a single code fence).
   // Never salvage a partial object or extract JSON out of explanatory prose.
-  const json = text.replace(/^```(?:json)?\s*\n([\s\S]*?)\n```$/i, "$1");
-  try { return JSON.parse(json); }
+  // Capa B (response-normalizer.ts): solo envolturas sin contenido (BOM, valla con o sin salto de línea).
+  try { return extractJsonDocument(text); }
   catch { throw new DocumentaryResponseError("El modelo devolvió un documento que no se pudo leer."); }
 }
 
 export function validateDocumentaryValue<T extends z.ZodType>(schema: T, value: unknown): z.infer<T> {
-  const parsed = schema.safeParse(value);
+  // Capa B: diferencias de forma sin pérdida (reglas cerradas R1/R2) no destruyen una respuesta válida.
+  const normalized = normalizeToContract(schema, value);
+  if (normalized.actions.length) console.warn("[atomivid:documentary-format-normalized]", JSON.stringify(normalized.actions.slice(0, 12)));
+  const parsed = schema.safeParse(normalized.value);
   if (!parsed.success) {
     throw new DocumentaryResponseError("La respuesta no cumple el formato editorial requerido.", schemaIssuePaths(parsed.error));
   }

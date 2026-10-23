@@ -1,0 +1,62 @@
+name: Rescate motor editorial (Node 22, sin proveedores pagados)
+
+on:
+  pull_request:
+    paths:
+      - 'src/lib/video/long-form/**'
+      - 'scripts/rescate-replay-incident.ts'
+      - 'package*.json'
+      - '.github/workflows/rescate-motor-editorial.yml'
+  push:
+    branches: ['grok/rescate-motor-editorial']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rescate-editorial-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rescate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Ninguna clave de proveedor: cualquier intento de llamada real falla en lugar de cobrar.
+      ANTHROPIC_API_KEY: ''
+      OPENAI_API_KEY: ''
+      ELEVENLABS_API_KEY: ''
+      RECRAFT_API_KEY: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Pruebas del rescate (incidentes 23d86d0a / 8c330c37, borrador real + respuestas simuladas)
+        run: npm run test:rescate
+      - name: Reproducción contra producción e68da2b (DEBE fallar con el error original)
+        run: |
+          git fetch --no-tags --depth=1 origin e68da2b7cb93f173564c810c7390574fb529d1be
+          git worktree add ../prod e68da2b7cb93f173564c810c7390574fb529d1be
+          ln -s "$PWD/node_modules" ../prod/node_modules
+          mkdir -p ../prod/src/lib/video/long-form/__fixtures__
+          cp src/lib/video/long-form/__fixtures__/incident-e8048599-draft.json ../prod/src/lib/video/long-form/__fixtures__/
+          cp src/lib/video/long-form/editorial-rescue-repro.test.ts ../prod/src/lib/video/long-form/
+          cd ../prod
+          if node --import tsx --test src/lib/video/long-form/editorial-rescue-repro.test.ts > repro.log 2>&1; then
+            echo "::error::La reproducción pasó en e68da2b: no reproduce el incidente"; exit 1; fi
+          grep -q "La respuesta no cumple el formato editorial requerido" repro.log
+          echo "OK: e68da2b falla con el error original de producción"
+      - name: Regresión editorial y de gasto
+        run: |
+          npm run test:editorial
+          npm run test:spend
+      - name: Suite unitaria completa, tipos y lint
+        run: |
+          npm run test:unit
+          npx next typegen
+          npx tsc --noEmit -p .
+          npx eslint .

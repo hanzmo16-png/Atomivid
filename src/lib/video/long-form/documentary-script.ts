@@ -7,7 +7,7 @@ import { CitationRepairSchema, canonicalizeEditorialCitations, invalidEditorialC
  * Requires retrieved excerpts or an externally prepared research pack. One shared
  * rewrite budget covers duration and editorial defects; no audiovisual work here.
  */
-import { CreativeDirectionPromptSchema, LegacyCreativeDirectionPromptSchema, CreativeDirectionSchema, creativeDirectionIssues, anchorCreativeDirectionQuotes, CREATIVE_WRITER_RULES, CREATIVE_REVIEWER_RULES, narrativeTiming, type CreativeHistoryEntry } from "./creative-direction";
+import { CreativeDirectionPromptSchema, LegacyCreativeDirectionPromptSchema, CreativeDirectionSchema, creativeDirectionIssues, anchorCreativeDirectionQuotes, anchorCreativeDirectionSpans, CREATIVE_WRITER_RULES, CREATIVE_REVIEWER_RULES, narrativeTiming, type CreativeHistoryEntry } from "./creative-direction";
 import { supplyProtectedAnthropic } from "@/lib/supply/anthropic";
 import { documentaryOutputBudget } from "./script-output-budget";
 import Anthropic from "@anthropic-ai/sdk";
@@ -463,7 +463,10 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
     const evaluation = evaluateNarrationDuration(parsed.beats.reduce((sum, b) => sum + countWords(b.narration), 0), input.targetDurationSeconds);
     const sourceIds = new Set(input.researchPack.sources.map(s => s.id));
     parsed.creativeDirection = anchorCreativeDirectionQuotes(parsed.creativeDirection, parsed.beats);
-    const localIssues: string[] = creativeDirectionIssues(parsed.creativeDirection, parsed.beats, history);
+    // Capa B: el revisor recibe el anclaje de #188 (huella idéntica -> respuestas pagadas reutilizables);
+    // comprobaciones locales e informe aprobado usan el anclaje por tramo literal (la narración no cambia).
+    const checkedDirection = anchorCreativeDirectionSpans(parsed.creativeDirection, parsed.beats);
+    const localIssues: string[] = creativeDirectionIssues(checkedDirection, parsed.beats, history);
     try { assertOriginalHook(parsed.hook); } catch { localIssues.push("Reemplaza la apertura genérica por una situación concreta."); }
     for (const beat of parsed.beats) {
       if (usesBannedOpener(beat.narration)) localIssues.push("Elimina saludos y aperturas genéricas de la narración.");
@@ -477,6 +480,7 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
       prompt: JSON.stringify({ version: EDITORIAL_VERSION, researchPack: input.researchPack,
         targetDurationSeconds: input.targetDurationSeconds, creativeHistory: history, timingEstimate: narrativeTiming(parsed.beats), script: parsed,
         ...(input.referenceContract ? {narrationExcerpts:narrationCatalog(parsed.beats)} : {}) }) });
+    parsed.creativeDirection = checkedDirection;
     let reviewed: EditorialReview;
     if (input.referenceContract) reviewed = await resolveCatalogReview(rawReview, parsed.beats);
     else try { reviewed = validateEditorialReview(rawReview, parsed); }
