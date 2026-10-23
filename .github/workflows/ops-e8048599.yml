@@ -34,7 +34,8 @@ jobs:
           FAL_KEY: ${{ secrets.FAL_KEY != '' && 'set' || '' }}
         run: |
           set +e
+          echo "::notice title=PING::step started"
           eval "$(sed -n 's/^\([A-Z_]*\)=\(.*\)$/export \1="\2"/p' ops/e8048599.mode)"
           if [ "$MODE" = "replay" ]; then REPLAY_CINEMATIC=true REPLAY_JOB=e8048599 npx tsx scripts/replay-documentary-job.ts > out.txt 2>&1
-          else npx tsx scripts/ops-e8048599.ts > out.txt 2>&1; fi; echo "exit=$?"
+          else npx tsx scripts/ops-e8048599.ts > out.txt 2>&1; fi; rc=$?; echo "::notice title=RC::exit=$rc lines=$(wc -l < out.txt)"
           node -e 'require("fs").readFileSync("out.txt","utf8").split("\n").filter(l=>/^(JOB|OPS|BUDGET|FAILED|RECRAFT|SNAP|POLICY|FAL|REPLAY|BOUNDARY|\[atomivid:documentary-format)/.test(l)).slice(0,10).forEach((b,i)=>console.log("::notice title=O"+i+"::"+b.slice(0,3800).replace(/%/g,"%25"))); const all=require("fs").readFileSync("out.txt","utf8"); console.log("::notice title=TAIL::"+all.slice(-2500).replace(/%/g,"%25").replace(/\n/g,"%0A"))'
