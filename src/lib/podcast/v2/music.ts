@@ -1,7 +1,7 @@
 /** Podcast 2.0 — Director musical: cues por emoción, sin cambios bruscos ni constantes; ducking y loudness. */
 import type { DirectionPlan } from "./director";
 
-export type MusicTrack = { file: string; title: string; artist: string; license: "CC BY 4.0"; source_url: string; moods: string[] };
+export type MusicTrack = { file: string; title: string; artist: string; license: "CC BY 4.0" | "CC0 1.0"; source_url: string; moods: string[] };
 export type MusicCue = { start_ms: number; end_ms: number; track: string | null; mood: string; bed_db: number; fade_in_ms: number; fade_out_ms: number };
 
 export const LOUDNESS = { integrated_lufs: -16, tolerance: 2, true_peak_max_db: -1, ducking_db: -12 } as const;

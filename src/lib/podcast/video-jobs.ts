@@ -9,7 +9,7 @@ import { estimatePodcast } from "./episode";
  * (.github/workflows/podcast-video.yml); narration (gated, resumable) and the editor v3 render run there.
  * Only the episode id travels in the public dispatch event.
  */
-export type PodcastJobKind = "video" | "narration" | "notices";
+export type PodcastJobKind = "video" | "narration" | "notices" | "studio";
 
 export async function dispatchPodcastJob(episodeId: string, kind: PodcastJobKind, env = process.env): Promise<boolean> {
   const token = env.GH_WORKER_TOKEN, repo = env.GH_WORKER_REPO;

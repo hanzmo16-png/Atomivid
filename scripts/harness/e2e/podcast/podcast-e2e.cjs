@@ -28,7 +28,10 @@ function worker(id, kind) {
 }
 async function createEpisode(p, o) {
   await p.goto(`${BASE}/dashboard/podcast`);
-  await p.getByLabel("Título").fill(o.title);
+  // Podcast 3.0: el formulario clásico vive dentro de «Formulario clásico» (el asistente es la vista principal).
+  const classic = p.getByText("Formulario clásico (grabación propia, guion A/B)");
+  if (await classic.count()) await classic.click();
+  await p.getByLabel("Título", { exact: true }).fill(o.title);
   if (o.conversation) await p.getByLabel("Conversación (2 participantes)").check();
   if (o.emotional) await p.getByLabel("Emocional (director de voz)").check();
   if (o.music) await p.getByLabel(/Música de fondo/).check();
@@ -349,10 +352,86 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     const keys = (await db.query("select idempotency_key k from pi_paid_operations where provider = 'elevenlabs' and (project_id like '%'||$1||'%' or shot_id like '%'||$1||'%')", [id])).rows.map((x) => x.k);
     ok("c9: cada llamada de voz queda registrada una sola vez en el libro de costos (simulado)", keys.length === calls.length && new Set(keys).size === keys.length, `${keys.length} operaciones, ${new Set(keys).size} claves, ${calls.length} llamadas ${JSON.stringify(led)}`);
   }
+
+  if (cases.includes("10")) {
+    // Podcast 3.0 — asistente de 14 pasos, tres modos, con el estudio activado y proveedores SIMULADOS en el worker.
+    const AV = [["aaaaaaaa-0000-4000-8000-000000000001", "Avatar Hans (simulado)"], ["aaaaaaaa-0000-4000-8000-000000000002", "Avatar Invitada (simulado)"]];
+    for (const [id, name] of AV) await db.query("insert into public.avatars (id,user_id,name,provider,provider_avatar_id,status,consent_given) values ($1,$2,$3,'heygen','asset:simulado','ready',true) on conflict (id) do nothing", [id, OWNER.id, name]);
+    const W = () => s.p.getByTestId("podcast-wizard");
+    const next = async () => W().getByRole("button", { name: "Siguiente" }).click();
+    const stepTitle = async () => (await W().getByTestId("wizard-step-title").textContent()) ?? "";
+    const modes = [
+      { tag: "c10a", mode: "Narración cinematográfica", title: "E2E 3.0 narración", script: "En 1977 el radiotelescopio Big Ear registró una señal intensa y breve.\n\nEl astrónomo Jerry Ehman escribió Wow en el margen.\n\nLa señal nunca volvió a detectarse.", count: 2, voices: [ANA, LEO] },
+      { tag: "c10b", mode: "Un avatar presentador", title: "E2E 3.0 avatar", script: "Hola, hoy te cuento tres datos sobre volcanes.\n\nOlympus Mons está en Marte y es el volcán más alto.\n\nLos volcanes crean islas como Hawái.", count: 1, voices: [DURO], avatars: [AV[0][0]] },
+      { tag: "c10c", mode: "Conversación entre dos participantes", title: "E2E 3.0 conversación", topic: "la luna Europa", count: 2, voices: [ANA, LEO], avatars: [AV[0][0], AV[1][0]], format: "Vertical 9:16 (Reels/TikTok)" },
+    ];
+    for (const m of modes) {
+      const disp0 = fs.existsSync(path.join(E2E, "logs/dispatch.jsonl")) ? fs.readFileSync(path.join(E2E, "logs/dispatch.jsonl"), "utf8").length : 0;
+      await s.p.goto(`${BASE}/dashboard/podcast`); await s.p.evaluate(() => localStorage.removeItem("atomivid.podcast.asistente.v1")); await s.p.reload();
+      await W().getByRole("radio", { name: new RegExp(m.mode) }).click(); await shot(s.p, `${m.tag}-paso01-modo`); await next();
+      await W().getByLabel("Título del episodio").fill(m.title);
+      if (m.topic) {
+        await W().getByLabel("Tema").fill(m.topic);
+        await W().getByRole("button", { name: "Generar conversación desde el tema" }).click();
+        await s.p.waitForFunction(() => (document.querySelector('[aria-label="Guion"]')?.value ?? "").length > 50, null, { timeout: 30000 });
+        const sc = await W().getByLabel("Guion").inputValue();
+        ok(`${m.tag}: conversación generada por turnos coherentes (plantilla sin costo)`, /^\S[^:]{0,40}: /m.test(sc) && new Set(sc.split("\n").filter(Boolean).map((l) => l.split(":")[0])).size === 2 && /\?/.test(sc), `${sc.split("\n").length} turnos`);
+      } else await W().getByLabel("Guion").fill(m.script);
+      await shot(s.p, `${m.tag}-paso02-guion`);
+      // Navegación hacia atrás sin perder estado (y tras recargar la página).
+      await next(); await W().getByRole("button", { name: "Atrás" }).click(); await s.p.reload();
+      ok(`${m.tag}: atrás + recarga conserva el borrador`, (await W().getByLabel("Título del episodio").inputValue()) === m.title && /Paso 2/.test(await stepTitle()));
+      await next(); await shot(s.p, `${m.tag}-paso03-duracion`); await next();
+      if (m.tag === "c10a") await W().getByLabel("Dos voces que se alternan").check();
+      await shot(s.p, `${m.tag}-paso04-participantes`); await next();
+      await W().getByLabel("Voz A").selectOption(m.voices[0]); if (m.count === 2) await W().getByLabel("Voz B").selectOption(m.voices[1]);
+      if (m.avatars) { await W().getByLabel("Avatar A").selectOption(m.avatars[0]); if (m.avatars[1]) await W().getByLabel("Avatar B").selectOption(m.avatars[1]); }
+      const duroOpts = await W().locator('option[value="CeFSZuaHs4SxcBxb9nCr"]').evaluateAll((os) => os.map((o) => ({ disabled: o.disabled, text: o.textContent })));
+      const duroOff = duroOpts.length > 0 && duroOpts.every((o) => o.disabled && /No disponible/.test(o.text));
+      ok(`${m.tag}: El Duro real sin concesión aparece «No disponible» y no se puede elegir`, duroOff, JSON.stringify(duroOpts));
+      await shot(s.p, `${m.tag}-paso05-voces-avatares`); await next();
+      if (m.tag === "c10c") await W().getByLabel(/Invertir posiciones/).check();
+      await shot(s.p, `${m.tag}-paso06-escenario`); await next();
+      await W().getByLabel("Ambiente musical").selectOption(m.tag === "c10a" ? "misterio" : "auto"); await shot(s.p, `${m.tag}-paso07-musica`); await next();
+      if (m.format) await W().getByLabel(m.format).check();
+      await shot(s.p, `${m.tag}-paso08-formato`); await next();
+      await W().getByTestId("wizard-estimate").locator("table").waitFor();
+      const est = await W().getByTestId("wizard-estimate").textContent();
+      ok(`${m.tag}: estimación desglosada (voz, avatar, imágenes, video, render)`, ["voz", "avatar", "imagenes", "video", "render", "Total estimado"].every((k) => est.toLowerCase().includes(k.toLowerCase())), est.slice(0, 160));
+      await shot(s.p, `${m.tag}-paso09-costo`); await next();
+      await W().getByRole("button", { name: "Generar episodio" }).isDisabled().then((d) => ok(`${m.tag}: sin autorización explícita no se puede generar`, d));
+      await W().getByLabel("Autorizo el cargo").check(); await shot(s.p, `${m.tag}-paso10-autorizar`);
+      await W().getByRole("button", { name: "Generar episodio" }).click();
+      await W().getByTestId("wizard-progress").waitFor(); await shot(s.p, `${m.tag}-paso11-progreso`);
+      const row0 = (await db.query("select * from podcast_studio_episodes where user_id=$1 and title=$2 order by created_at desc limit 1", [OWNER.id, m.title])).rows[0];
+      ok(`${m.tag}: episodio autorizado y trabajo despachado`, row0?.status === "authorized" && fs.readFileSync(path.join(E2E, "logs/dispatch.jsonl"), "utf8").slice(disp0).includes(row0.id), row0?.status);
+      const w = await worker(row0.id, "studio");
+      const row = (await db.query("select * from podcast_studio_episodes where id=$1", [row0.id])).rows[0];
+      ok(`${m.tag}: worker del estudio entrega el episodio (proveedores simulados)`, w.code === 0 && row.status === "ready" && /STUDIO_PROVIDERS mock/.test(w.out), `${row.status} ${row.error ?? ""}`);
+      await W().getByTestId("wizard-player").waitFor({ timeout: 30000 }); await shot(s.p, `${m.tag}-paso12-reproducir`);
+      const play = await W().getByTestId("wizard-player").evaluate(async (v) => { v.muted = true; await v.play().catch(() => {}); await new Promise((r) => setTimeout(r, 3000)); const o = { rs: v.readyState, t: v.currentTime, w: v.videoWidth, h: v.videoHeight, err: v.error?.code ?? null }; v.pause(); return o; });
+      ok(`${m.tag}: el reproductor reproduce el MP4 ${m.format ? "9:16" : "16:9"}`, play.rs >= 2 && play.t > 1 && !play.err && (m.format ? play.h > play.w : play.w > play.h), JSON.stringify(play));
+      await next(); await shot(s.p, `${m.tag}-paso13-descargar`);
+      const mp4Url = await W().getByTestId("wizard-download-mp4").getAttribute("href"), audUrl = await W().getByTestId("wizard-download-audio").getAttribute("href");
+      const mp4 = path.join(OUT, `${m.tag}.mp4`), aud = path.join(OUT, `${m.tag}.mp3`);
+      fs.writeFileSync(mp4, Buffer.from(await (await fetch(mp4Url)).arrayBuffer())); fs.writeFileSync(aud, Buffer.from(await (await fetch(audUrl)).arrayBuffer()));
+      const pr = probe(mp4), pa = probe(aud), L = loud(mp4);
+      ok(`${m.tag}: descarga MP4 H.264+AAC y audio MP3 separados`, pr.streams.some((x) => x.codec_name === "h264") && pr.streams.some((x) => x.codec_name === "aac") && pa.streams.some((x) => x.codec_name === "mp3"));
+      ok(`${m.tag}: audio −16±1 LUFS, TP ≤ −1 dBTP`, Math.abs(L.I + 16) <= 1 && L.TP <= -1, JSON.stringify(L));
+      const ops = (await db.query("select provider, op, state, count(*)::int n, sum(actual_usd)::float usd from podcast_studio_operations where episode_id=$1 group by 1,2,3", [row.id])).rows;
+      ok(`${m.tag}: cada operación de pago una vez en el libro, todas liquidadas`, ops.length > 0 && ops.every((o) => o.state === "settled"), JSON.stringify(ops));
+      fs.writeFileSync(path.join(OUT, `${m.tag}-resultado.json`), JSON.stringify({ episodio: row.id, modo: row.mode, resultado: row.result, costo_simulado_usd: row.cost_usd, libro: ops }, null, 1));
+      const again = await worker(row.id, "studio");
+      ok(`${m.tag}: re-despacho de un episodio listo no regenera ni cobra`, /STUDIO_NOT_AUTHORIZED/.test(again.out));
+      await next(); await s.p.reload(); await s.p.getByTestId("studio-episodes").waitFor(); await shot(s.p, `${m.tag}-paso14-lista`);
+      ok(`${m.tag}: aparece en «Mis episodios»`, (await s.p.getByTestId("studio-episodes").textContent()).includes(m.title));
+      summary[m.tag] = { id: row.id, result: row.result, cost: row.cost_usd };
+    }
+  }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
-  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10 };
-  const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`)).length]));
+  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 37 };
+  const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[abc]:/.test(r.name))).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));
   const failed = results.filter((r) => !r.pass).length; console.log(`POR_CASO ${JSON.stringify(perCase)}`); console.log(`RESULTADO ${results.length - failed}/${results.length} PASS`); process.exit(failed ? 1 : 0);
