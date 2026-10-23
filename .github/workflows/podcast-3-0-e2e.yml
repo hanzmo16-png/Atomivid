@@ -105,6 +105,12 @@ jobs:
           set -o pipefail
           npm run test:podcast3 2>&1 | tee v3-tests.log
           grep -q '^# skipped 0$' v3-tests.log && grep -q '^# todo 0$' v3-tests.log && grep -q '^# fail 0$' v3-tests.log
+      - name: Resumen de pruebas (anotaciones, sin secretos)
+        if: always()
+        run: |
+          [ -f v3-tests.log ] || exit 0
+          echo "::notice title=test:podcast3::$(grep -E '^# (tests|pass|fail|skipped|todo) ' v3-tests.log | tr '\n' ' ')"
+          grep -E '^not ok ' v3-tests.log | head -5 | while read -r l; do echo "::warning title=fallo::${l:0:300}"; done
       - name: Demo por modo (A narración, B avatar, C conversación) con QC de audio
         run: |
           set -o pipefail
@@ -168,6 +174,15 @@ jobs:
           set -o pipefail
           bash scripts/harness/e2e/podcast/run.sh ci "$CASES"
           grep -Eq '^RESULTADO ([0-9]+)/\1 PASS$' "$E2E_HOME/out/ci.log" || { echo "::error::E2E con fallos"; exit 1; }
+      - name: Resumen E2E y migración (anotaciones, sin secretos)
+        if: always()
+        run: |
+          [ -f v2-tests.log ] && echo "::notice title=podcast v2::$(grep -E '^# (tests|pass|fail|skipped) ' v2-tests.log | tr '\n' ' ')"
+          [ -f migration-audit.log ] && echo "::notice title=migración::$(tail -n 4 migration-audit.log | tr '\n' ' ' | cut -c1-900)"
+          f="$E2E_HOME/out/ci.log"; [ -f "$f" ] || exit 0
+          echo "::notice title=E2E::$(grep -E '^RESULTADO' "$f" | tail -1) · $(grep -Ec '^PASS c10' "$f") PASS modos estudio · $(grep -Ec '^PASS c11-' "$f") PASS móvil · $(grep -Ec '^FAIL' "$f") FAIL"
+          grep -E '^FAIL' "$f" | head -6 | while read -r l; do echo "::warning title=E2E fallo::${l:0:300}"; done
+          echo "::notice title=E2E modos::$(grep -E 'c10a|c10d' "$f" | grep -E 'solo audio|reproductor|descarga' | cut -c1-120 | tr '\n' '|' | cut -c1-900)"
       - name: QC de audio de los MP4 descargados (−16±1.5 LUFS, TP ≤ −1 dBTP, sin recorte)
         run: |
           mkdir -p audio-qc
