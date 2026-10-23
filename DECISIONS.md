@@ -320,3 +320,24 @@ Se separó en `generate-script.ts` (sin Remotion, sin `node:fs`/`path`/
 de render y por `scripts/test-pipeline.ts`). Ningún cambio de
 comportamiento — mismo código, reorganizado para que cada ruta cargue
 únicamente lo que usa.
+
+## Long Form: el editor ya no rechaza guiones aprobados por metadatos y por el bloque de cierre (2026-10-23)
+
+Diagnóstico de producción (solo lectura, `scripts/long-form-final-diag.ts`): las dos últimas
+preparaciones de guion del propietario (22 oct, jobs `290de42b` y `dbc89879`) fallaron como
+«editoriales» aunque la última revisión del crítico **no tenía ningún hallazgo bloqueante** y la
+duración estaba dentro de tolerancia.
+
+1. `290de42b`: dos marcas de edición de `creativeDirection` (frase compartible y un momento
+   protegido) reproducían su pasaje con diferencias tipográficas/de borde. Son metadatos, nunca
+   narración. Ahora se re-anclan al tramo ORIGINAL de la narración con `locateNormalized` (mismo
+   bloque o coincidencia única en otro bloque) antes de la comprobación literal. Un pasaje
+   inventado sigue rechazándose; la narración no cambia.
+2. `dbc89879`: el bloque final (reflexión breve + el único CTA que las reglas del guionista exigen
+   en el cierre) venía etiquetado `restatement` justo después del bloque que el crítico cita como
+   resolución. La etiqueta sola convertía un guion aprobado en fallo pagado. Un bloque final que
+   SIGUE a la resolución citada se trata como cierre, salvo que el crítico levante un hallazgo
+   `blocking` sobre él. Una repetición en mitad del guion sigue bloqueando.
+
+Reproducido contra los dos borradores reales guardados: con ambos cambios, cero bloqueos.
+Sin cambios de esquema, de presupuestos ni de proveedores.
