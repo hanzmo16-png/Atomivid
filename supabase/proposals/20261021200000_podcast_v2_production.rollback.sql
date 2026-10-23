@@ -45,10 +45,12 @@ do $$ begin
         -- generating: sin el flag esa ejecución ya no termina; fallido deja al dueño salir del estado.
         status = case when status in ('draft','failed','generating') then 'failed' else status end,
         scheduled_at = null,
-        -- sin token una ejecución que siguiera viva no puede escribir «listo» encima de la neutralización
-        run_token = case when status = 'generating' then null else run_token end,
+        -- Invalida AMBAS clases de worker. Cada escritura final está cercada por su token; sin limpiar
+        -- video_run_token un worker de video ya activo podría publicar «ready» después de la reversión.
+        run_token = null,
+        video_run_token = null,
         error = 'NEUTRALIZED: Episodio de Podcast 2.x retirado por reversión; restaurar su producción por turnos para volver a generar.',
-        video_status = case when video_status in ('scheduled','queued') then 'blocked' else video_status end,
+        video_status = case when video_status in ('scheduled','queued') then 'blocked' when video_status = 'running' then 'failed' else video_status end,
         updated_at = now()
       where production is not null;
   end if;
