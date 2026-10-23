@@ -3,6 +3,7 @@ import { stableHash } from '@/lib/production-intelligence/canonical';
 import { DocumentaryResponseError, jsonResponseSystem, parseDocumentaryResponse } from './json-response';
 import type { NarrationExcerpt } from './narration-catalog';
 import { locateNormalized } from './text-locate';
+import { acceptContract } from './response-normalizer';
 
 export const VISUAL_ANCHOR_REPAIR_CONTRACT='visual-anchor-repair-v1';
 type Visual={excerptId?:string;quote?:string;[key:string]:unknown};
@@ -12,7 +13,7 @@ function anchored(v:Visual,catalog:NarrationExcerpt[],narration:string){return !
 
 /** Only pointers change. No scene, class, impact, evidence or approved text changes. */
 export function applyVisualAnchorRepair(raw:{visuals:Visual[]},catalog:NarrationExcerpt[],targets:number[],value:unknown){
- const repair=RepairSchema.parse(value),wanted=new Set(targets),seen=new Set<number>();
+ const accepted=acceptContract(RepairSchema,value);if(!accepted.success)throw accepted.error;const repair=accepted.data,wanted=new Set(targets),seen=new Set<number>();
  for(const r of repair.replacements){if(!wanted.has(r.index)||seen.has(r.index)||!catalog.some(e=>e.id===r.excerptId))throw new DocumentaryResponseError('La reparación visual eligió una referencia inválida.');seen.add(r.index);}
  const copy=structuredClone(raw);
  for(const r of repair.replacements)copy.visuals[r.index].excerptId=r.excerptId;

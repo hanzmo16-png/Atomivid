@@ -7,7 +7,7 @@ import { CitationRepairSchema, canonicalizeEditorialCitations, invalidEditorialC
  * Requires retrieved excerpts or an externally prepared research pack. One shared
  * rewrite budget covers duration and editorial defects; no audiovisual work here.
  */
-import { CreativeDirectionPromptSchema, LegacyCreativeDirectionPromptSchema, CreativeDirectionSchema, creativeDirectionIssues, anchorCreativeDirectionQuotes, CREATIVE_WRITER_RULES, CREATIVE_REVIEWER_RULES, narrativeTiming, type CreativeHistoryEntry } from "./creative-direction";
+import { CreativeDirectionPromptSchema, LegacyCreativeDirectionPromptSchema, CreativeDirectionSchema, creativeDirectionIssues, anchorCreativeDirectionQuotes, anchorCreativeDirectionSpans, CREATIVE_WRITER_RULES, CREATIVE_REVIEWER_RULES, narrativeTiming, type CreativeHistoryEntry } from "./creative-direction";
 import { supplyProtectedAnthropic } from "@/lib/supply/anthropic";
 import { documentaryOutputBudget } from "./script-output-budget";
 import Anthropic from "@anthropic-ai/sdk";
@@ -16,6 +16,7 @@ import { jsonResponseSystem, parseDocumentaryResponse, validateDocumentaryValue,
 import { repairVisualAnchors } from "./visual-anchor-repair";
 import { recoverVisualPlan } from "./visual-scene-repair";
 import { readEditorialJson } from "./editorial-json";
+import { acceptContract } from "./response-normalizer";
 import { repairSectionFunctions, sectionFunctionRepairTargets } from "./editorial-function-repair";
 import { MissingEnvVarError } from "@/lib/env-errors";
 import { assertOriginalHook, usesBannedOpener } from "./originality";
@@ -230,7 +231,7 @@ export function parseVisualPlan(response: Parameters<typeof readDocumentaryJson>
     ? (opts.referenceContract ? CinematicLenientVisualsSchema : CinematicParseVisualsSchema)
     : (opts.referenceContract ? ProductLenientVisualsSchema : ProductParseVisualsSchema);
   const value = readDocumentaryJson(response);
-  const parsed = schema.safeParse(value);
+  const parsed = acceptContract(schema, value);
   if (!parsed.success) throw new VisualPlanBlockedError(allowListedIssuePaths(parsed.error, VISUAL_DIAGNOSTIC_KEYS), sceneShapes(value, VISUAL_DIAGNOSTIC_KEYS));
   return parsed.data as z.infer<typeof CinematicLenientVisualsSchema>;
 }
@@ -463,7 +464,10 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
     const evaluation = evaluateNarrationDuration(parsed.beats.reduce((sum, b) => sum + countWords(b.narration), 0), input.targetDurationSeconds);
     const sourceIds = new Set(input.researchPack.sources.map(s => s.id));
     parsed.creativeDirection = anchorCreativeDirectionQuotes(parsed.creativeDirection, parsed.beats);
-    const localIssues: string[] = creativeDirectionIssues(parsed.creativeDirection, parsed.beats, history);
+    // Capa B: el revisor recibe el anclaje de #188 (huella idéntica -> respuestas pagadas reutilizables);
+    // comprobaciones locales e informe aprobado usan el anclaje por tramo literal (la narración no cambia).
+    const checkedDirection = anchorCreativeDirectionSpans(parsed.creativeDirection, parsed.beats);
+    const localIssues: string[] = creativeDirectionIssues(checkedDirection, parsed.beats, history);
     try { assertOriginalHook(parsed.hook); } catch { localIssues.push("Reemplaza la apertura genérica por una situación concreta."); }
     for (const beat of parsed.beats) {
       if (usesBannedOpener(beat.narration)) localIssues.push("Elimina saludos y aperturas genéricas de la narración.");
@@ -513,6 +517,9 @@ No añadas notas de producción, listas de tomas ni indicaciones visuales a la n
     const durationAcceptable = pass === 0 ? evaluation.withinTolerance : evaluation.withinHardTolerance;
     const lastPass = pass === passes - 1;
     if (!issues.length && durationAcceptable) {
+      // MEDIO-2: el anclaje por tramo solo se fija al APROBAR. Prompts de revisión y de corrección conservan
+      // la dirección creativa del escritor (anclaje #188): mismas huellas, respuestas pagadas reutilizables.
+      parsed.creativeDirection = checkedDirection;
       // Plan only the approved narration, one short response per beat. Each call
       // is independently cached/accounted; an interruption reuses prior results.
       if (!input.parse) {

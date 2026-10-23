@@ -1,0 +1,538 @@
+{
+ "_provenance": "DATO REAL PERSISTIDO: documentary_script_jobs.editorial_checkpoint del job e8048599 (incidentes 23d86d0a y 8c330c37), leído con SELECT el 2026-10-23. Solo el borrador (pass 0, sin revisión). Sin user_id, sin campos del formulario, fuentes reducidas a sus IDs. Las respuestas crudas del proveedor NO están aquí (viven en Storage, no accesible por SQL). creativeHistory: input.creativeHistory real del job (títulos/aperturas de proyectos previos del propietario; sin datos personales).",
+ "job": "e8048599",
+ "durationMinutes": 15,
+ "language": "en",
+ "referenceContract": "catalog-v1",
+ "writerContract": "fragments-v1",
+ "sourceIds": [
+  "web-1",
+  "web-2",
+  "web-3",
+  "web-4"
+ ],
+ "script": {
+  "hook": "Two armies that never met. A thousand years apart. One side left behind eyewitness accounts; the other barely left a written record at all. Before we even ask who would win, we have to ask a harder question: can this fight even be judged fairly?",
+  "beats": [
+   {
+    "type": "hook",
+    "claims": [
+     {
+      "id": "c0-1",
+      "text": "Leonidas and the Spartan stand at Thermopylae took place in 480 BCE",
+      "support": "sourced",
+      "sourceIds": [
+       "web-1",
+       "web-2"
+      ]
+     },
+     {
+      "id": "c0-2",
+      "text": "Attila led the Huns roughly nine hundred years after the Battle of Thermopylae, in the 5th century CE",
+      "support": "unverified",
+      "sourceIds": []
+     },
+     {
+      "id": "c0-3",
+      "text": "Attila the Hun and Leonidas never fought each other and belong to entirely separate historical periods",
+      "support": "inference",
+      "sourceIds": [
+       "web-1"
+      ]
+     }
+    ],
+    "purpose": "Introduce the hypothetical clearly, state the time gap honestly, and promise a fair, evidence-based comparison",
+    "narration": "Picture it: a narrow mountain pass in central Greece, barely wide enough for a handful of men to stand shoulder to shoulder. On one side, three hundred Spartan hoplites, shields locked, spears level. On the other, imagine Attila the Hun's cavalry thundering toward that same gap — horsemen who, according to the common historical picture, built entire empires on speed, range, and the open steppe. It's a tempting match-up. It's also, in the strictest sense, impossible. Leonidas died defending Thermopylae in 480 BCE. Attila led the Huns roughly nine hundred years later, in the fifth century CE. These two forces never stood on the same field, never breathed the same air of battle. So why does this comparison keep getting asked? Because it's actually a useful question in disguise — not 'who was tougher', but 'what does each side's historical evidence actually support, and what happens when you put two completely different military systems into the same imagined space?' We're going to take the real, sourced side of this story seriously first — what Thermopylae's terrain actually did to an attacking force — before honestly admitting where the evidence on the Huns runs thin. That honesty is the whole point.",
+    "emotionalTone": "intriguing, grounded, setting expectations"
+   },
+   {
+    "type": "setup",
+    "claims": [
+     {
+      "id": "c1-1",
+      "text": "Herodotus's Histories, written around 440 BCE, is the primary and most detailed ancient source for the Battle of Thermopylae",
+      "support": "sourced",
+      "sourceIds": [
+       "web-1",
+       "web-3",
+       "web-4"
+      ]
+     },
+     {
+      "id": "c1-2",
+      "text": "Herodotus wrote roughly fifty years after the battle and is understood to have drawn on accounts from survivors and their descendants",
+      "support": "sourced",
+      "sourceIds": [
+       "web-3"
+      ]
+     },
+     {
+      "id": "c1-3",
+      "text": "Herodotus's reliability on military details has been debated by historians for centuries",
+      "support": "sourced",
+      "sourceIds": [
+       "web-3"
+      ]
+     },
+     {
+      "id": "c1-4",
+      "text": "The defending force at Thermopylae included allied Greek troops beyond the 300 Spartans",
+      "support": "inference",
+      "sourceIds": [
+       "web-2"
+      ]
+     },
+     {
+      "id": "c1-5",
+      "text": "Herodotus claimed the Persian army numbered around 1.7 million soldiers, a figure considered almost certainly exaggerated",
+      "support": "sourced",
+      "sourceIds": [
+       "web-2"
+      ]
+     },
+     {
+      "id": "c1-6",
+      "text": "A local Greek named Ephialtes betrayed the defenders by revealing the Anopaia mountain path",
+      "support": "sourced",
+      "sourceIds": [
+       "web-2"
+      ]
+     },
+     {
+      "id": "c1-7",
+      "text": "The defenders held the pass for three days before being outflanked",
+      "support": "sourced",
+      "sourceIds": [
+       "web-2"
+      ]
+     }
+    ],
+    "purpose": "Establish the sourced, documented baseline of the Thermopylae stand before introducing the Huns",
+    "narration": "Let's start with what's actually documented. The main account of Thermopylae comes from the Greek historian Herodotus, writing his Histories around 440 BCE — roughly fifty years after the battle itself. He's our primary source, and by most accounts he worked from interviews with survivors and their descendants, which gives the story weight, even if his reliability on specific military details has been debated by historians for centuries. According to that account, King Leonidas led a force built around three hundred Spartans, though they were joined by several thousand allied Greek troops from other city-states — this wasn't a solo stand of three hundred men against the world, whatever the popular image suggests. They took position at Thermopylae specifically because the pass was narrow, a bottleneck between mountains and sea where a massive invading force couldn't bring its full numbers to bear at once. Herodotus claimed the Persian army under Xerxes numbered as many as 1.7 million soldiers — a figure modern historians generally treat as a wild exaggeration, though the real number was almost certainly still enormous. For three days, the defenders held that bottleneck. Then a local man named Ephialtes revealed a mountain path that let Persian forces come around behind them. That's the documented shape of the story — and it matters enormously for what comes next.",
+    "emotionalTone": "grounding, informative"
+   },
+   {
+    "type": "setup",
+    "claims": [
+     {
+      "id": "c2-1",
+      "text": "No source in the research material used for this video documents Attila's army or Hunnic battlefield tactics directly",
+      "support": "inference",
+      "sourceIds": []
+     },
+     {
+      "id": "c2-2",
+      "text": "The common popular image of Hunnic warfare emphasizes mobility and mounted archery over standing infantry formations",
+      "support": "unverified",
+      "sourceIds": []
+     }
+    ],
+    "purpose": "Honestly flag the total absence of sourced material on Attila and the Huns in this research, resetting the evidentiary bar",
+    "narration": "Now here's the uncomfortable part, and it's worth saying plainly instead of papering over it: nothing in the material gathered for this video is a primary source on Attila's army, his cavalry's tactics, or how the Huns actually fought in battle. Everything that follows about the Huns is general historical understanding — the kind of picture widely repeated in popular history — not something we can point to a cited ancient text for here. That matters, because it means this comparison can't be built the same way on both sides. On the Spartan side, we have Herodotus, imperfect as he is, describing a specific place, a specific timeline, specific tactics. On the Hunnic side, for the purposes of this video, we have a widely held but unverified image: fast horsemen, mounted archers, a style of warfare built around mobility rather than standing formations. That image might be broadly accurate — it's consistent with how steppe warfare is generally described — but we're not going to pretend it carries the same evidentiary weight as the Thermopylae material. So from here forward, treat every claim about Hunnic tactics as a labeled assumption, not a documented fact. That's the honest foundation this comparison has to be built on.",
+    "emotionalTone": "honest, self-aware, slightly sobering"
+   },
+   {
+    "type": "discovery",
+    "claims": [
+     {
+      "id": "c3-1",
+      "text": "The pass at Thermopylae was narrow, situated between mountains and the sea, limiting how many attackers could engage at once",
+      "support": "sourced",
+      "sourceIds": [
+       "web-1",
+       "web-2"
+      ]
+     },
+     {
+      "id": "c3-2",
+      "text": "Cavalry forces generally depend on open space for charging, maneuvering, and flanking to be effective",
+      "support": "inference",
+      "sourceIds": []
+     },
+     {
+      "id": "c3-3",
+      "text": "A narrow corridor would significantly reduce the tactical advantages typically associated with mounted forces",
+      "support": "inference",
+      "sourceIds": []
+     }
+    ],
+    "purpose": "Deliver the central analytical insight: the pass's geometry, not heroism alone, is what made the stand possible",
+    "narration": "So let's use the one fact we can actually verify and push on it: the geography of Thermopylae itself. The pass Leonidas chose wasn't open ground — it was a narrow corridor between steep mountains and the sea, so tight at its narrowest point that only a limited number of men could physically engage at once. A pass eight meters wide at its narrowest point did not care how many riders were waiting behind it. That single feature changes everything about this hypothetical. Cavalry's biggest advantages — speed, maneuverability, the ability to flank, to charge, to wheel around a slower-moving infantry line — depend on room to move. In a corridor that narrow, a mounted force loses almost all of that. Horses can't easily build charging momentum in a tight space, can't turn a flank that doesn't exist, and become dangerously vulnerable if they stumble or are brought down in a crowd of their own riders behind them. If a cavalry-heavy force like the Huns had approached that same pass, the location itself would have stripped away their primary weapon before a single blow landed. This is the first real, evidence-grounded answer to our central question: terrain, not individual toughness, is what decided whether the Spartan strategy could even function in the first place.",
+    "emotionalTone": "revelatory, satisfying"
+   },
+   {
+    "type": "escalation",
+    "claims": [
+     {
+      "id": "c4-1",
+      "text": "Open plains are generally considered favorable terrain for steppe cavalry forces such as the Huns are commonly described as using",
+      "support": "unverified",
+      "sourceIds": []
+     },
+     {
+      "id": "c4-2",
+      "text": "The Spartan phalanx formation relies on close, direct engagement with an opposing force to be effective",
+      "support": "inference",
+      "sourceIds": [
+       "web-1",
+       "web-2"
+      ]
+     },
+     {
+      "id": "c4-3",
+      "text": "Mounted horse archers could, in principle, avoid direct engagement with a static infantry formation by using ranged harassment and retreat tactics",
+      "support": "unverified",
+      "sourceIds": []
+     }
+    ],
+    "purpose": "Flip the hypothetical onto open terrain to show the outcome inverts, raising the stakes of the central question",
+    "narration": "But hold that thought, because the same logic cuts both ways, and this is where the hypothetical gets genuinely harder. Take the Huns out of that narrow pass and put them on open plains — the kind of terrain steppe cavalry is generally understood to have thrived on — and the Spartan phalanx loses its own advantage just as completely. A wall of locked shields and leveled spears is devastating when an enemy has to come straight at it through a bottleneck. It's a very different story against an enemy that doesn't need to come straight at anything. If the common historical picture of Hunnic horse archers is accurate, they could, in theory, circle a static infantry formation, harass it with ranged fire from a distance, retreat before contact, and repeat — never offering the close-quarters collision the phalanx is built to win. The Spartans' entire system assumes an enemy willing to meet them face-to-face. Strip that assumption away, and the formation that held a mountain pass for three days could, in open ground, find itself surrounded by an enemy it can't actually catch. So now the central question has split in two: not 'who wins,' but 'which battlefield are we even imagining this on?' That's not a dodge — it's the actual shape of the answer.",
+    "emotionalTone": "escalating tension, intellectual challenge"
+   },
+   {
+    "type": "twist",
+    "claims": [
+     {
+      "id": "c5-1",
+      "text": "The Anopaia mountain path allowed Persian forces to bypass the main pass and attack the defenders from behind",
+      "support": "sourced",
+      "sourceIds": [
+       "web-2"
+      ]
+     },
+     {
+      "id": "c5-2",
+      "text": "A defensive position dependent on a single secret route remaining unknown carries an inherent strategic vulnerability",
+      "support": "inference",
+      "sourceIds": [
+       "web-2"
+      ]
+     }
+    ],
+    "purpose": "Reintroduce the Anopaia path to complicate the clean terrain argument and reveal a shared vulnerability",
+    "narration": "Here's where the historical record adds a wrinkle to the clean story we just told. Remember Ephialtes, and the mountain path that outflanked the Spartans in the real battle? That detail matters more than it might seem. It proves that even the narrow pass at Thermopylae wasn't a sealed box — there was a route around it the whole time, and the defenders' position depended on that route staying secret. Apply that same logic to our hypothetical, and the terrain advantage we just built for the Spartans gets shakier. If a flanking route existed at the real Thermopylae, there's no strong reason to assume a similar cavalry force a thousand years later wouldn't look for, or stumble onto, a similar way around. A defensive position that depends entirely on an enemy not finding an alternate path isn't an airtight strategy — it's a strategy with a single point of failure, and history already showed us what happens when that point fails. This doesn't flip the outcome toward the Huns automatically. But it does mean the 'pass protects infantry absolutely' version of our terrain argument from a few minutes ago was too clean. Geography helps enormously. It doesn't guarantee anything, and the historical record of this exact pass is the proof.",
+    "emotionalTone": "complicating, thoughtful"
+   },
+   {
+    "type": "insight",
+    "claims": [
+     {
+      "id": "c6-1",
+      "text": "Herodotus's figure of 1.7 million Persian soldiers is generally regarded by modern historians as a significant exaggeration",
+      "support": "sourced",
+      "sourceIds": [
+       "web-2"
+      ]
+     },
+     {
+      "id": "c6-2",
+      "text": "The exact size of Xerxes's invading force remains debated among historians",
+      "support": "inference",
+      "sourceIds": [
+       "web-2"
+      ]
+     }
+    ],
+    "purpose": "Add honest epistemic friction by noting disputed numbers even on the sourced half of the story",
+    "narration": "It's worth pausing here on something easy to skip past: even the side of this story we can actually source isn't fully settled. That figure of 1.7 million Persian soldiers from Herodotus has been treated with heavy skepticism by historians for a long time — modern estimates generally land far lower, though there's no single agreed-upon number, and the debate over exactly how large Xerxes's invading force really was continues among historians today. If we can't pin down a firm figure for the better-documented side of this comparison, we should be doubly cautious about treating anything on the Hunnic side as settled fact. This isn't a small caveat tucked in for the sake of fairness — it changes how confidently we can even model the original Thermopylae scenario, let alone a hypothetical clash that never happened. The honest state of the evidence is this: we have a well-sourced but still debated picture of one army, and an almost entirely unsourced, generally assumed picture of the other. Any version of this match-up that sounds fully confident in its conclusion is, by definition, going further than the evidence allows. That's not a failure of the question. It's just where the limits of history actually sit.",
+    "emotionalTone": "reflective, epistemically careful"
+   },
+   {
+    "type": "payoff",
+    "claims": [
+     {
+      "id": "c7-1",
+      "text": "No verified historical evidence exists to determine a winner in a hypothetical engagement between Attila's forces and the Spartans at Thermopylae",
+      "support": "inference",
+      "sourceIds": []
+     },
+     {
+      "id": "c7-2",
+      "text": "The terrain of a confined pass would likely negate key tactical advantages of a cavalry-based force",
+      "support": "inference",
+      "sourceIds": []
+     },
+     {
+      "id": "c7-3",
+      "text": "Open terrain would likely negate key tactical advantages of a tightly packed infantry formation reliant on direct engagement",
+      "support": "inference",
+      "sourceIds": []
+     }
+    ],
+    "purpose": "Resolve the central hypothetical honestly before any closing material",
+    "narration": "So, after all that, what's the actual answer? Not a winner — the evidence doesn't support naming one, and pretending otherwise would be dishonest. What the evidence does support is a conditional answer, and it's a genuinely useful one. In the confined pass at Thermopylae, as it's historically described, a cavalry force built around speed and ranged mobility would have lost most of what makes it dangerous before the fighting even started — the geometry alone works against it. In open terrain, a tightly packed infantry formation built around direct, face-to-face engagement would lose the advantage that made its historical stand possible, because nothing would force the enemy to come to it. The 300 didn't defeat an army. They defeated open ground — and that's not a smaller story, it's a more honest one. Strip away the legend of invincible individual warriors on either side, Spartan or Hun, and what's left is something more interesting: two military systems, each nearly unbeatable in the right conditions and nearly useless in the wrong ones. The real answer to 'who would win' was never about courage or cruelty. It was always going to be decided by whoever got to pick the battlefield.",
+    "emotionalTone": "resolved, satisfying, clear-eyed"
+   },
+   {
+    "type": "insight",
+    "claims": [
+     {
+      "id": "c8-1",
+      "text": "Popular memory of Thermopylae often emphasizes individual heroism over the tactical role of terrain",
+      "support": "inference",
+      "sourceIds": [
+       "web-1",
+       "web-2"
+      ]
+     }
+    ],
+    "purpose": "Reflect on why this unanswerable hypothetical remains appealing, deepening the takeaway beyond a simple verdict",
+    "narration": "Which raises a quieter, more interesting question than the one we started with: why do we keep asking these impossible match-ups at all? Part of it is simple fascination with extremes — the disciplined wall of shields against the uncatchable rider, two totally different answers to the same problem of how to survive on a battlefield. But part of it, maybe the bigger part, is that comparisons like this force us to actually look closely at what we think we know. Most people picture three hundred men holding off an entire empire through sheer willpower. Fewer people stop to ask what role the eight-meter-wide gap between a mountain and the sea played in that story. The hypothetical with Attila doesn't just invite idle speculation — it accidentally does real historical work, because answering it honestly requires understanding the actual mechanics of Thermopylae, not just the legend of it. The Spartans of popular memory are brave, defiant, almost mythic. The Spartans of the sourced historical record were also making a very specific, very practical bet on geography. Both things can be true at once. The myth doesn't need to be false for the mechanics to matter.",
+    "emotionalTone": "reflective, thoughtful, warm"
+   },
+   {
+    "type": "next_curiosity",
+    "claims": [],
+    "purpose": "Close honestly, invite one specific comment, and deliver a brief CTA without overstating certainty",
+    "narration": "So where does that leave us? With an honest, if slightly unsatisfying, conclusion: this fight can't be judged the way a real battle can, because it never happened, and half of the forces involved aren't documented with anything close to the rigor Herodotus gave the other half. What we can say, carefully, is that the outcome was never really about Attila or Leonidas as individuals — it was always going to come down to which army got to choose the ground. If you had to pick the one variable that decides this fight — terrain, discipline, or sheer numbers — which one actually carries the most weight to you? There's no single right answer, and that's sort of the point of everything we've just walked through. If you want the next impossible matchup taken apart with the same rule — real sources first, speculation labeled as speculation — there's more waiting for you.",
+    "emotionalTone": "calm, honest, inviting"
+   }
+  ],
+  "title": "Attila the Hun vs the 300 Spartans: Could Any Army Have Broken Thermopylae?",
+  "storyPlan": {
+   "sections": [
+    {
+     "tension": "rise",
+     "beatIndex": 0,
+     "consequence": "Sets up the tension: this is a thought experiment, not a documented event, which the viewer needs to accept before anything else lands",
+     "newInformation": "Introduces the two mismatched forces and states plainly that they are separated by roughly a thousand years, framing the hypothetical honestly from the first line"
+    },
+    {
+     "tension": "reflection",
+     "beatIndex": 1,
+     "consequence": "Gives the viewer solid, sourced ground to stand on for one half of the comparison",
+     "newInformation": "Lays out what Herodotus actually documented about the 300 at Thermopylae — numbers, the terrain, the basic sequence of the stand"
+    },
+    {
+     "tension": "reflection",
+     "beatIndex": 2,
+     "consequence": "Resets viewer expectations honestly before any comparison is made, avoiding false authority",
+     "newInformation": "Flags directly that no sourced material on Attila or Hunnic tactics exists in this research, and separates common historical understanding from verified fact"
+    },
+    {
+     "tension": "release",
+     "beatIndex": 3,
+     "consequence": "Delivers the first real analytical payoff: terrain, not heroism, was the hinge of the historical battle",
+     "newInformation": "Shows that the pass's narrow width is the actual mechanism that let 300-odd men hold back a far larger force, not raw courage alone"
+    },
+    {
+     "tension": "rise",
+     "beatIndex": 4,
+     "consequence": "Shows the same two forces producing an opposite outcome depending purely on location, escalating the central puzzle",
+     "newInformation": "Flips the scenario onto open ground, where cavalry mobility and ranged harassment (described as general, unverified understanding) would dominate instead"
+    },
+    {
+     "tension": "rise",
+     "beatIndex": 5,
+     "consequence": "Complicates the clean 'pass protects infantry' logic — flanking terrain could undo the advantage either side relies on",
+     "newInformation": "Reintroduces the Anopaia mountain path that doomed the historical Spartans and asks whether a similar flanking route would matter against Huns the same way"
+    },
+    {
+     "tension": "reflection",
+     "beatIndex": 6,
+     "consequence": "Adds honest epistemic friction: even our best-documented half of this comparison isn't fully settled",
+     "newInformation": "Reflects on the debated, likely inflated ancient numbers for the Persian army (per Herodotus) as a reminder that even the 'sourced' side of this story has disputed details"
+    },
+    {
+     "tension": "release",
+     "beatIndex": 7,
+     "consequence": "Pays off the central question honestly before any closing or CTA, satisfying the main promise",
+     "newInformation": "States the core resolution: no verified winner exists, but the terrain-dependency argument is the strongest evidence-based conclusion available"
+    },
+    {
+     "tension": "reflection",
+     "beatIndex": 8,
+     "consequence": "Reframes the appeal of the question itself as the real subject, deepening the takeaway beyond a simple verdict",
+     "newInformation": "Reflects on why this specific hypothetical — two warrior legends a thousand years apart — keeps getting asked despite being unanswerable by evidence"
+    },
+    {
+     "tension": "release",
+     "beatIndex": 9,
+     "consequence": "Leaves the viewer with a clear, non-manipulative invitation and a lingering question to think about rather than a fake cliffhanger",
+     "newInformation": "Closes with the honest limit of the analysis, one specific comment prompt, and a brief CTA"
+    }
+   ],
+   "firstAnswer": "The 300's survival strategy wasn't about individual toughness — it depended entirely on a battlefield only a few meters wide, which is the first fact that changes how this whole hypothetical has to be judged",
+   "endingAnswer": "There's no sourced, decisive winner — but the evidence does support a conditional answer: in the pass, the Huns' main weapon is taken away before the fight starts; in open ground, the Spartan phalanx's main weapon is taken away just as completely. The match-up isn't about who's tougher, it's about who picked the ground",
+   "openingPromise": "We'll take the Thermopylae stand seriously as recorded history, be upfront about what we don't have sourced on the Huns, and see what a fair, honest comparison actually shows once geography enters the equation",
+   "centralQuestion": "Could Attila's cavalry have broken the kind of stand the Spartans made at Thermopylae — or would the pass itself have stopped the Huns before the Spartans ever needed to?"
+  },
+  "creativeDirection": {
+   "angles": [
+    {
+     "hook": "Two armies, a thousand years apart, finally meet on paper",
+     "device": "counterfactual",
+     "premise": "Play it straight as a tactical breakdown, treating Huns vs Spartans like a simulated battle report",
+     "genericRisk": "Becomes generic clickbait 'who would win' content with invented certainty"
+    },
+    {
+     "hook": "One side of this fight has eyewitness sources. The other barely has any",
+     "device": "disagreement",
+     "premise": "Frame it as a historiography lesson: what we can verify about Thermopylae vs what we can't verify about the Huns",
+     "genericRisk": "Could feel like a bait-and-switch if the hypothetical promise isn't honored early"
+    },
+    {
+     "hook": "The 300 didn't beat an army. They beat open ground",
+     "device": "thesis",
+     "premise": "Use the narrow pass at Thermopylae as the entire hinge of the argument — geography decides everything",
+     "genericRisk": "Risk of oversimplifying into a single-cause explanation"
+    },
+    {
+     "hook": "Did this exact match-up ever actually happen somewhere in history?",
+     "device": "clue_mystery",
+     "premise": "Mystery-style: investigate whether any recorded ancient battle ever actually tested heavy infantry against steppe cavalry in a pass",
+     "genericRisk": "Pack has no sourced battle like this — risks inventing an answer to fill the gap"
+    },
+    {
+     "hook": "Leonidas chose this ground on purpose — what if he hadn't been able to?",
+     "device": "character_case",
+     "premise": "Character case study built entirely around Leonidas's choices and the mechanics of the Spartan stand, then ask what variable would need to change",
+     "genericRisk": "Leaves Attila's side thin, unbalancing the promised comparison"
+    },
+    {
+     "hook": "The gap closes, the dust rises — and then we stop, because this never happened",
+     "device": "in_medias_res",
+     "premise": "Open with the in medias res battle moment, then pull back to show two totally different military systems clashing only in theory",
+     "genericRisk": "Overused device in this channel's recent history (Salamis, Gucci)"
+    },
+    {
+     "hook": "Six centuries separate these two men. Let's see what that actually means for this fight",
+     "device": "timeline",
+     "premise": "Timeline device tracing both figures' actual eras side by side to expose the chronological absurdity before even discussing tactics",
+     "genericRisk": "Timelines can feel slow and didactic if not paired with stakes"
+    }
+   ],
+   "audience": "History enthusiasts who enjoy hypothetical warrior/army matchups (Deadliest Warrior-style content) but want it grounded in real sourcing rather than fan fiction",
+   "weakness": "The research pack contains zero sourced material on Attila the Hun or Hunnic military tactics, so the entire 'Hun side' of the comparison rests on general, unverified historical understanding rather than cited primary or secondary sources",
+   "cloneTest": {
+    "substitutedTopic": "Spartans vs a modern mechanized army",
+    "whyThisStoryBreaks": "The terrain-decides-everything thesis only works because Hunnic cavalry's real historical strength (open-ground mobility and horse archery) is the specific military system described as unverified-but-plausible here; swap in a mechanized army and the entire 'narrow pass neutralizes the threat' logic, plus the Anopaia path callback, stops making sense"
+   },
+   "finalists": [
+    1,
+    2,
+    0
+   ],
+   "closingCta": {
+    "quote": "If you want the next impossible matchup taken apart with the same rule — real sources first, speculation labeled as speculation — there's more waiting for you.",
+    "beatIndex": 9
+   },
+   "chosenAngle": 2,
+   "finalFeeling": "Respect for how much terrain and context — not individual toughness — decided ancient battles, plus comfort with an honest 'it depends' answer",
+   "commentMoment": {
+    "quote": "If you had to pick the one variable that decides this fight — terrain, discipline, or sheer numbers — which one actually carries the most weight to you?",
+    "beatIndex": 9
+   },
+   "protectInEdit": [
+    {
+     "quote": "A pass eight meters wide at its narrowest point did not care how many riders were waiting behind it.",
+     "beatIndex": 3
+    },
+    {
+     "quote": "The 300 didn't defeat an army. They defeated open ground — and that's not a smaller story, it's a more honest one.",
+     "beatIndex": 7
+    },
+    {
+     "quote": "Nothing in the material gathered for this video is a primary source on Attila's army — so everything said about the Huns from here on is clearly marked as general historical understanding, not verified fact.",
+     "beatIndex": 2
+    }
+   ],
+   "shareableLine": {
+    "quote": "The 300 didn't defeat an army. They defeated open ground — and that's not a smaller story, it's a more honest one.",
+    "beatIndex": 7
+   },
+   "avoidedPatterns": [
+    "Opening with a pure in medias res battle scene again, back to back with the Salamis video",
+    "Leaning on 'documented vs undocumented' framing as the sole structural spine, reused from the moon-base video",
+    "Ending on another open forward-looking question without first resolving the central hypothetical, as in the Salamis close"
+   ],
+   "selectionReason": "Angle 2 gives the strongest single engine for the whole video: it lets terrain do the explanatory work the research pack can actually support (Thermopylae's geography is well documented), it naturally produces an honest, resolvable answer instead of a fabricated 'winner', and it keeps the sourcing honest by making the asymmetry of evidence (angle 1) part of the reveal rather than the whole structure.",
+   "signatureDetail": {
+    "quote": "A pass eight meters wide at its narrowest point did not care how many riders were waiting behind it.",
+    "beatIndex": 3
+   },
+   "emotionalPromise": "The satisfaction of watching a tempting hypothetical get taken seriously and then honestly dismantled, ending in genuine insight rather than a hollow 'winner'",
+   "beliefToChallenge": "That 'who would win' questions between historical warriors have a real, discoverable answer if you just compare stats",
+   "evidenceThatWouldHelp": "Primary or well-sourced secondary material on Hunnic cavalry tactics, horse archery range and rate of fire, and any documented historical engagements between steppe cavalry and Greek-style hoplite phalanxes in confined terrain"
+  },
+  "workingTitleOptions": [
+   "Attila vs the 300 Spartans: What the Evidence Actually Says",
+   "Could Attila's Huns Have Beaten Leonidas at Thermopylae?",
+   "The Impossible Fight: Huns vs Spartans, Tested Against the Terrain"
+  ]
+ },
+ "creativeHistory": [
+  {
+   "topic": "Documental de misterio sobre la cara oculta de la Luna y los relatos de supuestas bases extraterrestres. Explora el proyecto militar Horizon, las afirmaciones de Ingo Swann y la leyenda de Apolo 20, c",
+   "device": "timeline",
+   "ending": "do a un libro, y de un libro a un video. Si alguna vez has visto el video de 2007 que empezó todo, la pregunta que vale la pena hacerse no es si es real, sino por qué fue tan fácil creerlo. Entender esa diferencia —entre el documento, el testimonio y el rumor— es lo único que realmente sostiene esta historia. Si quieres que sigamos abriendo expedientes como este, con la misma regla de separar el documento del rumor, aquí tienes más para explorar.",
+   "opening": "En junio de 1959, un grupo de oficiales del Ejército de Estados Unidos entregó un informe clasificado con un plan concreto: construir una base militar armada bajo la superficie de la Luna, con soldados viviendo allí de forma permanente para 1966. Ese proyecto se llamó Project Horizon. Nunca se construyó nada de lo que proponía. Y sin embargo, ese mismo nombre reaparece hoy, seis décadas después, en una de las teorías más persistentes de internet: la de una base alienígena oculta en la cara oculta de la Luna, y de una misión secreta llamada Apolo 20 que supuestamente la visitó. Entre el documento real de 1959 y la leyenda que circula hoy hay t",
+   "promise": "Vamos a separar tres capas de esta historia —un documento militar real, un testimonio psíquico sin corroborar, y un video viral sin origen verificable— para ver exactamente qué sostiene cada una",
+   "structure": [
+    "Presentar las tres capas del misterio y prometer separarlas por tipo de evidencia",
+    "Mostrar que Horizon fue un plan militar real y detallado, dando legitimidad aparente al nombre",
+    "Cerrar el arco de Horizon con su cancelación y el tratado internacional, dejando un vacío documental",
+    "Introducir la segunda capa del mito: el testimonio de Ingo Swann sin corroboración externa",
+    "Presentar la leyenda de Apolo 20 como la capa más elaborada y menos sustentada del mito",
+    "Comparar el nivel de evidencia de las tres capas y revelar que cada una solo presta credibilidad de nombre, no pruebas",
+    "Resolver la pregunta central confirmando dónde termina la evidencia, y cerrar con reflexión e invitación breve"
+   ]
+  },
+  {
+   "topic": "Cómo se forman las auroras boreales",
+   "device": "in_medias_res",
+   "ending": "on la actividad solar. Antes de eso, eran solo presagios, leyendas, señales sin explicación. Hoy sabemos el mecanismo general: viento solar, campo magnético, colisión, color. Lo que sigue siendo difícil de predecir es cuándo y con qué intensidad aparecerá una aurora en una noche específica —esa parte, la actividad solar no la entrega con aviso previo. Si te interesa entender qué más controla el clima espacial que nos rodea, hay más para explorar.",
+   "opening": "En la atmósfera polar, a casi cien kilómetros de altura, un átomo recibe el impacto de una partícula diminuta y estalla en luz. Para llegar hasta ahí, esa partícula viajó desde el Sol a velocidades de entre 490 y 1000 kilómetros por segundo, parte de un flujo constante que nunca se detiene: el viento solar. No es un rayo aislado. Es el final de un viaje que empieza en la superficie solar y termina, segundos después del impacto, convertido en una aurora boreal.",
+   "promise": "Vamos a seguir la cadena completa: desde la partícula que sale del Sol hasta el color exacto que aparece sobre tu cabeza.",
+   "structure": [
+    "Arrancar con una colisión concreta ya en curso y entregar el primer dato útil (velocidad del viento solar) antes de las ",
+    "Explicar por qué la mayoría de las partículas no llega a formar auroras y por qué el fenómeno se concentra en los polos.",
+    "Detallar el mecanismo físico exacto de la colisión y ubicarlo en una capa atmosférica concreta.",
+    "Explicar el origen del color, entregando el dato del nitrógeno y marcando honestamente la incertidumbre en otros matices",
+    "Cerrar la cadena causal principal, dar contexto histórico y abrir una curiosidad final honesta antes del CTA."
+   ]
+  },
+  {
+   "topic": "Big foot realidad o mito",
+   "device": "clue_mystery",
+   "ending": "ame, and fifty years of people arguing about what it means. That's not a satisfying answer, but it is an honest one: the evidence we actually have supports suspicion in both directions and proof in neither. If you've seen the full fifty-nine seconds yourself, what convinced you either way — the walk, the shoulders, or something else entirely? If you want the next contested piece of evidence picked apart the same way, there's more waiting for you.",
+   "opening": "Horses spook along a dry creek bed in Northern California. It's October 20, 1967. Roger Patterson and Bob Gimlin are riding through Bluff Creek when something ahead sends their animals into a panic. Patterson grabs a 16mm camera from his saddlebag and starts filming. What ends up on that reel runs under a minute — most accounts put it near fifty-nine seconds — and shows a large, hair-covered figure walking across a gravel bar before turning back toward the camera. Here's the fact worth sitting with before anything else: more than fifty years later, no scientific body has ever certified this footage as proof of an unknown animal, and no court ",
+   "promise": "We'll look closely at the most famous 59 seconds in cryptozoology — the filming itself, the one frame both sides keep arguing over, the cracks in the filmmakers' own story, and the competing hoax claims — to see what the evidence can actually support",
+   "structure": [
+    "Establish the film's basic facts and deliver an early concrete payoff: the footage remains uncertified in either directi",
+    "Show the film didn't emerge in a vacuum — a decade of regional Bigfoot buzz primed its reception — while flagging the au",
+    "Deliver the promised Frame 352 analysis and reveal that Patterson and Gimlin's own retellings contain inconsistencies, c",
+    "Show the hoax-claim side is also contradictory and weakly sourced, preventing a clean 'it was faked' resolution",
+    "Deliver the honest, evidence-based conclusion: the question remains genuinely open, and explain why that itself is the f"
+   ]
+  },
+  {
+   "topic": "La historia obscura detrás de la marca Gucci",
+   "device": "in_medias_res",
+   "ending": "in a Florence leather shop, was dead at 46. The woman once closest to him was convicted of arranging it. And the Gucci name itself — stripped of the family that built it — kept going, sold on, relaunched, worn by new generations who likely have no idea what happened on those office steps in 1995. The name survived. The family that built it did not. If you want more stories where glamorous names hide uglier histories, there's more waiting for you.",
+   "opening": "It's the morning of March 27, 1995, on Corso Venezia in Milan. A man climbs the steps toward his office at number 38. He is 46 years old, dressed for another ordinary day of meetings. His name is Maurizio Gucci, grandson of the man who built one of the most recognized names in fashion. A doorman waits near the entrance. Then comes the ambush: gunfire, close range, on the office porch itself. Maurizio Gucci falls on those steps, and within moments, the last member of the Gucci family to run the company bearing his name is dead. For two years, the killing stays unsolved — a mystery hanging over one of Europe's most famous luxury houses. Who wan",
+   "promise": "We will go from the murder itself back through the family's rise, Maurizio's fall from control of his own company, to the arrest that answered who was behind it — and the loose thread even that answer leaves hanging.",
+   "structure": [
+    "Open in medias res on the murder to establish immediate stakes and pull the viewer into the mystery of who and why.",
+    "Establish the glamorous rise of the Gucci brand and Maurizio's place in it, contrasting with the violence just shown.",
+    "Reveal Maurizio's relationship with Patrizia Reggiani and his eventual loss of control over the company, setting up moti",
+    "Resolve the whodunit by revealing the arrest and conviction of Patrizia Reggiani, answering the central question.",
+    "Close out the arc honestly by flagging the unresolved discrepancy in reported sentence served, and deliver the final ref"
+   ]
+  },
+  {
+   "topic": "After Thermopylae: The Battle of Salamis — cinematic documentary, no avatar; striking animated AI opening, especially the first 90 seconds.",
+   "ending": " the drama we've inherited and the evidence historians can actually verify — is itself a kind of invitation. If the story of Salamis can shift depending on which fragments survive and how they're read, what does that mean for the dozens of other 'decisive battles' of the ancient world we treat as settled fact? Perhaps the real discovery here isn't what happened in that strait, but how carefully we should hold the stories we think we already know.",
+   "opening": "The pass at Thermopylae had fallen. King Leonidas and his men were dead, and the road south into the heart of Greece now lay open before the army of Xerxes. Athens emptied in panic — families loaded onto ships, the Acropolis abandoned to flame. By late summer of 480 BCE, it seemed the Persian Empire, already the largest the world had known, was about to swallow the last free cities of Greece whole. Yet somewhere in the straits near the island of Salamis, a fractured alliance of Greek captains, exhausted and outnumbered, chose not to retreat further. What happened next in those narrow waters would be remembered for twenty-five centuries — not ",
+   "structure": [
+    "Establish stakes right after Thermopylae and pull viewer into the mystery of Salamis.",
+    "Introduce the opposing forces and geography, with honest caveats about numbers.",
+    "Reveal the deception attributed to Themistocles and the uncertainty around it.",
+    "Build tension into the morning of battle, Persian overconfidence, Greek discipline.",
+    "Insight: reframe battle as strategic/geographic triumph rather than simple heroics, and highlight historiographical unce",
+    "Deliver the resolution and broader consequence of the battle.",
+    "Open a forward-looking question to hook future curiosity without overstating certainty."
+   ]
+  }
+ ]
+}

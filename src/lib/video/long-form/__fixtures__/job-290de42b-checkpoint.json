@@ -1,0 +1,478 @@
+{
+ "job": "290de42b",
+ "pass": 2,
+ "review": {
+  "ending": {
+   "evidence": {
+    "quote": "es un hombre gobernando un imperio en guerra que, cada noche, se",
+    "beatIndex": 4
+   },
+   "explanation": "El cierre resuelve la pregunta central (por qué escribió ese cuaderno en guerra) afirmando que lo hizo para sostenerse él mismo noche tras noche, y marca explícitamente que la lectura de 'secreto' extraíble es interpretación propia, no hecho documentado, cumpliendo con un límite honesto válido.",
+   "resolvesPromise": true
+  },
+  "findings": [
+   {
+    "kind": "padding",
+    "repair": "Fusionar ambas frases en una sola formulación más fuerte en el bloque 3, dejando el bloque 2 con un cierre distinto que no anticipe la conclusión.",
+    "evidence": [
+     {
+      "quote": "la calma. La escribió desde el frente.",
+      "beatIndex": 2
+     },
+     {
+      "quote": "no lo salvó de la guerra ni de la plaga. Solo le",
+      "beatIndex": 3
+     }
+    ],
+    "severity": "suggestion",
+    "explanation": "La idea de que 'la filosofía no vino desde la calma sino desde el frente/caos' se formula de manera casi idéntica al final del bloque 2 y de nuevo en el bloque 3, con poco avance real entre ambas repeticiones."
+   },
+   {
+    "kind": "spoken_clarity",
+    "repair": "Simplificar a algo como: 'pero la fuente está incompleta, así que no sabemos si historiadores coinciden con esa lectura'.",
+    "evidence": [
+     {
+      "quote": "del imperio — pero ese fragmento aparece incompleto, así que no podemos",
+      "beatIndex": 3
+     }
+    ],
+    "severity": "suggestion",
+    "explanation": "La frase 'pero ese fragmento aparece incompleto, así que no podemos confirmar si esa lectura es compartida entre historiadores o minoritaria' es larga y algo torpe de escuchar en voz alta, aunque comprensible."
+   }
+  ],
+  "sections": [
+   {
+    "quote": "escribe en ese cuaderno no tiene título, no está dirigido a nadie,",
+    "function": "setup",
+    "beatIndex": 0,
+    "contribution": "Entrega el gancho central con un dato concreto y verificable (el cuaderno no tenía título ni fue pensado para publicarse) antes de los 150 palabras, cumpliendo la recompensa temprana."
+   },
+   {
+    "quote": "menos conocido: Quinto Junio Rústico, quien le presentó los escritos del estoico",
+    "function": "new_information",
+    "beatIndex": 1,
+    "contribution": "Retrocede a la formación filosófica y establece el origen documentado del giro estoico vía Quinto Junio Rústico, marcando honestamente que no se puede fechar el momento exacto."
+   },
+   {
+    "quote": "el 166 hasta su muerte, las guerras fueron prácticamente continuas, interrumpidas apenas",
+    "function": "new_information",
+    "beatIndex": 2,
+    "contribution": "Construye la contradicción central mostrando que el reinado fue de guerra casi continua y plaga, no de gobierno sereno."
+   },
+   {
+    "quote": "a calificar su reinado como el comienzo de una crisis más amplia",
+    "function": "consequence",
+    "beatIndex": 3,
+    "contribution": "Reencuadra el estoicismo como herramienta en uso, no teoría previa, y marca explícitamente el límite de la evidencia sobre la tesis de 'crisis'."
+   },
+   {
+    "quote": "fórmula de felicidad que podamos copiar íntegra: esa es nuestra lectura, no",
+    "function": "resolution",
+    "beatIndex": 4,
+    "contribution": "Cierra la pregunta central, distingue explícitamente interpretación de hecho documentado, e incluye comentario y CTA."
+   }
+  ],
+  "firstAnswer": {
+   "evidence": {
+    "quote": "escribe en ese cuaderno no tiene título, no está dirigido a nadie,",
+    "beatIndex": 0
+   },
+   "delivered": true,
+   "explanation": "Antes de los 150 palabras, el guion entrega el dato concreto prometido: el cuaderno no tenía título ni fue escrito para publicarse, cumpliendo la primera recompensa."
+  }
+ },
+ "script": {
+  "hook": "En un campamento militar junto al río Danubio, en algún momento durante esas campañas, un hombre escribe de noche, a solas. Afuera hay guerra contra las tribus germánicas y una plaga que ya ha cruzado media Europa occidental. Ese hombre es el emperador de Roma. Y lo que escribe en ese cuaderno no tiene título, no está dirigido a nadie, no fue pensado para publicarse.",
+  "beats": [
+   {
+    "type": "hook",
+    "claims": [
+     {
+      "id": "claim-1",
+      "text": "Meditaciones fue escrita durante las campañas militares de Marco Aurelio en campamentos junto al Danubio.",
+      "support": "sourced",
+      "sourceIds": [
+       "web-4"
+      ]
+     },
+     {
+      "id": "claim-2",
+      "text": "El texto no tiene un título propio de Marco Aurelio; el nombre 'Meditaciones' es una denominación posterior y común, no original.",
+      "support": "sourced",
+      "sourceIds": [
+       "web-1"
+      ]
+     },
+     {
+      "id": "claim-3",
+      "text": "Durante este período hubo una gran plaga que afectó a Europa occidental mientras Marco Aurelio hacía campaña contra las tribus germánicas.",
+      "support": "sourced",
+      "sourceIds": [
+       "web-2"
+      ]
+     }
+    ],
+    "purpose": "Abrir con una acción concreta y entregar el primer dato útil antes de los 150 palabras: el cuaderno no tenía título ni intención de publicarse.",
+    "narration": "En un campamento militar junto al río Danubio, en algún momento durante esas campañas, un hombre escribe de noche, a solas. Afuera hay guerra contra las tribus germánicas y una plaga que ya ha cruzado media Europa occidental. Ese hombre es el emperador de Roma. Y lo que escribe en ese cuaderno no tiene título, no está dirigido a nadie, no fue pensado para publicarse. Siglos después, lo conocemos como 'Meditaciones' — pero ese nombre se lo pusimos nosotros, no él. Lo que sí sabemos, porque ha quedado documentado, es que esas páginas se escribieron precisamente en esos campamentos militares, entre batallas. Así que la primera pregunta que vale la pena hacerse no es qué dice ese libro, sino por qué un emperador en medio de una guerra interminable sentía la necesidad de escribirse notas a sí mismo cada noche. Esa pregunta es la que vamos a seguir.",
+    "emotionalTone": "intriga contenida, intimidad"
+   },
+   {
+    "type": "setup",
+    "claims": [
+     {
+      "id": "claim-1",
+      "text": "Marco Aurelio estudió griego y latín, y entre sus tutores estuvieron Herodes Ático y Marco Cornelio Frontón.",
+      "support": "sourced",
+      "sourceIds": [
+       "web-1"
+      ]
+     },
+     {
+      "id": "claim-2",
+      "text": "Su maestro Quinto Junio Rústico le presentó la obra del estoico Epicteto, algo que Marco Aurelio agradece en Meditaciones.",
+      "support": "sourced",
+      "sourceIds": [
+       "web-2"
+      ]
+     },
+     {
+      "id": "claim-3",
+      "text": "No es posible fechar con precisión el momento exacto en que el estoicismo se volvió central en su vida.",
+      "support": "inference",
+      "sourceIds": [
+       "web-2"
+      ]
+     }
+    ],
+    "purpose": "Retroceder brevemente a la formación de Marco Aurelio y establecer el origen documentado de su giro hacia el estoicismo, conectando rápido con la pregunta de supervivencia.",
+    "narration": "Para entender esa necesidad hay que retroceder un poco. Como heredero del trono, Marco Aurelio estudió griego y latín con tutores de prestigio, entre ellos Herodes Ático y Marco Cornelio Frontón, pensados para formar a un orador, no a un filósofo. Pero entre esos maestros aparece otro nombre menos conocido: Quinto Junio Rústico, quien le presentó los escritos del estoico Epicteto. Marco Aurelio se lo agradecería años después, en sus propias páginas. No podemos fechar con precisión el momento exacto en que esa lectura se volvió central en su vida. Lo que sí queda documentado es el hilo: de ahí en adelante, la filosofía que había sido materia de estudio empezaría, con el tiempo, a convertirse en algo que usaría para sobrevivir noche tras noche.",
+    "emotionalTone": "reflexivo"
+   },
+   {
+    "type": "escalation",
+    "claims": [
+     {
+      "id": "claim-1",
+      "text": "Marco Aurelio reinó entre el año 161 y el 180 d.C.",
+      "support": "sourced",
+      "sourceIds": [
+       "web-3",
+       "web-4"
+      ]
+     },
+     {
+      "id": "claim-2",
+      "text": "Las guerras fueron prácticamente continuas desde el 166 hasta su muerte en el 180, con una tregua de tres años entre el 175 y el 178.",
+      "support": "sourced",
+      "sourceIds": [
+       "web-6"
+      ]
+     },
+     {
+      "id": "claim-3",
+      "text": "Durante los últimos quince años de su reinado pasó más tiempo en las fronteras germánicas que en Roma.",
+      "support": "sourced",
+      "sourceIds": [
+       "web-4"
+      ]
+     },
+     {
+      "id": "claim-4",
+      "text": "Entre el 170 y el 175, Faustina acompañó a Marco Aurelio en sus campañas.",
+      "support": "sourced",
+      "sourceIds": [
+       "web-1"
+      ]
+     }
+    ],
+    "purpose": "Mostrar la realidad material de su reinado para construir la contradicción central: guerra casi continua, no gobierno sereno.",
+    "narration": "Marco Aurelio gobernó Roma entre el año 161 y el 180 después de Cristo. Y el retrato que solemos imaginar —el filósofo sereno sobre el trono— no coincide con los años reales de su reinado. Desde el 166 hasta su muerte, las guerras fueron prácticamente continuas, interrumpidas apenas por una tregua de tres años entre el 175 y el 178. Durante los últimos quince años de su gobierno, pasó más tiempo en las fronteras germánicas, junto al Danubio, que en Roma. A eso se sumó una plaga que devastó buena parte de Europa occidental mientras él libraba esa guerra. Ni siquiera su vida personal quedó al margen: entre el 170 y el 175, su esposa Faustina lo acompañó en esas mismas campañas. El emperador filósofo, entonces, no escribió sobre la calma desde la calma. La escribió desde el frente.",
+    "emotionalTone": "tensión creciente"
+   },
+   {
+    "type": "insight",
+    "claims": [
+     {
+      "id": "claim-1",
+      "text": "Meditaciones se escribió durante las campañas militares de Marco Aurelio, no antes de ellas.",
+      "support": "sourced",
+      "sourceIds": [
+       "web-4"
+      ]
+     },
+     {
+      "id": "claim-2",
+      "text": "Una fuente consultada califica el gobierno de Marco Aurelio como el comienzo de una crisis más amplia para el imperio, en un fragmento que aparece incompleto.",
+      "support": "sourced",
+      "sourceIds": [
+       "web-6"
+      ]
+     },
+     {
+      "id": "claim-3",
+      "text": "No es posible determinar, a partir de las fuentes consultadas, si esa calificación de 'crisis' es una posición consensuada o minoritaria entre historiadores.",
+      "support": "unverified",
+      "sourceIds": []
+     }
+    ],
+    "purpose": "Reencuadrar el estoicismo de Marco Aurelio como práctica en tiempo real, no teoría previa, condensando la idea sin repetir la afirmación factual del bloque anterior, y marcando honestamente el límite de la evidencia sobre la 'crisis' del reinado.",
+    "narration": "Y aquí está el matiz que cambia cómo hay que leer el texto: ese cuaderno no se escribió como una teoría preparada de antemano, sino en medio del caos que describe. Eso convierte el estoicismo de Marco Aurelio en algo distinto de un sistema abstracto para admirar a distancia: era una herramienta en uso. Una de las fuentes consultadas llega a calificar su reinado como el comienzo de una crisis más amplia del imperio — pero ese fragmento aparece incompleto, así que no podemos confirmar si esa lectura es compartida entre historiadores o minoritaria. Lo que sí es verificable es más simple, y quizás más revelador: la filosofía no lo salvó de la guerra ni de la plaga. Solo le dio una forma de atravesarlas sin perderse.",
+    "emotionalTone": "revelador, sobrio"
+   },
+   {
+    "type": "payoff",
+    "claims": [
+     {
+      "id": "claim-1",
+      "text": "El carácter íntimo y sin pulir del texto, escrito en privado y sin intención de publicación, ayuda a explicar su resonancia posterior.",
+      "support": "inference",
+      "sourceIds": [
+       "web-1",
+       "web-4"
+      ]
+     },
+     {
+      "id": "claim-2",
+      "text": "La idea de que el estoicismo de Marco Aurelio no es una 'fórmula' extraíble de felicidad es una interpretación propia, no un hecho documentado en las fuentes.",
+      "support": "inference",
+      "sourceIds": []
+     }
+    ],
+    "purpose": "Resolver la pregunta central antes del CTA, explicando por qué el carácter íntimo del texto es su verdadero valor, marcando explícitamente la interpretación como tal, e incluir una invitación a comentar y un CTA breve.",
+    "narration": "Eso es, en el fondo, lo que responde a la pregunta inicial. Marco Aurelio no escribía para enseñar serenidad a nadie; escribía para practicarla él mismo, en privado, sin público ni pulido literario, lo que ayuda a explicar por qué el texto suena más a nota urgente que a discurso filosófico. El 'secreto' del estoicismo que practicó no es una fórmula de felicidad que podamos copiar íntegra: esa es nuestra lectura, no un hecho que las fuentes documenten directamente. Lo que sí queda documentado es un hombre gobernando un imperio en guerra que, cada noche, se sentaba a escribirse a sí mismo para seguir funcionando al día siguiente. Si tuvieras que escribirte una nota a ti mismo esta noche, en medio de tu propia versión de guerra o plaga, ¿qué tan distinta sonaría de las suyas? Si quieres seguir abriendo cuadernos históricos como este, hay más para explorar.",
+    "emotionalTone": "resolución calmada, cierre reflexivo"
+   }
+  ],
+  "title": "El cuaderno secreto que Marco Aurelio escribió en medio de la guerra",
+  "storyPlan": {
+   "sections": [
+    {
+     "tension": "rise",
+     "beatIndex": 0,
+     "consequence": "Obliga a preguntarse por qué un emperador necesitaba escribirse notas a sí mismo en medio de una guerra.",
+     "newInformation": "El cuaderno conocido como Meditaciones fue escrito en campamentos militares del Danubio, sin título y sin intención de publicación."
+    },
+    {
+     "tension": "reflection",
+     "beatIndex": 1,
+     "consequence": "Establece que el giro hacia el estoicismo tiene un origen documentado, aunque no fechable con precisión, y conecta rápido con la idea de supervivencia.",
+     "newInformation": "Su formación retórica se vio desviada por Quinto Junio Rústico, quien le presentó a Epicteto."
+    },
+    {
+     "tension": "rise",
+     "beatIndex": 2,
+     "consequence": "Derriba la imagen de un gobierno sereno y plantea el contraste central del video.",
+     "newInformation": "Su reinado real (161-180) estuvo marcado por guerra casi continua desde 166, quince años en la frontera germánica y una plaga simultánea."
+    },
+    {
+     "tension": "release",
+     "beatIndex": 3,
+     "consequence": "Reencuadra el estoicismo como práctica en tiempo real, no teoría previa, y marca honestamente el límite de la evidencia disponible, sin repetir la idea factual del bloque anterior.",
+     "newInformation": "El cuaderno se escribió durante esas campañas, no antes; una fuente lo vincula al inicio de una crisis más amplia del imperio, pero ese fragmento está incompleto."
+    },
+    {
+     "tension": "reflection",
+     "beatIndex": 4,
+     "consequence": "Cierra la pregunta central con una conclusión sostenida por los hechos narrados y deja una invitación concreta a seguir explorando.",
+     "newInformation": "La resonancia del texto viene de su carácter íntimo y sin pulir; la idea de una 'fórmula' extraíble se marca explícitamente como lectura propia, no como hecho documentado."
+    }
+   ],
+   "firstAnswer": "El libro que llamamos Meditaciones no tiene título propio ni fue escrito para publicarse: es un cuaderno personal, y ese nombre se lo pusimos después.",
+   "endingAnswer": "El estoicismo de Marco Aurelio no fue una filosofía de retiro contemplativo, sino una herramienta usada noche tras noche dentro del caos real de la guerra, la plaga y la pérdida; por eso el texto suena a nota urgente y no a discurso, y por eso sigue resonando.",
+   "openingPromise": "Vamos a entrar al cuaderno privado de un emperador en guerra para entender qué era realmente el estoicismo que practicaba, más allá de la imagen serena que heredamos de él.",
+   "centralQuestion": "¿Por qué el texto más citado sobre serenidad estoica fue escrito por un hombre en medio de guerra constante y plaga, sin intención de que nadie más lo leyera?"
+  },
+  "creativeDirection": {
+   "angles": [
+    {
+     "hook": "Un emperador escribe a solas en medio de la guerra un cuaderno que nunca pensó publicar.",
+     "device": "in_medias_res",
+     "premise": "Abrir en el campamento del Danubio mientras escribe de noche, sin saber que será leído dos mil años después.",
+     "genericRisk": "Puede sonar a cualquier biografía de 'detrás del mito' si no se ancla en el detalle documental concreto."
+    },
+    {
+     "hook": "La imagen serena del emperador filósofo no coincide con los años reales de su reinado.",
+     "device": "contradiction",
+     "premise": "Explotar la paradoja central: el filósofo de la calma gobernó quince años de guerra casi ininterrumpida.",
+     "genericRisk": "Quedarse en frase motivacional vacía si no se sostiene con fechas y hechos verificables."
+    },
+    {
+     "hook": "Un maestro del que casi nadie habla cambió el rumbo filosófico de un futuro emperador.",
+     "device": "character_case",
+     "premise": "Seguir el hilo de Quinto Junio Rústico, el maestro casi anónimo que le presentó a Epicteto.",
+     "genericRisk": "Convertirse en una lista de tutores sin tensión narrativa real."
+    },
+    {
+     "hook": "Algunos historiadores sitúan aquí el comienzo de la crisis del imperio romano.",
+     "device": "thesis",
+     "premise": "Plantear como tesis histórica que su reinado marcó el inicio de una crisis más amplia del imperio.",
+     "genericRisk": "Sonar a clase de historia institucional sin gancho emocional para el espectador casual."
+    },
+    {
+     "hook": "El estoicismo que circula en redes sociales no se parece al que escribió este hombre.",
+     "device": "myth_evidence",
+     "premise": "Contrastar el estoicismo de autoayuda moderno con lo que realmente practicaba Marco Aurelio en el frente.",
+     "genericRisk": "Tema ya muy trillado en internet; riesgo alto de sonar repetitivo y poco original."
+    },
+    {
+     "hook": "Una línea de tiempo exacta entre el trono, la guerra y el cuaderno.",
+     "device": "timeline",
+     "premise": "Reconstruir año a año su reinado, de 161 a 180, cruzado con la escritura del libro.",
+     "genericRisk": "Dispositivo ya usado recientemente en esta cuenta (Luna, Salamis); sensación de fórmula repetida."
+    },
+    {
+     "hook": "Qué pasaría si estas páginas nunca hubieran sobrevivido al tiempo.",
+     "device": "counterfactual",
+     "premise": "Plantear el experimento mental de qué habría pasado si el cuaderno se hubiera perdido o destruido.",
+     "genericRisk": "Especulación sin anclaje factual claro, puede sentirse gratuito."
+    }
+   ],
+   "audience": "Oyentes de documentales de historia y filosofía práctica en YouTube, interesados en figuras como Marco Aurelio pero cansados del estoicismo convertido en frases de autoayuda genéricas.",
+   "weakness": "Todo el research pack proviene de fuentes secundarias de divulgación general (blogs y portales), no de ediciones académicas o filológicas de Meditaciones; además, el fragmento clave sobre la 'crisis' del reinado aparece cortado en la fuente, por lo que no se puede confirmar si esa calificación es una posición consensuada o minoritaria entre historiadores.",
+   "cloneTest": {
+    "substitutedTopic": "Nelson Mandela y las cartas que escribió en prisión",
+    "whyThisStoryBreaks": "El detalle que sostiene esta historia —que el texto más citado sobre calma estoica se escribió literalmente en campamentos militares activos, durante una guerra de quince años y una plaga simultánea, documentado por varias fuentes— es específico de Marco Aurelio. Con Mandela cambiaría el escenario, la filosofía de fondo y la pregunta central sobre si la escritura precede o surge dentro de la crisis; no es un simple cambio de nombre, cambia la causalidad completa del guion."
+   },
+   "finalists": [
+    0,
+    1,
+    4
+   ],
+   "closingCta": {
+    "quote": "Si quieres seguir abriendo cuadernos históricos como este, hay más para explorar.",
+    "beatIndex": 4
+   },
+   "chosenAngle": 1,
+   "finalFeeling": "Respeto sobrio: no admiración heroica, sino la sensación de haber visto a un hombre concreto sosteniéndose noche tras noche.",
+   "commentMoment": {
+    "quote": "Si tuvieras que escribirte una nota a ti mismo esta noche, en medio de tu propia versión de guerra o plaga, ¿qué tan distinta sonaría de las suyas?",
+    "beatIndex": 4
+   },
+   "protectInEdit": [
+    {
+     "quote": "Lo que escribe en ese cuaderno no tiene título, no está dirigido a nadie, no fue pensado para publicarse.",
+     "beatIndex": 0
+    },
+    {
+     "quote": "ese fragmento aparece incompleto, así que no podemos confirmar si esa lectura es compartida entre historiadores o minoritaria.",
+     "beatIndex": 3
+    },
+    {
+     "quote": "esa es nuestra lectura, no un hecho que las fuentes documenten directamente.",
+     "beatIndex": 4
+    }
+   ],
+   "shareableLine": {
+    "quote": "La filosofía no lo salvó de la guerra ni de la plaga. Solo le dio una forma de atravesarlas sin perderse.",
+    "beatIndex": 3
+   },
+   "avoidedPatterns": [
+    "Abrir siempre con un hallazgo espectacular tipo crimen o conspiración, como en los guiones de Gucci y Bigfoot.",
+    "Usar una línea de tiempo cronológica pura como único motor narrativo, como en los guiones de la Luna y Salamis.",
+    "Cerrar con una pregunta puramente especulativa sin entregar una respuesta sostenida por evidencia, como en el cierre de Bigfoot y Salamis."
+   ],
+   "selectionReason": "La contradicción entre la imagen pública del 'emperador filósofo sereno' y los años reales de guerra, plaga y pérdida es la que mejor entrega información nueva en cada bloque, se sostiene con los datos concretos del research pack y evita tanto el cliché de autoayuda como la repetición de dispositivos usados en videos recientes de la cuenta.",
+   "signatureDetail": {
+    "quote": "Siglos después, lo conocemos como 'Meditaciones' — pero ese nombre se lo pusimos nosotros, no él.",
+    "beatIndex": 0
+   },
+   "emotionalPromise": "La sensación de haber entendido algo real detrás de un meme filosófico: que ese libro famoso no nació de la calma, sino de la supervivencia.",
+   "beliefToChallenge": "La idea de que Marco Aurelio escribió un manual de serenidad desde la paz y la distancia del poder.",
+   "evidenceThatWouldHelp": "Acceso a ediciones críticas de Meditaciones con aparato filológico sobre dónde y cuándo se escribió cada libro, y a historiografía especializada sobre la llamada crisis del siglo III para verificar si encuadrar el reinado de Marco Aurelio como su inicio es una posición consensuada o minoritaria entre historiadores."
+  },
+  "workingTitleOptions": [
+   "El cuaderno secreto que Marco Aurelio escribió en medio de la guerra",
+   "Marco Aurelio: la serenidad que escribió desde el frente",
+   "Lo que 'Meditaciones' no te cuenta sobre la guerra de Marco Aurelio"
+  ]
+ },
+ "status": "failed",
+ "language": "es",
+ "sourceIds": [
+  "web-1",
+  "web-2",
+  "web-3",
+  "web-4",
+  "web-5",
+  "web-6"
+ ],
+ "retry_count": 0,
+ "failure_kind": "editorial",
+ "creativeHistory": [
+  {
+   "topic": "Documental de misterio sobre la cara oculta de la Luna y los relatos de supuestas bases extraterrestres. Explora el proyecto militar Horizon, las afirmaciones de Ingo Swann y la leyenda de Apolo 20, c",
+   "device": "timeline",
+   "ending": "do a un libro, y de un libro a un video. Si alguna vez has visto el video de 2007 que empezó todo, la pregunta que vale la pena hacerse no es si es real, sino por qué fue tan fácil creerlo. Entender esa diferencia —entre el documento, el testimonio y el rumor— es lo único que realmente sostiene esta historia. Si quieres que sigamos abriendo expedientes como este, con la misma regla de separar el documento del rumor, aquí tienes más para explorar.",
+   "opening": "En junio de 1959, un grupo de oficiales del Ejército de Estados Unidos entregó un informe clasificado con un plan concreto: construir una base militar armada bajo la superficie de la Luna, con soldados viviendo allí de forma permanente para 1966. Ese proyecto se llamó Project Horizon. Nunca se construyó nada de lo que proponía. Y sin embargo, ese mismo nombre reaparece hoy, seis décadas después, en una de las teorías más persistentes de internet: la de una base alienígena oculta en la cara oculta de la Luna, y de una misión secreta llamada Apolo 20 que supuestamente la visitó. Entre el documento real de 1959 y la leyenda que circula hoy hay t",
+   "promise": "Vamos a separar tres capas de esta historia —un documento militar real, un testimonio psíquico sin corroborar, y un video viral sin origen verificable— para ver exactamente qué sostiene cada una",
+   "structure": [
+    "Presentar las tres capas del misterio y prometer separarlas por tipo de evidencia",
+    "Mostrar que Horizon fue un plan militar real y detallado, dando legitimidad aparente al nombre",
+    "Cerrar el arco de Horizon con su cancelación y el tratado internacional, dejando un vacío documental",
+    "Introducir la segunda capa del mito: el testimonio de Ingo Swann sin corroboración externa",
+    "Presentar la leyenda de Apolo 20 como la capa más elaborada y menos sustentada del mito",
+    "Comparar el nivel de evidencia de las tres capas y revelar que cada una solo presta credibilidad de nombre, no pruebas",
+    "Resolver la pregunta central confirmando dónde termina la evidencia, y cerrar con reflexión e invitación breve"
+   ]
+  },
+  {
+   "topic": "Cómo se forman las auroras boreales",
+   "device": "in_medias_res",
+   "ending": "on la actividad solar. Antes de eso, eran solo presagios, leyendas, señales sin explicación. Hoy sabemos el mecanismo general: viento solar, campo magnético, colisión, color. Lo que sigue siendo difícil de predecir es cuándo y con qué intensidad aparecerá una aurora en una noche específica —esa parte, la actividad solar no la entrega con aviso previo. Si te interesa entender qué más controla el clima espacial que nos rodea, hay más para explorar.",
+   "opening": "En la atmósfera polar, a casi cien kilómetros de altura, un átomo recibe el impacto de una partícula diminuta y estalla en luz. Para llegar hasta ahí, esa partícula viajó desde el Sol a velocidades de entre 490 y 1000 kilómetros por segundo, parte de un flujo constante que nunca se detiene: el viento solar. No es un rayo aislado. Es el final de un viaje que empieza en la superficie solar y termina, segundos después del impacto, convertido en una aurora boreal.",
+   "promise": "Vamos a seguir la cadena completa: desde la partícula que sale del Sol hasta el color exacto que aparece sobre tu cabeza.",
+   "structure": [
+    "Arrancar con una colisión concreta ya en curso y entregar el primer dato útil (velocidad del viento solar) antes de las ",
+    "Explicar por qué la mayoría de las partículas no llega a formar auroras y por qué el fenómeno se concentra en los polos.",
+    "Detallar el mecanismo físico exacto de la colisión y ubicarlo en una capa atmosférica concreta.",
+    "Explicar el origen del color, entregando el dato del nitrógeno y marcando honestamente la incertidumbre en otros matices",
+    "Cerrar la cadena causal principal, dar contexto histórico y abrir una curiosidad final honesta antes del CTA."
+   ]
+  },
+  {
+   "topic": "Big foot realidad o mito",
+   "device": "clue_mystery",
+   "ending": "ame, and fifty years of people arguing about what it means. That's not a satisfying answer, but it is an honest one: the evidence we actually have supports suspicion in both directions and proof in neither. If you've seen the full fifty-nine seconds yourself, what convinced you either way — the walk, the shoulders, or something else entirely? If you want the next contested piece of evidence picked apart the same way, there's more waiting for you.",
+   "opening": "Horses spook along a dry creek bed in Northern California. It's October 20, 1967. Roger Patterson and Bob Gimlin are riding through Bluff Creek when something ahead sends their animals into a panic. Patterson grabs a 16mm camera from his saddlebag and starts filming. What ends up on that reel runs under a minute — most accounts put it near fifty-nine seconds — and shows a large, hair-covered figure walking across a gravel bar before turning back toward the camera. Here's the fact worth sitting with before anything else: more than fifty years later, no scientific body has ever certified this footage as proof of an unknown animal, and no court ",
+   "promise": "We'll look closely at the most famous 59 seconds in cryptozoology — the filming itself, the one frame both sides keep arguing over, the cracks in the filmmakers' own story, and the competing hoax claims — to see what the evidence can actually support",
+   "structure": [
+    "Establish the film's basic facts and deliver an early concrete payoff: the footage remains uncertified in either directi",
+    "Show the film didn't emerge in a vacuum — a decade of regional Bigfoot buzz primed its reception — while flagging the au",
+    "Deliver the promised Frame 352 analysis and reveal that Patterson and Gimlin's own retellings contain inconsistencies, c",
+    "Show the hoax-claim side is also contradictory and weakly sourced, preventing a clean 'it was faked' resolution",
+    "Deliver the honest, evidence-based conclusion: the question remains genuinely open, and explain why that itself is the f"
+   ]
+  },
+  {
+   "topic": "La historia obscura detrás de la marca Gucci",
+   "device": "in_medias_res",
+   "ending": "in a Florence leather shop, was dead at 46. The woman once closest to him was convicted of arranging it. And the Gucci name itself — stripped of the family that built it — kept going, sold on, relaunched, worn by new generations who likely have no idea what happened on those office steps in 1995. The name survived. The family that built it did not. If you want more stories where glamorous names hide uglier histories, there's more waiting for you.",
+   "opening": "It's the morning of March 27, 1995, on Corso Venezia in Milan. A man climbs the steps toward his office at number 38. He is 46 years old, dressed for another ordinary day of meetings. His name is Maurizio Gucci, grandson of the man who built one of the most recognized names in fashion. A doorman waits near the entrance. Then comes the ambush: gunfire, close range, on the office porch itself. Maurizio Gucci falls on those steps, and within moments, the last member of the Gucci family to run the company bearing his name is dead. For two years, the killing stays unsolved — a mystery hanging over one of Europe's most famous luxury houses. Who wan",
+   "promise": "We will go from the murder itself back through the family's rise, Maurizio's fall from control of his own company, to the arrest that answered who was behind it — and the loose thread even that answer leaves hanging.",
+   "structure": [
+    "Open in medias res on the murder to establish immediate stakes and pull the viewer into the mystery of who and why.",
+    "Establish the glamorous rise of the Gucci brand and Maurizio's place in it, contrasting with the violence just shown.",
+    "Reveal Maurizio's relationship with Patrizia Reggiani and his eventual loss of control over the company, setting up moti",
+    "Resolve the whodunit by revealing the arrest and conviction of Patrizia Reggiani, answering the central question.",
+    "Close out the arc honestly by flagging the unresolved discrepancy in reported sentence served, and deliver the final ref"
+   ]
+  },
+  {
+   "topic": "After Thermopylae: The Battle of Salamis — cinematic documentary, no avatar; striking animated AI opening, especially the first 90 seconds.",
+   "ending": " the drama we've inherited and the evidence historians can actually verify — is itself a kind of invitation. If the story of Salamis can shift depending on which fragments survive and how they're read, what does that mean for the dozens of other 'decisive battles' of the ancient world we treat as settled fact? Perhaps the real discovery here isn't what happened in that strait, but how carefully we should hold the stories we think we already know.",
+   "opening": "The pass at Thermopylae had fallen. King Leonidas and his men were dead, and the road south into the heart of Greece now lay open before the army of Xerxes. Athens emptied in panic — families loaded onto ships, the Acropolis abandoned to flame. By late summer of 480 BCE, it seemed the Persian Empire, already the largest the world had known, was about to swallow the last free cities of Greece whole. Yet somewhere in the straits near the island of Salamis, a fractured alliance of Greek captains, exhausted and outnumbered, chose not to retreat further. What happened next in those narrow waters would be remembered for twenty-five centuries — not ",
+   "structure": [
+    "Establish stakes right after Thermopylae and pull viewer into the mystery of Salamis.",
+    "Introduce the opposing forces and geography, with honest caveats about numbers.",
+    "Reveal the deception attributed to Themistocles and the uncertainty around it.",
+    "Build tension into the morning of battle, Persian overconfidence, Greek discipline.",
+    "Insight: reframe battle as strategic/geographic triumph rather than simple heroics, and highlight historiographical unce",
+    "Deliver the resolution and broader consequence of the battle.",
+    "Open a forward-looking question to hook future curiosity without overstating certainty."
+   ]
+  }
+ ],
+ "durationMinutes": "5",
+ "editorial_rounds": 1,
+ "_provenance": "DATO REAL PERSISTIDO: editorial_checkpoint del job 290de42b (borrador + revisión resuelta guardados por producción), SELECT 2026-10-23. Sin user_id ni campos del formulario; fuentes reducidas a IDs."
+}

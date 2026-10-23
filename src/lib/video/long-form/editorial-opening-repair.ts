@@ -1,10 +1,12 @@
 import { z } from "zod";
 import { stableHash } from "@/lib/production-intelligence/canonical";
 import { EditorialTimingEvidenceError, validateEditorialReview, type EditorialScript, type EditorialReview } from "./editorial";
-import { LenientReferencedReviewSchema, narrationCatalog, resolveReviewReferences } from "./narration-catalog";
-import { DocumentaryResponseError, jsonResponseSystem, parseDocumentaryResponse } from "./json-response";
+import { LenientReferencedReviewSchema, narrationCatalog, resolveReviewReferences, type NarrationExcerpt } from "./narration-catalog";
+import { DocumentaryResponseError, jsonResponseSystem, readDocumentaryJson, validateDocumentaryValue } from "./json-response";
+import { locateNormalized } from "./text-locate";
 
 export const OPENING_REPAIR_CONTRACT = "opening-payoff-evidence-repair-v1";
+export const OPENING_UNVERIFIED_EXPLANATION = "No se pudo verificar una recompensa concreta dentro de las primeras 150 palabras: el revisor la citó más tarde y la comprobación acotada no aportó evidencia válida. Entrega un dato, respuesta o contradicción útil antes de la palabra 150.";
 const RepairSchema = z.object({ firstAnswer: z.object({ delivered: z.boolean(), evidence: z.object({ excerptId: z.string().min(1).max(80) }).strict(), explanation: z.string().min(1).max(1600) }).strict() }).strict();
 type Send = (params: { model: string; max_tokens: number } & Record<string, unknown>) => Promise<{ stop_reason: string | null; content: Array<{ type: string; text?: string }> }>;
 
@@ -45,10 +47,51 @@ export async function validateOrRepairOpeningReview(input: { rawReview: unknown;
       opening: input.script.beats.map(b => b.narration).join(" ").trim().split(/\s+/).slice(0, 150).join(" "), eligibleExcerpts: candidates }) }],
     ...(input.model === "claude-sonnet-5" ? { output_config: { effort: "low" as const } } : {}),
   };
-  const repaired = parseDocumentaryResponse(RepairSchema, await input.send(params));
-  if (!candidates.some(e => e.id === repaired.firstAnswer.evidence.excerptId)) throw new DocumentaryResponseError("La comprobación de apertura eligió evidencia fuera del límite permitido.");
-  const copy = { ...structuredClone(raw), firstAnswer: repaired.firstAnswer };
+  // La llamada (y su huella del ledger) no cambia: una respuesta ya pagada se reutiliza al reintentar.
+  const response = await input.send(params);
+  // Fallos TÉCNICOS (truncado, JSON ilegible, prosa, estructura irrecuperable, contradicción interna) se propagan
+  // como DocumentaryResponseError: clasificación técnica, sin corrección editorial pagada (ALTO-2).
+  const document = readDocumentaryJson(response);
+  assertNoVerdictContradiction(document);
+  const repaired = validateDocumentaryValue(RepairSchema, dropVerifiedEvidenceEchoes(document, narrationCatalog(input.script.beats)));
+  let firstAnswer: z.infer<typeof RepairSchema>["firstAnswer"] = repaired.firstAnswer;
+  if (!candidates.some(e => e.id === repaired.firstAnswer.evidence.excerptId)) {
+    // Capa C, SOLO resultado de CONTENIDO: respuesta bien formada cuya evidencia está fuera de las primeras 150
+    // palabras o no existe. Nunca aprueba; queda como observación editorial (delivered=false).
+    console.warn("[atomivid:opening-payoff-unverified]", JSON.stringify(["evidence_outside_opening"]));
+    // Si el propio modelo ya dijo delivered=false, se conserva su explicación (su significado no cambia).
+    firstAnswer = { delivered: false, evidence: { excerptId: candidates[0].id },
+      explanation: repaired.firstAnswer.delivered ? OPENING_UNVERIFIED_EXPLANATION : repaired.firstAnswer.explanation };
+  }
+  const copy = { ...structuredClone(raw), firstAnswer };
   const second = resolveReviewReferences(copy, input.script.beats);
   if (!second.review) throw new DocumentaryResponseError("La comprobación de apertura no tiene evidencia válida.");
   return validateEditorialReview(second.review, input.script);
+}
+
+/** Claves de veredicto: si aparecen DENTRO de la evidencia con un valor distinto del veredicto padre, la respuesta
+ * se contradice a sí misma. Se rechaza explícitamente (técnico); nunca se borra la contradicción (caso A2). */
+export const VERDICT_KEYS = ["delivered", "resolvesPromise", "severity", "function", "supported", "verified", "verdict", "approved"] as const;
+export class OpeningVerdictContradictionError extends DocumentaryResponseError {
+  constructor(key: string) { super("La comprobación de apertura se contradice (veredicto distinto dentro de la evidencia).", [`contradiction@firstAnswer.evidence.${VERDICT_KEYS.includes(key as never) ? key : "other"}`]); this.name = "OpeningVerdictContradictionError"; }
+}
+export function assertNoVerdictContradiction(document: unknown): void {
+  const fa = (document as { firstAnswer?: Record<string, unknown> } | null)?.firstAnswer;
+  const ev = fa && typeof fa.evidence === "object" && fa.evidence ? fa.evidence as Record<string, unknown> : null;
+  if (!fa || !ev) return;
+  for (const key of VERDICT_KEYS) if (Object.prototype.hasOwnProperty.call(ev, key) && ev[key] !== null && ev[key] !== "" && ev[key] !== fa[key]) throw new OpeningVerdictContradictionError(key);
+}
+/** Allow-list POR CONTRATO (sustituye al R2 genérico): solo `quote` y `beatIndex` dentro de firstAnswer.evidence,
+ * y solo si son ecos VERIFICADOS del excerptId (misma cita del catálogo, mismo bloque). Cualquier otra clave o un
+ * eco que no coincide se conserva y el esquema estricto lo rechaza (técnico). No muta la entrada. */
+export function dropVerifiedEvidenceEchoes(document: unknown, catalog: NarrationExcerpt[]): unknown {
+  const ev = (document as { firstAnswer?: { evidence?: Record<string, unknown> } } | null)?.firstAnswer?.evidence;
+  if (!ev || typeof ev !== "object" || typeof ev.excerptId !== "string") return document;
+  const excerpt = catalog.find(e => e.id === ev.excerptId);
+  if (!excerpt) return document;
+  const copy = structuredClone(document) as { firstAnswer: { evidence: Record<string, unknown> } };
+  const target = copy.firstAnswer.evidence;
+  if (typeof target.quote === "string" && (target.quote === excerpt.quote || locateNormalized(excerpt.quote, target.quote) === excerpt.quote)) delete target.quote;
+  if (target.beatIndex === excerpt.beatIndex) delete target.beatIndex;
+  return copy;
 }

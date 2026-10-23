@@ -64,6 +64,42 @@ export function anchorCreativeDirectionQuotes<T>(value: T, beats: Beat[]): T {
     protectInEdit: d.protectInEdit.map(anchor) } as T;
 }
 
+/** Normalización (capa B) de marcas de edición: si una marca no es literal, se ancla al tramo literal
+ * MÁS LARGO compartido con su MISMO bloque (≥12 palabras consecutivas, o ≥8 y ≥60 % de la marca, umbral de #190) y único.
+ * La narración nunca cambia; una marca sin tramo suficiente sigue bloqueando. Solo para comprobaciones
+ * locales e informe aprobado: el prompt del revisor conserva el anclaje de #188 (misma huella del ledger). */
+export function anchorCreativeDirectionSpans<T>(value: T, beats: Beat[]): T {
+  const base = anchorCreativeDirectionQuotes(value, beats);
+  const parsed = CreativeDirectionSchema.safeParse(base);
+  if (!parsed.success) return base;
+  const anchor = (p: Passage): Passage => {
+    const narration = beats[p.beatIndex]?.narration;
+    if (!narration || narration.includes(p.quote)) return p;
+    const span = longestSharedSpan(narration, p.quote);
+    return span ? { ...p, quote: span } : p;
+  };
+  const d = parsed.data;
+  return { ...(base as object), signatureDetail: anchor(d.signatureDetail), shareableLine: anchor(d.shareableLine),
+    commentMoment: d.commentMoment ? anchor(d.commentMoment) : d.commentMoment, closingCta: d.closingCta ? anchor(d.closingCta) : d.closingCta,
+    protectInEdit: d.protectInEdit.map(anchor) } as T;
+}
+const norm = (w: string) => w.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[’‘`´]/g, "'").replace(/^[^\p{L}\p{N}']+|[^\p{L}\p{N}']+$/gu, "");
+export function longestSharedSpan(narration: string, quote: string): string | null {
+  const nt = [...narration.matchAll(/\S+/g)], n = nt.map(m => norm(m[0])), q = quote.split(/\s+/).filter(Boolean).map(norm);
+  let best = 0, end = -1, ties = 0; let prev = new Array(q.length + 1).fill(0);
+  for (let i = 1; i <= n.length; i++) {
+    const cur = new Array(q.length + 1).fill(0);
+    for (let j = 1; j <= q.length; j++) if (n[i - 1] && n[i - 1] === q[j - 1]) {
+      cur[j] = prev[j - 1] + 1;
+      if (cur[j] > best) { best = cur[j]; end = i - 1; ties = 0; } else if (cur[j] === best && end !== i - 1) ties++;
+    }
+    prev = cur;
+  }
+  if (ties || !(best >= 12 || (best >= 8 && best / q.length >= 0.6))) return null;
+  const from = nt[end - best + 1], to = nt[end];
+  return narration.slice(from.index!, to.index! + to[0].length);
+}
+
 /** Structural/quote checks complement the critic's semantic judgment; no fabricated originality score. */
 export function creativeDirectionIssues(value: unknown, beats: Beat[], history: CreativeHistoryEntry[] = [], historyCount = history.length): string[] {
   const result = CreativeDirectionSchema.safeParse(value);
