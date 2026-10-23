@@ -75,8 +75,8 @@ export function mixGraph(o: { total: number; musicGainDb: number; stings: boolea
 export async function mixAndMaster(dir: string, voiceFile: string, o: MixOptions): Promise<{ master: string; lufs: number; truePeak: number; clipped: number; track: BundledTrack | null }> {
   const total = await ffprobeDuration(voiceFile);
   const track = o.enabled ? trackFor(o.mood) : null;
-  // Pistas a −20 LUFS; la ganancia lleva la cama a volume_db LUFS antes del ducking.
-  const musicGainDb = o.volumeDb - -20;
+  // Pistas a −14 LUFS; la ganancia lleva la cama a volume_db LUFS antes del ducking.
+  const musicGainDb = o.volumeDb - -14;
   const ambient = o.ambient !== "ninguno";
   const { graph } = mixGraph({ total, musicGainDb, stings: o.stings, transitions: o.transitions, ambient, music: o.enabled });
   const m = (f: string) => path.join(o.musicDir, f);

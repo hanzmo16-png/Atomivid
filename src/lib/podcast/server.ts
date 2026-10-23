@@ -20,6 +20,7 @@ import { buildProduction, estimateProduction, productionScript, type ProductionI
 import { MusicUnavailableError, narrateProduction } from "./v2/narrate-v2";
 import { TTS_MODEL_ID } from "@/lib/ai/voice";
 import { PODCAST_MUSIC_LIBRARY } from "./v2/music";
+import { bundledV2Music } from "./v3/music-library";
 
 const BUCKET = "videos";
 /** Podcast 2.0 (conversación / director emocional). OFF salvo PODCAST_V2_ENABLED=1, que exige la migración
@@ -148,7 +149,7 @@ export async function runGeneration(service: SupabaseClient, episode: PodcastEpi
           identity: getVoiceIdentity(episode.language, vid, settings ?? undefined) }),
         // Grabación propia: solo rutas del dueño (validadas al adjuntar) dentro de su carpeta del episodio.
         getRecording: async (p) => { if (!p.startsWith(`${episode.user_id}/podcasts/${episode.id}/uploads/`)) throw new Error("RECORDING_NOT_OWNED"); const { data, error } = await service.storage.from(BUCKET).download(p); if (error || !data) throw new Error("RECORDING_MISSING"); return Buffer.from(await data.arrayBuffer()); },
-        music: process.env.PODCAST_MUSIC_DIR ? { dir: process.env.PODCAST_MUSIC_DIR, library: PODCAST_MUSIC_LIBRARY } : null }, episode, production);
+        music: process.env.PODCAST_MUSIC_DIR ? { dir: process.env.PODCAST_MUSIC_DIR, library: PODCAST_MUSIC_LIBRARY } : ((production as { music?: boolean }).music ? await bundledV2Music().catch(() => null) : null) }, episode, production);
       patch = { audio_path: out.audioPath, duration_seconds: out.durationSeconds, audio_sha256: out.sha256, audio_bytes: out.bytes, loudness: out.loudness, cost_usd: out.costUsd,
         production_timeline: out.timeline.map(({ words, ...e }) => ({ ...e, words })) };
     } else {

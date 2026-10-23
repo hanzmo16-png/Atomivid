@@ -7,7 +7,7 @@
  * Principio editorial: VERACIDAD NARRATIVA > CALIDAD > CONSISTENCIA > COSTO > VELOCIDAD.
  */
 import { z } from "zod";
-import { canUsePrivateVoice, isPrivateVoice, visibleVoices, type VoiceViewer } from "@/lib/voices/private-voices";
+import { canUsePrivateVoice, isPrivateVoice, parsePrivateVoiceGrants, visibleVoices, type VoiceViewer } from "@/lib/voices/private-voices";
 import type { AccountVoice } from "@/lib/podcast/voices";
 
 export const STUDIO_VERSION = "podcast-studio/3" as const;
@@ -45,7 +45,7 @@ export const StudioParticipant = z.object({
   avatar: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("ninguno") }),
     z.object({ kind: z.literal("existente"), avatar_id: z.string().min(1).max(200) }),
-    z.object({ kind: z.literal("foto"), photo_path: z.string().min(1).max(400), consent: z.object({ given: z.literal(true), at: z.string(), text: z.string().min(10) }) }),
+    z.object({ kind: z.literal("foto"), photo_path: z.string().min(1).max(400).regex(/^[^.][^\0]*$/).refine((p) => !p.includes(".."), "Ruta inválida"), consent: z.object({ given: z.literal(true), at: z.string(), text: z.string().min(10) }) }),
   ]).default({ kind: "ninguno" }),
 });
 export type StudioParticipant = z.infer<typeof StudioParticipant>;
@@ -102,10 +102,14 @@ export function validateSpec(spec: StudioSpec, voices: AccountVoice[], viewer: V
   return out;
 }
 
-/** Estado de una voz para la UI: El Duro sin concesión se muestra como no disponible (nunca se oculta ni se sustituye). */
+/**
+ * Voces para la UI. El Duro: si NO hay concesión configurada para nadie (falta PRIVATE_VOICE_GRANTS), se muestra
+ * «No disponible» para que el dueño sepa por qué (nunca se sustituye). Si está concedida a otra cuenta, se oculta
+ * a las demás (privacidad).
+ */
 export function voiceAvailability(voices: AccountVoice[], viewer: VoiceViewer, env: Record<string, string | undefined> = process.env) {
   const visible = visibleVoices(voices, viewer, env);
   const list = visible.map((v) => ({ voiceId: v.voiceId, name: v.name, available: true, note: isPrivateVoice(v) ? "Voz clonada" : null as string | null }));
-  if (!list.some((v) => v.voiceId === EL_DURO_VOICE_ID)) list.push({ voiceId: EL_DURO_VOICE_ID, name: "El Duro (Hans)", available: false, note: "No disponible: requiere autorización (PRIVATE_VOICE_GRANTS)." });
+  if (!list.some((v) => v.voiceId === EL_DURO_VOICE_ID) && !parsePrivateVoiceGrants(env.PRIVATE_VOICE_GRANTS).has(EL_DURO_VOICE_ID)) list.push({ voiceId: EL_DURO_VOICE_ID, name: "El Duro (Hans)", available: false, note: "No disponible: requiere autorización (PRIVATE_VOICE_GRANTS)." });
   return list;
 }
