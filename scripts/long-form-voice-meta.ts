@@ -1,4 +1,5 @@
 /** Read-only ElevenLabs metadata GET (no synthesis, no charge) for the Thermopylae voice. Prints labels only. */
+export {};
 const id = "cCYjmrGZaI86GUJ7F2Nn";
 async function main() {
   const key = process.env.ELEVENLABS_API_KEY?.trim(); if (!key) throw Error("no key");
