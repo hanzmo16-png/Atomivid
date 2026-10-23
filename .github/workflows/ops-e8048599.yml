@@ -25,6 +25,7 @@ jobs:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || 'aws-0-us-west-2.pooler.supabase.com' }}
           SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
+          FAL_ADMIN_KEY: ${{ secrets.FAL_ADMIN_KEY }}
         run: |
           set +e
           eval "$(sed -n 's/^\([A-Z_]*\)=\(.*\)$/export \1="\2"/p' ops/e8048599.mode)"
