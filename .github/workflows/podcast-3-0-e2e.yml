@@ -110,6 +110,7 @@ jobs:
         run: |
           [ -f v3-tests.log ] || exit 0
           echo "::notice title=test:podcast3::$(grep -E '^# (tests|pass|fail|skipped|todo) ' v3-tests.log | tr '\n' ' ')"
+          echo "::notice title=estimación 10 min::$(grep -o 'ESTIMACION_10MIN.*' v3-tests.log | head -1 | cut -c1-600)"
           grep -E '^not ok ' v3-tests.log | head -5 | while read -r l; do echo "::warning title=fallo::${l:0:300}"; done
       - name: Demo por modo (A narración, B avatar, C conversación) con QC de audio
         run: |

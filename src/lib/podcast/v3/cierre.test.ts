@@ -81,6 +81,8 @@ test("LLM de pago y subida de fotos: con el estudio apagado no se usa el LLM (pl
 
 test("estimaciones de referencia (10 min) coherentes con tarifas públicas: voz USD 0,10/1K, HeyGen Avatar IV foto USD 2,31/min", () => {
   const m = Object.fromEntries(estimateByMode(10).map((x) => [x.mode, x]));
+  // Evidencia (sin secretos): totales por modo con la tarifa de voz por defecto, para el informe de cierre.
+  console.log("ESTIMACION_10MIN " + estimateByMode(10).map((x) => `${x.mode}=${x.estimate.totalUsd.toFixed(2)}(voz ${x.byProvider.ElevenLabs},avatar ${x.byProvider.HeyGen},${Math.round(x.avatarSeconds)}s)`).join(" "));
   const voz = m.solo_audio.estimate.lines.find((l) => l.concept === "voz")!.usd;
   assert.equal(voz, 0.9, "9.000 caracteres × USD 0,10/1K");
   // Avatar: segundos de avatar × 0,0385 USD/s (= 2,31 USD/min), redondeo por clip a centavo hacia arriba.

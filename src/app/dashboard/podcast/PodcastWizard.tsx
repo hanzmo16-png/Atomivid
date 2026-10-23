@@ -181,7 +181,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
 
       {d.step === STEP.avatares && (
         <div className="mt-3 grid gap-3 text-sm">
-          {d.mode === "narracion" ? <p className="text-ink-muted" data-testid="avatares-no-aplica">Solo audio: no se usan avatares. Puedes seguir.</p> : active.map((p, i) => (
+          {d.mode === "narracion" ? <p className="text-ink-muted" data-testid="avatares-no-aplica">{d.modality === "audio" ? "Solo audio" : "Narración con imágenes"}: no se usan avatares. Puedes seguir.</p> : active.map((p, i) => (
             <fieldset key={i} className="rounded border border-border p-2">
               <legend className="px-1">Avatar de {p.name}</legend>
               <select aria-label={`Avatar ${tag(i)}`} value={p.avatar.kind === "existente" ? p.avatar.avatar_id : p.avatar.kind === "foto" ? "__foto" : ""}
