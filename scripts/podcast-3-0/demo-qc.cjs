@@ -6,5 +6,5 @@ for (const m of r) {
   console.log(m.modo, ok ? "OK" : "FALLA", JSON.stringify({ ...a, pausas_dbfs: m.energia_media_pausas_dbfs, musica: m.musica, s: m.duracion_s }));
   if (!ok) bad++;
 }
-if (r.length !== 3) { console.log("FALLA: se esperaban 3 modos"); bad++; }
+if (r.length !== 4) { console.log("FALLA: se esperaban 4 modos (solo audio, narración, avatar, conversación)"); bad++; }
 process.exit(bad ? 1 : 0);
