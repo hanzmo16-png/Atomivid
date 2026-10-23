@@ -8,6 +8,8 @@ import { createHash } from "node:crypto";
 import { readdirSync, appendFileSync } from "node:fs";
 import { connectResolved } from "./lib/supabase-db";
 import { scriptJobSignature, SCRIPT_JOB_PATH } from "../src/lib/video/long-form/script-job-auth";
+import { editorialBlockers } from "../src/lib/video/long-form/editorial";
+import { evaluateNarrationDuration } from "../src/lib/video/long-form/duration-budget";
 
 const out = process.env.DIAG_OUT ?? "diag.jsonl";
 const h10 = (s: string) => createHash("sha256").update(String(s)).digest("hex").slice(0, 10);
@@ -77,7 +79,36 @@ async function vercelProbe() {
   }
 }
 
-const steps: Record<string, () => Promise<void>> = { migrations, jobs, requests, supply, vercel: vercelProbe };
+async function review() {
+  const s = db();
+  const { data } = await s.from("documentary_script_jobs").select("id,status,failure_kind,editorial_checkpoint,input,editorial_rounds").eq("status", "failed").eq("failure_kind", "editorial").order("created_at", { ascending: false }).limit(3);
+  for (const j of (data ?? []) as Record<string, any>[]) {
+    const d = j.editorial_checkpoint, r = d?.review, beats = d?.script?.beats ?? [];
+    const words = beats.reduce((n: number, b: any) => n + String(b.narration ?? "").split(/\s+/).filter(Boolean).length, 0);
+    let duration: unknown = null;
+    try { duration = evaluateNarrationDuration(words, Number(j.input?.fields?.durationMinutes) * 60); } catch (e) { duration = String(e).slice(0, 80); }
+    let blockers: string[] = [];
+    try { blockers = r ? editorialBlockers(r) : []; } catch (e) { blockers = ["(blockers error) " + String(e).slice(0, 80)]; }
+    log("REVIEW", { id: String(j.id).slice(0, 8), pass: d?.pass, rounds: j.editorial_rounds, beats: beats.length, words, duration,
+      firstAnswer: r?.firstAnswer?.delivered, ending: r?.ending?.resolvesPromise, endingBeat: r?.ending?.evidence?.beatIndex,
+      functions: (r?.sections ?? []).map((x: any) => x.function), findings: (r?.findings ?? []).map((f: any) => `${f.severity}:${f.kind}@${(f.evidence ?? []).map((e: any) => e.beatIndex).join("/")}`),
+      blockers: blockers.map((b) => clip(b, 260)) });
+  }
+}
+
+async function schema() {
+  const { client } = await connectResolved();
+  try {
+    const q = async (sql: string) => (await client.query(sql)).rows;
+    log("CONSTRAINTS", (await q(`select conname, pg_get_constraintdef(oid) def from pg_constraint where conrelid='public.video_requests'::regclass and conname in ('video_requests_reel_image_source_valid','video_requests_reel_voice_id_valid','video_requests_mode_check','video_requests_status_check','video_requests_duration_seconds_check')`)).map((r: any) => ({ n: r.conname, d: clip(r.def, 300) })));
+    log("TRIGGERS", (await q(`select tgname from pg_trigger where tgrelid='public.video_requests'::regclass and not tgisinternal order by 1`)).map((r: any) => r.tgname));
+    log("FN_HAS_LONG_FORM", (await q(`select proname, position('long_form' in prosrc)>0 lf from pg_proc where proname in ('reel_voice_immutable','reel_recraft_immutable')`)));
+    log("PROVIDER_ACCOUNTS", await q(`select provider,status,plan from public.pi_provider_accounts order by 1`));
+    log("SNAPSHOTS", await q(`select provider, max(checked_at) last from public.pi_capacity_snapshots group by 1 order by 1`).catch((e) => [{ err: String(e.message).slice(0, 80) }]));
+  } finally { await client.end(); }
+}
+
+const steps: Record<string, () => Promise<void>> = { review, schema, migrations, jobs, requests, supply, vercel: vercelProbe };
 (async () => {
   for (const m of (process.argv[2] ?? "").split(",").filter(Boolean)) {
     if (!steps[m]) throw Error(`unknown ${m}`);
