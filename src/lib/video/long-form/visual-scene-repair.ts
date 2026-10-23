@@ -48,8 +48,12 @@ export async function recoverVisualPlan<T extends { visuals: unknown[] }>(input:
   });
   const before = index > 0 ? anchors[index - 1] : -1;
   const after = index < visuals.length - 1 ? anchors[index + 1] : input.catalog.length;
-  // Never guess a passage when surrounding references do not leave an unambiguous interval.
-  const eligible = input.catalog.filter((e, i) => i > before && i < after && !used.has(e.id));
+  // Prefer the passage between the neighbouring scenes. When the neighbours cite ADJACENT excerpts
+  // (incident e8048599 block 6, code 150fb502: an id-only stub between excerpts 0 and 1) that interval
+  // is empty; fall back to this beat's still-unused excerpts. The replacement must still come from the
+  // same beat, never duplicate another scene, pass the full scene schema, and cost one bounded call.
+  const between = input.catalog.filter((e, i) => i > before && i < after && !used.has(e.id));
+  const eligible = between.length ? between : input.catalog.filter(e => !used.has(e.id));
   if (!eligible.length) throw originalError;
   const schema = z.object({ index: z.literal(index), scene: input.sceneSchema }).strict();
   const params = {
