@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      PR_SHA: 1e6c80f
+      PR_SHA: e8b67f5
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false, fetch-depth: 0 }
