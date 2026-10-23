@@ -90,7 +90,8 @@ async function main() {
         mode: "curiosity_documentary", language: fields.language, targetDurationSeconds: Number(fields.durationMinutes) * 60,
         // Same per-job options as runScriptJobStep (script-jobs.ts), so request fingerprints match production.
         extraEditorialRounds: job.editorial_rounds ?? 0, allowVisualSceneRepair: (job.retry_count ?? 0) > 0,
-        cinematicV6: await db.auth.admin.getUserById(job.user_id).then(r => cinematicV6Enabled(r.data?.user ?? null)).catch(() => false),
+        cinematicV6: process.env.REPLAY_CINEMATIC ? process.env.REPLAY_CINEMATIC === "true"
+          : await db.auth.admin.getUserById(job.user_id).then(r => cinematicV6Enabled(r.data?.user ?? null)).catch(() => false),
         onStage: async l => { stage = l; stages.push(l); },
         onEditorialApproved: r => { approved = true; blockersAtApproval = editorialBlockers(r.reviews.at(-1)!).length; } });
       outcome = { result: "approved" };

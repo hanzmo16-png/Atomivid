@@ -27,6 +27,7 @@ jobs:
             case $step in
               state) npx tsx scripts/long-form-readiness-diag.ts ;;
               replay) REPLAY_JOB=${JOB:-e8048599} npx tsx scripts/replay-documentary-job.ts ;;
+              replay-cine) for c in true false; do echo "DIAG cinematic=$c"; REPLAY_CINEMATIC=$c REPLAY_JOB=${JOB:-e8048599} npx tsx scripts/replay-documentary-job.ts; done ;;
               *) [ -f "scripts/$step.ts" ] && npx tsx "scripts/$step.ts" ;;
             esac
           done > out.txt 2>&1
