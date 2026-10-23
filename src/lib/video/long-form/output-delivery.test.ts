@@ -273,3 +273,16 @@ test("subida: sin endpoint reanudable → respaldo estándar del MISMO archivo c
   assert.equal(calls, 3);
   fs.rmSync(file, { force: true });
 });
+
+test("subida reanudable: cada petición TUS lleva su propio límite de espera (el latido no puede mantener vivo un PATCH colgado)", async () => {
+  const file = tmpFile(1024, "tus-timeout");
+  const server = fakeTusServer({});
+  const signals: (AbortSignal | null | undefined)[] = [];
+  const f = (async (u: string, init?: RequestInit) => { signals.push(init?.signal); return server.f(u, init); }) as unknown as typeof fetch;
+  await uploadOutputFile(
+    { bucket: "videos", objectPath: `${REQ}/output/final.mp4`, filePath: file, contentType: "video/mp4" },
+    { supabaseUrl: "https://x.supabase.co", serviceKey: "k", fetch: f, sleep: async () => {}, standardUpload: async () => ({ error: null }) },
+  );
+  assert.ok(signals.length >= 2 && signals.every((s) => s instanceof AbortSignal), `señales: ${signals.length}`);
+  fs.rmSync(file, { force: true });
+});
