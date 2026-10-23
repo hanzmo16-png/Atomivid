@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { countWords, LONG_FORM_NARRATION_WORDS_PER_SECOND, LONG_FORM_MAX_BEATS } from "./duration-budget";
+import { locateNormalized } from "./text-locate";
 
 const brief = z.string().min(1).max(300);
 export const NARRATIVE_DEVICES = ["in_medias_res", "contradiction", "mistake", "experiment", "myth_evidence",
@@ -39,6 +40,29 @@ export const CreativeDirectionSchema = CreativeDirectionPromptSchema.extend({
 export type CreativeDirection = z.infer<typeof CreativeDirectionSchema>;
 export type CreativeHistoryEntry = { topic: string; opening: string; ending: string; device?: string; promise?: string; structure: string[] };
 type Beat = { narration: string; purpose?: string; type?: string };
+
+type Passage = { beatIndex: number; quote: string };
+/** Editing marks (signature detail, shareable line, protected moments, comment moment, CTA) are metadata that
+ * point at the narration; they are never narrated. Incident 2026-10-22 (job 290de42b): the critic approved the
+ * script, yet the whole paid draft failed because two marks reproduced their passage with typographic or edge
+ * differences. Each mark is re-anchored to the ORIGINAL narration span (same beat first; otherwise a unique match
+ * in exactly one other beat). A mark that cannot be located literally stays as is, so the existing check still
+ * rejects it: nothing is invented and no narration changes. */
+export function anchorCreativeDirectionQuotes<T>(value: T, beats: Beat[]): T {
+  const parsed = CreativeDirectionSchema.safeParse(value);
+  if (!parsed.success) return value;
+  const anchor = (p: Passage): Passage => {
+    if (beats[p.beatIndex]?.narration.includes(p.quote)) return p;
+    const same = beats[p.beatIndex] ? locateNormalized(beats[p.beatIndex].narration, p.quote) : null;
+    if (same) return { ...p, quote: same };
+    const others = beats.flatMap((b, i) => { const q = i === p.beatIndex ? null : locateNormalized(b.narration, p.quote); return q ? [{ beatIndex: i, quote: q }] : []; });
+    return others.length === 1 ? others[0] : p;
+  };
+  const d = parsed.data;
+  return { ...(value as object), signatureDetail: anchor(d.signatureDetail), shareableLine: anchor(d.shareableLine),
+    commentMoment: d.commentMoment ? anchor(d.commentMoment) : d.commentMoment, closingCta: d.closingCta ? anchor(d.closingCta) : d.closingCta,
+    protectInEdit: d.protectInEdit.map(anchor) } as T;
+}
 
 /** Structural/quote checks complement the critic's semantic judgment; no fabricated originality score. */
 export function creativeDirectionIssues(value: unknown, beats: Beat[], history: CreativeHistoryEntry[] = [], historyCount = history.length): string[] {

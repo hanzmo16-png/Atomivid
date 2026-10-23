@@ -141,7 +141,15 @@ export function editorialBlockers(review: EditorialReview): string[] {
  * promise is a callback. Explicit blocking findings still apply to it. */
 function closingCallback(review: EditorialReview, beatIndex: number): boolean {
   const last = Math.max(...review.sections.map(s => s.beatIndex));
-  return beatIndex === last && review.ending.resolvesPromise && review.ending.evidence.beatIndex === last;
+  if (beatIndex !== last || !review.ending.resolvesPromise) return false;
+  if (review.ending.evidence.beatIndex === last) return true;
+  // Incident 2026-10-22 (job dbc89879): the promise was resolved in the previous block and the final block carried the
+  // brief closing reflection + the single CTA that the writer rules require there. The critic labelled it "restatement"
+  // without any blocking finding, and that label alone failed a paid, otherwise approved script. A closing block that
+  // FOLLOWS the cited resolution is an outro, not a repetition in the middle of the story — unless the critic itself
+  // raises a blocking finding on it (padding, repeated promise, etc.), which editorialBlockers still applies.
+  return review.ending.evidence.beatIndex === last - 1
+    && !review.findings.some(f => f.severity === "blocking" && f.evidence.some(e => e.beatIndex === last));
 }
 export function editorialScriptHash(beats: EditorialScript["beats"]): string {
   // IDs assigned at persistence are excluded. Bind all authored content used downstream.

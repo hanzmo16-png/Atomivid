@@ -1,0 +1,48 @@
+name: Long Form final — diagnóstico de producción (solo lectura)
+# Read-only: no paid provider is contacted, no row is written. Results are emitted as
+# annotations so they can be read through the checks API.
+on:
+  push:
+    branches: [claude/youtube-long-form-final]
+    paths: [ops/long-form-final.mode]
+permissions:
+  contents: read
+concurrency:
+  group: long-form-final-diag
+  cancel-in-progress: false
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Diagnose
+        run: npx tsx scripts/long-form-final-diag.ts "$(head -1 ops/long-form-final.mode | tr -d '[:space:]')"
+        env:
+          DIAG_OUT: ${{ runner.temp }}/diag.jsonl
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || 'aws-0-us-west-2.pooler.supabase.com' }}
+          SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
+      - name: Annotate (1)
+        if: always()
+        run: node -e 'const l=require("fs").readFileSync(process.argv[1],"utf8").trim().split("\n");l.slice(0,10).forEach((x,i)=>console.log("::notice title=D"+i+"::"+x.replace(/%/g,"%25").replace(/\r/g,"").replace(/\n/g,"%0A")))' "${{ runner.temp }}/diag.jsonl"
+      - name: Annotate (2)
+        if: always()
+        run: node -e 'const l=require("fs").readFileSync(process.argv[1],"utf8").trim().split("\n");l.slice(10,20).forEach((x,i)=>console.log("::notice title=D"+(i+10)+"::"+x.replace(/%/g,"%25")))' "${{ runner.temp }}/diag.jsonl"
+      - name: Annotate (3)
+        if: always()
+        run: node -e 'const l=require("fs").readFileSync(process.argv[1],"utf8").trim().split("\n");l.slice(20,30).forEach((x,i)=>console.log("::notice title=D"+(i+20)+"::"+x.replace(/%/g,"%25")))' "${{ runner.temp }}/diag.jsonl"
+      - name: Annotate (4)
+        if: always()
+        run: node -e 'const l=require("fs").readFileSync(process.argv[1],"utf8").trim().split("\n");l.slice(30,40).forEach((x,i)=>console.log("::notice title=D"+(i+30)+"::"+x.replace(/%/g,"%25")))' "${{ runner.temp }}/diag.jsonl"
