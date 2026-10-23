@@ -131,7 +131,16 @@ async function local() {
   }
 }
 
-const steps: Record<string, () => Promise<void>> = { review, schema, local, migrations, jobs, requests, supply, vercel: vercelProbe };
+async function holds() {
+  const s = db();
+  const { data: ops } = await s.from("pi_paid_operations").select("*").in("status", ["RESERVED", "PENDING", "IN_FLIGHT", "UNCERTAIN"]).order("created_at", { ascending: false }).limit(20);
+  log("OPEN_OPERATIONS", (ops ?? []).map((o: any) => ({ p: o.provider, st: o.status, m: o.method, project: String(o.project_id ?? "").slice(0, 24), job: o.supply_job_key ? String(o.supply_job_key).slice(0, 30) : null,
+    pool: o.supply_pool, units: o.capacity_units, usd: o.committed_usd, at: o.created_at, upd: o.updated_at })));
+  const { data: res } = await s.from("pi_supply_job_reservations").select("*").eq("status", "OPEN").order("created_at", { ascending: false }).limit(20);
+  log("OPEN_JOB_RESERVATIONS", (res ?? []).map((r: any) => ({ p: r.provider, project: String(r.project_id).slice(0, 24), attempt: r.render_attempt, units: r.reserved_units, usd: r.reserved_usd, used: r.consumed_usd, at: r.created_at })));
+}
+
+const steps: Record<string, () => Promise<void>> = { review, schema, local, holds, migrations, jobs, requests, supply, vercel: vercelProbe };
 (async () => {
   for (const m of (process.argv[2] ?? "").split(",").filter(Boolean)) {
     if (!steps[m]) throw Error(`unknown ${m}`);
