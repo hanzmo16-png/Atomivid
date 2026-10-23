@@ -24,7 +24,7 @@ jobs:
           const t = require("fs").readFileSync(file, "utf8").split("\n");
           let out = [];
           if (mode === "tap") { t.forEach((l, i) => { if (/^\s*not ok/.test(l)) out.push(t.slice(i, i + 22).join("\n")); }); out.push(t.filter(l => /^# (tests|pass|fail)/.test(l)).join(" | ")); }
-          else out = t.filter(l => /^(REPLAY|FAIL|STOP)/.test(l));
+          else out = t.filter(l => /^(REPLAY|FAIL|STOP|BOUNDARY)/.test(l));
           out.slice(0, 9).forEach((b, i) => console.log(`::notice title=${tag}${i}::` + b.slice(0, 3500).replace(/%/g, "%25").replace(/\r/g, "").replace(/\n/g, "%0A")));
           JS
       - name: 1) New regression tests against the PREVIOUS production code (e68da2b) — expected to fail
@@ -51,5 +51,6 @@ jobs:
           cp scripts/replay-documentary-job.ts "$RUNNER_TEMP/old/scripts/replay-documentary-job.ts"
           (cd "$RUNNER_TEMP/old" && npx tsx scripts/replay-documentary-job.ts) 2>&1 | sed 's/^REPLAY/REPLAY old /' > replay.txt
           npx tsx scripts/replay-documentary-job.ts 2>&1 | sed 's/^REPLAY/REPLAY new /' >> replay.txt
-          REPLAY_JOB= npx tsx scripts/replay-documentary-job.ts 2>&1 | sed 's/^REPLAY/REPLAY all-failed-new /' >> replay.txt
+          REPLAY_JOB=290de42b npx tsx scripts/replay-documentary-job.ts 2>&1 | sed 's/^REPLAY/REPLAY new /' >> replay.txt
+          REPLAY_JOB=dbc89879 npx tsx scripts/replay-documentary-job.ts 2>&1 | sed 's/^REPLAY/REPLAY new /' >> replay.txt
           node "$RUNNER_TEMP/ann.js" replay.txt RPL lines
