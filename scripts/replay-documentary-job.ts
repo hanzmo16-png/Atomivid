@@ -66,8 +66,10 @@ async function main() {
               const q = p!.quote, own = beats[p!.beatIndex]?.narration ?? "";
               if (own.includes(q)) return { name, ok: "literal" };
               const anywhere = beats.map((b, i) => (locateNormalized(b.narration, q) ? i : -1)).filter(i => i >= 0);
-              const qw = words(q), ow = new Set(words(own));
-              return { name, beat: p!.beatIndex, beats: beats.length, quoteWords: qw.length, ellipsis: /\.\.\.|…/.test(q), dash: /[—–]/.test(q), quotes: /["“”‘’]/.test(q),
+              const qw = words(q), ow = new Set(words(own)), nw = words(own);
+              // Contiguous literal runs of the mark inside its own block (lengths only).
+              const runs: number[] = []; for (let j = 0; j < qw.length;) { let best = 0; for (let i = 0; i < nw.length; i++) { let k = 0; while (i + k < nw.length && j + k < qw.length && nw[i + k] === qw[j + k]) k++; best = Math.max(best, k); } runs.push(best); j += Math.max(1, best); }
+              return { name, beat: p!.beatIndex, beats: beats.length, quoteWords: qw.length, runs, ellipsis: /\.\.\.|…/.test(q), dash: /[—–]/.test(q), quotes: /["“”‘’]/.test(q),
                 locatedIn: anywhere, overlapOwnBeat: Math.round(100 * qw.filter(w => ow.has(w)).length / Math.max(1, qw.length)),
                 bestBeat: beats.map((b, i) => [i, words(b.narration)] as const).map(([i, bw]) => { const set = new Set(bw); return [i, qw.filter(w => set.has(w)).length] as const; }).sort((a, b) => b[1] - a[1])[0] };
             }) }));
