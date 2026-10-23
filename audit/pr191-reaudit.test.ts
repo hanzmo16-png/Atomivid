@@ -82,7 +82,8 @@ test("R-A13 (MEDIO-1) the four validators accept a blank extra key and still rej
   const fixed = applyFunctionRepair(review, [1], { replacements: [{ path: "sections/1/function", function: "consequence", note: "" }] }) as typeof review;
   assert.equal(fixed.sections[1].function, "consequence");
   const plan = (scene: Record<string, unknown>) => resp({ visuals: [scene, { ...scene }] });
-  const scene = { description: "a dated archive page", motion: false, excerptId: "r:b0:w0", searchQueries: [] };
+  const scene = { description: "a dated archive page", motion: false, excerptId: "r:b0:w0", subject: "archive" };
+  assert.doesNotThrow(() => parseVisualPlan(plan(scene), { cinematic: false, referenceContract: true }), "control: the scene itself is valid");
   assert.doesNotThrow(() => parseVisualPlan(plan({ ...scene, note: null }), { cinematic: false, referenceContract: true }));
   const strict = z.object({ a: z.string() }).strict();
   assert.ok(sectionFunctionRepairTargets({ a: "x", b: "" }, strict) === null, "blank key alone is not a repair target");
