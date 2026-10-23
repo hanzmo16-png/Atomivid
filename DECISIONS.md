@@ -341,3 +341,31 @@ duración estaba dentro de tolerancia.
 
 Reproducido contra los dos borradores reales guardados: con ambos cambios, cero bloqueos.
 Sin cambios de esquema, de presupuestos ni de proveedores.
+
+## Long Form 15 min: incidente 150fb502 y preparación del recorrido completo (2026-10-23)
+
+**Causa raíz (replay con las 16 respuestas pagadas reales de `e8048599`).** El plan visual del bloque 6
+trae 10 entradas; la entrada 1 es `{ "id": "<4 caracteres>" }`, sin ningún campo de escena. El mismo stub
+aparece en el bloque 5. La reparación de una escena no se ejecutó en el bloque 6 porque sus vecinas apuntan
+a fragmentos consecutivos del catálogo (89 y 90): no queda pasaje elegible entre ellas.
+
+**Corrección.** `dropSceneStubs`: una entrada sin NINGÚN campo del contrato de escena se elimina solo si
+quedan al menos dos escenas reales; si no, el bloque queda intacto y sigue la ruta de reparación existente
+(el bloque 5 conserva su reparación ya pagada). Una escena con cualquier campo, aunque esté malformada,
+sigue bloqueando. Replay: 16/16 respuestas reutilizadas; el bloque 6 pasa y el siguiente paso es el bloque 7.
+
+**Defectos adicionales demostrados y corregidos.**
+- Confirmar con Recraft fija la elección de forma inmutable; con la política de gasto `recraft` cerrada
+  (estado de producción) el inicio respondería 503 para siempre. La confirmación ahora se rechaza (409, sin
+  escribir nada) mientras la política esté cerrada, falte la clave de saldo de fal o el saldo esté en rojo.
+- La voz de Thermopylae (`cCYjmrGZaI86GUJ7F2Nn`, «David - Audiobook & Documentary», biblioteca profesional,
+  leída de `video-004-thermopylae/narration/*.json`) no era elegible. Ahora es voz de biblioteca aprobada y
+  siempre se ofrece; el tope de tres voces premade no cambia.
+- Un documental bélico no puntuaba ningún tono musical «cinematic». Se añade vocabulario de batalla/imperio.
+- Un job técnico con 3/3 reintentos no tenía salida. `script-job-resume.yml` (manual, autorizado por el
+  propietario, precondiciones exactas y CAS) lo devuelve a la cola sin tocar `retry_count` ni respuestas pagadas.
+
+**Riesgos documentados (no cambiados por decisión del propietario).** Política Recraft cerrada; tope de
+imágenes IA por defecto ($2 → ~45 imágenes Recraft para ~120 escenas); escenas de personas reales
+(Leónidas) exigen material curado verificado; sin consistencia de personajes salvo el `style_id` de Recraft;
+el bloque 5 quedó con solo 2 escenas; la voz inglesa por defecto sigue siendo Mateo si no se elige otra.
