@@ -50,6 +50,7 @@ $D -c "insert into public.podcast_episodes(id,user_id,title,source,script,voice_
  ('11111111-0000-4000-8000-0000000000a3','$U1','v2 programado','tts','A: hola\n\nB: adiós','v1','draft','scheduled',now(),5,'$PV'),
  ('11111111-0000-4000-8000-0000000000a4','$U1','v2 listo','tts','A: hola','v1','ready','none',null,3,'$PV'),
  ('11111111-0000-4000-8000-0000000000a5','$U1','v2 generando','tts','A: hola','v1','generating','none',null,3,'$PV')"
+$D -c "update public.podcast_episodes set run_token=gen_random_uuid() where id='11111111-0000-4000-8000-0000000000a5'"
 # Rollback
 $D -c "create table bk as select id,production,production_timeline from public.podcast_episodes where production is not null or production_timeline is not null"
 $D -f $RB >/dev/null && $D -f $RB >/dev/null && ok "rollback aplica y es re-ejecutable" || bad "rollback"
@@ -65,12 +66,14 @@ CB=$($D -c "begin; set local role authenticated; set local request.jwt.claim.sub
 echo "INFO antes sin copia: rollback DESTRUCTIVO para datos v2: $($D -c "select count(*) from bk") fila(s) con production/timeline se pierden si no hay copia previa"
 [ "$POL0" = "$($D -c "select string_agg(policyname||cmd||array_to_string(roles,',')||coalesce(qual,''),'|' order by policyname) from pg_policies where tablename='podcast_episodes'")" ] && ok "RLS igual tras rollback" || bad "RLS tras rollback"
 # Re-aplicar y restaurar desde copia
-REST="update public.podcast_episodes e set production=b.production, production_timeline=b.production_timeline, source=b.prev_source, script=b.prev_script, status=case when b.prev_status='generating' then 'failed' else b.prev_status end, video_status=case when b.prev_video_status in ('scheduled','queued') then 'blocked' else b.prev_video_status end, budget_usd=b.prev_budget_usd, error=b.prev_error from public.podcast_episodes_v2_rollback_backup b where b.id=e.id and e.error=b.marker"
+REST="update public.podcast_episodes e set production=b.production, production_timeline=b.production_timeline, source=b.prev_source, script=b.prev_script, status=case when b.prev_status='generating' then 'failed' else b.prev_status end, video_status=case when e.video_status is distinct from (case when b.prev_video_status in ('scheduled','queued') then 'blocked' else b.prev_video_status end) then e.video_status when b.prev_video_status in ('scheduled','queued') then 'blocked' when b.prev_video_status='running' then 'failed' else b.prev_video_status end, budget_usd=case when e.budget_usd = 0 then b.prev_budget_usd else e.budget_usd end, error=b.prev_error from public.podcast_episodes_v2_rollback_backup b where b.id=e.id and e.error=b.marker"
 # Ventana de reversión: el dueño sube su grabación a un episodio neutralizado (el código 1.x lo permite): la restauración no lo toca.
 $D -c "update public.podcast_episodes set status='ready', audio_path='u1/rec.m4a', error=null where id='11111111-0000-4000-8000-0000000000a4'"
+$D -c "update public.podcast_episodes set video_status='ready', video_path='v.mp4', budget_usd=7 where id='11111111-0000-4000-8000-0000000000a5'"
 $D -f $MIG >/dev/null 2>&1 && $D -c "$REST" && ok "re-migrar + restaurar copia" || bad "re-migrar"
 [ "$($D -c "select count(*) from public.podcast_episodes where production is not null")" = 3 ] && ok "datos v2 restaurados desde copia (solo filas aún neutralizadas)" || bad "restauración"
 [ "$($D -c "select source||'/'||status||'/'||audio_path from public.podcast_episodes where id='11111111-0000-4000-8000-0000000000a4'")" = "upload/ready/u1/rec.m4a" ] && ok "fila cambiada durante la reversión se conserva" || bad "restauración pisó un cambio del dueño"
+[ "$($D -c "select status||'/'||video_status||'/'||budget_usd||'/'||coalesce(run_token::text,'-') from public.podcast_episodes where id='11111111-0000-4000-8000-0000000000a5'")" = "failed/ready/7.0000/-" ] && ok "video y presupuesto producidos en la ventana se conservan; sin token de ejecución" || bad "restauración pisó el video de la ventana"
 [ "$($D -c "select status||'/'||video_status||'/'||budget_usd||'/'||source||'/'||coalesce(scheduled_at::text,'-') from public.podcast_episodes where id='11111111-0000-4000-8000-0000000000a3'")" = "draft/blocked/5.0000/tts/-" ] && ok "estado previo restaurado (video programado vuelve bloqueado, sin hora)" || bad "estado previo no restaurado"
 # Segundo ciclo: tras restaurar, el episodio avanza (listo, presupuesto 20); otra reversión debe guardar ESE estado.
 $D -c "update public.podcast_episodes set status='ready', video_status='ready', budget_usd=20, error=null where id='11111111-0000-4000-8000-0000000000a3'"

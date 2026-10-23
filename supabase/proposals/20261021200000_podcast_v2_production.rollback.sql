@@ -3,12 +3,14 @@
 -- con RLS activa y SIN políticas (solo service role); al re-aplicar la propuesta se restaura con:
 --   update public.podcast_episodes e set production=b.production, production_timeline=b.production_timeline,
 --       source=b.prev_source, script=b.prev_script, status=case when b.prev_status='generating' then 'failed' else b.prev_status end,
---       video_status=case when b.prev_video_status in ('scheduled','queued') then 'blocked' else b.prev_video_status end,
---       budget_usd=b.prev_budget_usd, error=b.prev_error
+--       video_status=case when e.video_status is distinct from (case when b.prev_video_status in ('scheduled','queued') then 'blocked' else b.prev_video_status end)
+--         then e.video_status when b.prev_video_status in ('scheduled','queued') then 'blocked' when b.prev_video_status='running' then 'failed' else b.prev_video_status end,
+--       budget_usd=case when e.budget_usd = 0 then b.prev_budget_usd else e.budget_usd end, error=b.prev_error
 --     from public.podcast_episodes_v2_rollback_backup b where b.id=e.id and e.error=b.marker;
 -- Solo filas aún neutralizadas (e.error = marcador): una fila que el dueño cambió mientras tanto (p. ej. subió su
--- grabación) se deja como está. Un video que estaba programado/en cola vuelve BLOQUEADO (su hora ya pasó: el dueño lo
--- reprograma), nunca se re-arma solo.
+-- grabación) se deja como está; si solo produjo un video en la ventana, se conservan su video y su presupuesto. Un video
+-- que estaba programado/en cola vuelve BLOQUEADO (su hora ya pasó: el dueño lo reprograma), nunca se re-arma solo, y uno
+-- «en curso» vuelve fallido (esa ejecución ya terminó).
 -- Neutralización: sin la columna `production` (o con el código anterior) un episodio v2 se narraría como 1.x — solo la
 -- voz A, leyendo las etiquetas «A: …» del guion y sintetizando por TTS los turnos con grabación propia — y se cobraría,
 -- incluso solo (tick programado). El presupuesto no basta: «Producir ahora» lo reescribe desde el formulario. Antes de
@@ -43,6 +45,8 @@ do $$ begin
         -- generating: sin el flag esa ejecución ya no termina; fallido deja al dueño salir del estado.
         status = case when status in ('draft','failed','generating') then 'failed' else status end,
         scheduled_at = null,
+        -- sin token una ejecución que siguiera viva no puede escribir «listo» encima de la neutralización
+        run_token = case when status = 'generating' then null else run_token end,
         error = 'NEUTRALIZED: Episodio de Podcast 2.x retirado por reversión; restaurar su producción por turnos para volver a generar.',
         video_status = case when video_status in ('scheduled','queued') then 'blocked' else video_status end,
         updated_at = now()
