@@ -341,3 +341,42 @@ duración estaba dentro de tolerancia.
 
 Reproducido contra los dos borradores reales guardados: con ambos cambios, cero bloqueos.
 Sin cambios de esquema, de presupuestos ni de proveedores.
+
+## Formato editorial: causa raíz de los rechazos recurrentes (incidente 23d86d0a, 2026-10-23)
+
+**Evidencia** (respuestas pagadas reales del ledger, leídas sin texto; replay offline con
+`scripts/replay-documentary-job.ts`, que solo sirve respuestas COMMITTED y se detiene ante cualquier
+llamada nueva). Job `e8048599`, inglés, 15 min, enfrentamiento hipotético. La llamada fallida fue la
+comprobación de «primera recompensa» (`claude-sonnet-5`, `end_turn`, 247 tokens): todos los campos
+requeridos válidos (`delivered`, `excerptId` elegible, `explanation` de 565 caracteres) **más**
+`firstAnswer.evidence.explanation: ""`. El contrato `.strict()` convirtió una respuesta correcta y pagada
+en un fallo técnico terminal.
+
+**Causa raíz.** Los contratos JSON son solo de prompt (sin gramática del proveedor), pero las reparaciones
+añadidas una a una (`96e8ace`, `99c803c`, `074ae8c`, `55ca2e5`) se validaron con esquemas `.strict()`,
+mientras el revisor principal se lee con un esquema tolerante desde `7509cd7`. Cada parche resolvía un
+campo de un contrato y varios añadían otra llamada pagada cuyo propio formato volvía a ser frágil: el
+incidente ocurrió dentro de una de esas reparaciones. Depende de la longitud: con bloques largos (15 min)
+la cita del revisor cae más a menudo después de la palabra 150 y esa reparación se ejecuta más.
+
+**Corrección.**
+1. Una sola regla sin pérdida en el punto de aceptación (`normalizeRecoverableFormat`,
+   `validateDocumentaryValue` / `acceptDocumentaryValue`), aplicada a todos los contratos y a los sitios
+   que parseaban directamente: se elimina una clave NO reconocida por el esquema cuyo valor es `null` o
+   texto en blanco. Todo lo demás sigue fallando igual (campos ausentes o con tipo erróneo, rangos,
+   etiquetas desconocidas, claves desconocidas CON contenido, `[]`/`{}` que podrían significar «vaciar»).
+   La respuesta cruda del ledger no se modifica.
+2. Marcas de edición (`creativeDirection`): en la pasada 0 de los dos últimos guiones en inglés una
+   marca difería solo en puntuación interna (dbc89879) o condensaba una frase de su propio bloque
+   (e8048599: 16 palabras literales y cola reescrita). Se anclan a la narración ORIGINAL por secuencia de
+   palabras o por el tramo literal único más largo del bloque citado (≥12 palabras, o ≥8 y ≥60 %). El
+   borrador que recibe el revisor conserva el anclaje desplegado en #188, de modo que las respuestas del
+   revisor ya pagadas siguen reutilizándose al reintentar.
+
+**Resultado del replay (sin llamadas nuevas).** e8048599: antes `DocumentaryResponseError` en la
+apertura; ahora reutiliza las 5 respuestas y llega a la pasada de corrección por observaciones de
+contenido reales. dbc89879: aprobado en la pasada 0 con lo ya pagado. 290de42b: requiere una revisión
+nueva porque #188 cambió su borrador.
+
+**Pendiente recomendado.** Salida estructurada del proveedor para los contratos pequeños de reparación
+(cambia las huellas del ledger; validar con presupuesto).
