@@ -167,6 +167,8 @@ jobs:
         run: bash scripts/harness/e2e/podcast/start.sh
       - name: Migración y rollback (BD desechable)
         run: set -o pipefail; bash scripts/harness/e2e/podcast/migration-audit.sh 2>&1 | tee migration-audit.log
+      - name: Migración del estudio 3.0 y rollback (BD desechable)
+        run: set -o pipefail; bash scripts/harness/e2e/podcast/migration-audit-v3.sh 2>&1 | tee migration-audit-v3.log
       - name: E2E casos
         env:
           CASES: ${{ inputs.cases || '1,2,3,4,5,6,7,8,9,10,11' }}
@@ -178,7 +180,8 @@ jobs:
         if: always()
         run: |
           [ -f v2-tests.log ] && echo "::notice title=podcast v2::$(grep -E '^# (tests|pass|fail|skipped) ' v2-tests.log | tr '\n' ' ')"
-          [ -f migration-audit.log ] && echo "::notice title=migración::$(tail -n 4 migration-audit.log | tr '\n' ' ' | cut -c1-900)"
+          [ -f migration-audit.log ] && echo "::notice title=migración 2.x::$(grep -c '^PASS' migration-audit.log) PASS · $(tail -n 1 migration-audit.log)"
+          [ -f migration-audit-v3.log ] && echo "::notice title=migración 3.0::$(grep -c '^PASS' migration-audit-v3.log) PASS · $(grep -c '^FAIL' migration-audit-v3.log) FAIL · $(grep -E '^(FAIL|PASS aislamiento|PASS anon)' migration-audit-v3.log | tr '\n' '|' | cut -c1-700)"
           f="$E2E_HOME/out/ci.log"; [ -f "$f" ] || exit 0
           echo "::notice title=E2E::$(grep -E '^RESULTADO' "$f" | tail -1) · $(grep -Ec '^PASS c10' "$f") PASS modos estudio · $(grep -Ec '^PASS c11-' "$f") PASS móvil · $(grep -Ec '^FAIL' "$f") FAIL"
           grep -E '^FAIL' "$f" | head -6 | while read -r l; do echo "::warning title=E2E fallo::${l:0:300}"; done
@@ -205,6 +208,7 @@ jobs:
           path: |
             v2-tests.log
             migration-audit.log
+            migration-audit-v3.log
             .e2e-local/out/ci.log
             .e2e-local/out/ci/summary.json
             .e2e-local/out/ci/*.json
