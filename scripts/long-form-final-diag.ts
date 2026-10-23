@@ -170,7 +170,22 @@ async function costs() {
   } finally { await client.end(); }
 }
 
-const steps: Record<string, () => Promise<void>> = { review, schema, local, holds, capacity, costs, migrations, jobs, requests, supply, vercel: vercelProbe };
+const WATCH_JOB = process.env.WATCH_JOB ?? "290de42b";
+async function watch() {
+  const s = db();
+  const { data: jobs } = await s.from("documentary_script_jobs").select("id,status,stage,failure_kind,error_code,error_message,retry_count,editorial_rounds,request_id,updated_at").order("updated_at", { ascending: false }).limit(5);
+  for (const j of (jobs ?? []) as Record<string, any>[]) log("JOB", { id: String(j.id).slice(0, 8), status: j.status, stage: j.stage, kind: j.failure_kind, code: j.error_code, retries: j.retry_count, rounds: j.editorial_rounds, request: j.request_id ? String(j.request_id).slice(0, 8) : null, updated: j.updated_at, error: clip(j.error_message, 300) });
+  const { data: reqs } = await s.from("video_requests").select("id,status,long_form_stage,long_form_progress,long_form_confirmed_at,long_form_production_plan,render_attempts,video_path,error_message,reel_image_source,reel_voice_id,duration_seconds,updated_at").eq("mode", "long_form").order("updated_at", { ascending: false }).limit(3);
+  for (const r of (reqs ?? []) as Record<string, any>[]) log("REQUEST", { id: String(r.id).slice(0, 8), status: r.status, stage: r.long_form_stage, progress: clip(JSON.stringify(r.long_form_progress), 400), confirmed: r.long_form_confirmed_at, minutes: r.duration_seconds / 60,
+    allocation: r.long_form_production_plan?.allocation ?? null, images: r.reel_image_source, voice: r.reel_voice_id ? "custom" : "default", attempts: r.render_attempts, video: r.video_path ? String(r.video_path).replace(/^[^/]+\//, "…/") : null, updated: r.updated_at, error: clip(r.error_message, 300) });
+  const { data: runs } = await s.from("pi_paid_operations").select("provider,method,status,committed_usd,created_at").gte("created_at", new Date(Date.now() - 6 * 3600_000).toISOString()).order("created_at", { ascending: false }).limit(300);
+  const agg: Record<string, { n: number; usd: number }> = {};
+  for (const o of (runs ?? []) as Record<string, any>[]) { const k = `${o.provider}:${o.method}:${o.status}`; agg[k] ??= { n: 0, usd: 0 }; agg[k].n++; agg[k].usd += Number(o.committed_usd ?? 0); }
+  log("SPEND_6H", agg);
+  void WATCH_JOB;
+}
+
+const steps: Record<string, () => Promise<void>> = { review, schema, local, holds, capacity, costs, watch, migrations, jobs, requests, supply, vercel: vercelProbe };
 (async () => {
   for (const m of (process.argv[2] ?? "").split(",").filter(Boolean)) {
     if (!steps[m]) throw Error(`unknown ${m}`);
