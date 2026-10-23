@@ -13,9 +13,9 @@ import { fontFile } from "./compose";
 const hasEspeak = () => spawnSync("espeak-ng", ["--version"]).status === 0;
 const hashNum = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 
-export type MockCalls = { tts: string[]; avatar: string[]; images: string[]; recreate: string[] };
+export type MockCalls = { tts: string[]; avatar: string[]; images: string[]; recreate: string[]; prepare: string[] };
 export function mockProviders(opts: { failAvatarTimes?: number; failTtsRejectTimes?: number; usdPer1k?: number; tonesOnly?: boolean } = {}): Providers & { calls: MockCalls } {
-  const calls: MockCalls = { tts: [], avatar: [], images: [], recreate: [] };
+  const calls: MockCalls = { tts: [], avatar: [], images: [], recreate: [], prepare: [] };
   let avatarFails = opts.failAvatarTimes ?? 0, ttsRejects = opts.failTtsRejectTimes ?? 0;
   const usdPer1k = opts.usdPer1k ?? 0.2;
   const tts: TtsProvider = {
@@ -38,7 +38,8 @@ export function mockProviders(opts: { failAvatarTimes?: number; failTtsRejectTim
   };
   const colorFor = (ref: string) => ["0x7a3b2e", "0x2e5a7a", "0x3b7a2e", "0x6a2e7a"][hashNum(ref) % 4];
   const avatar: AvatarProvider = {
-    name: "heygen-mock", label: "mock",
+    name: "heygen-mock", label: "mock", prepareUsd: 0,
+    async prepare(ref) { calls.prepare.push(ref); return { ref: `asset:mock-${hashNum(ref)}`, actualUsd: 0 }; },
     usdFor: (s) => Math.ceil(Math.max(1, s) * 0.0385 * 100) / 100,
     async still(ref, dest) {
       await ffmpeg(["-y", "-v", "error", "-f", "lavfi", "-i", `color=c=${colorFor(ref)}:s=480x640:d=1`, "-vf", "drawbox=x=140:y=120:w=200:h=260:c=0xe0b090:t=fill,drawbox=x=190:y=320:w=100:h=14:c=0x401010:t=fill,drawbox=x=100:y=400:w=280:h=240:c=0x202020:t=fill", "-frames:v", "1", dest]);

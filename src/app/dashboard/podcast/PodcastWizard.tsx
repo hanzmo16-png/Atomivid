@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { safeParseJsonResponse } from "@/lib/http/safe-json";
 import { classifyClientFetchError } from "@/lib/http/client-error";
 import { MODE_LABEL, MOODS, MOOD_LABEL, SETS, SET_LABEL } from "@/lib/podcast/v3/spec";
-import { CONSENT_TEXT, INTENSITY_DB, MODALITY_LABEL, STEP, STEPS, WIZARD_STORAGE_KEY, defaultDraft, draftToSpec, draftToV2, estimateMinutes, loadDraft, modalityToMode, stepErrors, type Modality, type WizardDraft } from "@/lib/podcast/v3/wizard";
+import { CONSENT_TEXT, INTENSITY_DB, MODALITIES, MODALITY_LABEL, STEP, STEPS, WIZARD_STORAGE_KEY, defaultDraft, draftToSpec, draftToV2, estimateMinutes, loadDraft, modalityToMode, stepErrors, type Modality, type WizardDraft } from "@/lib/podcast/v3/wizard";
 import type { VisualProvider } from "@/lib/podcast/v3/studio";
 
 export type WizardVoice = { voiceId: string; name: string; available: boolean; note: string | null };
@@ -19,7 +19,8 @@ type Status = { episode: { status: string; progress: { stage: string; pct: numbe
 
 const USD = (n: number) => `USD ${n.toFixed(2)}`;
 const MODE_HELP: Record<Modality, string> = {
-  audio: "Una o dos voces, música opcional y exportación a MP3. Sin video de avatar (el más barato).",
+  audio: "Una o dos voces, música opcional y exportación a MP3 o WAV. No se genera video (el más barato).",
+  visual: "Una o dos voces con imágenes relacionadas, transiciones y música. Se entrega un MP4 y el audio por separado.",
   avatar: "Un presentador virtual (tu avatar) aparece hablando en tramos cortos, alternado con imágenes o clips de apoyo.",
   dialogo: "Dos participantes conversan (anfitrión e invitado), cada uno con su avatar y su voz: plano general de los dos y primeros planos.",
 };
@@ -47,7 +48,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   const unavailable = voices.filter((v) => !v.available).map((v) => v.voiceId);
   const errs = stepErrors(d, d.step, { unavailableVoices: unavailable, providers });
   const studio = v3Enabled; // sin estudio, «Solo audio» usa el flujo actual (Podcast 2.x) y los modos con avatar quedan en espera
-  const modeBlocked = !generationEnabled && d.mode !== null && (studio || d.mode !== "narracion");
+  const modeBlocked = !generationEnabled && d.mode !== null && (studio || d.modality !== "audio");
 
   async function api(url: string, body?: unknown) {
     const res = await fetch(url, body === undefined ? undefined : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -79,7 +80,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   async function authorizeAndGenerate() {
     if (!d.authorized) { setError("Marca la casilla para autorizar el cargo."); return; }
     await run(async () => {
-      if (!generationEnabled && !studio && d.mode === "narracion") {
+      if (!generationEnabled && !studio && d.modality === "audio") {
         const r = await api("/api/podcast", draftToV2(d, v2Enabled));
         localStorage.removeItem(WIZARD_STORAGE_KEY);
         router.push(`/dashboard/podcast/${String(r.id)}`);
@@ -120,7 +121,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
 
       {d.step === STEP.modalidad && (
         <div className="mt-3 grid gap-2" role="radiogroup" aria-label="Modalidad">
-          {(["audio", "avatar", "dialogo"] as const).map((m) => (
+          {MODALITIES.map((m) => (
             <button key={m} type="button" role="radio" aria-checked={d.modality === m} className={choice(d.modality === m)} data-testid={`modalidad-${m}`}
               onClick={() => set({ modality: m, mode: modalityToMode(m), count: m === "dialogo" ? 2 : m === "avatar" ? 1 : d.count })}>
               <span className="font-medium text-ink">{MODALITY_LABEL[m]}</span><br /><span className="text-ink-muted">{MODE_HELP[m]}</span>
@@ -145,7 +146,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
 
       {d.step === STEP.participantes && (
         <div className="mt-3 grid gap-3 text-sm">
-          {d.modality === "audio" && (
+          {(d.modality === "audio" || d.modality === "visual") && (
             <div className="flex flex-wrap gap-4" role="radiogroup" aria-label="Número de voces">
               <label><input type="radio" checked={d.count === 1} onChange={() => set({ count: 1 })} /> Una voz</label>
               <label><input type="radio" checked={d.count === 2} onChange={() => set({ count: 2 })} /> Dos voces que se alternan</label>
@@ -227,7 +228,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
 
       {d.step === STEP.visuales && (
         <div className="mt-3 grid gap-3 text-sm">
-          {d.modality === "audio" ? <p className="text-ink-muted">Solo audio: se exporta MP3 (y un MP4 con el set y subtítulos, sin imágenes de pago).</p> : (
+          {d.modality === "audio" ? <p className="text-ink-muted" data-testid="solo-audio-sin-video">Solo audio: se exporta el archivo de audio. No se genera video ni se buscan imágenes.</p> : (
             <div className="grid gap-2" role="radiogroup" aria-label="Proveedor visual">
               {providers.map((p) => (
                 <label key={p.id} className={choice(d.provider === p.id)} data-testid={`proveedor-${p.id}`}>
@@ -237,6 +238,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
               ))}
             </div>
           )}
+          {d.modality !== "audio" && (<>
           <label>Escenario<select aria-label="Escenario" value={d.set} onChange={(e) => set({ set: e.target.value as WizardDraft["set"] })} className={input}>{SETS.map((s) => <option key={s} value={s}>{SET_LABEL[s]}</option>)}</select></label>
           {d.mode === "dialogo" && <label><input type="checkbox" checked={d.swap} onChange={(e) => set({ swap: e.target.checked })} /> Invertir posiciones (anfitrión a la derecha)</label>}
           <label><input type="checkbox" checked={d.subtitles} onChange={(e) => set({ subtitles: e.target.checked })} /> Subtítulos</label>
@@ -245,6 +247,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
             <label><input type="radio" checked={d.format === "16:9"} onChange={() => set({ format: "16:9" })} /> Horizontal 16:9 (YouTube)</label>
             <label><input type="radio" checked={d.format === "9:16"} onChange={() => set({ format: "9:16" })} /> Vertical 9:16 (Reels/TikTok)</label>
           </div>
+          </>)}
           <div className="flex flex-wrap gap-4" role="radiogroup" aria-label="Formato de audio">
             <label><input type="radio" checked={d.audioExport === "mp3"} onChange={() => set({ audioExport: "mp3" })} /> Audio MP3</label>
             <label><input type="radio" checked={d.audioExport === "wav"} onChange={() => set({ audioExport: "wav" })} /> Audio WAV</label>

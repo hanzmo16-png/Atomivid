@@ -87,6 +87,8 @@ export const StudioSpec = z.object({
   }),
   format: z.enum(["16:9", "9:16"]).default("16:9"),
   audio_export: z.enum(["mp3", "wav"]).default("mp3"),
+  /** Entrega: «video» (MP4 + audio) o «audio» (solo el archivo de audio; no se renderiza video ni se buscan imágenes). Solo audio exige modo narración. */
+  output: z.enum(["video", "audio"]).default("video"),
   budget_usd: z.number().min(0).max(500),
 });
 export type StudioSpec = z.infer<typeof StudioSpec>;
@@ -98,6 +100,7 @@ export function validateSpec(spec: StudioSpec, voices: AccountVoice[], viewer: V
   const out: SpecIssue[] = [];
   const need = spec.mode === "dialogo" ? 2 : spec.mode === "avatar" ? 1 : null;
   if (need && spec.participants.length !== need) out.push({ field: "participants", message: need === 2 ? "La conversación necesita exactamente dos participantes." : "El modo avatar usa un solo participante." });
+  if (spec.output === "audio" && spec.mode !== "narracion") out.push({ field: "output", message: "Solo audio está disponible en el modo narración (los avatares necesitan video)." });
   if (new Set(spec.participants.map((p) => p.id)).size !== spec.participants.length) out.push({ field: "participants", message: "Participantes repetidos." });
   const visible = visibleVoices(voices, viewer, env);
   for (const p of spec.participants) {

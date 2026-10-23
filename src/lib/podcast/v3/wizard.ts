@@ -5,11 +5,17 @@ import type { Mood, StudioMode, StudioSet } from "./spec";
 export const WIZARD_STORAGE_KEY = "atomivid.podcast.asistente.v2";
 export const STEPS = ["Modalidad", "Tema", "Participantes", "Voces", "Avatares", "Música", "Visuales", "Presupuesto", "Vista previa", "Generación"] as const;
 export const STEP = { modalidad: 0, tema: 1, participantes: 2, voces: 3, avatares: 4, musica: 5, visuales: 6, presupuesto: 7, vista: 8, generacion: 9 } as const;
-/** Modalidad visible para el usuario → modo del estudio. «audio» = solo audio (1–2 voces, música, MP3), sin video. */
-export type Modality = "audio" | "avatar" | "dialogo";
-export const MODALITY_LABEL: Record<Modality, string> = { audio: "Solo audio", avatar: "Presentador con avatar", dialogo: "Conversación con dos avatares" };
+/**
+ * Modalidad visible para el usuario → modo del estudio.
+ *  A «audio»: solo audio (1–2 voces, música opcional, MP3/WAV); NO se renderiza video.
+ *  B «visual»: narración audiovisual con imágenes relacionadas, transiciones y música → MP4 + audio.
+ *  C «avatar» / «dialogo»: uno o dos avatares con lip-sync alternados con imágenes → MP4 + audio.
+ */
+export type Modality = "audio" | "visual" | "avatar" | "dialogo";
+export const MODALITIES: readonly Modality[] = ["audio", "visual", "avatar", "dialogo"];
+export const MODALITY_LABEL: Record<Modality, string> = { audio: "Solo audio", visual: "Narración con imágenes (video)", avatar: "Presentador con avatar", dialogo: "Conversación con dos avatares" };
 export const INTENSITY_DB = { suave: -28, media: -22, alta: -17 } as const;
-export const modalityToMode = (m: Modality): StudioMode => (m === "audio" ? "narracion" : m);
+export const modalityToMode = (m: Modality): StudioMode => (m === "audio" || m === "visual" ? "narracion" : m);
 export type AvatarChoice = { kind: "ninguno" } | { kind: "existente"; avatar_id: string } | { kind: "foto"; photo_path: string; consent: boolean; consent_at: string | null };
 export type WizardParticipant = { name: string; role: string; gender: "femenino" | "masculino" | "neutro"; style: string; personality: string; voice_id: string; voice_kind: "sintetica" | "clonada"; avatar: AvatarChoice };
 export type WizardDraft = {
@@ -73,6 +79,7 @@ export function draftToSpec(d: WizardDraft) {
     participants: d.participants.slice(0, d.count).map((p, i) => ({ id: ids[i], name: p.name.trim() || ids[i], role: p.role, gender: p.gender, style: p.style, personality: p.personality, voice_id: p.voice_id, voice_kind: p.voice_kind,
       avatar: p.avatar.kind === "foto" ? { kind: "foto", photo_path: p.avatar.photo_path, consent: { given: p.avatar.consent, at: p.avatar.consent_at ?? new Date().toISOString(), text: CONSENT_TEXT } } : p.avatar })),
     visual: { set: d.set, swap_sides: d.swap, subtitles: d.subtitles, avatar_frequency: d.avatarFrequency, avatar_max_seconds: d.avatarMaxSeconds, recreations: d.recreations && d.provider === "recraft", provider: d.modality === "audio" ? "solo_set" : d.provider },
+    output: d.modality === "audio" ? "audio" : "video",
     music: { enabled: d.musicEnabled, mood: d.mood, volume_db: d.volumeDb, stings: d.stings, ambient: d.ambient, intensity: d.intensity, intro: d.intro, outro: d.outro, ducking: d.ducking },
     format: d.format, audio_export: d.audioExport, budget_usd: d.budgetUsd,
   };

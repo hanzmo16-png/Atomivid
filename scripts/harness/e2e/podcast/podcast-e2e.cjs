@@ -375,7 +375,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     await next(); await W().getByRole("button", { name: "Atrás" }).click(); await S.p.reload(); await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
     ok(`${tag}: atrás + recarga conserva el borrador`, (await W().getByLabel("Título del episodio").inputValue()) === m.title && /Paso 2/.test(await stepTitle()));
     await next();
-    if (m.count === 2 && m.mode === "Solo audio") await W().getByLabel("Dos voces que se alternan").check();
+    if (m.count === 2 && (m.mode === "Solo audio" || m.mode === "Narración con imágenes")) await W().getByLabel("Dos voces que se alternan").check();
     if (m.count === 2) { await W().getByLabel("Personalidad A").fill("Curioso, hace preguntas"); await W().getByLabel("Personalidad B").fill("Escéptica, discrepa con datos"); await W().getByLabel("Género B").selectOption("femenino"); }
     await snap("paso03-participantes"); await next();
     await W().getByLabel("Voz A").selectOption(m.voices[0]); if (m.count === 2) await W().getByLabel("Voz B").selectOption(m.voices[1]);
@@ -422,6 +422,21 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       ok(`${tag}: lip-sync — ningún avatar mueve los labios fuera de su turno (segmentos del render)`, lips.length > 0 && viol.length === 0 && !lips.some((x) => x.A === "habla" && x.B === "habla"), `${lips.length} segmentos, ${viol.length} violaciones`);
       if (m.count === 2) ok(`${tag}: render con plano general de los dos y primeros planos individuales`, row.result.coverage?.general && (row.result.coverage?.primerPlanoA || row.result.coverage?.primerPlanoB), JSON.stringify(row.result.coverage));
     }
+    if (m.mode === "Solo audio") {
+      // Modo A: solo audio — no se genera video (ni MP4 en Storage, ni reproductor de video, ni descarga MP4).
+      await W().getByTestId("wizard-audio-player").waitFor({ timeout: 30000 }); await snap("paso10c-reproducir-audio");
+      ok(`${tag}: solo audio no genera video (sin MP4 en Storage ni en la página)`, row.video_path === null && await W().getByTestId("wizard-player").count() === 0 && await W().getByTestId("wizard-download-mp4").count() === 0, String(row.video_path));
+      const aplay = await W().getByTestId("wizard-audio-player").evaluate(async (a) => { a.muted = true; await a.play().catch(() => {}); await new Promise((r) => setTimeout(r, 2500)); const o = { rs: a.readyState, t: a.currentTime, err: a.error?.code ?? null }; a.pause(); return o; });
+      ok(`${tag}: el reproductor de audio reproduce el episodio`, aplay.rs >= 2 && aplay.t > 1 && !aplay.err, JSON.stringify(aplay));
+      const audUrl = await W().getByTestId("wizard-download-audio").getAttribute("href"), aud = path.join(OUT, `${tag}.mp3`);
+      fs.writeFileSync(aud, Buffer.from(await (await fetch(audUrl)).arrayBuffer()));
+      const pa = probe(aud), LA = loud(aud);
+      ok(`${tag}: descarga de audio MP3, −16±1 LUFS, TP ≤ −1 dBTP`, pa.streams.some((x) => x.codec_name === "mp3") && !pa.streams.some((x) => x.codec_type === "video") && Math.abs(LA.I + 16) <= 1 && LA.TP <= -1, JSON.stringify(LA));
+      const ops = (await db.query("select provider, op, state, count(*)::int n from podcast_studio_operations where episode_id=$1 group by 1,2,3", [row.id])).rows;
+      ok(`${tag}: solo voz en el libro (sin avatar ni imágenes de pago), todo liquidado`, ops.length > 0 && ops.every((o) => o.state === "settled" && o.op === "tts"), JSON.stringify(ops));
+      summary[tag] = { id: row.id, result: row.result, cost: row.cost_usd };
+      return;
+    }
     await W().getByTestId("wizard-player").waitFor({ timeout: 30000 }); await snap("paso10c-reproducir");
     const play = await W().getByTestId("wizard-player").evaluate(async (v) => { v.muted = true; await v.play().catch(() => {}); await new Promise((r) => setTimeout(r, 3000)); const o = { rs: v.readyState, t: v.currentTime, w: v.videoWidth, h: v.videoHeight, err: v.error?.code ?? null }; v.pause(); return o; });
     ok(`${tag}: el reproductor reproduce el MP4 ${m.format ? "9:16" : "16:9"}`, play.rs >= 2 && play.t > 1 && !play.err && (m.format ? play.h > play.w : play.w > play.h), JSON.stringify(play));
@@ -446,6 +461,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
   if (cases.includes("10") || cases.includes("11")) for (const [id, name] of AV) await db.query("insert into public.avatars (id,user_id,name,provider,provider_avatar_id,status,consent_given) values ($1,$2,$3,'heygen','asset:simulado','ready',true) on conflict (id) do nothing", [id, OWNER.id, name]);
   const MODES = [
     { tag: "c10a", mode: "Solo audio", title: "E2E estudio audio", script: "En 1977 el radiotelescopio Big Ear registró una señal intensa y breve.\n\nEl astrónomo Jerry Ehman escribió Wow en el margen.\n\nLa señal nunca volvió a detectarse.", count: 2, voices: [ANA, LEO], mood: "misterio", intensity: "alta" },
+    { tag: "c10d", mode: "Narración con imágenes", title: "E2E estudio narración visual", script: "En 1977 el radiotelescopio Big Ear registró una señal intensa y breve.\n\nEl astrónomo Jerry Ehman escribió Wow en el margen.\n\nLa señal nunca volvió a detectarse.", count: 2, voices: [ANA, LEO], mood: "misterio" },
     { tag: "c10b", mode: "Presentador con avatar", title: "E2E estudio avatar", script: "Hola, hoy te cuento tres datos sobre volcanes.\n\nOlympus Mons está en Marte y es el volcán más alto.\n\nLos volcanes crean islas como Hawái.", count: 1, voices: [DURO], avatars: [AV[0][0]] },
     { tag: "c10c", mode: "Conversación con dos avatares", title: "E2E estudio conversación", topic: "la luna Europa", count: 2, voices: [ANA, LEO], avatars: [AV[0][0], AV[1][0]], format: "Vertical 9:16 (Reels/TikTok)", swap: true },
   ];

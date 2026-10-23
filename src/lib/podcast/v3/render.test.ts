@@ -55,16 +55,16 @@ test("modo A: narración 2 voces alternadas, imágenes sin repetir, música pres
   const assets = r.plan.shots.filter((s) => s.asset_id).map((s) => s.asset_id);
   assert.equal(new Set(assets).size, assets.length, "sin imágenes repetidas");
   assert.ok(r.plan.shots.filter((s) => s.kind === "recreacion").every((s) => s.label === "Recreación"));
-  const q = await ebur128(r.mp4);
+  const q = await ebur128(r.mp4!);
   assert.ok(Math.abs(q.lufs + 16) <= 1, `LUFS ${q.lufs}`); assert.ok(q.truePeak <= -1, `TP ${q.truePeak}`); assert.equal(q.clipped, 0);
-  const p = probe(r.mp4); const v = p.streams.find((s: { codec_type: string }) => s.codec_type === "video"), a = p.streams.find((s: { codec_type: string }) => s.codec_type === "audio");
+  const p = probe(r.mp4!); const v = p.streams.find((s: { codec_type: string }) => s.codec_type === "video"), a = p.streams.find((s: { codec_type: string }) => s.codec_type === "audio");
   assert.equal(v.codec_name, "h264"); assert.equal(a.codec_name, "aac"); assert.equal(v.width, 640);
-  const vd = await ffprobeDuration(r.mp4); const ad = r.timeline[r.timeline.length - 1].end;
+  const vd = await ffprobeDuration(r.mp4!); const ad = r.timeline[r.timeline.length - 1].end;
   assert.ok(vd >= ad, "el video no corta la última voz");
   assert.equal(probe(r.audio).streams[0].codec_name, "mp3");
   // Música: la misma producción con música apagada tiene silencio en las pausas; con música, energía clara.
   const off = await render(StudioSpec.parse({ ...A, music: { ...A.music, enabled: false } }));
-  const on = await gapsDb(r.mp4, r.timeline), silent = await gapsDb(off.r.mp4, off.r.timeline);
+  const on = await gapsDb(r.mp4!, r.timeline), silent = await gapsDb(off.r.mp4!, off.r.timeline);
   assert.ok(on > -45 && on - silent > 15, `pausas con música ${on.toFixed(1)} dBFS vs sin música ${silent.toFixed(1)} dBFS`);
   assert.equal(off.r.musicTrack, null); assert.equal(r.musicTrack, "atomivid-misterio.wav");
 });
@@ -90,9 +90,9 @@ test("modo C: dos voces, two-shot/sobre el hombro compuestos, 9:16; fallo incier
   assert.deepEqual([...new Set(providers.calls.tts.map((c) => c.split(":")[0]))].sort(), ["vozAnaHost", "vozLuisInv"]);
   const kinds = new Set(r.plan.shots.map((s) => s.kind));
   assert.ok(kinds.has("two_shot") && kinds.has("over_shoulder"), [...kinds].join());
-  const v = probe(r.mp4).streams.find((s: { codec_type: string }) => s.codec_type === "video");
+  const v = probe(r.mp4!).streams.find((s: { codec_type: string }) => s.codec_type === "video");
   assert.deepEqual([v.width, v.height], [360, 640]);
-  assert.ok((await stat(r.mp4)).size > 10_000);
+  assert.ok((await stat(r.mp4!)).size > 10_000);
   const ledger = new MemoryLedger(), flaky = mockProviders({ tonesOnly: true, failAvatarTimes: 1 });
   await assert.rejects(render(C, { ledger, providers: flaky, episode: "ep-c2" }), /tiempo de espera/);
   assert.equal([...ledger.rows.values()].filter((x) => x.state === "uncertain").length, 1);
@@ -117,4 +117,62 @@ test("control de costos: sin autorización suficiente no hay ninguna llamada; ej
   assert.equal([...ledger.rows.values()].filter((r) => r.state === "released").length, 1);
   const ok = await render(A, { ledger, providers: rej, episode: "rej" });
   assert.ok(ok.r.mp4);
+});
+
+// ── Cierre de auditoría Podcast V3 (USD 0, proveedores SIMULADOS) ─────────────────────────────────────────────
+
+const grayFrame = (file: string, n: number, w: number, h: number) => spawnSync("ffmpeg", ["-v", "error", "-i", file, "-vf", `select=eq(n\\,${n})`, "-frames:v", "1", "-s", `${w}x${h}`, "-f", "rawvideo", "-pix_fmt", "gray", "-"], { maxBuffer: 1 << 24 }).stdout as Buffer;
+
+test("modo A solo audio: entrega solo el audio — sin imágenes, sin planos, sin MP4", { timeout: 600_000 }, async () => {
+  const audioOnly = StudioSpec.parse({ ...A, output: "audio", visual: { ...A.visual, provider: "solo_set", recreations: false } });
+  const { r, providers } = await render(audioOnly);
+  assert.equal(r.mp4, null, "no se genera video");
+  assert.equal(r.shotFiles.length, 0, "no se renderiza ningún plano");
+  assert.equal(providers.calls.images.length + providers.calls.recreate.length + providers.calls.avatar.length, 0, "ni búsquedas de imágenes ni recreaciones ni avatar");
+  assert.equal(providers.calls.tts.length, 3);
+  const p = probe(r.audio);
+  assert.equal(p.streams.length, 1); assert.equal(p.streams[0].codec_name, "mp3");
+  const q = await ebur128(r.audio);
+  assert.ok(Math.abs(q.lufs + 16) <= 1 && q.truePeak <= -1 && q.clipped === 0, JSON.stringify(q));
+  assert.equal(r.musicTrack, "atomivid-misterio.wav");
+});
+
+test("modo C: quien escucha en el plano general se mueve (cámara sutil), no es un fotograma congelado", { timeout: 600_000 }, async () => {
+  const { r } = await render(C, { episode: "ep-listener" });
+  const W = 360, H = 640;
+  const idx = r.plan.shots.findIndex((s, i) => s.kind === "two_shot" && (s.end - s.start) > 1.6 && r.shotFiles[i]);
+  assert.ok(idx >= 0, "hay un plano general con duración suficiente");
+  const shot = r.plan.shots[idx], file = r.shotFiles[idx];
+  const frames = Number(spawnSync("ffprobe", ["-v", "error", "-count_frames", "-select_streams", "v", "-show_entries", "stream=nb_read_frames", "-of", "csv=p=0", file], { encoding: "utf8" }).stdout.trim());
+  // Región de quien escucha (9:16: hablante arriba o abajo según el lado); se evitan fundidos y subtítulos.
+  const speakerFirst = shot.speaker === "A"; // C no invierte lados
+  const [y0, y1] = speakerFirst ? [Math.round(H * 0.53), Math.round(H * 0.74)] : [Math.round(H * 0.11), Math.round(H * 0.44)];
+  const a = grayFrame(file, 8, W, H), b = grayFrame(file, frames - 9, W, H);
+  let changed = 0, total = 0;
+  for (let y = y0; y < y1; y++) for (let x = Math.round(W * 0.12); x < Math.round(W * 0.88); x++) { total++; if (Math.abs(a[y * W + x] - b[y * W + x]) > 8) changed++; }
+  assert.ok(changed / total > 0.005, `quien escucha cambió en ${(100 * changed / total).toFixed(2)} % de sus píxeles`);
+  assert.ok(changed / total < 0.6, "movimiento sutil, no un corte");
+});
+
+test("avatar desde foto: la subida al proveedor pasa por el libro — un reintento no vuelve a subir ni cobrar", { timeout: 600_000 }, async () => {
+  const foto = StudioSpec.parse({ ...B, participants: [{ ...B.participants[0], avatar: { kind: "foto", photo_path: "u1/podcast-studio/photos/x.jpg", consent: { given: true, at: "2026-10-23T00:00:00Z", text: "Consentimiento expreso de prueba" } } }] });
+  const ledger = new MemoryLedger(), providers = mockProviders({ tonesOnly: true });
+  await render(foto, { ledger, providers, episode: "ep-foto" });
+  assert.equal(providers.calls.prepare.length, 1);
+  assert.ok(providers.calls.avatar.every((c) => c.startsWith("asset:mock-")), "los clips usan la referencia preparada");
+  assert.ok([...ledger.rows.values()].some((x) => x.op === "avatar_prepare" && x.state === "settled"));
+  await render(foto, { ledger, providers, episode: "ep-foto" });
+  assert.equal(providers.calls.prepare.length, 1, "reintento: la foto no se vuelve a subir");
+});
+
+test("barreras previas: saldo insuficiente o presupuesto menor que la estimación → cero llamadas de pago", { timeout: 600_000 }, async () => {
+  const { ProviderNotReadyError } = await import("./pipeline");
+  const { BudgetExceededError } = await import("./cost");
+  const p1 = { ...mockProviders({ tonesOnly: true }), readiness: async () => "HeyGen: saldo USD 0.00" };
+  const ledger = new MemoryLedger();
+  await assert.rejects(render(B, { providers: p1, ledger, episode: "ep-saldo" }), ProviderNotReadyError);
+  assert.equal(p1.calls.tts.length + p1.calls.avatar.length, 0); assert.equal(ledger.rows.size, 0, "nada reservado");
+  const p2 = mockProviders({ tonesOnly: true });
+  await assert.rejects(render(StudioSpec.parse({ ...B, budget_usd: 0.01 }), { providers: p2, episode: "ep-tope" }), BudgetExceededError);
+  assert.equal(p2.calls.tts.length + p2.calls.avatar.length, 0);
 });

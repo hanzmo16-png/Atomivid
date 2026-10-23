@@ -60,6 +60,18 @@ export type ShotSources = {
   subtitle?: string | null;
 };
 
+/**
+ * Movimiento de cámara sutil para una imagen fija (quien escucha, fondos de transición): empuje lento + deriva
+ * lateral suave, sinusoidal y continuo. NO anima la boca ni simula gestos: solo encuadre (sin falso lip-sync).
+ * Se trabaja a 2× para que el redondeo de zoompan no produzca temblor visible. `seed` desfasa la deriva entre planos.
+ */
+export function stillMotion(w: number, h: number, frames: number, seed = 0): string {
+  const zp = Math.max(FPS * 6, frames * 2), xp = Math.max(FPS * 5, Math.round(frames * 1.3)); // periodos (fotogramas): nunca un vaivén rápido
+  const ph = ((seed % 7) / 7 * 2 * Math.PI).toFixed(3);
+  return `scale=${w * 2}:${h * 2}:force_original_aspect_ratio=increase,crop=${w * 2}:${h * 2},` +
+    `zoompan=z='1.04+0.03*sin(2*PI*on/${zp}+${ph})':x='iw/2-(iw/zoom/2)+iw*0.012*sin(2*PI*on/${xp}+${ph})':y='ih/2-(ih/zoom/2)+ih*0.006*sin(2*PI*on/${zp}+${ph})':d=${frames}:s=${w}x${h}:fps=${FPS}`;
+}
+
 const esc = (p: string) => p.replace(/\\/g, "/").replace(/:/g, "\\:").replace(/'/g, "\\'");
 
 /** Renderiza un plano a un MP4 normalizado de exactamente `frames` fotogramas. */
@@ -107,8 +119,9 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
       const bw = Math.round(vertical ? w * 0.84 : w * 0.42), bh = Math.round(vertical ? h * 0.38 : h * 0.66);
       const speakerFirst = (shot.speaker === "A") === leftIsA;
       const [p1, p2] = vertical ? [`(W-w)/2:H*0.08`, `(W-w)/2:H*0.5`] : [`W*0.06:(H-h)*0.42`, `W*0.52:(H-h)*0.42`];
-      args = [...bgIn, "-i", src.speakingClip, "-loop", "1", "-t", secs, "-i", src.listenerStill, "-filter_complex",
-        `[1:v]scale=${bw}:${bh}:force_original_aspect_ratio=increase,crop=${bw}:${bh},setsar=1[s];[2:v]scale=${bw}:${bh}:force_original_aspect_ratio=increase,crop=${bw}:${bh},setsar=1,eq=brightness=-0.04[l];` +
+      // Quien escucha: fotograma fijo de su avatar con movimiento de cámara sutil (no queda congelado; sin mover labios).
+      args = [...bgIn, "-i", src.speakingClip, "-i", src.listenerStill, "-filter_complex",
+        `[1:v]scale=${bw}:${bh}:force_original_aspect_ratio=increase,crop=${bw}:${bh},setsar=1[s];[2:v]${stillMotion(bw, bh, frames, idx)},setsar=1,eq=brightness=-0.04[l];` +
         `[0:v][s]overlay=${speakerFirst ? p1 : p2}[x];[x][l]overlay=${speakerFirst ? p2 : p1},${tail("trim=end_frame=" + frames)}`];
       break;
     }
@@ -118,9 +131,9 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
       const fw = Math.round(w * (w > h ? 0.55 : 0.8)), fh = Math.round(h * (w > h ? 0.75 : 0.5));
       const lw = Math.round(w * 0.5), lh = Math.round(h * 0.7);
       const speakerRight = (shot.speaker === "A") === leftIsA ? false : true;
-      args = [...bgIn, "-i", src.speakingClip, "-loop", "1", "-t", secs, "-i", src.listenerStill, "-filter_complex",
+      args = [...bgIn, "-i", src.speakingClip, "-i", src.listenerStill, "-filter_complex",
         `[1:v]scale=${fw}:${fh}:force_original_aspect_ratio=increase,crop=${fw}:${fh},setsar=1[s];` +
-        `[2:v]scale=${lw}:${lh}:force_original_aspect_ratio=increase,crop=${lw}:${lh},hflip,boxblur=12:2,eq=brightness=-0.35:saturation=0.3,setsar=1[l];` +
+        `[2:v]${stillMotion(lw, lh, frames, idx)},hflip,boxblur=12:2,eq=brightness=-0.35:saturation=0.3,setsar=1[l];` +
         `[0:v][s]overlay=${speakerRight ? "W*0.40" : "W*0.05"}:(H-h)*0.35[x];[x][l]overlay=${speakerRight ? "-W*0.08" : "W*0.58"}:H-h*0.85,${tail("trim=end_frame=" + frames)}`];
       break;
     }
@@ -133,11 +146,12 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
     }
     case "titulo": {
       const t = await textFilter("title", src.title ?? "", "(h-text_h)/2", Math.round(fs * 1.6), false);
-      args = [...bgIn, "-filter_complex", `[0:v]${t},${tail("trim=end_frame=" + frames)}`];
+      args = ["-i", bg, "-filter_complex", `[0:v]${stillMotion(w, h, frames, idx)},${t},${tail("trim=end_frame=" + frames)}`];
       break;
     }
     default: {
-      args = [...bgIn, "-filter_complex", `[0:v]eq=brightness=-0.1,${tail("trim=end_frame=" + frames)}`];
+      // Transición: el set con un movimiento lento de cámara (un fondo fijo durante todo un turno parecería congelado).
+      args = ["-i", bg, "-filter_complex", `[0:v]${stillMotion(w, h, frames, idx)},eq=brightness=-0.1,${tail("trim=end_frame=" + frames)}`];
     }
   }
   await ffmpeg(["-y", "-v", "error", ...args, "-map", "[v]", "-frames:v", String(frames), ...ENC(o.small), out]);

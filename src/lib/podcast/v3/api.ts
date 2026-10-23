@@ -44,7 +44,8 @@ export async function studioAction(d: ApiDeps, body: Record<string, unknown> | n
     if (topic.length < 3) return { status: 400, body: { error: "Escribe un tema de al menos 3 caracteres." } };
     const minutes = Math.min(30, Math.max(1, Number(b.minutes) || 5));
     const host = String(b.hostName ?? "Anfitrión").slice(0, 60) || "Anfitrión", guest = String(b.guestName ?? "Invitado").slice(0, 60) || "Invitado";
-    const r = await generateConversation({ topic, hostName: host, guestName: guest, guestRole: String(b.guestRole ?? "").slice(0, 120), minutes, hostPersonality: String(b.hostPersonality ?? "").slice(0, 160), guestPersonality: String(b.guestPersonality ?? "").slice(0, 160) }, b.useAi === true ? d.llm : null);
+    // El LLM (de pago) solo con el estudio activado; con el estudio apagado se usa la plantilla gratuita.
+    const r = await generateConversation({ topic, hostName: host, guestName: guest, guestRole: String(b.guestRole ?? "").slice(0, 120), minutes, hostPersonality: String(b.hostPersonality ?? "").slice(0, 160), guestPersonality: String(b.guestPersonality ?? "").slice(0, 160) }, b.useAi === true && d.enabled ? d.llm : null);
     const names = { A: host, B: guest };
     return { status: 200, body: { script: r.turns.map((t) => `${names[t.speaker]}: ${t.text}`).join("\n"), source: r.source, note: r.note ?? null, turns: r.turns.length } };
   }

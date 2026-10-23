@@ -29,38 +29,51 @@ export async function runStudioJob(episodeId: string) {
   const dir = path.join(os.tmpdir(), "studio", episodeId);
   await mkdir(dir, { recursive: true });
   const upload = async (p: string, file: string, type: string) => { const { error } = await service.storage.from(BUCKET).upload(p, await readFile(file), { contentType: type, upsert: true }); if (error) throw new Error("STORAGE"); return p; };
-  // Avatares desde foto: se suben a HeyGen solo con consentimiento registrado en la especificación.
-  const refs = new Map<string, string>();
+  // Avatares desde foto: se suben a HeyGen solo con consentimiento registrado en la especificación. La subida va por
+  // AvatarProvider.prepare → libro de operaciones (op «avatar_prepare»): un reintento reutiliza la referencia guardada.
   const avatarRow = async (id: string) => {
     const { data } = await service.from("avatars").select("provider_avatar_id,source_photo_path").eq("id", id).eq("user_id", owner).eq("status", "ready").maybeSingle();
     if (!data?.provider_avatar_id) throw new Error("AVATAR_NO_DISPONIBLE"); return data as { provider_avatar_id: string; source_photo_path: string | null };
   };
   const resolveRef = async (ref: string) => {
-    if (!ref.startsWith("foto:")) return (await avatarRow(ref)).provider_avatar_id;
-    if (refs.has(ref)) return refs.get(ref)!;
+    if (ref.startsWith("asset:")) return ref; // foto ya preparada (referencia del libro)
+    if (ref.startsWith("foto:")) throw new Error("AVATAR_FOTO_NO_PREPARADO");
+    return (await avatarRow(ref)).provider_avatar_id;
+  };
+  const preparePhoto = async (ref: string) => {
+    if (!ref.startsWith("foto:")) throw new Error("FOTO_REF");
     const p = ref.slice(5);
     if (!p.startsWith(`${owner}/`)) throw new Error("FOTO_NO_PROPIA");
     const part = spec.participants.find((x) => x.avatar.kind === "foto" && x.avatar.photo_path === p);
     if (part?.avatar.kind !== "foto" || !part.avatar.consent.given) throw new Error("SIN_CONSENTIMIENTO");
     const { data } = await service.storage.from(BUCKET).download(p); if (!data) throw new Error("FOTO_NO_ENCONTRADA");
     const created = await heygenAvatarProvider.createAvatar({ photoBuffer: Buffer.from(await data.arrayBuffer()), mimeType: p.endsWith(".png") ? "image/png" : "image/jpeg", consentGiven: true } as never);
-    refs.set(ref, created.providerAvatarId); return created.providerAvatarId;
+    return { ref: created.providerAvatarId, actualUsd: 0 };
   };
   const avatar = realAvatar({
     publishAudio: async (file) => { const p = await upload(`${base}/avatar-audio/${path.basename(file)}`, file, "audio/wav"); const { data } = await service.storage.from(BUCKET).createSignedUrl(p, 3600); if (!data?.signedUrl) throw new Error("SIGN"); return data.signedUrl; },
     fetchStill: async (ref, dest) => { const p = ref.startsWith("foto:") ? ref.slice(5) : (await avatarRow(ref)).source_photo_path; if (!p || !p.startsWith(`${owner}/`)) throw new Error("Avatar sin foto fija disponible"); const { data } = await service.storage.from(BUCKET).download(p); if (!data) throw new Error("FOTO"); const { writeFile } = await import("node:fs/promises"); await writeFile(dest, Buffer.from(await data.arrayBuffer())); },
   });
-  const wrapped = { ...avatar, render: async (ref: string, a: string, s: number, d: string, m: number) => avatar.render(await resolveRef(ref), a, s, d, m) };
+  const wrapped = { ...avatar, prepare: preparePhoto, prepareUsd: 0, render: async (ref: string, a: string, s: number, d: string, m: number) => avatar.render(await resolveRef(ref), a, s, d, m) };
+  // Saldo verificado ANTES de cualquier cargo (GET de facturación gratuitos; nunca generación).
+  const readiness = async (needs: import("../../src/lib/podcast/v3/pipeline").ProviderNeeds) => {
+    const [{ elevenLabsSnapshot }, { heygenApiSnapshot }, { studioReadiness }] = await Promise.all([import("../../src/lib/production-intelligence/capacity/adapters"), import("../../src/lib/supply/heygen"), import("../../src/lib/podcast/v3/readiness")]);
+    const now = new Date().toISOString();
+    const [el, hg] = await Promise.all([needs.ttsChars > 0 ? elevenLabsSnapshot(fetch, process.env, 0, 0, now) : null, needs.avatarUsd > 0 ? heygenApiSnapshot(fetch, process.env, now) : null]);
+    const why = studioReadiness(needs, { elevenlabs: el, heygen: hg });
+    console.log("STUDIO_READINESS", JSON.stringify({ tts_chars: needs.ttsChars, el_available: el?.available ?? null, avatar_usd: needs.avatarUsd, hg_available: hg?.available ?? null, blocked: !!why }));
+    return why;
+  };
   // Arnés E2E local: proveedores simulados (nunca en producción).
   const simulated = process.env.PODCAST_V3_PROVIDERS === "mock" && process.env.ATOMIVID_RUNTIME !== "production";
   const { mockProviders } = await import("../../src/lib/podcast/v3/mocks");
-  const providers = simulated ? mockProviders() : { tts: realTts(spec.language), avatar: wrapped,
+  const providers = simulated ? mockProviders() : { tts: realTts(spec.language), avatar: wrapped, readiness,
     images: realImages({ searchPhotos: async (q) => (await searchScenePhotos(q, spec.format === "9:16" ? "portrait" : "landscape", spec.language)).map((c) => ({ id: c.sourceId, url: c.url, credit: c.photographer })), download: downloadToFile }) };
   console.log("STUDIO_PROVIDERS", simulated ? "mock" : "real adapter (untested live)");
   const progress = (stage: string, pct: number) => { void service.from(STUDIO_TABLE).update({ progress: { stage, pct }, updated_at: new Date().toISOString() }).eq("id", episodeId); };
   try {
     const r = await runEpisode(spec, { owner, episode: episodeId, dir, providers, small: simulated, ledger: supabaseStudioLedger(service, owner), guard: supabaseRunGuard(service), authorizedUsd: Number(row.authorized_usd), onProgress: progress });
-    const video = await upload(`${base}/episodio.mp4`, r.mp4, "video/mp4");
+    const video = r.mp4 ? await upload(`${base}/episodio.mp4`, r.mp4, "video/mp4") : null; // solo audio: sin MP4
     const audio = await upload(`${base}/episodio.${spec.audio_export}`, r.audio, spec.audio_export === "mp3" ? "audio/mpeg" : "audio/wav");
     await service.from(STUDIO_TABLE).update({ status: "ready", video_path: video, audio_path: audio, cost_usd: r.spentUsd, progress: { stage: "listo", pct: 100 },
       result: { duration: r.durationSeconds, lufs: r.lufs, true_peak: r.truePeak, music: r.musicTrack, mood: r.mood, shots: r.plan.shots.map((s) => ({ kind: s.kind, speaker: s.speaker, start: s.start, end: s.end, label: s.label ?? null })), providers: r.providers,

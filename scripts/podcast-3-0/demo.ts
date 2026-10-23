@@ -24,11 +24,11 @@ async function main() {
     const pf = await preflight(spec, providers);
     const t0 = Date.now();
     const r = await runEpisode(spec, { owner: "demo-user", episode: name, dir: path.join(out, name), providers, ledger, guard: new MemoryRunGuard(), authorizedUsd: pf.estimate.totalUsd + 1, small, musicDir: path.join(out, "music") });
-    const mp4qc = await ebur128(r.mp4);
-    const pcm = await readPcm(r.mp4, 16000);
+    const mp4qc = await ebur128(r.mp4!);
+    const pcm = await readPcm(r.mp4!, 16000);
     const gaps = r.timeline.slice(0, -1).map((e, i) => [e.end + 0.08, r.timeline[i + 1].start - 0.05]).filter(([a, b]) => b - a > 0.15);
     const gapDb = gaps.length ? gaps.map(([a, b]) => rmsDb(pcm, 16000, a, b)).reduce((s, x) => s + x, 0) / gaps.length : null;
-    const row = { modo: name, mp4: path.relative(out, r.mp4), audio: path.relative(out, r.audio), mp4_bytes: (await stat(r.mp4)).size, duracion_s: +r.durationSeconds.toFixed(2),
+    const row = { modo: name, mp4: path.relative(out, r.mp4!), audio: path.relative(out, r.audio), mp4_bytes: (await stat(r.mp4!)).size, duracion_s: +r.durationSeconds.toFixed(2),
       master: { lufs: r.lufs, true_peak_dbtp: r.truePeak, recortes: r.clipped }, mp4_audio: { lufs: mp4qc.lufs, true_peak_dbtp: mp4qc.truePeak, recortes: mp4qc.clipped },
       musica: r.musicTrack, ambiente: r.mood, energia_media_pausas_dbfs: gapDb && +gapDb.toFixed(1), planos: r.plan.shots.map((s) => s.kind),
       estimacion_usd: pf.estimate, gasto_simulado_usd: r.spentUsd, llamadas: { tts: providers.calls.tts.length, avatar: providers.calls.avatar.length, recreaciones: providers.calls.recreate.length },

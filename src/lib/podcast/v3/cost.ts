@@ -18,6 +18,8 @@ const r4 = (n: number) => Math.round(n * 1e4) / 1e4;
 export function estimateEpisodeCost(input: {
   ttsChars: number; plan: EditorialPlan; recreationImages: number; aiVideoSeconds?: number; renderMinutesFactor?: number; episodeSeconds: number;
   avatarCreations?: number; pricing?: ReturnType<typeof getPricingConfig>;
+  /** Solo audio: no hay planos ni MP4 (el runner solo mezcla y masteriza). */
+  audioOnly?: boolean;
 }): CostEstimate {
   const p = input.pricing ?? getPricingConfig();
   const lines: CostLine[] = [];
@@ -31,7 +33,7 @@ export function estimateEpisodeCost(input: {
   const imgs = input.plan.shots.filter((s) => s.kind === "imagen" || s.kind === "archivo").length;
   const rec = input.recreationImages * RECRAFT_USD_PER_IMAGE;
   lines.push({ concept: "imagenes", detail: `${imgs} fotos de archivo (Pexels, gratis) · ${input.recreationImages} recreaciones a USD ${RECRAFT_USD_PER_IMAGE}`, usd: r4(rec), provider: "Pexels / Recraft" });
-  lines.push({ concept: "video", detail: input.aiVideoSeconds ? `${input.aiVideoSeconds} s de video generativo` : "Sin video generativo (planos compuestos con FFmpeg)", usd: 0, provider: "—" });
+  lines.push({ concept: "video", detail: input.audioOnly ? "Solo audio: no se genera video" : input.aiVideoSeconds ? `${input.aiVideoSeconds} s de video generativo` : "Sin video generativo (planos compuestos con FFmpeg)", usd: 0, provider: "—" });
   const renderMin = Math.ceil(input.episodeSeconds / 60 * (input.renderMinutesFactor ?? 1.5)) + 3;
   lines.push({ concept: "render", detail: `~${renderMin} min de runner (GitHub Actions) a USD ${p.renderUsdPerMinute}/min`, usd: r4(renderMin * p.renderUsdPerMinute), provider: "GitHub Actions" });
   return { lines, totalUsd: r4(lines.reduce((s, l) => s + l.usd, 0)), assumptions: [
