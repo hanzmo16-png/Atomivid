@@ -13,7 +13,7 @@ async function main() {
   const j = (jobs ?? []).find((x: any) => String(x.id).startsWith("e8048599")) as any;
   const scope = documentaryLedgerScopeFor(j)!;
   const { data: ops } = await db.from("pi_paid_operations").select("status,method,reserved_usd,committed_usd,created_at").eq("project_id", scope).order("created_at");
-  log("JOB", { id: j.id, status: j.status, kind: j.failure_kind, code: j.error_code, retries: j.retry_count, runToken: !!j.run_token, updated: j.updated_at, checkpointPass: j.editorial_checkpoint?.pass });
+  log("JOB", { id: j.id, status: j.status, kind: j.failure_kind, code: j.error_code, error: String(j.error_message ?? "").slice(0, 400), stage: j.stage, retries: j.retry_count, runToken: !!j.run_token, updated: j.updated_at, checkpointPass: j.editorial_checkpoint?.pass });
   log("OPS", (ops ?? []).map((o: any) => `${o.created_at.slice(11, 19)} ${o.status} r=${Number(o.reserved_usd ?? 0).toFixed(4)} c=${Number(o.committed_usd ?? 0).toFixed(4)}`));
   const { client } = await connectResolved();
   try {
