@@ -49,8 +49,10 @@ $D -c "insert into public.podcast_episodes(user_id,title,source,script,voice_id)
 $D -c "insert into public.podcast_episodes(id,user_id,title,source,script,voice_id,status,video_status,scheduled_at,budget_usd,production) values
  ('11111111-0000-4000-8000-0000000000a3','$U1','v2 programado','tts','A: hola\n\nB: adiós','v1','draft','scheduled',now(),5,'$PV'),
  ('11111111-0000-4000-8000-0000000000a4','$U1','v2 listo','tts','A: hola','v1','ready','none',null,3,'$PV'),
- ('11111111-0000-4000-8000-0000000000a5','$U1','v2 generando','tts','A: hola','v1','generating','none',null,3,'$PV')"
-$D -c "update public.podcast_episodes set run_token=gen_random_uuid() where id='11111111-0000-4000-8000-0000000000a5'"
+ ('11111111-0000-4000-8000-0000000000a5','$U1','v2 generando','tts','A: hola','v1','generating','none',null,3,'$PV'),
+ ('11111111-0000-4000-8000-0000000000a6','$U1','v2 video activo','tts','A: hola','v1','ready','running',null,3,'$PV')"
+$D -c "update public.podcast_episodes set run_token='aaaaaaaa-1111-4111-8111-111111111111' where id='11111111-0000-4000-8000-0000000000a5';
+ update public.podcast_episodes set video_run_token='bbbbbbbb-2222-4222-8222-222222222222' where id='11111111-0000-4000-8000-0000000000a6'"
 # Rollback
 $D -c "create table bk as select id,production,production_timeline from public.podcast_episodes where production is not null or production_timeline is not null"
 $D -f $RB >/dev/null && $D -f $RB >/dev/null && ok "rollback aplica y es re-ejecutable" || bad "rollback"
