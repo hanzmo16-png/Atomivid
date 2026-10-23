@@ -58,10 +58,13 @@ $D -c "create table bk as select id,production,production_timeline from public.p
 $D -f $RB >/dev/null && $D -f $RB >/dev/null && ok "rollback aplica y es re-ejecutable" || bad "rollback"
 [ "$(SNAP)" = "$H0" ] && ok "filas v1 intactas tras rollback" || bad "v1 cambiadas tras rollback"
 [ "$($D -c "select count(*) from public.podcast_episodes where id='11111111-0000-4000-8000-0000000000a2'")" = 1 ] && ok "episodio v2 sobrevive al rollback como fila (sin producción)" || bad "episodio v2 perdido"
-[ "$($D -c "select count(*) from public.podcast_episodes_v2_rollback_backup")" = 4 ] && ok "rollback guarda copia de producción v2" || bad "sin copia"
+[ "$($D -c "select count(*) from public.podcast_episodes_v2_rollback_backup")" = 5 ] && ok "rollback guarda copia de producción v2" || bad "sin copia"
 [ "$($D -c "select status||'/'||video_status||'/'||budget_usd||'/'||source||'/'||coalesce(script,'-') from public.podcast_episodes where id='11111111-0000-4000-8000-0000000000a3'")" = "failed/blocked/0.0000/upload/-" ] && ok "v2 programado neutralizado (fallido, video bloqueado, presupuesto 0, sin guion TTS)" || bad "v2 programado sigue generable"
 [ "$($D -c "select status||'/'||budget_usd||'/'||source from public.podcast_episodes where id='11111111-0000-4000-8000-0000000000a4'")" = "ready/0.0000/upload" ] && ok "v2 listo conserva su entrega con presupuesto 0" || bad "v2 listo"
 [ "$($D -c "select status from public.podcast_episodes where id='11111111-0000-4000-8000-0000000000a5'")" = "failed" ] && ok "v2 «generando» huérfano pasa a fallido" || bad "v2 generando atascado"
+[ "$($D -c "select status||'/'||video_status||'/'||coalesce(video_run_token::text,'-') from public.podcast_episodes where id='11111111-0000-4000-8000-0000000000a6'")" = "ready/failed/-" ] && ok "rollback invalida worker de video activo" || bad "worker de video conservó su cerca"
+STALE=$($D -c "with w as (update public.podcast_episodes set video_status='ready' where id='11111111-0000-4000-8000-0000000000a6' and video_run_token='bbbbbbbb-2222-4222-8222-222222222222' returning 1) select count(*) from w")
+[ "$STALE" = 0 ] && ok "worker anterior no puede finalizar después del rollback" || bad "worker anterior escribió tras rollback"
 [ "$($D -c "select prev_status||'/'||prev_video_status||'/'||prev_budget_usd||'/'||prev_source||'/'||prev_script from public.podcast_episodes_v2_rollback_backup where id='11111111-0000-4000-8000-0000000000a3'")" = "draft/scheduled/5.0000/tts/A: hola\n\nB: adiós" ] && ok "estado previo guardado en la copia" || bad "estado previo perdido"
 [ "$($D -c "select relrowsecurity from pg_class where oid='public.podcast_episodes_v2_rollback_backup'::regclass")" = t ] && ok "copia con RLS activa" || bad "copia sin RLS"
 CB=$($D -c "begin; set local role authenticated; set local request.jwt.claim.sub='$U1'; select count(*) from public.podcast_episodes_v2_rollback_backup; commit;" 2>&1 || true) ; CB=$(echo "$CB" | tail -1); case "$CB" in 0|*denied*) ok "authenticated no lee la copia ($CB)";; *) bad "copia legible: $CB";; esac
@@ -72,10 +75,18 @@ REST="update public.podcast_episodes e set production=b.production, production_t
 # Ventana de reversión: el dueño sube su grabación a un episodio neutralizado (el código 1.x lo permite): la restauración no lo toca.
 $D -c "update public.podcast_episodes set status='ready', audio_path='u1/rec.m4a', error=null where id='11111111-0000-4000-8000-0000000000a4'"
 $D -c "update public.podcast_episodes set video_status='ready', video_path='v.mp4', budget_usd=7 where id='11111111-0000-4000-8000-0000000000a5'"
-$D -f $MIG >/dev/null 2>&1 && $D -c "$REST" && ok "re-migrar + restaurar copia" || bad "re-migrar"
-[ "$($D -c "select count(*) from public.podcast_episodes where production is not null")" = 3 ] && ok "datos v2 restaurados desde copia (solo filas aún neutralizadas)" || bad "restauración"
+if $D -f $MIG >/dev/null 2>&1; then
+  O1=$E2E_HOME/restore-1.out; O2=$E2E_HOME/restore-2.out
+  ( $D -c "$REST returning e.id" >"$O1" ) & P1=$!
+  ( $D -c "$REST returning e.id" >"$O2" ) & P2=$!
+  R1=0; R2=0; wait "$P1" || R1=$?; wait "$P2" || R2=$?
+  DUP=$(cat "$O1" "$O2" | sort | uniq -d | wc -l | tr -d ' '); TOTAL=$(cat "$O1" "$O2" | grep -c . || true)
+  [ "$R1" = 0 ] && [ "$R2" = 0 ] && [ "$DUP" = 0 ] && [ "$TOTAL" = 4 ] && ok "restauración concurrente: cada fila se restaura una sola vez" || bad "restauración concurrente r1=$R1 r2=$R2 dup=$DUP total=$TOTAL"
+else bad "re-migrar"; fi
+[ "$($D -c "select count(*) from public.podcast_episodes where production is not null")" = 4 ] && ok "datos v2 restaurados desde copia (solo filas aún neutralizadas)" || bad "restauración"
 [ "$($D -c "select source||'/'||status||'/'||audio_path from public.podcast_episodes where id='11111111-0000-4000-8000-0000000000a4'")" = "upload/ready/u1/rec.m4a" ] && ok "fila cambiada durante la reversión se conserva" || bad "restauración pisó un cambio del dueño"
 [ "$($D -c "select status||'/'||video_status||'/'||budget_usd||'/'||coalesce(run_token::text,'-') from public.podcast_episodes where id='11111111-0000-4000-8000-0000000000a5'")" = "failed/ready/7.0000/-" ] && ok "video y presupuesto producidos en la ventana se conservan; sin token de ejecución" || bad "restauración pisó el video de la ventana"
+[ "$($D -c "select video_status||'/'||coalesce(video_run_token::text,'-') from public.podcast_episodes where id='11111111-0000-4000-8000-0000000000a6'")" = "failed/-" ] && ok "restaurar no revive el worker de video anterior" || bad "restauración revivió un worker anterior"
 [ "$($D -c "select status||'/'||video_status||'/'||budget_usd||'/'||source||'/'||coalesce(scheduled_at::text,'-') from public.podcast_episodes where id='11111111-0000-4000-8000-0000000000a3'")" = "draft/blocked/5.0000/tts/-" ] && ok "estado previo restaurado (video programado vuelve bloqueado, sin hora)" || bad "estado previo no restaurado"
 # Segundo ciclo: tras restaurar, el episodio avanza (listo, presupuesto 20); otra reversión debe guardar ESE estado.
 $D -c "update public.podcast_episodes set status='ready', video_status='ready', budget_usd=20, error=null where id='11111111-0000-4000-8000-0000000000a3'"
