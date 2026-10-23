@@ -12,7 +12,7 @@ import type { PodcastCapacity } from "@/lib/podcast/episode";
 
 const VERDICT_CLASS: Record<string, string> = { Suficiente: "text-success", Insuficiente: "text-danger", "Sin verificar": "text-warning" };
 
-export function EpisodeActions(props: { episodeId: string; source: "tts" | "upload"; status: string; stalled: boolean; error: string | null; capacity: PodcastCapacity | null; playUrl: string | null; downloadUrl: string | null }) {
+export function EpisodeActions(props: { episodeId: string; source: "tts" | "upload"; status: string; stalled: boolean; error: string | null; capacity: PodcastCapacity | null; playUrl: string | null; downloadUrl: string | null; uncertain?: number }) {
   const router = useRouter();
   const [capacity, setCapacity] = useState(props.capacity);
   const [busy, setBusy] = useState<null | "generate" | "refresh" | "upload">(null);
@@ -109,8 +109,11 @@ export function EpisodeActions(props: { episodeId: string; source: "tts" | "uplo
         </section>
       )}
 
+      {canGenerate && (props.uncertain ?? 0) > 0 && (
+        <p role="alert" className="mt-4 text-danger">Reintento bloqueado: hay {props.uncertain} operación(es) de voz con resultado incierto (posible cobro sin audio). Reintentar podría cobrar dos veces; requiere revisión y conciliación con ElevenLabs.</p>
+      )}
       {canGenerate && (
-        <Button type="button" onClick={generate} loading={busy === "generate"} disabled={!!busy || c?.verdict === "Insuficiente"} className="mt-4">
+        <Button type="button" onClick={generate} loading={busy === "generate"} disabled={!!busy || c?.verdict === "Insuficiente" || (props.uncertain ?? 0) > 0} className="mt-4">
           {props.stalled || props.status === "failed" ? "Continuar / reintentar generación" : "Generar narración (cobra el costo estimado)"}
         </Button>
       )}

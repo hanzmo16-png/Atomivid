@@ -16,9 +16,17 @@ import { narrateEpisode, NarrationCapError } from "./narrate";
 import { estimatePodcast, podcastDemand, normalizeScript, PODCAST_STALE_RUN_MS, validateScript, type PodcastEpisode } from "./episode";
 import { listAccountVoices, VoicesUnavailableError } from "./voices";
 import { visibleVoices, type VoiceViewer } from "@/lib/voices/private-voices";
+import { buildProduction, estimateProduction, productionScript, type ProductionInput } from "./v2/production";
+import { narrateProduction } from "./v2/narrate-v2";
+import { TTS_MODEL_ID } from "@/lib/ai/voice";
+import { PODCAST_MUSIC_LIBRARY } from "./v2/music";
 
 const BUCKET = "videos";
-export const EPISODE_COLUMNS = "id,user_id,title,language,source,script,voice_id,voice_name,characters,estimated_usd,status,run_token,run_started_at,audio_path,audio_mime,duration_seconds,audio_sha256,audio_bytes,loudness,cost_usd,error,created_at,updated_at,video_status,video_stage,video_attempts,video_run_token,video_requested_at,video_heartbeat_at,video_path,video_bytes,video_sha256,video_duration_seconds,video_error,budget_usd,scheduled_at,video_checks,review_status,review_note,reviewed_at,publish_status,retry_count";
+/** Podcast 2.0 (conversación / director emocional). OFF salvo PODCAST_V2_ENABLED=1, que exige la migración
+ * 20261021200000_podcast_v2_production.sql (preparada, NO aplicada). Apagado = comportamiento previo idéntico. */
+export const podcastV2Enabled = (env: Record<string, string | undefined> = process.env) => env.PODCAST_V2_ENABLED === "1";
+const BASE_EPISODE_COLUMNS = "id,user_id,title,language,source,script,voice_id,voice_name,characters,estimated_usd,status,run_token,run_started_at,audio_path,audio_mime,duration_seconds,audio_sha256,audio_bytes,loudness,cost_usd,error,created_at,updated_at,video_status,video_stage,video_attempts,video_run_token,video_requested_at,video_heartbeat_at,video_path,video_bytes,video_sha256,video_duration_seconds,video_error,budget_usd,scheduled_at,video_checks,review_status,review_note,reviewed_at,publish_status,retry_count";
+export const EPISODE_COLUMNS = podcastV2Enabled() ? `${BASE_EPISODE_COLUMNS},production,production_timeline` : BASE_EPISODE_COLUMNS;
 
 /** Vercel functions have no ffmpeg on PATH: use the bundled binary (workers keep their own). */
 export function ensureBundledFfmpeg() {
@@ -31,7 +39,7 @@ export async function loadOwnedEpisode(service: SupabaseClient, userId: string, 
   return (data as PodcastEpisode | null) ?? null;
 }
 
-export type CreateInput = { title: unknown; script?: unknown; language?: unknown; voiceId?: unknown; source: "tts" | "upload" };
+export type CreateInput = { title: unknown; script?: unknown; language?: unknown; voiceId?: unknown; source: "tts" | "upload"; production?: ProductionInput | null };
 
 export async function createEpisode(service: SupabaseClient, userId: string, input: CreateInput, viewer: VoiceViewer = null): Promise<{ id: string } | { error: string; status: number }> {
   const title = typeof input.title === "string" ? input.title.trim().slice(0, 200) : "";
@@ -40,6 +48,21 @@ export async function createEpisode(service: SupabaseClient, userId: string, inp
   if (input.source === "upload") {
     const { data, error } = await service.from("podcast_episodes").insert({ user_id: userId, title, language, source: "upload" }).select("id").single();
     return error || !data ? { error: "No se pudo crear el episodio.", status: 500 } : { id: data.id };
+  }
+  if (input.production) {
+    if (!podcastV2Enabled()) return { error: "La conversación y el director emocional aún no están disponibles.", status: 400 };
+    let voices2;
+    try { voices2 = await listAccountVoices(); } catch (e) { return { error: e instanceof VoicesUnavailableError ? e.customerMessage : "No se pudieron consultar las voces.", status: 503 }; }
+    const built = buildProduction(input.production, voices2, viewer);
+    if (!built.ok) return { error: built.error, status: 400 };
+    const script2 = productionScript(built.production);
+    const invalid2 = validateScript(script2);
+    if (invalid2) return { error: invalid2, status: 400 };
+    const est = estimateProduction(built.production);
+    const a = built.production.participants[0];
+    const { data, error } = await service.from("podcast_episodes").insert({ user_id: userId, title, language, source: "tts", script: script2, voice_id: a.voice_id, voice_name: a.voice_name,
+      characters: est.characters, estimated_usd: est.usd, production: built.production }).select("id").single();
+    return error || !data ? { error: "No se pudo guardar el episodio.", status: 500 } : { id: data.id };
   }
   const script = normalizeScript(typeof input.script === "string" ? input.script : "");
   const invalid = validateScript(script);
@@ -67,7 +90,9 @@ const PUBLIC_REASON: Record<string, string> = {
 function publicError(err: unknown): string {
   if (err instanceof SupplyUnavailableError) return PUBLIC_REASON[err.reason] ?? err.customerMessage;
   const name = err instanceof Error ? err.constructor.name : "";
-  if (/Reconciliation|Uncertain|PaidResultUnavailable/i.test(name)) return "Una parte quedó en estado incierto con el proveedor (posible cobro sin respuesta). No se reintenta para no cobrar dos veces; requiere revisión.";
+  const msg = err instanceof Error ? err.message : "";
+  // Red caída tras enviar (fetch failed) o una operación que el libro mayor exige reconciliar: el cobro pudo ocurrir → no decir «inténtalo».
+  if (/Reconciliation|Uncertain|InFlight|PaidResultUnavailable/i.test(name) || /reconcile with the provider|in flight|outcome is unknown|^fetch failed$/i.test(msg)) return "Una parte quedó en estado incierto con el proveedor (posible cobro sin respuesta). No se reintenta para no cobrar dos veces; requiere revisión.";
   return "No se pudo generar la narración. Lo ya generado se conserva y no se vuelve a cobrar; inténtalo de nuevo.";
 }
 
@@ -96,13 +121,27 @@ export async function runGeneration(service: SupabaseClient, episode: PodcastEpi
     // Same admission as a production start: a stale balance is re-read (billing GET), never assumed.
     const ready = await ensureJobSupplyReady(service, [podcastDemand({ characters: episode.characters, usd: Number(episode.estimated_usd) })], { refresh: true });
     if (!ready.ready) throw new SupplyUnavailableError(ready.failure?.provider ?? "elevenlabs", ready.failure?.reason ?? "unavailable");
-    const out = await narrateEpisode({ ledger: supabaseLedgerStore(service), results: supabaseResultStore(service, BUCKET), voiceProvider: provider, voiceIdentity: getVoiceIdentity(episode.language, voiceId),
-      putAudio: async (p, bytes, contentType) => { const { error } = await service.storage.from(BUCKET).upload(p, bytes, { contentType, upsert: true }); if (error) throw new Error("STORAGE"); }, capUsd: opts.capUsd ?? null }, episode);
-    const { data } = await fenced({ status: "ready", audio_path: out.audioPath, audio_mime: "audio/mp4", duration_seconds: out.durationSeconds, audio_sha256: out.sha256, audio_bytes: out.bytes,
-      loudness: out.loudness, cost_usd: out.costUsd, run_token: null, error: null }).select(EPISODE_COLUMNS);
+    const putAudio = async (p: string, bytes: Buffer, contentType: string) => { const { error } = await service.storage.from(BUCKET).upload(p, bytes, { contentType, upsert: true }); if (error) throw new Error("STORAGE"); };
+    const production = (episode as PodcastEpisode & { production?: unknown }).production;
+    let patch: Record<string, unknown>;
+    if (production && podcastV2Enabled()) {
+      const out = await narrateProduction({ ledger: supabaseLedgerStore(service), results: supabaseResultStore(service, BUCKET), modelId: TTS_MODEL_ID, putAudio, capUsd: opts.capUsd ?? null,
+        voiceFor: (vid, settings) => ({ provider: { name: "elevenlabs", synthesize: async (text, language = "es", speed) => ({ ...(await synthesizeVoice(text, language, speed, vid, settings ?? undefined)), mimeType: "audio/mpeg", extension: "mp3" }) },
+          identity: getVoiceIdentity(episode.language, vid, settings ?? undefined) }),
+        // Grabación propia: solo rutas del dueño (validadas al adjuntar) dentro de su carpeta del episodio.
+        getRecording: async (p) => { if (!p.startsWith(`${episode.user_id}/podcasts/${episode.id}/uploads/`)) throw new Error("RECORDING_NOT_OWNED"); const { data, error } = await service.storage.from(BUCKET).download(p); if (error || !data) throw new Error("RECORDING_MISSING"); return Buffer.from(await data.arrayBuffer()); },
+        music: process.env.PODCAST_MUSIC_DIR ? { dir: process.env.PODCAST_MUSIC_DIR, library: PODCAST_MUSIC_LIBRARY } : null }, episode, production);
+      patch = { audio_path: out.audioPath, duration_seconds: out.durationSeconds, audio_sha256: out.sha256, audio_bytes: out.bytes, loudness: out.loudness, cost_usd: out.costUsd,
+        production_timeline: out.timeline.map(({ words, ...e }) => ({ ...e, words })) };
+    } else {
+      const out = await narrateEpisode({ ledger: supabaseLedgerStore(service), results: supabaseResultStore(service, BUCKET), voiceProvider: provider, voiceIdentity: getVoiceIdentity(episode.language, voiceId), putAudio, capUsd: opts.capUsd ?? null }, episode);
+      patch = { audio_path: out.audioPath, duration_seconds: out.durationSeconds, audio_sha256: out.sha256, audio_bytes: out.bytes, loudness: out.loudness, cost_usd: out.costUsd };
+    }
+    const { data } = await fenced({ status: "ready", audio_mime: "audio/mp4", ...patch, run_token: null, error: null }).select(EPISODE_COLUMNS);
     const row = (data?.[0] as PodcastEpisode | undefined);
     return row ? { ok: true, episode: row } : { error: "Otra ejecución tomó este episodio.", status: 409 };
   } catch (err) {
+    console.error("[podcast] narración fallida", episode.id, err instanceof Error ? `${err.name}: ${err.message}` : String(err));
     const capped = err instanceof NarrationCapError;
     const message = err instanceof VoicesUnavailableError ? err.customerMessage
       : capped ? `La narración se detuvo antes de superar el límite autorizado (USD ${err.capUsd.toFixed(2)}; gastado en esta ejecución USD ${err.spentUsd.toFixed(4)}). Lo ya narrado se conserva y no se vuelve a cobrar.`

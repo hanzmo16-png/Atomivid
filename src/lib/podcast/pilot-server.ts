@@ -3,6 +3,7 @@
  * and kind; delivered by the worker through GitHub, the channel the owner already receives), and the one-shot
  * scheduled start. See pilot.ts for the rules.
  */
+import { PodcastProduction, estimateProduction } from "./v2/production";
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getVoiceIdentity } from "@/lib/ai/voice";
@@ -57,7 +58,11 @@ export async function readRunBudget(service: SupabaseClient, episodeId: string):
 }
 
 /** Number of paid chunks of a synthetic narration (each one is a separate reservation). */
-export const narrationChunks = (episode: Pick<PodcastEpisode, "source" | "script">) => (episode.source === "tts" && episode.script ? estimatePodcast(episode.script).chunks : 1);
+export const narrationChunks = (episode: Pick<PodcastEpisode, "source" | "script"> & { production?: unknown }) => {
+  // Podcast 2.0: one paid call per synthetic turn (own-recording turns never call TTS).
+  if (episode.source === "tts" && episode.production) { const p = PodcastProduction.safeParse(episode.production); if (p.success) return Math.max(1, estimateProduction(p.data).ttsTurns); }
+  return episode.source === "tts" && episode.script ? estimatePodcast(episode.script).chunks : 1;
+};
 
 /** Historical spend for the total budget (uncertain charges included) and how many charges are uncertain; null = unreadable. */
 export type EpisodeSpend = { spentUsd: number; uncertain: number };

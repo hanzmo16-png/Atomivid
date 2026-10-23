@@ -26,6 +26,9 @@ function serveFile(req, res, key, download) {
 }
 http.createServer(async (req, res) => {
   const u = new URL(req.url, "http://x"); const p = u.pathname;
+  // CORS como Supabase real (el navegador sube con uploadToSignedUrl desde el origen de la app).
+  res.setHeader("access-control-allow-origin", req.headers.origin ?? "*"); res.setHeader("access-control-allow-headers", "authorization,apikey,content-type,x-upsert,x-client-info,cache-control"); res.setHeader("access-control-allow-methods", "GET,POST,PUT,DELETE,OPTIONS,HEAD");
+  if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
   try {
     if (p.startsWith("/rest/v1")) {
       const b = await body(req); log({ kind: "rest", method: req.method, path: p.slice(8) + u.search, role: claims(req)?.role ?? "none" });
@@ -46,6 +49,15 @@ http.createServer(async (req, res) => {
     if (p === "/auth/v1/logout") { res.writeHead(204); res.end(); return; }
     let m;
     if ((m = p.match(/^\/auth\/v1\/admin\/users\/([^/]+)$/))) { if (claims(req)?.role !== "service_role") return json(res, 403, {}); const usr = USERS.find((x) => x.id === m[1]); return usr ? json(res, 200, userObj(usr)) : json(res, 404, { msg: "User not found" }); }
+    if ((m = p.match(/^\/storage\/v1\/object\/upload\/sign\/(.+)$/))) { // createSignedUploadUrl / uploadToSignedUrl
+      const key = decodeURIComponent(m[1]);
+      if (req.method === "POST") { if (claims(req)?.role !== "service_role") return json(res, 403, {}); const t = sign({ upload: key, exp: Math.floor(Date.now() / 1000) + 7200 }); log({ kind: "sign-upload", key }); return json(res, 200, { url: `/object/upload/sign/${m[1]}?token=${t}`, token: t }); }
+      const c = verify(u.searchParams.get("token") ?? ""); if (!c || c.upload !== key) return json(res, 400, { message: "invalid signature" });
+      const f = path.join(STORE, key); if (fs.existsSync(f) && req.headers["x-upsert"] !== "true") return json(res, 400, { statusCode: "409", error: "Duplicate", message: "The resource already exists" });
+      let b = await body(req); const ct = req.headers["content-type"] ?? "";
+      if (ct.startsWith("multipart/form-data")) { const bd = "--" + ct.split("boundary=")[1]; const hdrEnd = b.indexOf("\r\n\r\n", b.indexOf(Buffer.from('name=""')) >= 0 ? b.indexOf(Buffer.from('name=""')) : 0) + 4; const e = b.lastIndexOf(Buffer.from("\r\n" + bd)); b = b.subarray(hdrEnd, e); }
+      fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, b); log({ kind: "signed-upload", key, bytes: b.length, sha256: crypto.createHash("sha256").update(b).digest("hex") }); return json(res, 200, { Key: key });
+    }
     if ((m = p.match(/^\/storage\/v1\/object\/sign\/(.+)$/))) {
       if (req.method === "POST") { if (claims(req)?.role !== "service_role") return json(res, 403, {}); const key = decodeURIComponent(m[1]); const t = sign({ url: key, exp: Math.floor(Date.now() / 1000) + 3600 }); log({ kind: "sign", key }); return json(res, 200, { signedURL: `/object/sign/${m[1]}?token=${t}` }); }
       const c = verify(u.searchParams.get("token") ?? ""); const key = decodeURIComponent(m[1]); if (!c || c.url !== key) return json(res, 400, { message: "invalid signature" });

@@ -190,7 +190,15 @@ async function produce(episodeId: string) {
 
     // Subtitles: word timings of the narration chunks already paid and stored (reuse-only; null → no subtitles).
     let words: Awaited<ReturnType<typeof storedNarrationWords>> = null;
-    if (ep.source === "tts") {
+    const timeline = (ep as { production_timeline?: { speaker: string; text: string; start: number; end: number; words: { text: string; startSeconds: number; endSeconds: number }[] }[] | null }).production_timeline;
+    if (ep.source === "tts" && Array.isArray(timeline) && timeline.length) {
+      // Podcast 2.0: subtitles from the stored per-turn timeline, each turn labelled with its speaker (reuse-only).
+      const names = Object.fromEntries((((ep as { production?: { participants?: { id: string; name: string }[] } }).production?.participants) ?? []).map((p) => [p.id, p.name]));
+      words = timeline.flatMap((t) => {
+        const ws = t.words?.length ? t.words : [{ text: t.text, startSeconds: t.start, endSeconds: t.end }];
+        return ws.map((w, i) => (i === 0 ? { ...w, text: `[${names[t.speaker] ?? t.speaker}] ${w.text}` } : w));
+      });
+    } else if (ep.source === "tts") {
       try {
         words = await storedNarrationWords({ results: supabaseResultStore(service, "videos"), voiceProvider: { name: "elevenlabs" }, voiceIdentity: getVoiceIdentity(ep.language, ep.voice_id ?? undefined) }, ep);
       } catch {

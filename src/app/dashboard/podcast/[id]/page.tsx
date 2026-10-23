@@ -4,8 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
 import { estimatePodcast, isStalledRun, isStalledVideo, podcastCapacity } from "@/lib/podcast/episode";
-import { loadOwnedEpisode } from "@/lib/podcast/server";
-import { episodeSpentUsd, pendingNarration, readRunBudget } from "@/lib/podcast/pilot-server";
+import { loadOwnedEpisode, podcastV2Enabled } from "@/lib/podcast/server";
+import { episodeSpentUsd, pendingNarration, productionSpend, readRunBudget } from "@/lib/podcast/pilot-server";
+import { PodcastProduction } from "@/lib/podcast/v2/production";
+import { TurnsPanel, type TurnRow } from "./TurnsPanel";
 import { EpisodeActions } from "./EpisodeActions";
 import { VideoPanel } from "./VideoPanel";
 import { minimumRunBudgetUsd, type VideoChecks } from "@/lib/podcast/pilot";
@@ -31,6 +33,17 @@ export default async function PodcastEpisodePage({ params }: { params: Promise<{
   const historicalUsd = await episodeSpentUsd(service, episode.id);
   const pending = await pendingNarration(service, episode);
   const runBudget = await readRunBudget(service, episode.id);
+  // Podcast 2.1: turnos editables y operaciones inciertas (solo con el flag y una producción por turnos válida).
+  const prod = podcastV2Enabled() ? PodcastProduction.safeParse((episode as { production?: unknown }).production) : null;
+  const production = prod?.success ? prod.data : null;
+  const uncertain = production ? ((await productionSpend(service, episode.id).catch(() => null))?.uncertain ?? 0) : 0;
+  const timeline = ((episode as { production_timeline?: { turn_id: string; reused?: boolean }[] | null }).production_timeline) ?? [];
+  const turnRows: TurnRow[] = production ? production.turns.map((t) => {
+    const who = production.participants.find((x) => x.id === t.speaker);
+    const own = !!who?.recordings?.[t.id];
+    const e = timeline.find((x) => x.turn_id === t.id);
+    return { id: t.id, speaker: t.speaker, name: who?.name ?? t.speaker, text: t.text, source: own ? "own_recording" : "voice", state: own ? "grabación" : !e ? "pendiente" : e.reused ? "reutilizado" : "nuevo" };
+  }) : [];
   const videoStatus = episode.video_status ?? "none";
   const VIDEO_TTL = 6 * 3600;
   const videoPlayUrl = videoStatus === "ready" && episode.video_path ? (await storage.createSignedUrl(episode.video_path, VIDEO_TTL)).data?.signedUrl ?? null : null;
@@ -59,7 +72,9 @@ export default async function PodcastEpisodePage({ params }: { params: Promise<{
         capacity={capacity}
         playUrl={playUrl}
         downloadUrl={downloadUrl}
+        uncertain={uncertain}
       />
+      {production && <TurnsPanel episodeId={episode.id} turns={turnRows} uncertain={uncertain} locked={episode.status === "generating" && !stalled ? "Hay una generación en curso: espera a que termine para editar turnos." : null} />}
       <VideoPanel
         episodeId={episode.id}
         status={videoStatus}

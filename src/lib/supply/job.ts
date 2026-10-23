@@ -5,6 +5,7 @@ import { getFeatureFlags, type FeatureFlags } from "@/lib/video/feature-flags";
 import { getPricingConfig } from "@/lib/billing/pricing";
 import { SupplyUnavailableError } from "./policy";
 import { supplyGuardRequired } from "./server";
+import { ceilLedgerUsd } from "./anthropic-cost";
 
 /**
  * The attempt already holds an envelope smaller than what this process now demands: the per-production
@@ -57,7 +58,10 @@ export function jobSupplyDemands(row: SupplyJobInput, voiceProvider: string, fla
     // Reel allows one pacing correction. Long-form narrations have one call per beat.
     const chars = text.length * (mode === "visual" ? 2 : 1);
     if (!chars) throw new SupplyUnavailableError(voiceProvider, "empty narration");
-    add(voiceProvider, chars / 1000 * getPricingConfig().elevenLabsUsdPer1kChars, chars, "character");
+    // Podcast 2.0 (2026-10-21): each TTS call is admitted with its OWN cost rounded up to the ledger's 4 decimals
+    // (ceilLedgerUsd). Reserving ceil(total) under-counted: 2 × ceil(486 chars) > ceil(972 chars) → SUPPLY-ENVELOPE-USED
+    // (video 13d20347). Reserve the sum of the per-call ceilings: never less than what the calls will consume.
+    add(voiceProvider, voiceEnvelopeUsd(mode, text, script, getPricingConfig().elevenLabsUsdPer1kChars), chars, "character");
   }
   if (mode === "avatar") add(flags.avatarProvider, flags.maxAvatarCostUsd);
   else if (mode === "long_form") {
@@ -97,4 +101,13 @@ export async function releaseUnusedJobSupply(service: SupabaseClient, requestId:
   if (!supplyGuardRequired()) return;
   const { error } = await service.rpc("pi_release_job_supply", { p_request_id: requestId, p_attempt: attempt });
   if (error) throw new Error("SUPPLY_UNUSED_RESERVATION_UNCONFIRMED");
+}
+
+/** Sum of per-call ledger ceilings for the narration calls of one attempt (Reel: original + one pacing
+ * correction; long form: one call per beat; others: one call). Exported for tests. */
+export function voiceEnvelopeUsd(mode: string, text: string, script: { beats?: { narration: string }[] } | null | undefined, usdPer1kChars: number): number {
+  const callCost = (n: number) => ceilLedgerUsd(n / 1000 * usdPer1kChars);
+  if (mode === "long_form") return (script?.beats ?? []).reduce((s, b) => s + callCost(b.narration.length), 0) || callCost(text.length);
+  const calls = mode === "visual" ? 2 : 1;
+  return calls * callCost(text.length);
 }
