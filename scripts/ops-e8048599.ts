@@ -32,7 +32,7 @@ async function recraftRead() {
   const { client } = await connectResolved();
   try {
     const q = async (sql: string, a: unknown[] = []) => (await client.query(sql, a)).rows;
-    log("POLICY", await q("select provider, enabled, unit, baseline, unit_cost_usd, daily_forecast, daily_cap_usd, monthly_cap_usd, max_concurrent, max_daily_calls, length(evidence) evidence_len, updated_at from public.pi_supply_policies where provider in ('recraft','__global__')"));
+    log("POLICY", await q("select provider, enabled, unit, baseline, unit_cost_usd, daily_forecast, daily_cap_usd, monthly_cap_usd, max_concurrent, max_daily_calls, length(evidence) evidence_len, updated_at from public.pi_supply_policies order by provider"));
     log("SNAP", await q("select provider, unit, available, health, reliability, checked_at from public.pi_capacity_snapshots where provider = 'recraft' order by checked_at desc limit 3"));
     log("RECRAFT_ACCOUNT", await q("select provider, status, plan, balance_source, secret_reference_name from public.pi_provider_accounts where provider = 'recraft'"));
     log("RECRAFT_STATE", (await q("select public.pi_supply_state('recraft') s"))[0].s);
@@ -41,7 +41,8 @@ async function recraftRead() {
     log("SNAP_COLUMNS", cols.map((c: any) => c.column_name));
   } finally { await client.end(); }
   const key = process.env.FAL_ADMIN_KEY?.trim();
-  if (!key) return log("FAL", { adminKeyInGithubSecrets: false });
+  log("FAL_KEYS", { falKeyInGithubSecrets: !!process.env.FAL_KEY?.trim(), adminKeyInGithubSecrets: !!key });
+  if (!key) return;
   const r = await fetch("https://api.fal.ai/v1/account/billing?expand=credits", { headers: { Authorization: `Key ${key}`, Accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
   const v = await r.json().catch(() => ({})) as any;
   log("FAL", { adminKeyInGithubSecrets: true, status: r.status, currency: v?.credits?.currency ?? null, balance: typeof v?.credits?.current_balance === "number" ? v.credits.current_balance : null });
