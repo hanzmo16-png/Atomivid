@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      PR_SHA: ed7afd4
+      PR_SHA: 239b675
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false, fetch-depth: 0 }
@@ -84,6 +84,17 @@ jobs:
           for j in e8048599 dbc89879 290de42b; do REPLAY_JOB=$j npx tsx scripts/zz-audit-replay.ts 2>&1 | sed "s/^REPLAY/REPLAY pr191 /" >> "$RUNNER_TEMP/replay.txt"; done
           grep -v "^\(REPLAY\|RESCATE\|BOUNDARY\|MARKS\)" "$RUNNER_TEMP/replay.txt" | head -5 | sed 's/^/ERR /' >> "$RUNNER_TEMP/replay.txt"
           node "$RUNNER_TEMP/ann.js" "$RUNNER_TEMP/replay.txt" RPL lines
+      - name: 6) Post-deploy verification of production (read-only)
+        working-directory: ${{ runner.temp }}/pr
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set +e
+          cp "$GITHUB_WORKSPACE/audit/postdeploy.ts" scripts/zz-postdeploy.ts
+          npx tsx scripts/zz-postdeploy.ts > "$RUNNER_TEMP/post.txt" 2>&1
+          sed -i 's/^\(PROBE\|JOB_E8048599\|PAID_OPS_SINCE_DEPLOY\|RUNNING_SCRIPT_JOBS\|MODE\|PODCAST\|FAILED\)/REPLAY \1/' "$RUNNER_TEMP/post.txt"
+          node "$RUNNER_TEMP/ann.js" "$RUNNER_TEMP/post.txt" POST lines
       - name: 5) Modality isolation (who imports the changed modules)
         working-directory: ${{ runner.temp }}/pr
         run: |
