@@ -110,7 +110,7 @@ El anclaje por tramo se usa para las comprobaciones locales y solo se escribe en
 - Respuestas CRUDAS del proveedor: en Storage, **no legibles sin credenciales de servicio** (no usadas por mí). Evidencia con respuestas reales: solo el replay de Claude a `43b865d`, run https://github.com/hanzmo16-png/Atomivid/actions/runs/39994804692.
 
 ### Resultados locales (Node 20)
-`test:rescate` 39/39 · `test:editorial` 184/184 · `test:spend` 406/406 · `test:saas` 419/421 · `test:unit` 2218/2224 · `tsc` limpio · eslint limpio en long-form. Los 8 fallos (`recovery-flow`, `attempt-state`) son ambientales (no hay WebSocket nativo en Node 20) e idénticos en `e68da2b`; en CI con Node 22 pasan.
+`test:rescate` 39/39 · `test:editorial` 188/188 · `test:spend` 406/406 · `test:saas` 419/421 · `test:unit` 2218/2224 · `tsc` limpio · eslint limpio en long-form. Los 8 fallos (`recovery-flow`, `attempt-state`) son ambientales (no hay WebSocket nativo en Node 20) e idénticos en `e68da2b`; en CI con Node 22 pasan.
 
 ### Riesgos pendientes
 1. Aprobación final de e8048599: probablemente 1 corrección pagada; necesita autorización explícita. 2. Contradicciones en texto libre (p. ej. `explanation` que niega `delivered=true`) no se detectan de forma determinista; sigue mandando el veredicto estructurado y la revisión crítica. 3. #190 sigue abierto y entra en conflicto: si se integra #191, cerrar #190. 4. Prompts de reparación aún inducen ruido (cambiarlos requiere versionar el contrato).
