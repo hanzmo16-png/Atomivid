@@ -14,6 +14,7 @@ import { EDITORIAL_VERSION, editorialBlockers, EditorialQualityError } from "../
 import { scriptFailureKind } from "../src/lib/video/long-form/script-jobs";
 import { cinematicV6Enabled } from "../src/lib/video/long-form/cinematic-v6-access";
 import { locateNormalized } from "../src/lib/video/long-form/text-locate";
+import { anchorCreativeDirectionQuotes, creativeDirectionIssues } from "../src/lib/video/long-form/creative-direction";
 
 const h = (s: string) => createHash("sha256").update(s).digest("hex").slice(0, 10);
 async function main() {
@@ -60,7 +61,8 @@ async function main() {
             const marks: [string, { beatIndex: number; quote: string } | null][] = [["signature", d.signatureDetail], ["shareable", d.shareableLine], ["comment", d.commentMoment], ["cta", d.closingCta],
               ...(d.protectInEdit ?? []).map((p: any, i: number) => [`protect${i}`, p] as [string, any])];
             const words = (t: string) => t.toLowerCase().normalize("NFKC").replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter(Boolean);
-            console.log("MARKS", JSON.stringify({ job: job.id.slice(0, 8), beats: beats.length, marks: marks.filter(([, p]) => p).map(([name, p]) => {
+            const literalIssue = (cd: unknown) => creativeDirectionIssues(cd, beats).some(i => i.startsWith("Las marcas de edición"));
+            console.log("MARKS", JSON.stringify({ job: job.id.slice(0, 8), beats: beats.length, literalIssueBefore: literalIssue(d), literalIssueAfterAnchor: literalIssue(anchorCreativeDirectionQuotes(d, beats)), marks: marks.filter(([, p]) => p).map(([name, p]) => {
               const q = p!.quote, own = beats[p!.beatIndex]?.narration ?? "";
               if (own.includes(q)) return { name, ok: "literal" };
               const anywhere = beats.map((b, i) => (locateNormalized(b.narration, q) ? i : -1)).filter(i => i >= 0);

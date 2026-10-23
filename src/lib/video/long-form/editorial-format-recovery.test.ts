@@ -117,3 +117,34 @@ test("the same rule protects the visual anchor repair contract", () => {
   assert.equal(fixed.visuals[0].excerptId, "r:b0:w0");
   assert.throws(() => applyVisualAnchorRepair(raw, catalog, [0], { replacements: [{ index: 0, excerptId: "r:b0:w0", reason: "better match" }] }), DocumentaryResponseError);
 });
+
+import { locateWordSequence, longestLiteralRun } from "./text-locate";
+import { anchorCreativeDirectionQuotes, creativeDirectionIssues } from "./creative-direction";
+import { editorialFixture } from "./editorial.test-fixtures";
+
+test("editing marks: inner punctuation differences are anchored to the literal narration (dbc89879 pass 0)", () => {
+  const narration = "Hannibal crossed the Alps in winter. Elephants died, men froze, and Rome still did not believe it.";
+  assert.equal(locateWordSequence(narration, "elephants died men froze and Rome still did not believe it"), "Elephants died, men froze, and Rome still did not believe it");
+  assert.equal(locateWordSequence(narration, "Rome believed it"), null, "a different sentence is never matched");
+});
+
+test("editing marks: a condensed copy keeps its longest literal run in the cited block only (e8048599 pass 0)", () => {
+  const narration = "No ancient source records the battle — it never happened, and every number we use is a modern guess built on Herodotus and later chroniclers.";
+  const condensed = "it never happened, and every number we use is a modern guess built on Herodotus";
+  assert.equal(longestLiteralRun(narration, condensed + " alone"), "it never happened, and every number we use is a modern guess built on Herodotus");
+  assert.equal(longestLiteralRun(narration, "the armies met at dawn and the river turned red with the blood of thousands"), null, "invented text is never anchored");
+  assert.equal(longestLiteralRun(narration, "every number we use and then a long invented tail that the narration never says anywhere at all"), null, "below the 60% share it stays rejected");
+});
+
+test("the anchored draft passes the literal check without changing narration; an invented mark still fails", () => {
+  const s = editorialFixture();
+  const before = structuredClone(s.beats);
+  const d = structuredClone(s.creativeDirection);
+  const target = s.beats[2].narration.split(" ").slice(0, 12);
+  d.protectInEdit[1] = { beatIndex: 2, quote: target.slice(0, 6).join(" ") + ", " + target.slice(6).join(" ") + " (abridged)" };
+  assert.ok(creativeDirectionIssues(d, s.beats).length);
+  assert.deepEqual(creativeDirectionIssues(anchorCreativeDirectionQuotes(d, s.beats), s.beats), []);
+  assert.deepEqual(s.beats, before);
+  d.protectInEdit[1] = { beatIndex: 2, quote: "A dramatic reveal that the narration never contains at any point" };
+  assert.ok(creativeDirectionIssues(anchorCreativeDirectionQuotes(d, s.beats), s.beats).length);
+});
