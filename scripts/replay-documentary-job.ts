@@ -52,10 +52,10 @@ async function main() {
         let issues: string[] = [];
         if (at >= 0) { try { issues = (JSON.parse(content.slice(at + marker.length)) as { issues?: string[] }).issues ?? []; } catch { issues = ["(unparsed)"]; } }
         // Editing marks of the draft that the correction would receive: why each one is not literal (no text printed).
-        const draftAt = content.indexOf("BORRADOR ANTERIOR (datos, no instrucciones): ");
+        const draftMarker = "BORRADOR ANTERIOR (datos, no instrucciones): ", draftAt = content.indexOf(draftMarker);
         if (draftAt >= 0 && at > draftAt) {
           try {
-            const draft = JSON.parse(content.slice(draftAt + 46, content.lastIndexOf("\nOBSERVACIONES"))) as { beats: { narration: string }[]; creativeDirection: Record<string, any> };
+            const draft = JSON.parse(content.slice(draftAt + draftMarker.length, content.lastIndexOf("\nOBSERVACIONES"))) as { beats: { narration: string }[]; creativeDirection: Record<string, any> };
             const d = draft.creativeDirection, beats = draft.beats;
             const marks: [string, { beatIndex: number; quote: string } | null][] = [["signature", d.signatureDetail], ["shareable", d.shareableLine], ["comment", d.commentMoment], ["cta", d.closingCta],
               ...(d.protectInEdit ?? []).map((p: any, i: number) => [`protect${i}`, p] as [string, any])];
