@@ -1,7 +1,7 @@
 /** Integración con el gate REAL de pagos (ledger + resultados en memoria), espeak-ng como proveedor simulado. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -11,7 +11,8 @@ import { memoryResultStore } from "@/lib/paid-calls/result-store";
 import { getVoiceIdentity } from "@/lib/ai/voice";
 import { NarrationCapError } from "../narrate";
 import { buildProduction, PodcastProduction } from "./production";
-import { narrateProduction, verifyMaster, speakerSubtitles } from "./narrate-v2";
+import { narrateProduction, verifyMaster, speakerSubtitles, MusicUnavailableError } from "./narrate-v2";
+import { PODCAST_MUSIC_LIBRARY } from "./music";
 import { applyTurnAction } from "./turns";
 import { espeakVoice, type EspeakCall } from "./espeak-provider";
 
@@ -112,3 +113,26 @@ test("errores: límite antes de pagar; timeout ambiguo bloquea sin volver a llam
 
 function saveTmp(b: Buffer) { const f = path.join(mkdtempSync(path.join(tmpdir(), "m-")), "a.m4a"); writeFileSync(f, b); return f; }
 function recWav(text: string) { const d = mkdtempSync(path.join(tmpdir(), "rec-")), f = path.join(d, "r.wav"); execFileSync("espeak-ng", ["-v", "es", "-p", "20", "-w", f, text]); return Buffer.from(readFileSync(f)); }
+
+test("música pedida sin pistas con licencia: se detiene antes de pagar (0 llamadas, ledger vacío); con licencia, la música suena", { skip }, async () => {
+  const b = conv("standard"); assert.ok(b.ok);
+  const prod = PodcastProduction.parse({ ...(b as { production: PodcastProduction }).production, music: true });
+  const bare = mkdtempSync(path.join(tmpdir(), "musica-"));
+  execFileSync("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i", "sine=f=220:d=30,volume=0.3", "-b:a", "96k", path.join(bare, "Crusade.mp3")]);
+  for (const music of [null, { dir: bare, library: PODCAST_MUSIC_LIBRARY }]) {   // sin carpeta / archivo sin LICENSES.md
+    const h = harness(); (h.deps as { music: unknown }).music = music;
+    await assert.rejects(narrateProduction(h.deps, EP, prod), MusicUnavailableError);
+    assert.equal(h.log.length, 0, "ninguna síntesis");
+    const list = h.deps.ledger.listByProjects; assert.ok(list);
+    assert.equal((await list.call(h.deps.ledger, [`podcast-${EP.id}`])).length, 0, "ledger vacío");
+  }
+  writeFileSync(path.join(bare, "LICENSES.md"), "Crusade.mp3 — pista de prueba sintética\n");
+  const withMusic = harness(); (withMusic.deps as { music: unknown }).music = { dir: bare, library: PODCAST_MUSIC_LIBRARY };
+  const dry = harness();
+  const a = await narrateProduction(withMusic.deps, EP, prod), z = await narrateProduction(dry.deps, EP, { ...prod, music: false });
+  const rms = (f: string, from: number, to: number) => Number(/mean_volume: (-?[\d.]+)/.exec(spawnSync("ffmpeg", ["-v", "info", "-ss", String(from), "-to", String(to), "-i", f, "-af", "volumedetect", "-f", "null", "-"], { encoding: "utf8" }).stderr)?.[1] ?? -200);
+  const gap = a.timeline[0].end + 0.05, gapEnd = a.timeline[1].start - 0.05;
+  assert.ok(gapEnd > gap, "hay pausa entre turnos");
+  const fa = saveTmp(withMusic.stored.get(a.audioPath)!), fz = saveTmp(dry.stored.get(z.audioPath)!);
+  assert.ok(rms(fa, gap, gapEnd) > rms(fz, gap, gapEnd) + 10, `música audible en la pausa (${rms(fa, gap, gapEnd)} vs ${rms(fz, gap, gapEnd)} dB)`);
+});

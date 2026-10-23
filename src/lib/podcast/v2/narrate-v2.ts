@@ -57,6 +57,9 @@ const speedFor = (s: SegmentDirection, style: PodcastProduction["style"]) => sty
 
 export async function narrateProduction(deps: ProductionDeps, episode: Pick<PodcastEpisode, "id" | "user_id" | "language">, raw: unknown): Promise<ProductionOutcome> {
   const prod = PodcastProduction.parse(raw);
+  // Música pedida sin ninguna pista con licencia disponible: se detiene ANTES de cualquier llamada de pago en vez de
+  // entregar (y cobrar) un episodio sin la música que se eligió.
+  if (prod.music && !licensedMusic(deps.music).length) throw new MusicUnavailableError();
   const plan = planProduction(prod, deps.modelId);
   const parts = new Map(prod.participants.map((x) => [x.id, x]));
   const requestId = podcastLedgerProject(episode.id);
@@ -130,11 +133,21 @@ async function durationOf(f: string): Promise<number> {
   return Math.max(0, (size - 44) / 96000);
 }
 
+export class MusicUnavailableError extends Error {
+  constructor() { super("La música de fondo no está disponible ahora mismo. Desactívala para generar el episodio; no se ha cobrado nada."); this.name = "MusicUnavailableError"; }
+}
+
+/** Pistas utilizables: el archivo existe y figura en LICENSES.md de la carpeta (nunca una sin licencia). */
+export function licensedMusic(music: { dir: string; library: MusicTrack[] } | null | undefined): MusicTrack[] {
+  if (!music) return [];
+  const licenses = existsSync(path.join(music.dir, "LICENSES.md")) ? readFileSync(path.join(music.dir, "LICENSES.md"), "utf8") : "";
+  return music.library.filter((l) => licenses.includes(l.file) && existsSync(path.join(music.dir, l.file)));
+}
+
 /** Música bajo la voz: cues por emoción, solo pistas con licencia en LICENSES.md, ducking por sidechain. */
 async function mixMusic(dir: string, voice: string, plan: DirectionPlan, music: { dir: string; library: MusicTrack[] }): Promise<string> {
-  const licenses = existsSync(path.join(music.dir, "LICENSES.md")) ? readFileSync(path.join(music.dir, "LICENSES.md"), "utf8") : "";
-  const lib = music.library.filter((l) => licenses.includes(l.file) && existsSync(path.join(music.dir, l.file)));
-  if (!lib.length) return voice; // sin pistas verificables → sin música (nunca una sin licencia)
+  const lib = licensedMusic(music);
+  if (!lib.length) throw new MusicUnavailableError();
   const cues = planMusic(plan, lib);
   const parts: string[] = [];
   for (const [i, c] of cues.entries()) {

@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { directSegments, buildProviderRequest, classifyEmotion, DirectionPlan, UnsupportedDirectionError, monotonyScore, type SegmentDirection } from "./director";
 import { Conversation, dialogueIssues } from "./conversation";
 import { MemoryStore, synthOnce, estimateCall, UnknownPriceError, spent, segmentKey } from "./cost-cache";
@@ -101,4 +102,18 @@ test("música y QC editorial", () => {
   assert.ok(musicIssues(cues, new Set()).some(x => x.includes("sin licencia")));
   const qc = editorialQc(plan, { targetMinutes: 15 });
   assert.ok(qc.find(f => !f.objective)?.detail.includes("ESCUCHA HUMANA"));
+});
+
+test("worker con PODCAST_V2_ENABLED distinto de la app: una fila Podcast 2 nunca se narra por la ruta 1.x (fail-closed antes de pagar)", async () => {
+  const { refuseUnreadV2Production, V2ProductionNotReadError } = await import("../server");
+  const fake = (res: { data?: unknown; error?: { code?: string; message?: string } | null }) =>
+    ({ from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: res.data ?? null, error: res.error ?? null }) }) }) }) }) as never;
+  await refuseUnreadV2Production(fake({ error: { code: "42703", message: 'column podcast_episodes.production does not exist' } }), "e1"); // BD sin migrar → 1.x
+  await refuseUnreadV2Production(fake({ data: { production: null } }), "e1");                                                       // fila 1.x
+  await assert.rejects(refuseUnreadV2Production(fake({ data: { production: { version: "podcast-production/1" } } }), "e1"), V2ProductionNotReadError);
+  await assert.rejects(refuseUnreadV2Production(fake({ error: { code: "PGRST000", message: "timeout" } }), "e1"), V2ProductionNotReadError); // error ambiguo → no se paga
+  const src = readFileSync("src/lib/podcast/server.ts", "utf8"), run = src.slice(src.indexOf("export async function runGeneration"));
+  assert.ok(run.indexOf("refuseUnreadV2Production(") > 0 && run.indexOf("refuseUnreadV2Production(") < run.indexOf("narrateEpisode("), "la comprobación va antes de la narración 1.x");
+  const wf = readFileSync(".github/workflows/podcast-video.yml", "utf8");
+  assert.match(wf.slice(wf.indexOf("- name: Produce"), wf.indexOf("- name: Mark failed")), /PODCAST_V2_ENABLED: \$\{\{ vars\.PODCAST_V2_ENABLED \}\}/, "el worker recibe el mismo flag que la app");
 });
