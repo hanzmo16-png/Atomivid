@@ -81,6 +81,9 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          # Optional per-language defaults (src/lib/ai/voice.ts). Empty when the secret is not set: unchanged behaviour.
+          ELEVENLABS_VOICE_ID_EN: ${{ secrets.ELEVENLABS_VOICE_ID_EN }}
+          ELEVENLABS_VOICE_ID_ES: ${{ secrets.ELEVENLABS_VOICE_ID_ES }}
           ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
           # Starter: USD 6 / 30,000 credits, Multilingual v2 = 1 credit/character.
           # Keep the worker aligned with the production app's configured allocation rate.

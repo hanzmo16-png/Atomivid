@@ -10,6 +10,7 @@ import { randomUUID } from "node:crypto";
 import { parseRecraftSelection, type ReelRecraftStyle } from "@/lib/video/recraft-reel";
 import { storeRecraftReferences } from "@/lib/video/recraft-reel-server";
 import { resolveReelVoiceSelection } from "@/lib/video/reel-voices-server";
+import { recraftBlockedMessage, recraftProductionBlocker } from "@/lib/video/long-form/recraft-readiness";
 
 /**
  * Paso 9/10 del contrato de Long Form: fija el plan confirmado (ver
@@ -79,6 +80,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         if (!row) return NextResponse.json({ error: "Solicitud no encontrada" }, { status: 404 });
         if (row.user_id !== user.id) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
         if (row.mode !== "long_form") return NextResponse.json({ error: "Esta solicitud no es de Long Form" }, { status: 409 });
+        // The choice becomes immutable with the confirmation: never lock Recraft while it cannot be started.
+        if (!row.long_form_confirmed_at) {
+          const blocker = await recraftProductionBlocker(service);
+          if (blocker) return NextResponse.json({ error: recraftBlockedMessage(blocker), code: "RECRAFT_NOT_READY" }, { status: 409 });
+        }
         let referencePaths: string[] = [];
         // Already confirmed: the stored choice wins (idempotent) and nothing is uploaded. Otherwise each confirmation
         // writes to its own folder, so two tabs never overwrite each other's references (the winner keeps its own).
