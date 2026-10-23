@@ -161,3 +161,10 @@ test("búsquedas de stock: sin números escritos, términos abstractos ni verbos
   const q = sceneQueries({ text: "La hipótesis del cometa sobre setenta segundos de señal en el radiotelescopio.", query: "" }, title, topicOf(script, title), anchorOf(script, title));
   for (const bad of ["setenta", "hipótesis", "recibimos"]) assert.ok(!q.join(" ").includes(bad), `${bad} en ${q.join(" | ")}`);
 });
+
+test("búsquedas de stock: los sustantivos terminados en «-mos» (cosmos, átomos, abismos, ritmos) siguen siendo visuales", async () => {
+  const { topicOf } = await import("./visual-plan");
+  const topic = topicOf("El cosmos, los átomos, los abismos marinos y los ritmos del corazón. Kilogramos de racimos en tramos extremos. Páramos con álamos, dínamos y céntimos. Reímos y oímos. Fuimos, éramos, íbamos, vimos y seamos: hipopótamos. Sabemos poco y recibimos menos. Descubrimos el radar, analizamos datos, observamos el cielo; hicimos pruebas, tuvimos dudas, teníamos miedo y estábamos solos.", "Cosmos");
+  for (const good of ["cosmos", "átomos", "abismos", "ritmos", "kilogramos", "racimos", "tramos", "extremos", "radar", "páramos", "álamos", "dínamos", "céntimos", "hipopótamos"]) assert.ok(topic.has(good), `${good} falta en ${[...topic.keys()].join(" ")}`);
+  for (const bad of ["sabemos", "recibimos", "descubrimos", "analizamos", "observamos", "hicimos", "tuvimos", "teníamos", "estábamos", "reímos", "fuimos", "éramos", "íbamos", "vimos", "seamos"]) assert.ok(!topic.has(bad), `${bad} en ${[...topic.keys()].join(" ")}`);
+});

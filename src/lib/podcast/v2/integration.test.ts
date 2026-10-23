@@ -73,7 +73,7 @@ test("mixto: turnos con grabación propia NO llaman a TTS y conservan su hash", 
   const h = harness();
   const ep = { ...EP, status: "draft", production: prod0 };
   let saved: Record<string, unknown> = {};
-  const deps = (body: Record<string, unknown>, userId = "aaaaaaaa-0000-4000-8000-000000000001") => ({ userId, episode: ep, body, signUpload: async () => "tok", download: async (p: string) => h.recs.get(p) ?? null, save: async (patch: Record<string, unknown>) => { saved = patch; ep.production = patch.production as PodcastProduction; return true; } });
+  const deps = (body: Record<string, unknown>, userId = "aaaaaaaa-0000-4000-8000-000000000001") => ({ userId, episode: ep, body, signUpload: async () => "tok", download: async (p: string) => h.recs.get(p) ?? null, uncertainCharges: async () => 0, save: async (patch: Record<string, unknown>) => { saved = patch; ep.production = patch.production as PodcastProduction; return true; } });
   const hashes: Record<string, string> = {};
   for (const t of prod0.turns.filter((x) => x.speaker === "A")) {
     const ticket = await applyTurnAction(deps({ action: "ticket", mime: "audio/wav", size: 1000 }));
@@ -90,6 +90,30 @@ test("mixto: turnos con grabación propia NO llaman a TTS y conservan su hash", 
   // seguridad: otra cuenta / ruta ajena
   assert.equal((await applyTurnAction(deps({ action: "edit", turnId: "T001", text: "x" }, "bbbbbbbb-0000-4000-8000-000000000002"))).status, 404);
   assert.equal((await applyTurnAction(deps({ action: "attach", turnId: "T001", path: "u-other/podcasts/x/uploads/y" }))).status, 403);
+});
+
+test("turnos: editar no supera el límite de guion del episodio ni cambia el texto con un cobro incierto", async () => {
+  const prod0 = (conv("standard") as { production: PodcastProduction }).production;
+  const ep = { ...EP, status: "draft", production: prod0 };
+  let uncertain: number | null = 0, saves = 0;
+  const deps = (body: Record<string, unknown>) => ({ userId: "aaaaaaaa-0000-4000-8000-000000000001", episode: ep, body, signUpload: async () => "tok", download: async () => null, uncertainCharges: async () => uncertain, save: async (patch: Record<string, unknown>) => { saves++; ep.production = patch.production as PodcastProduction; return true; } });
+  // Cada turno hasta su máximo (4000): el guion total supera PODCAST_MAX_CHARS y la edición que lo cruza se rechaza.
+  const long = "palabra ".repeat(499) + "fin.";
+  const results = [];
+  for (const t of prod0.turns) results.push((await applyTurnAction(deps({ action: "edit", turnId: t.id, text: long }))).status);
+  const total = (ep.production as PodcastProduction).turns.reduce((n, t) => n + t.text.length, 0);
+  assert.ok(total <= 30_000, `guion guardado ${total} > 30000`);
+  if (prod0.turns.length * long.length > 30_000) assert.ok(results.includes(400), `ninguna edición rechazada: ${results}`);
+  const before = saves;
+  uncertain = 1;
+  const r1 = await applyTurnAction(deps({ action: "edit", turnId: prod0.turns[0].id, text: "Hola." }));
+  assert.equal(r1.status, 409);
+  uncertain = null;
+  const r2 = await applyTurnAction(deps({ action: "edit", turnId: prod0.turns[0].id, text: "Hola." }));
+  assert.equal(r2.status, 503);
+  assert.equal(saves, before, "sin guardar con cobro incierto o registro ilegible");
+  uncertain = 0;
+  assert.equal((await applyTurnAction(deps({ action: "ticket", mime: "audio/wav", size: 1000 }))).status, 200, "pedir subida no cambia texto");
 });
 
 test("El Duro: solo su dueño; otra cuenta no puede usarlo; A y B nunca la misma voz", () => {
