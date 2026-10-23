@@ -5,7 +5,7 @@ import { getFeatureFlags, type FeatureFlags } from "@/lib/video/feature-flags";
 import { getPricingConfig } from "@/lib/billing/pricing";
 import { SupplyUnavailableError } from "./policy";
 import { supplyGuardRequired } from "./server";
-import { ceilLedgerUsd } from "./anthropic-cost";
+import { ledgerUsd } from "@/lib/paid-calls/ledger-usd";
 
 /**
  * The attempt already holds an envelope smaller than what this process now demands: the per-production
@@ -103,11 +103,16 @@ export async function releaseUnusedJobSupply(service: SupabaseClient, requestId:
   if (error) throw new Error("SUPPLY_UNUSED_RESERVATION_UNCONFIRMED");
 }
 
-/** Sum of per-call ledger ceilings for the narration calls of one attempt (Reel: original + one pacing
- * correction; long form: one call per beat; others: one call). Exported for tests. */
+/** Sum of per-call ledger reservations for the narration calls of one attempt (Reel: original + one pacing
+ * correction; long form: one ledger row per beat — production-tts-cache.ts guards each beat, a long beat is split
+ * inside that call; others: one call). Each call is priced exactly as the gate records it (`ledgerUsd`: strict
+ * ceiling to 0.0001, no tolerance) and the total is never below the previous raw estimate. Exported for tests. */
 export function voiceEnvelopeUsd(mode: string, text: string, script: { beats?: { narration: string }[] } | null | undefined, usdPer1kChars: number): number {
-  const callCost = (n: number) => ceilLedgerUsd(n / 1000 * usdPer1kChars);
-  if (mode === "long_form") return (script?.beats ?? []).reduce((s, b) => s + callCost(b.narration.length), 0) || callCost(text.length);
+  const callCost = (n: number) => (n > 0 ? ledgerUsd(n / 1000 * usdPer1kChars) : 0);
+  const beats = mode === "long_form" ? (script?.beats ?? []).filter((b) => b.narration.length > 0) : [];
   const calls = mode === "visual" ? 2 : 1;
-  return calls * callCost(text.length);
+  const sum = beats.length > 0 ? beats.reduce((s, b) => s + callCost(b.narration.length), 0) : calls * callCost(text.length);
+  const raw = text.length * calls / 1000 * usdPer1kChars;
+  // Las piezas son múltiplos de 0.0001: se redondea la suma para no arrastrar ruido de coma flotante.
+  return Math.max(Math.round(sum * 10_000) / 10_000, raw);
 }

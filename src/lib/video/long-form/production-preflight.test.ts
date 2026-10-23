@@ -29,6 +29,13 @@ test("capacidad: Suficiente / Insuficiente con monto exacto / Sin verificar / to
   assert.equal(wallet.action, "Recarga al menos 0.77 USD en HeyGen (avatar). Disponible: 1.23 USD; necesario: 2.00 USD.");
 });
 
+test("capacidad: nivel RED con saldo libre suficiente no dice «Recarga al menos 0»: explica que el saldo está en rojo", () => {
+  const red = providerCheck(row({ level: "RED", free: 70232, units: 10070, failure: "supplier balance unavailable" }), "character");
+  assert.equal(red.verdict, "Insuficiente");
+  assert.doesNotMatch(red.action!, /Recarga al menos 0\b/);
+  assert.match(red.action!, /está en rojo/);
+});
+
 test("bloqueo visual: mensaje accionable con identidades, pruebas y proporción de tarjetas (caso Bigfoot)", () => {
   const v: VisualCheck = { applies: true, ready: false, codes: ["HERO_EVIDENCE_COVERAGE_MISSING", "HERO_IDENTITY_COVERAGE_MISSING", "OPENING_TEXT_CARD_RUN", "TEXT_FALLBACK_RATIO"],
     missingHeroIdentities: 2, missingHeroEvidence: 4, textCardRatio: 0.41, maxTextCardRatio: 0.25, verifiedAssets: 0 };

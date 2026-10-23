@@ -153,3 +153,18 @@ test("subtítulos de una narración ya pagada: se reconstruyen sin llamar a la v
   assert.ok(words![words!.length - 1].endSeconds <= first.durationSeconds + 0.05);
   assert.equal(await storedNarrationWords({ results, voiceProvider: provider, voiceIdentity: { ...voiceIdentity, voiceId: "otherVoice1" } }, ep), null, "another voice is never reused");
 });
+
+test("búsquedas de stock: sin números escritos, términos abstractos ni verbos en 1.ª plural", async () => {
+  const { sceneQueries, topicOf, anchorOf } = await import("./visual-plan");
+  const script = "La señal duró setenta y dos segundos. La hipótesis del cometa: recibimos una señal del radiotelescopio. La señal no volvió.";
+  const title = "El misterio de la señal Wow!: ¿recibimos un mensaje del espacio?";
+  const q = sceneQueries({ text: "La hipótesis del cometa sobre setenta segundos de señal en el radiotelescopio.", query: "" }, title, topicOf(script, title), anchorOf(script, title));
+  for (const bad of ["setenta", "hipótesis", "recibimos"]) assert.ok(!q.join(" ").includes(bad), `${bad} en ${q.join(" | ")}`);
+});
+
+test("búsquedas de stock: los sustantivos terminados en «-mos» (cosmos, átomos, abismos, ritmos) siguen siendo visuales", async () => {
+  const { topicOf } = await import("./visual-plan");
+  const topic = topicOf("El cosmos, los átomos, los abismos marinos y los ritmos del corazón. Kilogramos de racimos en tramos extremos. Páramos con álamos, dínamos y céntimos. Reímos y oímos. Fuimos, éramos, íbamos, vimos y seamos: hipopótamos. Sabemos poco y recibimos menos. Descubrimos el radar, analizamos datos, observamos el cielo; hicimos pruebas, tuvimos dudas, teníamos miedo y estábamos solos.", "Cosmos");
+  for (const good of ["cosmos", "átomos", "abismos", "ritmos", "kilogramos", "racimos", "tramos", "extremos", "radar", "páramos", "álamos", "dínamos", "céntimos", "hipopótamos"]) assert.ok(topic.has(good), `${good} falta en ${[...topic.keys()].join(" ")}`);
+  for (const bad of ["sabemos", "recibimos", "descubrimos", "analizamos", "observamos", "hicimos", "tuvimos", "teníamos", "estábamos", "reímos", "fuimos", "éramos", "íbamos", "vimos", "seamos"]) assert.ok(!topic.has(bad), `${bad} en ${[...topic.keys()].join(" ")}`);
+});

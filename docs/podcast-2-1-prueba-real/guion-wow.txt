@@ -1,0 +1,45 @@
+La noche del quince de agosto de mil novecientos setenta y siete, un radiotelescopio en Ohio registró algo que nadie ha podido volver a escuchar. Duró poco más de un minuto. Quedó impreso en una hoja de papel. Y casi medio siglo después, seguimos sin saber con certeza qué fue. Esta es la historia de la señal Wow.
+
+Antes de empezar, una advertencia honesta. En este episodio vamos a separar dos cosas: lo que está documentado, y lo que son hipótesis. Cuando hablemos de hechos, lo diremos. Cuando hablemos de explicaciones posibles, también. Las imágenes que verás son ilustrativas: no son fotografías del evento.
+
+Empecemos por lo documentado.
+
+El instrumento se llamaba Big Ear, la Gran Oreja. Era un radiotelescopio de la Universidad Estatal de Ohio, cerca de la ciudad de Delaware. No era una antena parabólica como las que solemos imaginar. Era una enorme estructura plana y fija, del tamaño de varias canchas de fútbol, que dependía de la rotación de la Tierra para barrer el cielo. A finales de los años setenta, Big Ear dedicaba buena parte de su tiempo a una tarea que entonces parecía casi de ciencia ficción: buscar señales de radio de origen artificial procedentes del espacio.
+
+Las observaciones se registraban de manera automática. Una computadora imprimía columnas de números y letras que representaban la intensidad de la señal en distintos canales de frecuencia. Un espacio en blanco o un uno significaba ruido de fondo. Los números más altos, y después las letras, indicaban señales cada vez más intensas.
+
+Unos días después de aquella noche de agosto, un astrónomo voluntario del proyecto, Jerry Ehman, revisaba esas hojas impresas. En una de las columnas encontró una secuencia que no se parecía a nada habitual: seis E Q U J cinco. La letra U representaba una intensidad unas treinta veces superior al ruido de fondo. Ehman encerró la secuencia en un círculo rojo y escribió al margen una sola palabra: Wow. Así, con esa anotación a mano, la señal obtuvo su nombre.
+
+¿Por qué llamó tanto la atención? Por tres características que están bien documentadas.
+
+La primera es la duración. La intensidad subió y bajó a lo largo de unos setenta y dos segundos. Ese es exactamente el tiempo que una fuente fija en el cielo tardaba en cruzar el haz de Big Ear por efecto de la rotación terrestre. Es decir, el patrón encaja con algo que estaba allá afuera, y no con una interferencia que apareciera y desapareciera al azar.
+
+La segunda es la frecuencia. La señal estaba muy cerca de los mil cuatrocientos veinte megahercios, la llamada línea del hidrógeno. El hidrógeno es el elemento más abundante del universo, y muchos investigadores habían propuesto que una civilización que quisiera ser escuchada elegiría precisamente esa frecuencia, porque cualquier astrónomo del cosmos la conocería. Además, en esa banda las emisiones de radio están protegidas por acuerdos internacionales, de modo que los transmisores terrestres no deberían usarla.
+
+La tercera es que era una señal de banda estrecha. Ocupaba un rango de frecuencias muy reducido, algo que los fenómenos naturales conocidos rara vez producen, pero que sí es típico de los transmisores fabricados.
+
+Hay un detalle más. Big Ear tenía dos receptores que apuntaban a puntos ligeramente distintos del cielo, de modo que una fuente real debía aparecer dos veces, con unos minutos de diferencia. La señal Wow apareció solo en uno de ellos. Hasta hoy no sabemos cuál de los dos la captó, y esa ambigüedad complica ubicar con precisión su origen. Lo que sí se sabe es la región aproximada: la constelación de Sagitario, en dirección al centro de nuestra galaxia.
+
+Y entonces llega la parte que convierte este caso en un misterio. La señal nunca volvió a aparecer.
+
+Big Ear siguió apuntando a esa región durante los meses siguientes. Otros equipos lo intentaron después con instrumentos más sensibles, incluido el Very Large Array en Nuevo México, en la década de los noventa. El astrónomo aficionado Robert Gray dedicó años a buscarla de nuevo. Ninguna de esas búsquedas encontró una repetición. Y en mil novecientos noventa y ocho, Big Ear fue desmantelado; el terreno donde estaba se convirtió en parte de un campo de golf.
+
+Hasta aquí, los hechos. Ahora pasemos a las hipótesis, que es donde el debate sigue abierto.
+
+La primera hipótesis es la más famosa: que se tratara de una transmisión de una civilización extraterrestre. Encaja con la frecuencia, con la banda estrecha y con el paso de setenta y dos segundos. Pero tiene un problema serio. Una sola detección, que nunca se repitió, no basta para demostrar nada. En ciencia, una observación que no puede reproducirse se queda en el terreno de lo posible, no de lo probado. El propio Ehman, a lo largo de los años, se mostró prudente y evitó afirmar que se tratara de un mensaje.
+
+La segunda hipótesis es una interferencia de origen terrestre: un satélite, un avión o una señal reflejada en desechos espaciales. Es la explicación que muchos consideran más sencilla. Sin embargo, la frecuencia protegida y el patrón de paso por el haz hacen que esta opción tampoco resulte del todo convincente. No se ha identificado ningún transmisor concreto que la explique.
+
+La tercera hipótesis apareció en dos mil diecisiete. Un investigador propuso que la señal podría haber venido de la nube de hidrógeno que rodeaba a un cometa que pasaba por esa zona del cielo. La idea recibió mucha atención mediática, pero también críticas fuertes de otros astrónomos, que señalaron que los cometas no emiten con esa intensidad en la línea del hidrógeno y que la posición no coincidía bien. Hoy se considera una propuesta débil.
+
+La cuarta hipótesis es la más reciente. En dos mil veinticuatro, un equipo que revisaba datos de archivo del radiotelescopio de Arecibo publicó un trabajo preliminar con una propuesta natural: que una nube fría de hidrógeno interestelar pudo haberse iluminado de golpe, de forma breve, por un evento energético cercano, como el estallido de una estrella muy magnetizada. Si eso fuera cierto, la señal Wow sería un fenómeno astrofísico raro, no un mensaje. Es una idea interesante y comprobable, pero hasta ahora sigue siendo eso: una hipótesis en revisión, no una conclusión.
+
+También se han propuesto estrellas concretas como posibles fuentes, entre ellas algunas parecidas a nuestro Sol en la región de Sagitario. Ninguna de esas propuestas ha sido confirmada.
+
+Entonces, ¿recibimos un mensaje del espacio? La respuesta honesta es que no lo sabemos. Lo que sí sabemos es que, durante setenta y dos segundos de agosto de mil novecientos setenta y siete, un instrumento bien calibrado registró una señal intensa, estrecha y en una frecuencia muy especial, que se comportó como algo situado fuera de la Tierra, y que nunca volvió.
+
+Quizá la lección más valiosa de la señal Wow no sea la respuesta, sino el método. Una observación extraordinaria exige repetirse, contrastarse y resistir las explicaciones más simples antes de convertirse en un descubrimiento. Por eso la búsqueda continúa, hoy con radiotelescopios mucho más potentes y con programas que escuchan millones de canales a la vez.
+
+Mientras tanto, la hoja impresa con aquel círculo rojo y una sola palabra al margen sigue siendo uno de los documentos más famosos de la astronomía. Un recordatorio de que, a veces, el universo nos ofrece una pregunta y nos deja a nosotros la tarea de encontrar la respuesta.
+
+Gracias por escuchar. Si quieres profundizar, busca las fuentes originales de la Universidad Estatal de Ohio y los trabajos publicados sobre el tema, y recuerda distinguir siempre entre lo que está demostrado y lo que todavía es una posibilidad.

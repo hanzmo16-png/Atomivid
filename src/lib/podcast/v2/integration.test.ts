@@ -1,7 +1,7 @@
 /** Integración con el gate REAL de pagos (ledger + resultados en memoria), espeak-ng como proveedor simulado. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -11,7 +11,8 @@ import { memoryResultStore } from "@/lib/paid-calls/result-store";
 import { getVoiceIdentity } from "@/lib/ai/voice";
 import { NarrationCapError } from "../narrate";
 import { buildProduction, PodcastProduction } from "./production";
-import { narrateProduction, verifyMaster, speakerSubtitles } from "./narrate-v2";
+import { narrateProduction, verifyMaster, speakerSubtitles, MusicUnavailableError } from "./narrate-v2";
+import { PODCAST_MUSIC_LIBRARY } from "./music";
 import { applyTurnAction } from "./turns";
 import { espeakVoice, type EspeakCall } from "./espeak-provider";
 
@@ -72,7 +73,7 @@ test("mixto: turnos con grabación propia NO llaman a TTS y conservan su hash", 
   const h = harness();
   const ep = { ...EP, status: "draft", production: prod0 };
   let saved: Record<string, unknown> = {};
-  const deps = (body: Record<string, unknown>, userId = "aaaaaaaa-0000-4000-8000-000000000001") => ({ userId, episode: ep, body, signUpload: async () => "tok", download: async (p: string) => h.recs.get(p) ?? null, save: async (patch: Record<string, unknown>) => { saved = patch; ep.production = patch.production as PodcastProduction; return true; } });
+  const deps = (body: Record<string, unknown>, userId = "aaaaaaaa-0000-4000-8000-000000000001") => ({ userId, episode: ep, body, signUpload: async () => "tok", download: async (p: string) => h.recs.get(p) ?? null, uncertainCharges: async () => 0, save: async (patch: Record<string, unknown>) => { saved = patch; ep.production = patch.production as PodcastProduction; return true; } });
   const hashes: Record<string, string> = {};
   for (const t of prod0.turns.filter((x) => x.speaker === "A")) {
     const ticket = await applyTurnAction(deps({ action: "ticket", mime: "audio/wav", size: 1000 }));
@@ -89,6 +90,30 @@ test("mixto: turnos con grabación propia NO llaman a TTS y conservan su hash", 
   // seguridad: otra cuenta / ruta ajena
   assert.equal((await applyTurnAction(deps({ action: "edit", turnId: "T001", text: "x" }, "bbbbbbbb-0000-4000-8000-000000000002"))).status, 404);
   assert.equal((await applyTurnAction(deps({ action: "attach", turnId: "T001", path: "u-other/podcasts/x/uploads/y" }))).status, 403);
+});
+
+test("turnos: editar no supera el límite de guion del episodio ni cambia el texto con un cobro incierto", async () => {
+  const prod0 = (conv("standard") as { production: PodcastProduction }).production;
+  const ep = { ...EP, status: "draft", production: prod0 };
+  let uncertain: number | null = 0, saves = 0;
+  const deps = (body: Record<string, unknown>) => ({ userId: "aaaaaaaa-0000-4000-8000-000000000001", episode: ep, body, signUpload: async () => "tok", download: async () => null, uncertainCharges: async () => uncertain, save: async (patch: Record<string, unknown>) => { saves++; ep.production = patch.production as PodcastProduction; return true; } });
+  // Cada turno hasta su máximo (4000): el guion total supera PODCAST_MAX_CHARS y la edición que lo cruza se rechaza.
+  const long = "palabra ".repeat(499) + "fin.";
+  const results = [];
+  for (const t of prod0.turns) results.push((await applyTurnAction(deps({ action: "edit", turnId: t.id, text: long }))).status);
+  const total = (ep.production as PodcastProduction).turns.reduce((n, t) => n + t.text.length, 0);
+  assert.ok(total <= 30_000, `guion guardado ${total} > 30000`);
+  if (prod0.turns.length * long.length > 30_000) assert.ok(results.includes(400), `ninguna edición rechazada: ${results}`);
+  const before = saves;
+  uncertain = 1;
+  const r1 = await applyTurnAction(deps({ action: "edit", turnId: prod0.turns[0].id, text: "Hola." }));
+  assert.equal(r1.status, 409);
+  uncertain = null;
+  const r2 = await applyTurnAction(deps({ action: "edit", turnId: prod0.turns[0].id, text: "Hola." }));
+  assert.equal(r2.status, 503);
+  assert.equal(saves, before, "sin guardar con cobro incierto o registro ilegible");
+  uncertain = 0;
+  assert.equal((await applyTurnAction(deps({ action: "ticket", mime: "audio/wav", size: 1000 }))).status, 200, "pedir subida no cambia texto");
 });
 
 test("El Duro: solo su dueño; otra cuenta no puede usarlo; A y B nunca la misma voz", () => {
@@ -112,3 +137,26 @@ test("errores: límite antes de pagar; timeout ambiguo bloquea sin volver a llam
 
 function saveTmp(b: Buffer) { const f = path.join(mkdtempSync(path.join(tmpdir(), "m-")), "a.m4a"); writeFileSync(f, b); return f; }
 function recWav(text: string) { const d = mkdtempSync(path.join(tmpdir(), "rec-")), f = path.join(d, "r.wav"); execFileSync("espeak-ng", ["-v", "es", "-p", "20", "-w", f, text]); return Buffer.from(readFileSync(f)); }
+
+test("música pedida sin pistas con licencia: se detiene antes de pagar (0 llamadas, ledger vacío); con licencia, la música suena", { skip }, async () => {
+  const b = conv("standard"); assert.ok(b.ok);
+  const prod = PodcastProduction.parse({ ...(b as { production: PodcastProduction }).production, music: true });
+  const bare = mkdtempSync(path.join(tmpdir(), "musica-"));
+  execFileSync("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i", "sine=f=220:d=30,volume=0.3", "-b:a", "96k", path.join(bare, "Crusade.mp3")]);
+  for (const music of [null, { dir: bare, library: PODCAST_MUSIC_LIBRARY }]) {   // sin carpeta / archivo sin LICENSES.md
+    const h = harness(); (h.deps as { music: unknown }).music = music;
+    await assert.rejects(narrateProduction(h.deps, EP, prod), MusicUnavailableError);
+    assert.equal(h.log.length, 0, "ninguna síntesis");
+    const list = h.deps.ledger.listByProjects; assert.ok(list);
+    assert.equal((await list.call(h.deps.ledger, [`podcast-${EP.id}`])).length, 0, "ledger vacío");
+  }
+  writeFileSync(path.join(bare, "LICENSES.md"), "Crusade.mp3 — pista de prueba sintética\n");
+  const withMusic = harness(); (withMusic.deps as { music: unknown }).music = { dir: bare, library: PODCAST_MUSIC_LIBRARY };
+  const dry = harness();
+  const a = await narrateProduction(withMusic.deps, EP, prod), z = await narrateProduction(dry.deps, EP, { ...prod, music: false });
+  const rms = (f: string, from: number, to: number) => Number(/mean_volume: (-?[\d.]+)/.exec(spawnSync("ffmpeg", ["-v", "info", "-ss", String(from), "-to", String(to), "-i", f, "-af", "volumedetect", "-f", "null", "-"], { encoding: "utf8" }).stderr)?.[1] ?? -200);
+  const gap = a.timeline[0].end + 0.05, gapEnd = a.timeline[1].start - 0.05;
+  assert.ok(gapEnd > gap, "hay pausa entre turnos");
+  const fa = saveTmp(withMusic.stored.get(a.audioPath)!), fz = saveTmp(dry.stored.get(z.audioPath)!);
+  assert.ok(rms(fa, gap, gapEnd) > rms(fz, gap, gapEnd) + 10, `música audible en la pausa (${rms(fa, gap, gapEnd)} vs ${rms(fz, gap, gapEnd)} dB)`);
+});

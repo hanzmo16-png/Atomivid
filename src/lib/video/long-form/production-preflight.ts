@@ -60,7 +60,9 @@ export function providerCheck(row: ProviderReadiness, unit: string): ProviderChe
   const base = { provider: row.provider, label: label(row.provider), needUnits: row.units, unit, needUsd: row.usd, freeUnits: row.free };
   if (row.ok) return { ...base, verdict: "Suficiente", action: null };
   const perUnitUsd = row.units && row.units > 0 ? row.usd / row.units : null;
-  if (row.failure === "supplier balance unavailable" && row.level !== "UNKNOWN" && row.free !== null && row.units !== null) {
+  // Only an actual shortfall gets «Recarga al menos N»; a RED level with enough free balance (e.g. below the policy's
+  // safety baseline) used to read «Recarga al menos 0» and hid the real reason.
+  if (row.failure === "supplier balance unavailable" && row.level !== "UNKNOWN" && row.free !== null && row.units !== null && row.units > row.free) {
     const shortfall = Math.max(0, row.units - row.free);
     // USD-denominated balances: exact cents, never rounded to whole dollars.
     if (unit === "usd") return { ...base, verdict: "Insuficiente", action: `Recarga al menos ${ceil2(shortfall).toFixed(2)} USD en ${label(row.provider)}. Disponible: ${(Math.floor(row.free * 100) / 100).toFixed(2)} USD; necesario: ${ceil2(row.units).toFixed(2)} USD.` };

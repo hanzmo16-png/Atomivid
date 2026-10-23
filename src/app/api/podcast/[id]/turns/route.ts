@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { podcastUser } from "@/lib/podcast/auth";
 import { loadOwnedEpisode, podcastV2Enabled } from "@/lib/podcast/server";
+import { productionSpend } from "@/lib/podcast/pilot-server";
 import { applyTurnAction } from "@/lib/podcast/v2/turns";
 
 const BUCKET = "videos";
@@ -25,6 +26,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     userId: user.id, episode: episode as never, body,
     signUpload: async (p) => { const { data, error } = await storage.createSignedUploadUrl(p); return error || !data ? null : data.token; },
     download: async (p) => { const { data } = await storage.download(p); return data ? Buffer.from(await data.arrayBuffer()) : null; },
+    uncertainCharges: async () => (await productionSpend(service, episode.id).catch(() => null))?.uncertain ?? null,
     save: async (patch) => { const { data } = await service.from("podcast_episodes").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", episode.id).eq("user_id", user.id).in("status", ["draft", "failed", "ready"]).select("id"); return (data?.length ?? 0) === 1; },
   });
   return NextResponse.json(out.body, { status: out.status });
