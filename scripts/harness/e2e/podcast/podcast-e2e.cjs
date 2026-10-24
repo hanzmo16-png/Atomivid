@@ -95,7 +95,9 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       const n0 = ttsCalls().length;
       await s.p.reload(); await s.p.goto(`${BASE}/dashboard`); await s.p.goto(`${BASE}/dashboard/podcast/${id}`);
       await db.query("update podcast_episodes set status='failed', run_token=null where id=$1", [id]);
+      const d4 = dispatches().length;
       await s.p.reload(); await generate(s.p, id, "c4-reanudar");
+      ok("c4: reanudar despacha el worker real (sin nada pendiente que pagar)", dispatches().length > d4 && (await ep(id)).status === "ready", `despachos=${dispatches().length - d4}`);
       ok("c4: refresh/volver/reanudar no repite síntesis pagada", ttsCalls().length === n0, `${ttsCalls().length - n0} llamadas nuevas`);
       // matar el worker a mitad: episodio nuevo largo, se mata tras ~N llamadas, se reanuda
       const id2 = await createEpisode(s.p, { tag: "c4", title: "E2E caso 4 interrupción", conversation: true, script: convScript, voiceA: LEO, voiceB: ANA, nameA: "A", nameB: "B" });
