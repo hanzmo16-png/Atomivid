@@ -39,6 +39,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     insert: async () => null, load: (x) => load(service, x),
     authorize: async (x, usd) => { const { data } = await service.from(STUDIO_TABLE).update({ status: "authorized", authorized_usd: usd, authorized_at: new Date().toISOString(), error: null, updated_at: new Date().toISOString() }).eq("id", x).eq("user_id", user.id).in("status", ["draft", "failed"]).select("id"); return (data?.length ?? 0) === 1; },
     dispatch: (x) => dispatchPodcastJob(x, "studio"),
+    markStale: async (x, startedBefore) => {
+      const at = new Date().toISOString();
+      const { data } = await service.from(STUDIO_TABLE).update({ status: "failed", error: "La generación se interrumpió. Lo ya pagado se conserva y se reutiliza al reintentar; no se cobra dos veces.", updated_at: at })
+        .eq("id", x).eq("user_id", user.id).eq("status", "generating").or(`run_started_at.is.null,run_started_at.lt.${startedBefore}`).select("id");
+      if ((data?.length ?? 0) !== 1) return false;
+      await service.from("podcast_studio_operations").update({ state: "uncertain", updated_at: at }).eq("episode_id", x).eq("state", "reserved");
+      return true;
+    },
   }, id, body);
   return NextResponse.json(out.body, { status: out.status });
 }
