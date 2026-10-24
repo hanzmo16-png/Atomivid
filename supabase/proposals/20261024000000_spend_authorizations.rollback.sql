@@ -9,6 +9,7 @@ do $$ begin
   end if;
 end $$;
 drop function if exists public.pi_spend_authorization_usage(text, text);
+drop function if exists public.pi_recovery_resume_authorization(text, text);
 drop function if exists public.pi_open_spend_authorization(uuid, numeric, text);
 -- The table is kept (audit trail of authorizations); drop it manually only if it is empty.
 commit;

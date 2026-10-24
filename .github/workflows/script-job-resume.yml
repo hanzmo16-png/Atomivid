@@ -9,6 +9,7 @@ on:
       expected_error_code: { description: "Código de error que viste en la app", required: true, type: string }
       expected_retry_count: { description: "retry_count actual", required: true, type: string }
       confirm: { description: "Escribe RESUME-<primeros 8 caracteres del job>", required: true, type: string }
+      authorization_ref: { description: "authorization_ref de la fila durable en pi_recovery_resume_authorizations (obligatoria)", required: true, type: string }
 permissions:
   contents: write
 concurrency:
@@ -33,6 +34,7 @@ jobs:
           EXPECTED_ERROR_CODE: ${{ inputs.expected_error_code }}
           EXPECTED_RETRY_COUNT: ${{ inputs.expected_retry_count }}
           CONFIRM: ${{ inputs.confirm }}
+          AUTHORIZATION_REF: ${{ inputs.authorization_ref }}
       - name: Dispatch the normal script worker
         env:
           GH_TOKEN: ${{ github.token }}

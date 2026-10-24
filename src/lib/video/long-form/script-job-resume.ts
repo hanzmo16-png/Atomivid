@@ -12,7 +12,9 @@ import { resumeAuthorizationRefusal, type SpendAuthorization } from "@/lib/suppl
  * owner saw, a saved checkpoint, no live run token, and a compare-and-swap on updated_at. retry_count is kept
  * (audit trail; >0 also keeps the one-scene visual repair available). The authorisation is a typed confirmation.
  */
-export type ResumeRequest = { jobId: string; expectedErrorCode: string; expectedRetryCount: number; confirm: string };
+export type ResumeRequest = { jobId: string; expectedErrorCode: string; expectedRetryCount: number; confirm: string;
+  /** Ref of the durable row in pi_recovery_resume_authorizations (audit P0-1). Required; never inferred. */
+  authorizationRef?: string };
 export type ResumeRow = { id: string; status: string; failure_kind: string | null; error_code: string | null; retry_count: number; run_token: string | null; updated_at: string; editorial_checkpoint: unknown };
 
 export function resumeConfirmation(jobId: string): string { return `RESUME-${jobId.slice(0, 8)}`; }
@@ -39,7 +41,7 @@ export async function resumeScriptJob(service: SupabaseClient, req: ResumeReques
   const row = data as ResumeRow;
   // Stored spend authorization BEFORE requeueing (incident PR #194: the typed confirmation was the only gate, and
   // pi_submit_with_supply caps a documentary project only when a recovery budget row exists). Fail closed.
-  const authRefusal = await storedAuthorizationRefusal(service, row.id);
+  const authRefusal = await storedAuthorizationRefusal(service, row.id, req.authorizationRef);
   if (authRefusal) return { ok: false, reason: authRefusal };
   const { data: updated, error: updateError } = await service.from("documentary_script_jobs")
     .update({ status: "queued", run_token: null, failure_kind: null, error_code: null, error_message: null, stage: "En cola", updated_at: new Date().toISOString() })
@@ -49,7 +51,7 @@ export async function resumeScriptJob(service: SupabaseClient, req: ResumeReques
 }
 
 /** Reads the job's recovery budget (pi_recovery_budgets) and its usage (pi_recovery_budget_usage, read-only RPC). */
-export async function storedAuthorizationRefusal(service: SupabaseClient, jobId: string): Promise<string | null> {
+export async function storedAuthorizationRefusal(service: SupabaseClient, jobId: string, authorizationRef?: string): Promise<string | null> {
   const job = await service.from("documentary_script_jobs").select("user_id").eq("id", jobId).maybeSingle();
   if (job.error || !job.data) return "job owner could not be read";
   const b = await service.from("pi_recovery_budgets").select("project_id,owner_id,cap_usd,authorization_ref,status").eq("job_id", jobId).maybeSingle();
@@ -62,5 +64,16 @@ export async function storedAuthorizationRefusal(service: SupabaseClient, jobId:
     const d = u.data as { pendingUsd?: unknown; remainingUsd?: unknown } | null;
     if (!u.error && d) usage = { pendingUsd: Number(d.pendingUsd), remainingUsd: Number(d.remainingUsd) };
   }
-  return resumeAuthorizationRefusal(auth, (job.data as { user_id: string }).user_id, usage);
+  const refusal = resumeAuthorizationRefusal(auth, (job.data as { user_id: string }).user_id, usage);
+  if (refusal) return refusal;
+  // Audit P0-1: an ACTIVE, funded budget is not enough. A durable resume authorization must exist for
+  // (project_id, authorization_ref) with a transaction id. Production had 0 such rows for e8048599.
+  const ref = (authorizationRef ?? "").trim();
+  if (!ref) return "durable resume authorization missing: no authorization_ref given";
+  const r = await service.rpc("pi_recovery_resume_authorization", { p_project_id: auth!.projectId, p_authorization_ref: ref });
+  if (r.error) return "durable resume authorization could not be read";
+  const d = r.data as { authorized?: unknown; transactionId?: unknown } | null;
+  if (d?.authorized !== true || d.transactionId === null || d.transactionId === undefined || String(d.transactionId).trim() === "")
+    return "durable resume authorization missing in pi_recovery_resume_authorizations";
+  return null;
 }

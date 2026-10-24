@@ -103,8 +103,18 @@ echo "== T10 documentary: DB backstop on the PR #194 resume path"
 $Q -c "insert into public.documentary_script_jobs(id,user_id,input_hash,topic,status,retry_count,failure_kind) values ('$JOB','$U1','h','Walton','failed',3,'technical')" >/dev/null 2>&1 || \
 $Q -c "insert into public.documentary_script_jobs(id,user_id,input_hash,topic,status,retry_count) values ('$JOB','$U1','h','Walton','failed',3)"
 $Q -c "update public.documentary_script_jobs set status='queued' where id='$JOB'" >/dev/null 2>&1 && bad "T10 exhausted job requeued without budget" || ok "T10 exhausted job (retry_count 3) cannot be requeued without a recovery budget — even by service role SQL"
-$Q -c "select public.pi_open_recovery_budget('$JOB','$DPJ',0.60,'hans-test')" >/dev/null
-$Q -c "update public.documentary_script_jobs set status='queued' where id='$JOB'" >/dev/null 2>&1 && ok "T10 requeue allowed with ACTIVE recovery budget" || bad "T10 requeue with budget"
+$Q -c "select public.pi_open_recovery_budget('$JOB','$DPJ',0.60,'hans-2026-10-23-e8048599-150fb502')" >/dev/null
+echo "== T10b audit P0-1: e8048599 production state = budget ACTIVE, cap 0.60, funded, 0 durable resume authorizations"
+eq "$($Q -c "select status||' '||cap_usd::numeric(12,2) from public.pi_recovery_budgets where job_id='$JOB'")" "ACTIVE 0.60" "T10b budget ACTIVE and funded (cap 0.60)"
+eq "$($Q -c "select count(*) from public.pi_recovery_resume_authorizations where project_id='$DPJ'")" 0 "T10b 0 rows in pi_recovery_resume_authorizations (as in production)"
+eq "$(psql -U postgres -d $DB -qAt -c "set role service_role; select public.pi_recovery_resume_authorization('$DPJ','hans-2026-10-23-e8048599-150fb502')->>'authorized'")" false "T10b RPC (as service_role) reports no durable authorization => app refuses"
+$Q -c "update public.documentary_script_jobs set status='queued' where id='$JOB'" >/dev/null 2>&1 && bad "T10b requeued without durable authorization" || ok "T10b requeue REFUSED in the DB: ACTIVE funded budget without durable authorization (0 updates)"
+eq "$($Q -c "select status from public.documentary_script_jobs where id='$JOB'")" failed "T10b job still failed (0 updates)"
+eq "$($Q -c "select count(*) from public.pi_paid_operations where project_id='$DPJ'")" 0 "T10b 0 paid operations for the job"
+$Q -c "insert into public.pi_recovery_resume_authorizations(project_id,authorization_ref) values ('$DPJ','hans-resume-ok')" >/dev/null
+eq "$(psql -U postgres -d $DB -qAt -c "set role service_role; select (r->>'authorized')||' '||((r->>'transactionId') is not null) from (select public.pi_recovery_resume_authorization('$DPJ','hans-resume-ok') r) x")" "true true" "T10b with a durable row (transaction_id set) the RPC authorizes"
+eq "$(psql -U postgres -d $DB -qAt -c "set role service_role; select public.pi_recovery_resume_authorization('$DPJ','other-ref')->>'authorized'")" false "T10b a different authorization_ref does not match"
+$Q -c "update public.documentary_script_jobs set status='queued' where id='$JOB'" >/dev/null 2>&1 && ok "T10b requeue allowed with ACTIVE budget + durable authorization" || bad "T10b requeue with durable authorization"
 J2=e8048599-0000-4000-8000-000000000001
 $Q -c "insert into public.documentary_script_jobs(id,user_id,input_hash,topic,status,retry_count) values ('$J2','$U1','h2','x','failed',1)"
 $Q -c "update public.documentary_script_jobs set status='queued', retry_count=2 where id='$J2'" >/dev/null 2>&1 && ok "T10 normal «Reintentar» (retry_count<3) unchanged" || bad "T10 normal retry blocked"
@@ -119,6 +129,26 @@ op rb1 podcast-ffffffff-0000-4000-8000-000000000000 0.01 RESERVED; fresh; R1=$(s
 $Q -f "$MIG" >/dev/null 2>&1 && ok "T11 re-apply after rollback" || bad "T11 re-apply"
 op rb2 $PJ 1.00 RESERVED; eq "$(submit rb2)" "authorization exceeded" "T11 rule active again after re-apply (table kept, cap still enforced)"
 op rb3 podcast-eeeeeeee-0000-4000-8000-000000000000 0.01 RESERVED; eq "$(submit rb3)" "authorization missing" "T11 missing authorization refused again after re-apply"
+
+echo "== T12 privileges (audit P0-2): SECURITY DEFINER, search_path='', EXECUTE only service_role/postgres"
+for f in "pi_submit_with_supply(text,numeric)" "pi_submit_with_supply_pre_authz(text,numeric)" "pi_open_spend_authorization(uuid,numeric,text)" "pi_spend_authorization_usage(text,text)" "pi_recovery_resume_authorization(text,text)"; do
+  eq "$($Q -c "select prosecdef||' '||array_to_string(proconfig,',') from pg_proc where oid='public.$f'::regprocedure")" "true search_path=\"\"" "T12 $f SECURITY DEFINER + search_path=''"
+  eq "$($Q -c "select string_agg(r||'='||has_function_privilege(r,'public.$f','EXECUTE'),' ' order by r) from unnest(array['anon','authenticated','postgres','service_role']) r")" "anon=false authenticated=false postgres=true service_role=true" "T12 $f EXECUTE"
+  eq "$($Q -c "select count(*) from pg_proc p, aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a where p.oid='public.$f'::regprocedure and a.grantee=0")" 0 "T12 $f no PUBLIC grant"
+done
+for f in "pi_spend_authorization_guard()" "pi_documentary_resume_requires_budget()"; do
+  eq "$($Q -c "select array_to_string(proconfig,',')||' anon='||has_function_privilege('anon','public.$f','EXECUTE')||' authenticated='||has_function_privilege('authenticated','public.$f','EXECUTE')||' public='||(select count(*) from aclexplode(coalesce(proacl,acldefault('f',proowner))) a where a.grantee=0) from pg_proc where oid='public.$f'::regprocedure")" "search_path=\"\" anon=false authenticated=false public=0" "T12 trigger $f search_path='' and no client EXECUTE"
+done
+for r in anon authenticated; do
+  out=$(psql -U postgres -d $DB -qAt -c "set role $r; select public.pi_submit_with_supply('x',null)" 2>&1); echo "$out" | grep -q "permission denied" && ok "T12 $r calling pi_submit_with_supply => permission denied" || bad "T12 $r executed ($out)"
+  out=$(psql -U postgres -d $DB -qAt -c "set role $r; select public.pi_open_spend_authorization('$EP',1,'x')" 2>&1); echo "$out" | grep -q "permission denied" && ok "T12 $r calling pi_open_spend_authorization => permission denied" || bad "T12 $r executed open ($out)"
+  out=$(psql -U postgres -d $DB -qAt -c "set role $r; select count(*) from public.pi_spend_authorizations" 2>&1); echo "$out" | grep -q "permission denied" && ok "T12 $r cannot read pi_spend_authorizations" || bad "T12 $r read table ($out)"
+done
+op sr1 podcast-dddddddd-0000-4000-8000-000000000000 0.01 RESERVED
+eq "$(psql -U postgres -d $DB -qAt -c "set role service_role; select public.pi_submit_with_supply('sr1',null)->>'reason'")" "authorization missing" "T12 service_role executes pi_submit_with_supply (server path works, rule applies)"
+EP9=2a000000-0000-4000-8000-0000000000f9
+$Q -c "insert into public.podcast_episodes(id,user_id,title,source,script,voice_id,characters,estimated_usd) values ('$EP9','$U1','priv','tts','x','v',10,0.01)"
+eq "$(psql -U postgres -d $DB -qAt -c "set role service_role; select public.pi_open_spend_authorization('$EP9',0.5,'hans-sr')->>'opened'")" true "T12 service_role executes pi_open_spend_authorization"
 
 echo "RESULT $([ $FAILS = 0 ] && echo ALL PASS || echo "$FAILS FAIL")"
 exit $FAILS
