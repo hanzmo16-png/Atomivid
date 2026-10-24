@@ -3,12 +3,8 @@
     "deploymentEnabled": {
       "codex/provider-monitor-ready": false,
       "codex/internal-readiness-isolated": false,
-      "claude/video-review": false,
-      "claude/pilot-diag": false,
-      "ops-sealed-out": false,
-      "claude/pilot-deploy": false,
-      "claude/pilot-budget-total": false,
-      "claude/orchestrator-v1": false
+      "evidence/*": false,
+      "evidence/**": false
     }
   }
 }

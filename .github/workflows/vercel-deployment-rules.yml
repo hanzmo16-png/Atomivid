@@ -1,0 +1,18 @@
+# Checks vercel.json branch rules (evidence/* never deploys; production and development branches do). USD 0, no secrets.
+name: vercel-deployment-rules
+on:
+  push:
+    branches: [claude/vercel-evidence-sin-preview]
+    paths: [vercel.json, scripts/qa/vercel-deployment-rules.test.cjs, .github/workflows/vercel-deployment-rules.yml]
+permissions:
+  contents: read
+jobs:
+  rules:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund --ignore-scripts
+      - run: node --test scripts/qa/vercel-deployment-rules.test.cjs
