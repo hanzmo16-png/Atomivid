@@ -55,6 +55,8 @@ jobs:
           elif [ "$MODE" = "leonidas-plan" ]; then LONG_FORM_MAX_IMAGE_USD=${PLAN_MAX_IMAGE_USD:-5} LONG_FORM_MAX_TOTAL_USD=${PLAN_MAX_TOTAL_USD:-12} LONG_FORM_AI_VIDEO_ENABLED=true PREMIUM_CLIPS_ENABLED=true VIDEO_PROVIDER=veo PRICING_ELEVENLABS_USD_PER_1K_CHARS=0.2 npx tsx scripts/ops-leonidas-plan.ts > out.txt 2>&1
           elif [ "$MODE" = "image-compare" ]; then npx tsx scripts/ops-image-compare.ts > out.txt 2>&1
           elif [ "$MODE" = "recraft-probe" ]; then npx tsx scripts/ops-recraft-probe.ts > out.txt 2>&1
+          elif [ "$MODE" = "recraft-enable" ]; then npx tsx scripts/ops-recraft-enable.ts > out.txt 2>&1
+          elif [ "$MODE" = "music-ingest" ]; then sudo apt-get install -yq --no-install-recommends ffmpeg >/dev/null 2>&1; npx tsx scripts/ops-music-ingest.ts > out.txt 2>&1
           elif [ "$MODE" = "migrate-studio" ]; then npx tsx scripts/ops-migrate-studio.ts > out.txt 2>&1
           elif [ "$MODE" = "supply" ]; then npx tsx scripts/ops-supply-read.ts > out.txt 2>&1
           elif [ "$MODE" = "replay" ]; then REPLAY_CINEMATIC=true REPLAY_JOB=e8048599 npx tsx scripts/replay-documentary-job.ts > out.txt 2>&1

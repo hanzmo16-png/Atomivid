@@ -1,2 +1,4 @@
-MODE=recraft-probe
+MODE=music-ingest
+DRY=1
 REPLAY_REF=
+NOTE=dry validation only, no storage write
