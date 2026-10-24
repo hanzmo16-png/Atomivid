@@ -51,7 +51,7 @@ jobs:
           elif [ "$MODE" = "walton" ]; then ATOMIVID_RUNTIME=production SUPPLY_GUARD_ENFORCED=true PRICING_ELEVENLABS_USD_PER_1K_CHARS=0.2 npx tsx scripts/ops-walton.ts > out.txt 2>&1
           elif [ "$MODE" = "walton-verify" ]; then sudo apt-get install -yq --no-install-recommends ffmpeg >/dev/null 2>&1; npx tsx scripts/ops-walton-verify.ts > out.txt 2>&1
           elif [ "$MODE" = "leonidas-audit" ]; then npx tsx scripts/ops-leonidas-audit.ts > out.txt 2>&1
-          elif [ "$MODE" = "leonidas-plan" ]; then LONG_FORM_MAX_IMAGE_USD=${PLAN_MAX_IMAGE_USD:-5} PRICING_ELEVENLABS_USD_PER_1K_CHARS=0.2 npx tsx scripts/ops-leonidas-plan.ts > out.txt 2>&1
+          elif [ "$MODE" = "leonidas-plan" ]; then LONG_FORM_MAX_IMAGE_USD=${PLAN_MAX_IMAGE_USD:-5} LONG_FORM_MAX_TOTAL_USD=${PLAN_MAX_TOTAL_USD:-12} LONG_FORM_AI_VIDEO_ENABLED=true PREMIUM_CLIPS_ENABLED=true VIDEO_PROVIDER=veo PRICING_ELEVENLABS_USD_PER_1K_CHARS=0.2 npx tsx scripts/ops-leonidas-plan.ts > out.txt 2>&1
           elif [ "$MODE" = "migrate-studio" ]; then npx tsx scripts/ops-migrate-studio.ts > out.txt 2>&1
           elif [ "$MODE" = "supply" ]; then npx tsx scripts/ops-supply-read.ts > out.txt 2>&1
           elif [ "$MODE" = "replay" ]; then REPLAY_CINEMATIC=true REPLAY_JOB=e8048599 npx tsx scripts/replay-documentary-job.ts > out.txt 2>&1
