@@ -64,7 +64,46 @@ export function normalizeToContract<T extends z.ZodType>(schema: T, value: unkno
 export function extractJsonDocument(text: string): unknown {
   const t = text.replace(/^\uFEFF/, "").trim();
   const fenced = t.match(/^```(?:json|JSON)?[ \t]*\r?\n?([\s\S]*?)\r?\n?[ \t]*```$/);
-  return JSON.parse(fenced ? fenced[1] : t);
+  const doc = fenced ? fenced[1] : t;
+  try { return JSON.parse(doc); }
+  catch (error) {
+    const repaired = repairJsonSyntax(doc);
+    if (!repaired.rules.length) throw error;
+    const value = JSON.parse(repaired.text); // still invalid → the original rejection stands (caller maps it)
+    console.warn("[atomivid:documentary-format-normalized]", JSON.stringify(repaired.rules));
+    return value;
+  }
+}
+
+/**
+ * Incident 12045fcd (2026-10-23, job e8048599, visual plan of block 7): a complete answer (end_turn) carried one
+ * object key without quotes — `…,"place":"",era:"",…` — and the whole paid plan was unreadable. Two lossless,
+ * syntax-only repairs, applied by a string-aware scan and ONLY when the document does not parse as is:
+ *  - `unquoted_key`: an identifier in KEY position (right after `{` or `,`, immediately followed by `:`) is quoted;
+ *  - `trailing_comma`: a comma directly before `}` or `]` is removed.
+ * Nothing inside strings is touched, no value is invented, prose around a document is still refused, and a
+ * document that remains invalid after these two repairs keeps the original error. The stored response is unchanged.
+ */
+export function repairJsonSyntax(src: string): { text: string; rules: string[] } {
+  let out = "", inString = false, escaped = false, quoted = 0, commas = 0;
+  const lastSignificant = () => { for (let k = out.length - 1; k >= 0; k--) if (!/\s/.test(out[k])) return out[k]; return ""; };
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    if (inString) { out += c; if (escaped) escaped = false; else if (c === "\\") escaped = true; else if (c === '"') inString = false; continue; }
+    if (c === '"') { inString = true; out += c; continue; }
+    if (c === ",") {
+      let k = i + 1; while (k < src.length && /\s/.test(src[k])) k++;
+      if (src[k] === "}" || src[k] === "]") { commas++; continue; }
+      out += c; continue;
+    }
+    if (/[A-Za-z_$]/.test(c) && (lastSignificant() === "{" || lastSignificant() === ",")) {
+      let k = i; while (k < src.length && /[\w$]/.test(src[k])) k++;
+      let m = k; while (m < src.length && /\s/.test(src[m])) m++;
+      if (src[m] === ":") { out += `"${src.slice(i, k)}"`; quoted++; i = k - 1; continue; }
+    }
+    out += c;
+  }
+  return { text: out, rules: [...(quoted ? [`unquoted_key*${quoted}`] : []), ...(commas ? [`trailing_comma*${commas}`] : [])] };
 }
 
 /** Punto ÚNICO de aceptación para todos los contratos de micro-llamadas (revisión, reparaciones de apertura,

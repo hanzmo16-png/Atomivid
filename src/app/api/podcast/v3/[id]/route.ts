@@ -1,0 +1,52 @@
+import { NextResponse } from "next/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { podcastUser } from "@/lib/podcast/auth";
+import { listAccountVoices } from "@/lib/podcast/voices";
+import { authorizeAction } from "@/lib/podcast/v3/api";
+import { STUDIO_COLUMNS, STUDIO_TABLE, type StudioEpisodeRow } from "@/lib/podcast/v3/store";
+import { dispatchPodcastJob } from "@/lib/podcast/video-jobs";
+
+const enabled = () => process.env.PODCAST_V3_ENABLED === "1";
+const BUCKET = "videos";
+
+async function load(service: ReturnType<typeof createServiceClient>, id: string): Promise<StudioEpisodeRow | "missing" | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+  const { data, error } = await service.from(STUDIO_TABLE).select(STUDIO_COLUMNS).eq("id", id).maybeSingle();
+  if (error) return /does not exist|schema cache|42P01|PGRST205/.test(`${error.code} ${error.message}`) ? "missing" : null;
+  return data as StudioEpisodeRow | null;
+}
+
+/** Estado/progreso del episodio de estudio y enlaces de descarga firmados (solo el dueño). */
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const user = await podcastUser();
+  if ("error" in user) return NextResponse.json({ error: user.error }, { status: user.status });
+  const { id } = await params;
+  const service = createServiceClient();
+  const row = await load(service, id);
+  if (row === "missing") return NextResponse.json({ error: "Requiere la migración del estudio." }, { status: 503 });
+  if (!row || row.user_id !== user.id) return NextResponse.json({ error: "Episodio no encontrado." }, { status: 404 });
+  const sign = async (p: string | null, name: string) => {
+    if (!p || !p.startsWith(`${user.id}/podcast-studio/${row.id}/`)) return null;
+    const { data } = await service.storage.from(BUCKET).createSignedUrl(p, 3600, { download: name });
+    return data?.signedUrl ?? null;
+  };
+  const { spec: _spec, ...pub } = row;
+  return NextResponse.json({ episode: pub, video_url: row.status === "ready" ? await sign(row.video_path, `${row.title}.mp4`) : null,
+    audio_url: row.status === "ready" ? await sign(row.audio_path, `${row.title}.${row.audio_path?.split(".").pop() ?? "mp3"}`) : null });
+}
+
+/** Autorización explícita del cargo y despacho del trabajo (paso 10 del asistente). */
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const user = await podcastUser();
+  if ("error" in user) return NextResponse.json({ error: user.error }, { status: user.status });
+  const { id } = await params;
+  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+  const service = createServiceClient();
+  const out = await authorizeAction({
+    userId: user.id, viewer: user, voices: () => listAccountVoices(), enabled: enabled(), llm: null,
+    insert: async () => null, load: (x) => load(service, x),
+    authorize: async (x, usd) => { const { data } = await service.from(STUDIO_TABLE).update({ status: "authorized", authorized_usd: usd, authorized_at: new Date().toISOString(), error: null, updated_at: new Date().toISOString() }).eq("id", x).eq("user_id", user.id).in("status", ["draft", "failed"]).select("id"); return (data?.length ?? 0) === 1; },
+    dispatch: (x) => dispatchPodcastJob(x, "studio"),
+  }, id, body);
+  return NextResponse.json(out.body, { status: out.status });
+}

@@ -13,6 +13,7 @@ bg() { local name=$1; shift; setsid nohup "$@" > "$L/$name.log" 2>&1 & echo $! >
 PGURL="postgres://postgres@localhost:$PGPORT/atomivid?host=$E2E_HOME/run"
 # La PROPUESTA de migración se aplica SOLO a esta base local desechable (nunca a un proyecto real).
 psql -q -v ON_ERROR_STOP=1 "$PGURL" -f "$REPO/supabase/proposals/20261021200000_podcast_v2_production.sql" >/dev/null
+psql -q -v ON_ERROR_STOP=1 "$PGURL" -f "$REPO/supabase/proposals/20261023120000_podcast_v3_studio.sql" >/dev/null
 psql -q -v ON_ERROR_STOP=1 "$PGURL" -f "$HERE/seed-supply.sql" >/dev/null
 sed 's/^server-port = .*/server-port = 3201/' "$E2E_HOME/secrets/pgrst.conf" > "$E2E_HOME/secrets/pgrst-podcast.conf"
 bg postgrest "$E2E_HOME/bin/postgrest" "$E2E_HOME/secrets/pgrst-podcast.conf"
@@ -25,10 +26,10 @@ MUSIC=${PODCAST_MUSIC_DIR:-/workspace/reels-libro/musica}
 if [ ! -d "$MUSIC" ]; then MUSIC="$E2E_HOME/synth/musica"; mkdir -p "$MUSIC"
   (cd "$REPO" && npx tsx -e 'import { PODCAST_MUSIC_LIBRARY as L } from "./src/lib/podcast/v2/music"; console.log(L.map((t) => t.file).join("\n"))') | while read -r f; do if [ -n "$f" ] && [ ! -f "$MUSIC/$f" ]; then ffmpeg -nostdin -v error -y -f lavfi -i "sine=f=220:d=240,volume=0.3" -f lavfi -i "sine=f=330:d=240,volume=0.2" -filter_complex amix=inputs=2 -b:a 96k "$MUSIC/$f"; fi; [ -n "$f" ] && echo "$f — tono sintético de prueba generado por el arnés (sin derechos de terceros)"; done > "$MUSIC/LICENSES.md"; fi
 cd "$REPO"; set -a; . "$E2E_HOME/secrets/next.env"; set +a
-export NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54821 ELEVENLABS_API_KEY=local-fake-elevenlabs VOICE_PROVIDER=elevenlabs PODCAST_V2_ENABLED=1 \
+export NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54821 ELEVENLABS_API_KEY=local-fake-elevenlabs VOICE_PROVIDER=elevenlabs PODCAST_V2_ENABLED=1 PODCAST_V3_ENABLED=1 PODCAST_V3_PROVIDERS=mock \
   PRIVATE_VOICE_GRANTS="DuroPruebaLocal03=pilot-owner@local.test" AVATAR_PREPARATION_OWNER_EMAIL=intruso@local.test PODCAST_MUSIC_DIR=$MUSIC \
   MOCK_EL_URL=http://127.0.0.1:54870 MOCK_PEXELS_URL=http://127.0.0.1:54872 PEXELS_API_KEY=local-fake-pexels E2E_DISPATCH_URL=http://127.0.0.1:54871/ RENDER_WORKER=github-actions E2E_EGRESS_LOG="$L/egress.jsonl" NODE_OPTIONS="--require $INFRA/next-intercept.cjs" NEXT_TELEMETRY_DISABLED=1
-env | grep -E '^(NEXT_PUBLIC_SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY|NEXT_PUBLIC_SUPABASE_ANON_KEY|ELEVENLABS_API_KEY|PRIVATE_VOICE_GRANTS|PODCAST_V2_ENABLED|PODCAST_MUSIC_DIR|INTERNAL_PRODUCTION_OWNER_USER_ID|MOCK_EL_URL|MOCK_PEXELS_URL|PEXELS_API_KEY|NODE_OPTIONS|E2E_EGRESS_LOG)=' > "$E2E_HOME/secrets/podcast-worker.env"; chmod 600 "$E2E_HOME/secrets/podcast-worker.env"
+env | grep -E '^(NEXT_PUBLIC_SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY|NEXT_PUBLIC_SUPABASE_ANON_KEY|ELEVENLABS_API_KEY|PRIVATE_VOICE_GRANTS|PODCAST_V2_ENABLED|PODCAST_V3_ENABLED|PODCAST_V3_PROVIDERS|PODCAST_MUSIC_DIR|INTERNAL_PRODUCTION_OWNER_USER_ID|MOCK_EL_URL|MOCK_PEXELS_URL|PEXELS_API_KEY|NODE_OPTIONS|E2E_EGRESS_LOG)=' > "$E2E_HOME/secrets/podcast-worker.env"; chmod 600 "$E2E_HOME/secrets/podcast-worker.env"
 bg next npx next dev -p 3300 -H 127.0.0.1
 for i in $(seq 1 90); do curl -s -o /dev/null --max-time 120 http://127.0.0.1:3300/login && break; sleep 2; done
 curl -s -o /dev/null -w "next %{http_code}\n" --max-time 180 http://127.0.0.1:3300/login

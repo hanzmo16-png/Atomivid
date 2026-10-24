@@ -65,6 +65,8 @@ async function probeSeconds(p: string): Promise<number> {
 }
 
 async function main() {
+  // Podcast 3.0 (estudio): trabajo aparte, solo con PODCAST_V3_ENABLED=1; nunca toca podcast_episodes.
+  if (process.env.JOB_KIND === "studio") { const { runStudioJob } = await import("./podcast-3-0/studio-worker"); await runStudioJob(process.env.EPISODE_ID?.trim() ?? ""); return; }
   const kind = process.env.JOB_KIND === "narration" ? "narration" : process.env.JOB_KIND === "scheduler" ? "scheduler" : process.env.JOB_KIND === "notices" ? "notices" : "video";
   const { createServiceClient } = await import("../src/lib/supabase/service");
   const { EPISODE_COLUMNS } = await import("../src/lib/podcast/server");
