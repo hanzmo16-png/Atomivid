@@ -92,6 +92,9 @@ const MOTION_REQUIRED_BOOST = 0.25;
 // candidate even when it lacks the construction/human-action vocabulary
 // above. Static depictions (maps, paintings, models) must not qualify.
 const MARITIME_ACTION = /\b(?:rowing|sailing|ramming|colliding|boarding|oars cutting)\b/i;
+// Igual que la acción marítima: una escena DECLARADA en movimiento con una acción militar/ecuestre concreta (carga,
+// galope, choque de líneas, marcha, caballos que tropiezan) pierde su información en una imagen fija.
+const MILITARY_ACTION = /\b(?:gallop(?:ing|s)?|charg(?:e|es|ing)|clash(?:es|ing)?|marching|stumbl(?:e|es|ing)|jostling|stampede|surging)\b/i;
 const STATIC_DEPICTION = /\b(?:static|painting|illustration|model|miniature|photograph|map|diagram|relief|manuscript)\b/i;
 
 /** Umbral desde el cual se recomienda un clip de video-IA completo. */
@@ -175,7 +178,8 @@ export function scoreAiVideoEligibility(
   const maritimeMotion = input.motionRequired === true && MARITIME_ACTION.test(text) &&
     lowHits === 0 && !STATIC_DEPICTION.test(text);
   const heuristicScore = clamp01(BASE_SCORE + highHits * HIGH_SIGNAL_WEIGHT - lowHits * LOW_SIGNAL_WEIGHT + motionBoost);
-  const eligibilityScore = maritimeMotion ? Math.max(AI_VIDEO_SCORE_THRESHOLD, heuristicScore) : heuristicScore;
+  const militaryMotion = input.motionRequired === true && MILITARY_ACTION.test(text) && lowHits === 0 && !STATIC_DEPICTION.test(text);
+  const eligibilityScore = maritimeMotion || militaryMotion ? Math.max(AI_VIDEO_SCORE_THRESHOLD, heuristicScore) : heuristicScore;
 
   let recommendedAssetType: VisualAssetTier;
   let reason: string;

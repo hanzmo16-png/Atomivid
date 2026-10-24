@@ -5,6 +5,8 @@ import { inferTone } from "./tone";
 import { selectMusicTrack, seededIndex } from "./select";
 import { validateAudioBuffer } from "./validate";
 import { signMusicLibraryUrl } from "./storage";
+import { publishedPendingTracks } from "./pending";
+import { createHash } from "node:crypto";
 import {
   MusicDownloadError,
   MusicInvalidFileError,
@@ -82,7 +84,10 @@ export const curatedLibraryMusicProvider: MusicProvider = {
 
     if (MUSIC_MANIFEST.length > 0) {
       const tones = inferTone({ style, topic, scriptText });
-      const result = selectMusicTrack({ manifest: MUSIC_MANIFEST, tones, seed: selectionSeed });
+      const service = createServiceClient();
+      // Pistas pendientes (pending.ts): solo entran cuando su objeto ya está en el bucket con el tamaño fijado.
+      const catalog = [...MUSIC_MANIFEST, ...(await publishedPendingTracks(service))];
+      const result = selectMusicTrack({ manifest: catalog, tones, seed: selectionSeed });
       if (result.status === "empty") {
         throw new MusicNoMatchError();
       }
@@ -91,12 +96,14 @@ export const curatedLibraryMusicProvider: MusicProvider = {
       // La URL se firma bajo demanda, solo en este código de servidor, con
       // un TTL de máximo 1 hora — nunca se guarda ni se envía al navegador
       // una URL descargable permanente (ver storage.ts).
-      const service = createServiceClient();
       const signedUrl = await signMusicLibraryUrl(service, track.storagePath);
       const { audioBuffer, mimeType, extension } = await downloadAndValidate(
         signedUrl,
         track.title,
       );
+      if (track.sha256 && createHash("sha256").update(audioBuffer).digest("hex") !== track.sha256) {
+        throw new MusicInvalidFileError(`Archivo de "${track.title}" distinto del validado (sha256): no se usa.`);
+      }
 
       return {
         audioBuffer,
@@ -111,6 +118,7 @@ export const curatedLibraryMusicProvider: MusicProvider = {
           sourceUrl: track.sourceUrl,
           license: track.license,
           tones: track.tones,
+          ...(track.attribution ? { attribution: track.attribution } : {}),
         },
       };
     }
