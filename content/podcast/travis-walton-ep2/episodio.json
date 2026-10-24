@@ -1,0 +1,21 @@
+{
+  "_nota": "Configuración PROPUESTA del episodio. NO está en la base de datos de producción. Crear el episodio y abrir la autorización solo con aprobación de Hans.",
+  "title": "Crónicas y Misterios del Universo — Ep. 2: Travis Walton, lo que dicen los polígrafos",
+  "flow": "podcast 1.x (un solo narrador, source=tts) — NO Podcast 2.x/3.0",
+  "language": "es",
+  "script_file": "content/podcast/travis-walton-ep2/guion.txt",
+  "voice": { "voice_id": "<elegir en la app: voz David u otra de la cuenta>", "model_id": "eleven_multilingual_v2" },
+  "estimate": { "characters": 16849, "chunks": 2, "chunk_chars": [8931, 7918], "max_chars_per_call": 9000, "usd_per_1k_chars_real": 0.2, "usd": 3.3698, "run_upper_bound_usd": 3.37, "minutes_at_14_cps": 20.1 },
+  "budget": { "budget_usd": 3.40, "run_budget_usd": 3.40, "spend_authorization": { "rpc": "pi_open_spend_authorization", "cap_usd": 3.40, "authorization_ref": "hans-2026-10-walton-ep2" } },
+  "elevenlabs_calls": { "needed": 2, "worst_case_with_one_retry_each": 4, "daily_limit_enforced": 14 },
+  "output": { "master": "episode.m4a (AAC, solo audio)", "derived_free": ["episode.mp3", "episode.wav"], "video": false, "images": false, "avatar": false },
+  "sources": [
+    { "title": "Carta de Cy Gilson a Jerry Black, polígrafo de Travis Walton (4 feb 1993)", "url": "https://www.nicap.org/reports2/Cy_Gilson_Polygraph_Test_of_Travis_Walton.pdf" },
+    { "title": "Philip J. Klass, expediente del caso Walton (1976), con UFO Investigator jun 1976 y respuesta de APRO", "url": "https://debunker.com/historical/KlassContraWalton.pdf" }
+  ],
+  "verification_notes": [
+    "Ambas fuentes son copias publicadas por terceros (indicado en el guion).",
+    "Las citas de McCarthy, Ezell, Pfeifer, Gilson (1976), Kandell y Marchbanks provienen de entrevistas de Klass; el guion las atribuye.",
+    "Los resultados de Rogers (.990) y Dalis (.993) en 1993 los da Walton en la misma página; el guion lo aclara."
+  ]
+}

@@ -105,13 +105,22 @@ test("owner resume is fail-closed: exact code, retry count, confirmation, failed
   assert.ok(resumeRefusal(req, null));
 });
 
-test("owner resume requeues once with compare-and-swap and keeps retry_count", async () => {
-  let current = row(); const patches: Record<string, unknown>[] = [];
-  const svc = { from: () => {
+const OWNER = "d2064950-0000-4000-8000-000000000000";
+type Budget = { project_id: string; owner_id: string; cap_usd: number; authorization_ref: string; status: string } | null;
+type Durable = { authorized: boolean; transactionId: number | string | null };
+const DURABLE_OK: Durable = { authorized: true, transactionId: 777 };
+function resumeSvc(budget: Budget, usage: { pendingUsd: number; remainingUsd: number } = { pendingUsd: 0, remainingUsd: 0.5 }, durable: Durable = DURABLE_OK) {
+  let current = row(); const patches: Record<string, unknown>[] = []; const rpcCalls: string[] = []; let paidCalls = 0;
+  const svc = { rpc: async (fn: string, args: Record<string, unknown>) => {
+    rpcCalls.push(fn);
+    if (fn === "pi_recovery_resume_authorization") return { data: args.p_authorization_ref === "hans-resume-ok" ? durable : { authorized: false, transactionId: null }, error: null };
+    if (fn === "pi_recovery_budget_usage") return { data: usage, error: null };
+    paidCalls++; return { data: null, error: { message: "unexpected" } };
+  }, from: (table: string) => {
     const q: Record<string, unknown> & { filters: [string, unknown][]; patch?: Record<string, unknown> } = { filters: [] } as never;
     const api = {
       select: () => api, eq: (k: string, v: unknown) => { q.filters.push([k, v]); return api; },
-      maybeSingle: async () => ({ data: current, error: null }),
+      maybeSingle: async () => ({ data: table === "pi_recovery_budgets" ? budget : { ...current, user_id: OWNER }, error: null }),
       update: (p: Record<string, unknown>) => { q.patch = p; return api; },
       then: (resolve: (v: unknown) => void) => {
         const match = q.filters.every(([k, v]) => (current as never)[k] === v);
@@ -121,10 +130,44 @@ test("owner resume requeues once with compare-and-swap and keeps retry_count", a
     };
     return api;
   } } as never;
-  assert.deepEqual(await resumeScriptJob(svc, req), { ok: true });
+  return { svc, get current() { return current; }, patches, rpcCalls, get paidCalls() { return paidCalls; } };
+}
+const BUDGET = { project_id: "documentary:x:y", owner_id: OWNER, cap_usd: 0.6, authorization_ref: "hans-test", status: "ACTIVE" };
+const reqAuth = { ...req, authorizationRef: "hans-resume-ok" };
+
+test("audit P0-1: ACTIVE funded budget (e8048599 prod state) WITHOUT a durable resume authorization => refused, 0 updates, 0 paid calls", async () => {
+  const prod = { ...BUDGET, cap_usd: 0.6, authorization_ref: "hans-2026-10-23-e8048599-150fb502" };
+  const cases: [typeof req & { authorizationRef?: string }, Durable, RegExp][] = [
+    [req, DURABLE_OK, /no authorization_ref/],                                              // no ref supplied
+    [{ ...req, authorizationRef: "hans-2026-10-23-e8048599-150fb502" }, DURABLE_OK, /missing in pi_recovery_resume_authorizations/], // 0 rows (prod)
+    [reqAuth, { authorized: true, transactionId: null }, /missing/],                        // row without transaction id
+    [reqAuth, { authorized: true, transactionId: "  " }, /missing/],
+  ];
+  for (const [r0, durable, why] of cases) {
+    const t = resumeSvc(prod, { pendingUsd: 0, remainingUsd: 0.5589 }, durable);
+    const r = await resumeScriptJob(t.svc, r0);
+    assert.equal(r.ok, false); assert.match((r as { reason: string }).reason, why);
+    assert.equal(t.patches.length, 0, "0 updates"); assert.equal(t.current.status, "failed"); assert.equal(t.paidCalls, 0, "0 paid calls");
+  }
+});
+
+test("resume WITHOUT a stored spend authorization is refused and modifies nothing (incident PR #194)", async () => {
+  for (const [budget, usage, why] of [[null, undefined, "no stored"], [{ ...BUDGET, status: "CLOSED" }, undefined, "closed"], [{ ...BUDGET, owner_id: "other" }, undefined, "another owner"],
+    [BUDGET, { pendingUsd: 0, remainingUsd: 0 }, "exhausted"], [BUDGET, { pendingUsd: 0.01, remainingUsd: 0.5 }, "uncertain"]] as const) {
+    const t = resumeSvc(budget as Budget, usage as never);
+    const r = await resumeScriptJob(t.svc, reqAuth);
+    assert.equal(r.ok, false); assert.match((r as { reason: string }).reason, new RegExp(why));
+    assert.equal(t.patches.length, 0, "nothing requeued"); assert.equal(t.current.status, "failed");
+  }
+});
+
+test("owner resume requeues once with compare-and-swap and keeps retry_count", async () => {
+  const t = resumeSvc(BUDGET); const svc = t.svc; const patches = t.patches;
+  assert.deepEqual(await resumeScriptJob(svc, reqAuth), { ok: true });
+  const current = t.current;
   assert.equal(current.status, "queued"); assert.equal(current.retry_count, 3);
   assert.equal(patches.length, 1); assert.ok(!("retry_count" in patches[0]));
-  const again = await resumeScriptJob(svc, req);
+  const again = await resumeScriptJob(svc, reqAuth);
   assert.equal(again.ok, false, "a second resume is refused: the job is no longer failed");
 });
 
