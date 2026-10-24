@@ -3,7 +3,7 @@ name: spend-authorization-postgres
 # from the repo migrations and verifies it (missing authorization, caps, uncertain charges, race, rollback).
 on:
   pull_request:
-    paths: ["supabase/**", "scripts/qa/spend-authorization-*.sh", ".github/workflows/spend-authorization-postgres.yml"]
+    paths: ["supabase/**", "scripts/qa/spend-authorization-*.sh", "src/lib/supply/**", "src/lib/podcast/**", "src/lib/paid-calls/**", "src/lib/video/long-form/script-job-resume.ts", ".github/workflows/spend-authorization-postgres.yml"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -14,6 +14,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0, persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Free app tests (mocked providers, no network)
+        run: node --import tsx --test src/lib/supply/spend-authorization.test.ts src/lib/video/long-form/long-form-15min-readiness.test.ts
       - name: Disposable PostgreSQL + proposal verification
         run: bash scripts/qa/spend-authorization-db.sh "$RUNNER_TEMP/pgsa" 55901 2>&1 | tee spend-authorization-postgres.log; test "${PIPESTATUS[0]}" = 0
       - uses: actions/upload-artifact@v4
