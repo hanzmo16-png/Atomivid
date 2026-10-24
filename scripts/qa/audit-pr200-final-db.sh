@@ -19,7 +19,18 @@ if [ -n "${SCHEMA_SQL:-}" ]; then
   $PS -d $DB -c "create schema if not exists extensions; create extension if not exists pgcrypto with schema extensions; create extension if not exists \"uuid-ossp\" with schema extensions" >/dev/null 2>&1 || true
   psql -h $W/run -p $P -U postgres -q -d $DB -v ON_ERROR_STOP=0 -f "$SCHEMA_SQL" > "$W/logs/restore.log" 2>&1 || true
   echo "NOTICE production schema restored ($(grep -c ERROR "$W/logs/restore.log") restore errors: $(grep ERROR "$W/logs/restore.log" | sed 's/.*ERROR: *//' | sort | uniq -c | head -3 | tr '\n' ';'))"
-  $PS -d $DB -f "$R/scripts/harness/e2e/infra/seed-config.sql" >/dev/null 2>"$W/logs/seed.err" || { echo "NOTICE seed-config partially applied: $(head -2 "$W/logs/seed.err")"; }
+  # a schema-only dump has no rows: replay the provider-account / supply-policy rows the repo migrations seed (data, not DDL), then the harness seed
+  python3 -I - "$R/supabase/migrations" > "$W/run/policy-seed.sql" <<'PY'
+import os, re, sys
+d = sys.argv[1]
+for f in sorted(os.listdir(d)):
+    if f.endswith(".sql"):
+        for m in re.finditer(r"insert\s+into\s+public\.(?:pi_provider_accounts|pi_supply_policies)\b.*?;", open(os.path.join(d, f)).read(), re.I | re.S):
+            print(m.group(0))
+PY
+  for pass in 1 2; do $PS -d $DB -v ON_ERROR_STOP=0 -f "$W/run/policy-seed.sql" >/dev/null 2>"$W/logs/policy-seed.err" || true; done  # twice: FK order
+  echo "NOTICE seeded from migrations: $($PS -qAt -d $DB -c "select count(*) from public.pi_provider_accounts") provider accounts, $($PS -qAt -d $DB -c "select count(*) from public.pi_supply_policies") supply policies"
+  $PS -d $DB -f "$R/scripts/harness/e2e/infra/seed-config.sql" >/dev/null 2>"$W/logs/seed.err" || { echo "FAIL seed-config on the production schema: $(head -2 "$W/logs/seed.err")"; exit 1; }
   for n in 20261024000000_spend_authorizations 20261024120000_resume_authorization_ref_match 20261024130000_spend_authorization_baseline_fix 20261024140000_podcast_v3_studio; do
     if [ "$n" = 20261024000000_spend_authorizations ] && [ "$($PS -qAt -d $DB -c "select to_regprocedure('public.pi_open_spend_authorization(uuid,numeric,text)') is not null")" = t ]; then echo "skip proposal $n (already in production)"; continue; fi
     echo "apply proposal $n"; $PS -d $DB -f "$R/supabase/proposals/$n.sql" >/dev/null; done
