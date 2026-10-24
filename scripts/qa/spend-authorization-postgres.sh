@@ -114,7 +114,15 @@ eq "$($Q -c "select count(*) from public.pi_paid_operations where project_id='$D
 $Q -c "insert into public.pi_recovery_resume_authorizations(project_id,authorization_ref) values ('$DPJ','hans-resume-ok')" >/dev/null
 eq "$(psql -U postgres -d $DB -qAt -c "set role service_role; select (r->>'authorized')||' '||((r->>'transactionId') is not null) from (select public.pi_recovery_resume_authorization('$DPJ','hans-resume-ok') r) x")" "true true" "T10b with a durable row (transaction_id set) the RPC authorizes"
 eq "$(psql -U postgres -d $DB -qAt -c "set role service_role; select public.pi_recovery_resume_authorization('$DPJ','other-ref')->>'authorized'")" false "T10b a different authorization_ref does not match"
-$Q -c "update public.documentary_script_jobs set status='queued' where id='$JOB'" >/dev/null 2>&1 && ok "T10b requeue allowed with ACTIVE budget + durable authorization" || bad "T10b requeue with durable authorization"
+# A/B (budget ref A, durable row only for ref B): the app refuses it (script-job-resume.ts, A/B test in long-form-15min-readiness).
+# At the DB layer the trigger still joins by project only; the fix is reserved to the DB-layer owner (proposal branch
+# claude/pr199-resume-ref-trigger-proposal, Postgres T10c). Probed in a rolled-back transaction and reported as PENDING —
+# never counted as a pass, never as a success of the requeue.
+ab=$($Q -c "begin; update public.documentary_script_jobs set status='queued' where id='$JOB' returning 1; rollback;" 2>/dev/null | head -1)
+[ "$ab" = 1 ] && echo "PENDING T10c DB layer: trigger still accepts a durable row for ANOTHER authorization_ref (A/B) — fix in claude/pr199-resume-ref-trigger-proposal (DB-layer owner); app layer refuses" || ok "T10c DB layer refuses A/B"
+eq "$($Q -c "select status from public.documentary_script_jobs where id='$JOB'")" failed "T10b job still failed after the A/B probe (rolled back, 0 updates)"
+$Q -c "insert into public.pi_recovery_resume_authorizations(project_id,authorization_ref) values ('$DPJ','hans-2026-10-23-e8048599-150fb502')" >/dev/null
+$Q -c "update public.documentary_script_jobs set status='queued' where id='$JOB'" >/dev/null 2>&1 && ok "T10b requeue allowed with ACTIVE budget + durable authorization for the SAME ref (A/A)" || bad "T10b requeue with durable authorization (A/A)"
 J2=e8048599-0000-4000-8000-000000000001
 $Q -c "insert into public.documentary_script_jobs(id,user_id,input_hash,topic,status,retry_count) values ('$J2','$U1','h2','x','failed',1)"
 $Q -c "update public.documentary_script_jobs set status='queued', retry_count=2 where id='$J2'" >/dev/null 2>&1 && ok "T10 normal «Reintentar» (retry_count<3) unchanged" || bad "T10 normal retry blocked"
