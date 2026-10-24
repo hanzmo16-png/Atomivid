@@ -10,9 +10,10 @@ import { createHash } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 const log = (t: string, v: unknown) => console.log(t, JSON.stringify(v));
+// Pinned in the DRY run 40060790977 (content/music/pending-epic-tracks.json). Only instrumental tracks are ingested.
 const TRACKS = [
-  { path: "silverman-passage-of-arms.mp3", url: "https://www.silvermansound.com/wp-content/uploads/passage-of-arms.mp3" },
-  { path: "silverman-the-fall-of-heroes.mp3", url: "https://www.silvermansound.com/wp-content/uploads/the-fall-of-heroes.mp3" },
+  { path: "silverman-passage-of-arms.mp3", url: "https://www.silvermansound.com/wp-content/uploads/passage-of-arms.mp3",
+    sha256: "edb3ae718e4be6fed678cfc55b0ae5c5f17b5c693e01a2eb09f4fc44e0f6aabd", bytes: 5126186 },
 ];
 const sha = (b: Buffer) => createHash("sha256").update(b).digest("hex");
 function looksMp3(b: Buffer) { return b.subarray(0, 3).toString("latin1") === "ID3" || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0); }
@@ -29,12 +30,22 @@ async function main() {
     const buf = Buffer.from(await res.arrayBuffer());
     const tmp = `/tmp/${t.path}`; await writeFile(tmp, buf);
     const dur = durationSec(tmp);
-    const ok = res.ok && looksMp3(buf) && buf.length > 1e6 && buf.length < 15e6 && (dur === null || (dur >= 90 && dur <= 200));
+    // The download must be EXACTLY the validated file (pinned sha256/bytes): a changed upstream file is never ingested.
+    const ok = res.ok && looksMp3(buf) && buf.length === t.bytes && sha(buf) === t.sha256 && (dur === null || (dur >= 90 && dur <= 200));
     const { data: existing } = await db.storage.from("music-library").list("", { search: t.path });
     const already = (existing ?? []).some((o) => o.name === t.path);
     log("MUSIC", { path: t.path, http: res.status, bytes: buf.length, mp3: looksMp3(buf), durationSec: dur, sha256: sha(buf), already, ok });
     if (!ok) throw Error(`validation failed for ${t.path}`);
-    if (dry || already) continue;
+    if (already) {
+      // Retry after a previous (possibly interrupted) ingest: never a second object, never an overwrite; the existing
+      // object must be byte-identical to the pinned file, otherwise stop (the catalog only publishes the pinned size).
+      const cur = await db.storage.from("music-library").download(t.path);
+      const same = cur.data ? sha(Buffer.from(await cur.data.arrayBuffer())) === t.sha256 : false;
+      log("MUSIC", { path: t.path, alreadyPresent: true, identicalToPinned: same });
+      if (!same) throw Error(`existing object ${t.path} differs from the pinned file`);
+      continue;
+    }
+    if (dry) continue;
     const up = await db.storage.from("music-library").upload(t.path, buf, { contentType: "audio/mpeg", upsert: false });
     if (up.error) throw Error(`upload ${t.path}: ${up.error.message}`);
     const back = await db.storage.from("music-library").download(t.path);
