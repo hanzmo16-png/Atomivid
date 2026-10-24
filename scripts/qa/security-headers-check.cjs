@@ -42,7 +42,7 @@ const rec = (name, ok, detail) => { rows.push({ name, ok: !!ok, detail }); if (!
   // 3. Violaciones de CSP en las páginas.
   for (const [dev, opt] of Object.entries({ samsung: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, desktop: { viewport: { width: 1440, height: 900 } } })) {
     const ctx = await browser.newContext(opt); const p = await ctx.newPage(); const enforced = [], reportOnly = [];
-    p.on("console", (m) => { const t = m.text(); if (!/Content Security Policy/i.test(t)) return; (/report-only/i.test(t) ? reportOnly : enforced).push(t.slice(0, 220)); });
+    p.on("console", (m) => { const t = m.text(); if (!/Content Security Policy/i.test(t)) return; (/report[- ]only/i.test(t) ? reportOnly : enforced).push(t.slice(0, 220)); });
     const routes = [...PUBLIC];
     if (process.env.SECURITY_LOGIN_EMAIL) {
       await p.goto(`${BASE}/login`); await p.fill("input[name=email]", process.env.SECURITY_LOGIN_EMAIL); await p.fill("input[name=password]", process.env.SECURITY_LOGIN_PASSWORD ?? "");
@@ -80,7 +80,7 @@ const rec = (name, ok, detail) => { rows.push({ name, ok: !!ok, detail }); if (!
     await ctx.route(/^https:\/\/([a-z0-9-]+\.)*(supabase\.co|sentry\.io|stripe\.com|google\.com|evil\.example)\//, stub("stub local"));
     const run = async (name, expect, fn) => {
       const p = await ctx.newPage(); const console_ = [];
-      p.on("console", (m) => { const x = m.text(); if (/Content Security Policy/i.test(x)) console_.push({ report: /report-only/i.test(x), text: x.slice(0, 240) }); });
+      p.on("console", (m) => { const x = m.text(); if (/Content Security Policy/i.test(x)) console_.push({ report: /report[- ]only/i.test(x), text: x.slice(0, 240) }); });
       await p.goto(t.base + (t.page ?? "/login"), { waitUntil: "domcontentloaded" });
       await p.evaluate(() => { window.__v = []; document.addEventListener("securitypolicyviolation", (e) => window.__v.push({ d: e.effectiveDirective, disp: e.disposition, uri: e.blockedURI })); });
       let after = null; try { after = await fn(p); } catch (e) { after = { err: String(e).slice(0, 160) }; }
