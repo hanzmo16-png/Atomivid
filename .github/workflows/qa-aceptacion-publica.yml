@@ -1,0 +1,33 @@
+# Auditoría PÚBLICA de solo lectura de https://atomicvid.app (T-20261024 QA-INTERFAZ). USD 0: sin secretos, sin sesión,
+# sin formularios enviados. Capturas Samsung 390x844 y escritorio 1440x900 como artefacto + resumen en anotaciones.
+name: qa-aceptacion-publica
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/qa-aceptacion-ux]
+    paths: [".github/workflows/qa-aceptacion-publica.yml", "scripts/qa/public-readonly.cjs"]
+permissions:
+  contents: read
+jobs:
+  public:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm install --no-save --no-audit --no-fund playwright@1.48.2 && npx playwright install --with-deps chromium
+      - name: Páginas públicas y redirecciones (solo lectura)
+        run: |
+          OUT=public-out node scripts/qa/public-readonly.cjs | tee public.log; code=${PIPESTATUS[0]}
+          # Una sola anotación con todo el resumen (GitHub limita el número de anotaciones por paso).
+          echo "::notice title=qa-aceptacion-publica::$(grep -E '^(PASS|FAIL|RESULTADO)' public.log | cut -c1-260 | sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g')"
+          exit $code
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-aceptacion-publica
+          retention-days: 14
+          path: |
+            public-out
+            public.log

@@ -1,0 +1,98 @@
+# Aceptación de usuario desde la interfaz (docs/qa-aceptacion/CHECKLIST.md). USD 0: no usa ningún secreto del repositorio;
+# todo corre en 127.0.0.1 (PG local, PostgREST, gateway, mocks de Anthropic/OpenAI/ElevenLabs/Pexels, worker de prueba).
+# next-intercept.cjs rechaza y registra toda salida no local. Samsung 390x844 y escritorio 1440x900.
+#  - Batería del banco base (Reel, Long Form, Podcast sin voces) y del banco de podcast (crear → narrar → descargar).
+#  - Reproducción del defecto P1-1 (Recraft en móvil): FALLA mientras exista; no bloquea el job (continue-on-error).
+name: qa-aceptacion-ux
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [claude/atomivid-mvp-setup-0079jv]
+    paths:
+      - ".github/workflows/qa-aceptacion-ux.yml"
+      - "scripts/harness/e2e/**"
+      - "docs/qa-aceptacion/**"
+      - "src/app/dashboard/**"
+      - "src/app/api/**"
+      - "src/components/**"
+      - "next.config.*"
+permissions:
+  contents: read
+concurrency:
+  group: qa-aceptacion-ux-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  aceptacion:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CI: "1"
+      E2E_HOME: ${{ github.workspace }}/.e2e-local
+      E2E_PGPORT: "55532"
+      E2E_TIMEOUT: "3000"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - name: Dependencias del sistema
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -yq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -yq postgresql-17 espeak-ng ffmpeg xz-utils
+          sudo systemctl stop postgresql || true
+          echo "PG_BIN=/usr/lib/postgresql/17/bin" >> "$GITHUB_ENV"
+      - run: npm ci --no-audit --no-fund
+      - name: Arnés local
+        run: bash scripts/harness/e2e/infra/setup.sh
+      - name: Entorno base (Next 3100)
+        run: bash scripts/harness/e2e/infra/start.sh
+      - name: Batería de aceptación — banco base (Reel, Long Form, Podcast sin voces, público local)
+        run: |
+          set +e; E2E_SCRIPT=qa-aceptacion/acceptance.cjs bash scripts/harness/e2e/infra/run-e2e.sh qa-base; code=$?
+          [ "$code" = 124 ] && echo "::error::qa-base: TIMEOUT de la batería (E2E_TIMEOUT) — no hay PASS parcial"
+          grep -q '^RESULTADO' "$E2E_HOME/out/qa-base.log" || { echo "::error::qa-base: la batería terminó sin RESULTADO"; [ "$code" = 0 ] && code=1; }
+          exit $code
+      - name: Reproducción P1-1 (Recraft en móvil) — falla mientras el defecto exista
+        id: p11
+        continue-on-error: true
+        run: |
+          E2E_SCRIPT=qa-aceptacion/recraft-mobile-repro.cjs bash scripts/harness/e2e/infra/run-e2e.sh recraft-repro
+      - name: Banco de podcast (mock ElevenLabs, Next 3300)
+        run: |
+          pkill -f "next dev -p 3100" || true; sleep 3
+          bash scripts/harness/e2e/podcast/start.sh
+          # Descarga íntegra OBLIGATORIA en 390x844 y 1440x900 (sha256 = BD = objeto almacenado). Espera acotada por
+          # episodio (QA_PODCAST_READY_TIMEOUT_MS) y por batería (E2E_TIMEOUT); agotar cualquiera de las dos es FAIL explícito.
+          set +e
+          E2E_BASE=http://127.0.0.1:3300 QA_FLOWS=podcast QA_REQUIRE_PODCAST_DOWNLOAD=1 QA_PODCAST_READY_TIMEOUT_MS=240000 E2E_TIMEOUT=1500 \
+            E2E_SCRIPT=qa-aceptacion/acceptance.cjs bash scripts/harness/e2e/infra/run-e2e.sh qa-podcast; code=$?
+          [ "$code" = 124 ] && echo "::error::qa-podcast: TIMEOUT de la batería (E2E_TIMEOUT=1500 s) — no hay PASS parcial"
+          grep -q '^RESULTADO' "$E2E_HOME/out/qa-podcast.log" || { echo "::error::qa-podcast: la batería terminó sin RESULTADO"; [ "$code" = 0 ] && code=1; }
+          n=$(grep -cE '^PASS  \[(samsung|desktop)\] Podcast: descarga desde la UI íntegra' "$E2E_HOME/out/qa-podcast.log")
+          [ "$n" = 2 ] || { echo "::error::qa-podcast: descarga íntegra verificada en $n de 2 dispositivos"; [ "$code" = 0 ] && code=1; }
+          exit $code
+      - name: Ningún proveedor real contactado
+        if: always()
+        run: |
+          f="$E2E_HOME/logs/egress.jsonl"; [ -f "$f" ] || exit 0
+          grep '"egress_refused"' "$f" | sort -u || true
+          if grep '"egress_refused"' "$f" | grep -Eiq 'elevenlabs|pexels|fal\.(ai|run)|openai|anthropic|recraft|heygen|d-id|supabase\.co|stripe'; then
+            echo "::error::intento de salida hacia un proveedor real"; exit 1; fi
+      - name: Resumen
+        if: always()
+        run: |
+          s=""; for t in qa-base recraft-repro qa-podcast; do f="$E2E_HOME/out/$t.log"; [ -f "$f" ] && s="$s$t: $(grep -E '^RESULTADO' "$f" | tail -1)%0A"; done
+          x=$(grep -hE '^(FAIL|XFAIL|XPASS)' "$E2E_HOME"/out/*.log 2>/dev/null | cut -c1-200 | sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g')
+          echo "::notice title=qa-aceptacion-ux::${s}P1-1 reproducción: ${{ steps.p11.outcome }}%0A$x"
+      - name: Evidencia (capturas, resúmenes, registros; sin secretos)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-aceptacion-ux
+          retention-days: 14
+          path: |
+            .e2e-local/out/qa-base
+            .e2e-local/out/qa-podcast
+            .e2e-local/out/recraft-repro
+            .e2e-local/out/*.log
