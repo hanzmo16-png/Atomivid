@@ -55,6 +55,11 @@ export type MusicTrackEntry = {
    * "pixabay-335162-upbeat-corporate-inspiring.mp3".
    */
   storagePath: string;
+  /** Crédito exacto cuando la licencia lo exige (CC BY 4.0): va en la descripción del video. */
+  attribution?: string;
+  /** Huella fijada en la ingesta: el audio descargado debe coincidir (pistas publicadas tras ingesta, ver pending.ts). */
+  sha256?: string;
+  bytes?: number;
 };
 
 // Primeras dos pistas reales del banco, verificadas y subidas manualmente

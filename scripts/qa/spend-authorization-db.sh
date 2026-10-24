@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # USD 0. Builds a DISPOSABLE PostgreSQL cluster (temp dir, own port, unix socket) from the repo migrations, then runs
 # scripts/qa/spend-authorization-postgres.sh against it and stops the cluster. Never touches any other database.
-# Usage: bash scripts/qa/spend-authorization-db.sh [workdir] [port]
+# Usage: bash scripts/qa/spend-authorization-db.sh [workdir] [port] [test script (default: spend-authorization-postgres.sh)]
 set -euo pipefail
-R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel); W=${1:-$(mktemp -d)}; P=${2:-55901}
+R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel); W=${1:-$(mktemp -d)}; P=${2:-55901}; T=${3:-$R/scripts/qa/spend-authorization-postgres.sh}
 PB=${PG_BIN:-$( (pg_config --bindir 2>/dev/null) || ls -d /usr/lib/postgresql/*/bin | sort -V | tail -1)}
 mkdir -p "$W/logs" "$W/run"
 "$PB/initdb" -D "$W/pg" -U postgres --auth=trust >/dev/null
@@ -23,4 +23,4 @@ d23=0; for f in $(ls "$R"/supabase/migrations/*.sql | sort); do b=$(basename "$f
 done
 $PS -d atomivid_sa -f "$R/scripts/harness/e2e/infra/seed-config.sql" >/dev/null
 echo "base schema: $(ls "$R"/supabase/migrations/*.sql | wc -l) migrations, postgres $("$PB/postgres" --version)"
-PGHOST=$W/run PGPORT=$P DB=atomivid_sa bash "$R/scripts/qa/spend-authorization-postgres.sh"
+PGHOST=$W/run PGPORT=$P DB=atomivid_sa bash "$T"

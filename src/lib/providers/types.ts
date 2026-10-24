@@ -167,7 +167,9 @@ export type MusicTone =
   | "energetic"
   | "minimal"
   | "technology"
-  | "luxury";
+  | "luxury"
+  // Orquestal épico (metales, percusión, coro) para documentales de batalla — 2026-10-23.
+  | "epic";
 
 /** Procedencia verificable de una pista — para poder justificar la licencia. */
 export type MusicTrackMetadata = {
@@ -179,6 +181,8 @@ export type MusicTrackMetadata = {
   sourceUrl: string;
   license: string;
   tones: MusicTone[];
+  /** Crédito exacto exigido por la licencia (p. ej. CC BY 4.0); se registra con el video para la descripción. */
+  attribution?: string;
 };
 
 export type MusicResult = {
