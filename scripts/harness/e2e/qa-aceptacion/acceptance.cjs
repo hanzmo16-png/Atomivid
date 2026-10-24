@@ -170,8 +170,10 @@ async function podcast(dev) {
   await p.locator("textarea").first().fill("Hola. Este es un episodio de prueba de aceptación. No se usa ningún proveedor real.").catch(() => {});
   await p.getByRole("button", { name: /Crear episodio/ }).click().catch(() => {});
   const created = await p.waitForURL(/\/dashboard\/podcast\/[0-9a-f-]{36}$/, { timeout: 30000 }).then(() => true).catch(() => false);
+  // La estimación se pinta tras hidratar la página del episodio: se espera al texto, no se lee al instante.
+  const estimate = created && await p.getByText(/USD|costo estimado|estimaci/i).first().waitFor({ timeout: 30000 }).then(() => true).catch(() => false);
   await shot(p, "02-episodio");
-  check(`[${dev}] Podcast: el formulario crea el episodio y muestra su estimación`, created && /USD|\$|costo|estimad/i.test(await p.locator("main").innerText().catch(() => "")), { url: p.url() });
+  check(`[${dev}] Podcast: el formulario crea el episodio y muestra su estimación`, created && estimate, { url: p.url(), main: (await p.locator("main").innerText().catch(() => "")).slice(0, 200) });
   if (created) {
     const btn = p.getByRole("button", { name: /Generar narración/ });
     if (await btn.isVisible().catch(() => false)) {
