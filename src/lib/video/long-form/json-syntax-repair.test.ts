@@ -1,7 +1,7 @@
 // Incident 12045fcd (job e8048599, block 7): one unquoted key made a complete, paid visual plan unreadable. SIMULATED.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extractJsonDocument, repairJsonSyntax } from "./response-normalizer";
+import { duplicateJsonKey, extractJsonDocument, repairJsonSyntax } from "./response-normalizer";
 import { readDocumentaryJson, DocumentaryResponseError } from "./json-response";
 import { parseVisualPlan } from "./documentary-script";
 
@@ -34,4 +34,17 @@ test("prose, partial documents and other invalid JSON keep failing", () => {
 test("the repair never changes a document that already parses (no behaviour change for valid answers)", () => {
   const valid = incident.replace(/,era:/g, ',"era":');
   assert.deepEqual(extractJsonDocument(valid), JSON.parse(valid));
+});
+
+test("audit PR #199: a repair that yields a duplicate key is refused (no silent last-key-wins)", () => {
+  // simple: the unquoted second key would overwrite the first
+  assert.throws(() => extractJsonDocument('{"supported":false,supported:true}'));
+  // nested: duplicate inside an inner object of a plan
+  assert.throws(() => extractJsonDocument('{"visuals":[{"motion":false,"description":"x",motion:true}]}'));
+  assert.throws(() => readDocumentaryJson(resp('{"visuals":[{"impact":1,impact:3,"description":"x"}]}')), DocumentaryResponseError);
+  // same key in DIFFERENT objects is fine; a key-like text inside a string is not a key
+  assert.deepEqual(extractJsonDocument('{"a":{"k":1},"b":{k:2}}'), { a: { k: 1 }, b: { k: 2 } });
+  assert.equal(duplicateJsonKey('{"a":"k\\":1,\\"k\\":2","k":3}'), null);
+  assert.equal(duplicateJsonKey('{"a":[{"x":1},{"x":2}],"y":{"x":1,"x":2}}'), "x");
+  assert.equal(duplicateJsonKey('{"x":1,"y":{"z":[1,{"x":2}]}}'), null);
 });

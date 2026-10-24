@@ -35,7 +35,7 @@ const sentence = (text: string) => (text.split(/(?<=[.!?…])\s+/)[0] ?? text).t
 /**
  * Densidad de planos (recuperación cinematográfica, 2026-10-23): ningún plano sostiene más de `maxShotSec` de
  * narración. Un plano largo se divide en sub-planos consecutivos que CONTINÚAN el mismo sujeto/lugar/época con otra
- * escala, perspectiva y movimiento (sin afirmar nada nuevo: misma clase, misma identidad/prueba que su padre).
+ * escala y perspectiva (sin afirmar nada nuevo: misma clase, misma identidad/prueba y el mismo `motion` que su padre).
  * Cada sub-plano se ancla con una cita literal de su tramo, que se verifica única. Determinista.
  * Solo afecta a planes NUEVOS: los planes confirmados guardan sus secuencias y se ejecutan tal cual.
  */
@@ -74,7 +74,9 @@ export function densifySlots(narration: string, slots: Slot[], maxShotSec: numbe
       const f = framings[(j - 1) % framings.length];
       const parent = slot.visual as Record<string, unknown>;
       out.push({ ...slot, scale: f.scale, scaleReason: `${slot.scaleReason}; continuation: ${f.framing}`,
-        visual: { ...parent, description: `${String(parent.description ?? "").trim()} — ${f.framing}`, quote: words.slice(at, at + 6).join(" "), motion: true, continuityOf: i, subShot: j },
+        // `motion` declares PHYSICAL action (planner contract), never camera work: the continuation inherits it. A forced
+        // `true` turned every sub-shot of an ancient scene into a schematic text card (requiresSchematic).
+        visual: { ...parent, description: `${String(parent.description ?? "").trim()} — ${f.framing}`, quote: words.slice(at, at + 6).join(" "), motion: parent.motion === true, continuityOf: i, subShot: j },
         impact: (Math.min(2, slot.impact ?? 2) as 1 | 2), impactReason: `continuation of the same moment (new angle, no new claim): ${slot.impactReason ?? ""}`.slice(0, 200) });
     }
   }
@@ -100,7 +102,7 @@ function densifyByOrder(slots: Slot[], totalWords: number, maxWords: number): Sl
       const f = FRAMINGS[slot.role][(j - 1) % FRAMINGS[slot.role].length], parent = slot.visual as Record<string, unknown>;
       const { quote: _q, ...rest } = parent; void _q;
       out.push({ ...slot, scale: f.scale, scaleReason: `${slot.scaleReason}; continuation: ${f.framing}`,
-        visual: { ...rest, description: `${String(parent.description ?? "").trim()} — ${f.framing}`, motion: true, continuityOf: i, subShot: j },
+        visual: { ...rest, description: `${String(parent.description ?? "").trim()} — ${f.framing}`, motion: parent.motion === true, continuityOf: i, subShot: j },
         impact: (Math.min(2, slot.impact ?? 2) as 1 | 2), impactReason: `continuation of the same moment (new angle, no new claim): ${slot.impactReason ?? ""}`.slice(0, 200) });
     }
   });

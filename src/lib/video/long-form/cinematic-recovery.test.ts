@@ -7,6 +7,7 @@ import { intentWordSpans } from "./scene-anchoring";
 import { validateSequenceIntents, validateImpactIntents } from "./sequence-intent";
 import { applyNarrationPatches, type NarrationPatch } from "./narration-patch";
 import { LONG_FORM_NARRATION_WORDS_PER_SECOND } from "./duration-budget";
+import { requiresSchematic } from "./cinematic-director";
 
 // Bloque 5 real de e8048599 (beat 4): 213 palabras, solo 2 escenas declaradas.
 const BLOCK5 = "But hold that thought, because the same logic cuts both ways, and this is where the hypothetical gets genuinely harder. Take the Huns out of that narrow pass and put them on open plains — the kind of terrain steppe cavalry is generally understood to have thrived on — and the Spartan phalanx loses its own advantage just as completely. A wall of locked shields and leveled spears is devastating when an enemy has to come straight at it through a bottleneck. It's a very different story against an enemy that doesn't need to come straight at anything. If the general pattern attributed to steppe warfare holds, mounted archers could circle a static infantry formation, harass it with ranged fire from a distance, retreat before contact, and repeat — never offering the close-quarters collision the phalanx is built to win. The Spartans' entire system assumes an enemy willing to meet them face-to-face. Strip that assumption away, and the formation that held a mountain pass for three days could, in open ground, find itself surrounded by an enemy it can't actually catch. So now the central question has split in two: not 'who wins,' but 'which battlefield are we even imagining this on?' That's not a dodge. It's the actual shape of the answer.";
@@ -27,7 +28,7 @@ test("bloque 5 real: en cinematográfico ningún plano supera ~8 s de narración
   // Variedad: escalas y encuadres distintos, movimiento, continuidad del sujeto (la descripción del padre se conserva).
   assert.ok(new Set(slots.map((s) => s.scale)).size >= 2);
   const subs = slots.filter((s) => (s.visual as { subShot?: number }).subShot);
-  assert.ok(subs.every((s) => (s.visual as { motion?: boolean }).motion === true));
+  assert.ok(subs.every((s) => (s.visual as { motion?: boolean }).motion === true), "the parents declare physical action: continuations inherit it");
   assert.ok(subs.every((s) => String((s.visual as { description: string }).description).startsWith("Wide open steppe") || String((s.visual as { description: string }).description).startsWith("Spartan phalanx")));
   assert.ok(subs.every((s) => s.impact! <= 2), "un sub-plano nunca es un golpe nuevo");
   // El contrato de secuencias sigue siendo válido.
@@ -120,4 +121,17 @@ test("elegibilidad de clip: acción militar/ecuestre declarada en movimiento sí
   assert.ok(score("A man pointing toward a hidden mountain trail at dusk") < AI_VIDEO_SCORE_THRESHOLD);
   assert.ok(score("Ancient map of the Thermopylae pass with cavalry charge arrows") < AI_VIDEO_SCORE_THRESHOLD, "un mapa nunca");
   assert.ok(score("Hun horsemen charge across the steppe", false) < AI_VIDEO_SCORE_THRESHOLD, "sin movimiento declarado no");
+});
+
+test("audit #199: a sub-shot inherits the parent's motion (camera work is not physical action) — no spurious schematic cards", () => {
+  const still = { ...beat5, visuals: beat5.visuals.map((v) => ({ ...v, motion: false, era: "ancient" })) };
+  const slots = sequencesFromScript([still], { maxShotSec: SHOT_DENSITY_MAX_SEC.cinematic })![0].slots;
+  const subs = slots.filter((s) => (s.visual as { subShot?: number }).subShot);
+  assert.ok(subs.length >= 7);
+  assert.ok(subs.every((s) => (s.visual as { motion?: boolean }).motion === false), "a static ancient place stays static in every continuation");
+  assert.equal(slots.filter((s) => requiresSchematic(s.visual as never)).length, 0, "no static ancient scene becomes a text card");
+  // A parent that DOES declare physical action in an ancient era stays schematic, and so do its continuations (Director rule kept).
+  const action = { ...beat5, visuals: beat5.visuals.map((v) => ({ ...v, motion: true, era: "ancient" })) };
+  const aSlots = sequencesFromScript([action], { maxShotSec: SHOT_DENSITY_MAX_SEC.cinematic })![0].slots;
+  assert.ok(aSlots.every((s) => requiresSchematic(s.visual as never)), "continuations never launder an ancient action into a photoreal image");
 });

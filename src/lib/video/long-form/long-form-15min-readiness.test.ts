@@ -62,11 +62,8 @@ test("Recraft cannot be locked in while it cannot start (closed policy, no fal b
   const svc = (state: unknown, error: unknown = null) => ({ rpc: async () => ({ data: state, error }) }) as never;
   const env = { FAL_ADMIN_KEY: "admin" };
   assert.match(String(await recraftProductionBlocker(svc({ level: "UNKNOWN", reason: "policy unconfigured" }), env)), /límites de gasto/);
-  // Saldo ya verificado (p. ej. registrado por el propietario): basta aunque falte la clave Admin.
-  assert.equal(await recraftProductionBlocker(svc({ level: "GREEN" }), {}), null);
-  assert.equal(await recraftProductionBlocker(svc({ level: "GREEN" }), { FAL_KEY: "api only" }), null);
-  // Sin verificar y sin clave Admin: no se puede leer al iniciar → bloqueado.
-  assert.match(String(await recraftProductionBlocker(svc({ level: "UNKNOWN", reason: "balance unverified or stale" }), { FAL_KEY: "api only" })), /FAL_ADMIN_KEY/);
+  assert.match(String(await recraftProductionBlocker(svc({ level: "GREEN" }), {})), /fal\.ai/);
+  assert.match(String(await recraftProductionBlocker(svc({ level: "GREEN" }), { FAL_KEY: "api only" })), /fal\.ai/);
   assert.match(String(await recraftProductionBlocker(svc(null, { message: "x" }), env)), /control/);
   assert.match(String(await recraftProductionBlocker(svc({ level: "RED" }), env)), /saldo/);
   assert.equal(await recraftProductionBlocker(svc({ level: "UNKNOWN", reason: "balance unverified or stale" }), env), null, "a stale balance is refreshed at start");
@@ -135,23 +132,31 @@ function resumeSvc(budget: Budget, usage: { pendingUsd: number; remainingUsd: nu
   } } as never;
   return { svc, get current() { return current; }, patches, rpcCalls, get paidCalls() { return paidCalls; } };
 }
-const BUDGET = { project_id: "documentary:x:y", owner_id: OWNER, cap_usd: 0.6, authorization_ref: "hans-test", status: "ACTIVE" };
+const BUDGET = { project_id: "documentary:x:y", owner_id: OWNER, cap_usd: 0.6, authorization_ref: "hans-resume-ok", status: "ACTIVE" };
 const reqAuth = { ...req, authorizationRef: "hans-resume-ok" };
 
 test("audit P0-1: ACTIVE funded budget (e8048599 prod state) WITHOUT a durable resume authorization => refused, 0 updates, 0 paid calls", async () => {
   const prod = { ...BUDGET, cap_usd: 0.6, authorization_ref: "hans-2026-10-23-e8048599-150fb502" };
-  const cases: [typeof req & { authorizationRef?: string }, Durable, RegExp][] = [
-    [req, DURABLE_OK, /no authorization_ref/],                                              // no ref supplied
-    [{ ...req, authorizationRef: "hans-2026-10-23-e8048599-150fb502" }, DURABLE_OK, /missing in pi_recovery_resume_authorizations/], // 0 rows (prod)
-    [reqAuth, { authorized: true, transactionId: null }, /missing/],                        // row without transaction id
-    [reqAuth, { authorized: true, transactionId: "  " }, /missing/],
+  const cases: [typeof req & { authorizationRef?: string }, Durable, RegExp, Budget][] = [
+    [req, DURABLE_OK, /no authorization_ref/, prod],                                              // no ref supplied
+    [{ ...req, authorizationRef: "hans-2026-10-23-e8048599-150fb502" }, DURABLE_OK, /missing in pi_recovery_resume_authorizations/, prod], // 0 rows (prod)
+    [reqAuth, { authorized: true, transactionId: null }, /missing/, BUDGET],                        // row without transaction id
+    [reqAuth, { authorized: true, transactionId: "  " }, /missing/, BUDGET],
   ];
-  for (const [r0, durable, why] of cases) {
-    const t = resumeSvc(prod, { pendingUsd: 0, remainingUsd: 0.5589 }, durable);
+  for (const [r0, durable, why, budget] of cases) {
+    const t = resumeSvc(budget, { pendingUsd: 0, remainingUsd: 0.5589 }, durable);
     const r = await resumeScriptJob(t.svc, r0);
     assert.equal(r.ok, false); assert.match((r as { reason: string }).reason, why);
     assert.equal(t.patches.length, 0, "0 updates"); assert.equal(t.current.status, "failed"); assert.equal(t.paidCalls, 0, "0 paid calls");
   }
+});
+
+test("audit PR #199 (A/B): a durable authorization for ref B never unlocks a budget opened under ref A => 0 updates, 0 RPC, 0 paid calls", async () => {
+  const t = resumeSvc({ ...BUDGET, authorization_ref: "hans-test" });   // budget A; reqAuth carries durable ref B
+  const r = await resumeScriptJob(t.svc, reqAuth);
+  assert.equal(r.ok, false); assert.match((r as { reason: string }).reason, /does not match/);
+  assert.equal(t.patches.length, 0, "0 updates"); assert.equal(t.current.status, "failed");
+  assert.deepEqual(t.rpcCalls, [], "0 RPC operations (neither usage nor durable lookup)"); assert.equal(t.paidCalls, 0);
 });
 
 test("resume WITHOUT a stored spend authorization is refused and modifies nothing (incident PR #194)", async () => {

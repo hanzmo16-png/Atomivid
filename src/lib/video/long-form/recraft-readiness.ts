@@ -13,14 +13,12 @@ import { falBillingKey } from "@/lib/supply/fal";
  * the fal billing GET); a closed policy or no way to read the balance is not. Returns a reason, or null.
  */
 export async function recraftProductionBlocker(service: Pick<SupabaseClient, "rpc">, env: Record<string, string | undefined> = process.env): Promise<string | null> {
+  if (!falBillingKey(env)) return "el saldo de fal.ai no se puede verificar en este entorno";
   const { data, error } = await service.rpc("pi_supply_state", { p_provider: "recraft" });
   const state = data as { level?: string; reason?: string } | null;
   if (error || !state) return "el control de gasto de Recraft no está disponible";
   if (state.level === "UNKNOWN" && state.reason === "policy unconfigured") return "los límites de gasto de Recraft todavía no están configurados";
   if (state.level === "RED") return "el saldo de Recraft no alcanza para producir";
-  // Un saldo YA verificado (lectura del proveedor vigente o saldo registrado por el propietario, que no caduca) basta.
-  // Si no está verificado, solo sirve si este entorno puede leerlo al iniciar (clave Admin de fal).
-  if (state.level === "UNKNOWN" && !falBillingKey(env)) return "el saldo de fal.ai no se puede verificar en este entorno (falta FAL_ADMIN_KEY o un saldo registrado por el propietario)";
   return null;
 }
 

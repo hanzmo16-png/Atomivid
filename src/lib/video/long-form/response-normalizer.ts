@@ -70,6 +70,10 @@ export function extractJsonDocument(text: string): unknown {
     const repaired = repairJsonSyntax(doc);
     if (!repaired.rules.length) throw error;
     const value = JSON.parse(repaired.text); // still invalid → the original rejection stands (caller maps it)
+    // Audit of PR #199: `{"supported":false,supported:true}` must not become valid JSON whose last key silently
+    // wins. A repaired document with a duplicate key in the same object is refused with the original error.
+    const dup = duplicateJsonKey(repaired.text);
+    if (dup) { console.warn("[atomivid:documentary-format-refused]", JSON.stringify({ rules: repaired.rules, duplicateKey: dup })); throw error; }
     console.warn("[atomivid:documentary-format-normalized]", JSON.stringify(repaired.rules));
     return value;
   }
@@ -84,6 +88,30 @@ export function extractJsonDocument(text: string): unknown {
  * Nothing inside strings is touched, no value is invented, prose around a document is still refused, and a
  * document that remains invalid after these two repairs keeps the original error. The stored response is unchanged.
  */
+/** First key that appears twice in the same object of a (valid) JSON text, or null. String-aware scan. */
+export function duplicateJsonKey(text: string): string | null {
+  const stack: (Set<string> | null)[] = [];   // a Set per open object, null per open array
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === "{") stack.push(new Set());
+    else if (c === "[") stack.push(null);
+    else if (c === "}" || c === "]") stack.pop();
+    else if (c === '"') {
+      let j = i + 1;
+      for (; j < text.length; j++) { if (text[j] === "\\") j++; else if (text[j] === '"') break; }
+      let k = j + 1; while (k < text.length && /\s/.test(text[k])) k++;
+      const keys = stack[stack.length - 1];
+      if (text[k] === ":" && keys) {
+        const key = JSON.parse(text.slice(i, j + 1)) as string;
+        if (keys.has(key)) return key;
+        keys.add(key);
+      }
+      i = j;
+    }
+  }
+  return null;
+}
+
 export function repairJsonSyntax(src: string): { text: string; rules: string[] } {
   let out = "", inString = false, escaped = false, quoted = 0, commas = 0;
   const lastSignificant = () => { for (let k = out.length - 1; k >= 0; k--) if (!/\s/.test(out[k])) return out[k]; return ""; };

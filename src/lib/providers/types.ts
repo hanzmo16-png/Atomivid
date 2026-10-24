@@ -181,6 +181,8 @@ export type MusicTrackMetadata = {
   sourceUrl: string;
   license: string;
   tones: MusicTone[];
+  /** Crédito exacto exigido por la licencia (p. ej. CC BY 4.0); se registra con el video para la descripción. */
+  attribution?: string;
 };
 
 export type MusicResult = {
