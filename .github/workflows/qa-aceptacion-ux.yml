@@ -72,6 +72,15 @@ jobs:
           n=$(grep -cE '^PASS  \[(samsung|desktop)\] Podcast: descarga desde la UI íntegra' "$E2E_HOME/out/qa-podcast.log")
           [ "$n" = 2 ] || { echo "::error::qa-podcast: descarga íntegra verificada en $n de 2 dispositivos"; [ "$code" = 0 ] && code=1; }
           exit $code
+      - name: Prueba negativa — un timeout del episodio DEBE fallar (nunca PASS parcial)
+        run: |
+          set +e
+          E2E_BASE=http://127.0.0.1:3300 QA_FLOWS=podcast QA_REQUIRE_PODCAST_DOWNLOAD=1 QA_PODCAST_READY_TIMEOUT_MS=1 E2E_TIMEOUT=900 \
+            E2E_SCRIPT=qa-aceptacion/acceptance.cjs bash scripts/harness/e2e/infra/run-e2e.sh qa-podcast-timeout-red; code=$?
+          log="$E2E_HOME/out/qa-podcast-timeout-red.log"
+          if [ "$code" != 0 ] && grep -q '^FAIL  \[.*\] Podcast: TIMEOUT' "$log" && ! grep -qE '^PASS  Podcast: descarga íntegra verificada en Samsung' "$log"; then
+            echo "::notice title=timeout-red::el timeout falla explícitamente (exit=$code)"
+          else echo "::error::la prueba negativa de timeout no falló como debía (exit=$code)"; exit 1; fi
       - name: Ningún proveedor real contactado
         if: always()
         run: |
@@ -82,7 +91,7 @@ jobs:
       - name: Resumen
         if: always()
         run: |
-          s=""; for t in qa-base recraft-repro qa-podcast; do f="$E2E_HOME/out/$t.log"; [ -f "$f" ] && s="$s$t: $(grep -E '^RESULTADO' "$f" | tail -1)%0A"; done
+          s=""; for t in qa-base recraft-repro qa-podcast qa-podcast-timeout-red; do f="$E2E_HOME/out/$t.log"; [ -f "$f" ] && s="$s$t: $(grep -E '^RESULTADO' "$f" | tail -1)%0A"; done
           x=$(grep -hE '^(FAIL|XFAIL|XPASS)' "$E2E_HOME"/out/*.log 2>/dev/null | cut -c1-200 | sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g')
           echo "::notice title=qa-aceptacion-ux::${s}P1-1 reproducción: ${{ steps.p11.outcome }}%0A$x"
       - name: Evidencia (capturas, resúmenes, registros; sin secretos)
@@ -94,5 +103,6 @@ jobs:
           path: |
             .e2e-local/out/qa-base
             .e2e-local/out/qa-podcast
+            .e2e-local/out/qa-podcast-timeout-red
             .e2e-local/out/recraft-repro
             .e2e-local/out/*.log
