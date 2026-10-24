@@ -1,0 +1,17 @@
+# Lectura de fuentes primarias y tarifas públicas para el guion ZEITGEIST. USD 0: solo GET, sin secretos,
+# sin escribir en ningún servicio. Los pasajes relevantes quedan en el log del job.
+name: zeitgeist-fuentes
+on:
+  push:
+    branches: [claude/zeitgeist-fuentes]
+    paths: [".github/workflows/zeitgeist-fuentes.yml", "scripts/research/fetch-sources.py"]
+permissions:
+  contents: read
+jobs:
+  fuentes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get install -y -qq poppler-utils >/dev/null
+      - run: python3 scripts/research/fetch-sources.py
