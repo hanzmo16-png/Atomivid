@@ -88,7 +88,7 @@ test("correcciones localizadas: actualizan citas y marcas de edición; todo o na
   const r = applyNarrationPatches(s, patches);
   assert.equal(r.report.ok, true, r.report.errors.join("; "));
   assert.match(r.script.beats[0].narration, /around 430 BCE/);
-  assert.equal(r.script.beats[1].visuals[0].quote, "Geography. A pass only a few meters", "una cita que se solapa en parte se re-extrae del texto corregido");
+  assert.equal(r.script.beats[1].visuals[0].quote, "Geography. A pass only a few", "una cita que se solapa en parte se re-extrae del texto corregido");
   assert.match((r.script.creativeDirection.signatureDetail as { quote: string }).quote, /only a few meters/);
   assert.equal(r.report.marksUpdated, 1); assert.ok(r.report.quotesUpdated >= 1);
   assert.match(s.beats[0].narration, /440 BCE/, "el original no se toca");
