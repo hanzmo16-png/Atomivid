@@ -57,11 +57,12 @@ jobs:
           elif [ "$MODE" = "recraft-probe" ]; then npx tsx scripts/ops-recraft-probe.ts > out.txt 2>&1
           elif [ "$MODE" = "recraft-enable" ]; then npx tsx scripts/ops-recraft-enable.ts > out.txt 2>&1
           elif [ "$MODE" = "music-ingest" ]; then sudo apt-get install -yq --no-install-recommends ffmpeg >/dev/null 2>&1; npx tsx scripts/ops-music-ingest.ts > out.txt 2>&1
+          elif [ "$MODE" = "suite" ]; then npx tsx scripts/ops-suite.ts > out.txt 2>&1
           elif [ "$MODE" = "migrate-studio" ]; then npx tsx scripts/ops-migrate-studio.ts > out.txt 2>&1
           elif [ "$MODE" = "supply" ]; then npx tsx scripts/ops-supply-read.ts > out.txt 2>&1
           elif [ "$MODE" = "replay" ]; then REPLAY_CINEMATIC=true REPLAY_JOB=e8048599 npx tsx scripts/replay-documentary-job.ts > out.txt 2>&1
           else npx tsx scripts/ops-e8048599.ts > out.txt 2>&1; fi; rc=$?; echo "::notice title=RC::exit=$rc lines=$(wc -l < out.txt)"
-          node -e 'require("fs").readFileSync("out.txt","utf8").split("\n").filter(l=>/^(JOB|OPS|BUDGET|FAILED|RECRAFT|SNAP|POLICY|FAL|REPLAY|BOUNDARY|MUSIC|VOICE|PROD|PRECHECK|STOP|STEP|END|DRY|DIAG_|PROBE|JOB_E8048599|PAID_OPS|RUNNING_SCRIPT|MODE|PODCAST|MIGRATE|RESUME|VOICE|ESTIMATE|EPISODE|AUTHZ|RUN|DELIVERY|LINK|QUALITY|PLAYBACK|PLAN|PLANS|SIM|CANDIDATES|COMPARE|IMAGE|RECRAFT_PROBE|ELIG|MARKS|OP|SUBSET|CORRECTIONS|NARRATIVE|CHECKPOINT|BEATS|FRAMING|TEXT|MEDIA|\[atomivid:documentary-format)/.test(l)).slice(0,48).forEach((b,i)=>console.log("::notice title=O"+i+"::"+b.slice(0,3800).replace(/%/g,"%25"))); const all=require("fs").readFileSync("out.txt","utf8"); console.log("::notice title=TAIL::"+all.slice(-2500).replace(/%/g,"%25").replace(/\n/g,"%0A"))'
+          node -e 'require("fs").readFileSync("out.txt","utf8").split("\n").filter(l=>/^(TEST|JOB|OPS|BUDGET|FAILED|RECRAFT|SNAP|POLICY|FAL|REPLAY|BOUNDARY|MUSIC|VOICE|PROD|PRECHECK|STOP|STEP|END|DRY|DIAG_|PROBE|JOB_E8048599|PAID_OPS|RUNNING_SCRIPT|MODE|PODCAST|MIGRATE|RESUME|VOICE|ESTIMATE|EPISODE|AUTHZ|RUN|DELIVERY|LINK|QUALITY|PLAYBACK|PLAN|PLANS|SIM|CANDIDATES|COMPARE|IMAGE|RECRAFT_PROBE|ELIG|MARKS|OP|SUBSET|CORRECTIONS|NARRATIVE|CHECKPOINT|BEATS|FRAMING|TEXT|MEDIA|\[atomivid:documentary-format)/.test(l)).slice(0,48).forEach((b,i)=>console.log("::notice title=O"+i+"::"+b.slice(0,3800).replace(/%/g,"%25"))); const all=require("fs").readFileSync("out.txt","utf8"); console.log("::notice title=TAIL::"+all.slice(-2500).replace(/%/g,"%25").replace(/\n/g,"%0A"))'
       - name: Report part 1
         if: always()
         run: |

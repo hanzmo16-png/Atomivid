@@ -1,4 +1,3 @@
-MODE=music-ingest
-DRY=1
-REPLAY_REF=
-NOTE=dry validation only, no storage write
+MODE=suite
+REPLAY_REF=b7bb2d5
+NOTE=free test suites, sanitized env
