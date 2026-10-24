@@ -56,3 +56,33 @@ jobs:
           elif [ "$MODE" = "replay" ]; then REPLAY_CINEMATIC=true REPLAY_JOB=e8048599 npx tsx scripts/replay-documentary-job.ts > out.txt 2>&1
           else npx tsx scripts/ops-e8048599.ts > out.txt 2>&1; fi; rc=$?; echo "::notice title=RC::exit=$rc lines=$(wc -l < out.txt)"
           node -e 'require("fs").readFileSync("out.txt","utf8").split("\n").filter(l=>/^(JOB|OPS|BUDGET|FAILED|RECRAFT|SNAP|POLICY|FAL|REPLAY|BOUNDARY|MUSIC|VOICE|PROD|PRECHECK|STOP|STEP|END|DRY|DIAG_|PROBE|JOB_E8048599|PAID_OPS|RUNNING_SCRIPT|MODE|PODCAST|MIGRATE|RESUME|VOICE|ESTIMATE|EPISODE|AUTHZ|RUN|DELIVERY|LINK|QUALITY|PLAYBACK|PLAN|NARRATIVE|FRAMING|TEXT|MEDIA|\[atomivid:documentary-format)/.test(l)).slice(0,48).forEach((b,i)=>console.log("::notice title=O"+i+"::"+b.slice(0,3800).replace(/%/g,"%25"))); const all=require("fs").readFileSync("out.txt","utf8"); console.log("::notice title=TAIL::"+all.slice(-2500).replace(/%/g,"%25").replace(/\n/g,"%0A"))'
+      - name: Report part 1
+        if: always()
+        run: |
+          [ -f out.txt ] || exit 0
+          node -e 'const L=require("fs").readFileSync("out.txt","utf8").split("\n").filter(l=>l.trim()); L.slice(9,18).forEach((b,i)=>console.log("::notice title=P1_"+i+"::"+b.slice(0,3900).replace(/%/g,"%25")))'
+      - name: Report part 2
+        if: always()
+        run: |
+          [ -f out.txt ] || exit 0
+          node -e 'const L=require("fs").readFileSync("out.txt","utf8").split("\n").filter(l=>l.trim()); L.slice(18,27).forEach((b,i)=>console.log("::notice title=P2_"+i+"::"+b.slice(0,3900).replace(/%/g,"%25")))'
+      - name: Report part 3
+        if: always()
+        run: |
+          [ -f out.txt ] || exit 0
+          node -e 'const L=require("fs").readFileSync("out.txt","utf8").split("\n").filter(l=>l.trim()); L.slice(27,36).forEach((b,i)=>console.log("::notice title=P3_"+i+"::"+b.slice(0,3900).replace(/%/g,"%25")))'
+      - name: Report part 4
+        if: always()
+        run: |
+          [ -f out.txt ] || exit 0
+          node -e 'const L=require("fs").readFileSync("out.txt","utf8").split("\n").filter(l=>l.trim()); L.slice(36,45).forEach((b,i)=>console.log("::notice title=P4_"+i+"::"+b.slice(0,3900).replace(/%/g,"%25")))'
+      - name: Report part 5
+        if: always()
+        run: |
+          [ -f out.txt ] || exit 0
+          node -e 'const L=require("fs").readFileSync("out.txt","utf8").split("\n").filter(l=>l.trim()); L.slice(45,54).forEach((b,i)=>console.log("::notice title=P5_"+i+"::"+b.slice(0,3900).replace(/%/g,"%25")))'
+      - name: Report part 6
+        if: always()
+        run: |
+          [ -f out.txt ] || exit 0
+          node -e 'const L=require("fs").readFileSync("out.txt","utf8").split("\n").filter(l=>l.trim()); L.slice(54,63).forEach((b,i)=>console.log("::notice title=P6_"+i+"::"+b.slice(0,3900).replace(/%/g,"%25")))'
