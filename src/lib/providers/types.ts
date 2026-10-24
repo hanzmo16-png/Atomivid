@@ -167,7 +167,9 @@ export type MusicTone =
   | "energetic"
   | "minimal"
   | "technology"
-  | "luxury";
+  | "luxury"
+  // Orquestal épico (metales, percusión, coro) para documentales de batalla — 2026-10-23.
+  | "epic";
 
 /** Procedencia verificable de una pista — para poder justificar la licencia. */
 export type MusicTrackMetadata = {

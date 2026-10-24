@@ -52,3 +52,17 @@ test("estilo desconocido no revienta, solo usa las palabras clave", () => {
   const tones = inferTone({ style: "Estilo Inventado Que No Existe", topic: "energía y acción" });
   assert.ok(tones.includes("energetic"));
 });
+
+test("un documental de batalla antigua infiere el tono épico orquestal sin perder cinematic", () => {
+  const tones = inferTone({
+    style: "Educativo",
+    topic: "Atila vs. Leónidas y los 300",
+    scriptText: "The Spartans held the pass at Thermopylae while the Huns' cavalry waited on open ground. The battle was a siege of nerves.",
+  });
+  assert.equal(tones[0], "epic");
+  assert.ok(tones.includes("cinematic"));
+});
+
+test("el tono épico no aparece en temas sin vocabulario bélico", () => {
+  assert.ok(!inferTone({ topic: "Cómo ahorrar en tu primera empresa" }).includes("epic"));
+});

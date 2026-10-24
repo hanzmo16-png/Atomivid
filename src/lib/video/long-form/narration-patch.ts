@@ -47,8 +47,22 @@ export function applyNarrationPatches<T extends PatchableScript>(script: T, patc
     if (first < 0) { errors.push(`beat ${p.beatIndex}: el pasaje a corregir no está en la narración («${p.find.slice(0, 60)}»)`); continue; }
     if (beat.narration.indexOf(p.find, first + 1) >= 0) { errors.push(`beat ${p.beatIndex}: el pasaje aparece más de una vez (ambiguo)`); continue; }
     const wordsBefore = words(beat.narration);
-    beat.narration = beat.narration.slice(0, first) + p.replace + beat.narration.slice(first + p.find.length);
-    for (const v of Array.isArray(beat.visuals) ? (beat.visuals as Visual[]) : []) if (v.quote && v.quote.includes(p.find)) { v.quote = v.quote.replace(p.find, p.replace); quotesUpdated++; }
+    const oldNarration = beat.narration, findEnd = first + p.find.length;
+    beat.narration = oldNarration.slice(0, first) + p.replace + oldNarration.slice(findEnd);
+    for (const v of Array.isArray(beat.visuals) ? (beat.visuals as Visual[]) : []) {
+      if (!v.quote) continue;
+      if (v.quote.includes(p.find)) { v.quote = v.quote.replace(p.find, p.replace); quotesUpdated++; continue; }
+      // Solapamiento PARCIAL (la cita empieza antes del pasaje y termina dentro, o empieza dentro): se re-extrae del
+      // texto corregido con el mismo número de palabras, desde su inicio (o desde el inicio de la corrección).
+      const qs = quoteStart(oldNarration, v.quote);
+      if (qs === null) continue;
+      const qe = qs + v.quote.length;
+      if (qe <= first || qs >= findEnd) continue;
+      const from = qs < first ? qs : first;
+      const n = Math.max(words(v.quote), 4);
+      const rebuilt = beat.narration.slice(from).trim().split(/\s+/).slice(0, n).join(" ");
+      v.quote = rebuilt; quotesUpdated++;
+    }
     for (const m of marksOf(copy.creativeDirection)) { const x = m.get(); if (x && x.beatIndex === p.beatIndex && x.quote.includes(p.find)) { m.set({ ...x, quote: x.quote.replace(p.find, p.replace) }); marksUpdated++; } }
     applied.push({ beatIndex: p.beatIndex, reason: p.reason, wordsBefore, wordsAfter: words(beat.narration) });
   }
