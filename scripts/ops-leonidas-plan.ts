@@ -50,6 +50,12 @@ async function main() {
     for (const [label, maxShotSec] of [["before", undefined], ["after", SHOT_DENSITY_MAX_SEC[strategy]]] as const) {
       const seqs = sequencesFromScript(beats, maxShotSec ? { maxShotSec, aiVideoCandidates: strategy === "cinematic" } : {});
       if (!seqs) { log("SIM", { strategy, label, error: "not v6" }); continue; }
+      if (strategy === "cinematic" && label === "after") {
+        const all = seqs.flatMap((q) => q.slots);
+        const dist: Record<string, number> = {}; for (const sl of all) { const k = `${sl.role}:i${sl.impact}:${(sl.visual as any).motion ? "m" : "s"}`; dist[k] = (dist[k] ?? 0) + 1; }
+        log("CANDIDATES", { aiVideoCandidates: all.filter((sl) => (sl.visual as any).aiVideoCandidate).length, dist });
+        try { const { assessAiVideoEligibility } = await import("../src/lib/video/long-form/ai-video-eligibility" as string); log("ELIG", { fn: typeof assessAiVideoEligibility }); } catch (e) { log("ELIG", { error: String(e).slice(0, 120) }); }
+      }
       const perBeat = seqs.map((s, i) => ({ beat: i + 1, slots: s.slots.length, secPerSlot: Math.round(durationSec(beats[i]) / s.slots.length) }));
       for (const image of ["openai", "recraft"] as const) for (const ai of [false, true]) {
         try {
