@@ -60,17 +60,18 @@ test("clips generativos solo donde aportan: impacto 3 + movimiento en CONTEXT/AT
   const beat = { ...beat5, visuals: [{ ...beat5.visuals[0], impact: 3 }, { ...beat5.visuals[1], beatClass: "EVIDENCE", evidence: { sourceIds: ["s1"] }, impact: 3 }] };
   const plain = sequencesFromScript([beat])!;
   const marked = markAiVideoCandidates(plain);
-  const flags = marked[0].slots.map((s) => !!(s.visual as { aiVideoCandidate?: boolean }).aiVideoCandidate);
+  const flags = marked[0].slots.map((s) => !!s.aiVideoCandidate);
   assert.deepEqual(flags.slice(0, 1), [true], "paisaje de impacto 3 con movimiento → candidato");
-  assert.ok(marked[0].slots.filter((s) => s.role === "EVIDENCE").every((s) => !(s.visual as { aiVideoCandidate?: boolean }).aiVideoCandidate), "una prueba nunca es un clip generativo");
-  const shots = sequenceShotsForSpan({ beatId: "beat-5", startSec: 0, endSec: 85, narration: BLOCK5, sequences: marked as never });
+  assert.ok(marked[0].slots.filter((s) => s.role === "EVIDENCE").every((s) => !s.aiVideoCandidate), "una prueba nunca es un clip generativo");
+  const { resolveSequences, PLAN_ESTIMATE_AVAILABILITY } = await import("./sequence-intent");
+  const shots = sequenceShotsForSpan({ beatId: "beat-5", startSec: 0, endSec: 85, narration: BLOCK5, sequences: resolveSequences(marked, PLAN_ESTIMATE_AVAILABILITY) });
   assert.ok(shots.some((s) => s.type === "ai_video"));
   // Sin la marca (planes ya confirmados): ningún ai_video, idéntico a antes.
-  const before = sequenceShotsForSpan({ beatId: "beat-5", startSec: 0, endSec: 85, narration: BLOCK5, sequences: plain as never });
+  const before = sequenceShotsForSpan({ beatId: "beat-5", startSec: 0, endSec: 85, narration: BLOCK5, sequences: resolveSequences(plain, PLAN_ESTIMATE_AVAILABILITY) });
   assert.ok(before.every((s) => s.type !== "ai_video"));
   // La densidad nunca marca sub-planos.
   const dense = sequencesFromScript([beat], { maxShotSec: 8, aiVideoCandidates: true })!;
-  assert.ok(dense[0].slots.filter((s) => (s.visual as { subShot?: number }).subShot).every((s) => !(s.visual as { aiVideoCandidate?: boolean }).aiVideoCandidate));
+  assert.ok(dense[0].slots.filter((s) => (s.visual as { subShot?: number }).subShot).every((s) => !s.aiVideoCandidate));
 });
 
 const script = () => ({ title: "T", beats: [

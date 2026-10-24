@@ -78,7 +78,7 @@ export function sequenceShotsForSpan(input: {
     // TRANSITION es tipo (tarjeta); todo lo demás es imagen y lo decide el selector/registro (que rechazan dobles y falsos amigos).
     // Un candidato a clip generativo (marca guardada en el plan) entra al reparto como ai_video; el reparto aplica su
     // elegibilidad y tope y, si no procede, lo deja como imagen. Planes sin la marca: idéntico a antes.
-    const type: ShotType = slot.status === "CARD" ? "text" : (slot.visual as { aiVideoCandidate?: boolean }).aiVideoCandidate ? "ai_video" : "ken_burns_image";
+    const type: ShotType = slot.status === "CARD" ? "text" : slot.aiVideoCandidate && slot.status !== "ABSTAIN" && slot.status !== "RECOMPOSED" ? "ai_video" : "ken_burns_image";
     const opensSequence = slot === input.sequences[sequenceIndex].slots.find((s) => s.status !== "DROPPED");
     return {
       id: `${input.beatId}-${slot.sequenceId}-${slot.index + 1}`,

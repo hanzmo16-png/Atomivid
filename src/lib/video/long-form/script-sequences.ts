@@ -116,7 +116,7 @@ export function markAiVideoCandidates(sequences: SequenceIntent[]): SequenceInte
   return sequences.map((seq) => ({ ...seq, slots: seq.slots.map((slot) => {
     const v = slot.visual as Record<string, unknown>;
     const ok = slot.impact === 3 && v.motion === true && (slot.role === "CONTEXT" || slot.role === "ATMOSPHERE") && !v.subShot;
-    return ok ? { ...slot, visual: { ...v, aiVideoCandidate: true } } : slot;
+    return ok ? { ...slot, aiVideoCandidate: true } : slot;
   }) }));
 }
 
