@@ -13,6 +13,9 @@ bg() { local name=$1; shift; setsid nohup "$@" > "$L/$name.log" 2>&1 & echo $! >
 PGURL="postgres://postgres@localhost:$PGPORT/atomivid?host=$E2E_HOME/run"
 # La PROPUESTA de migración se aplica SOLO a esta base local desechable (nunca a un proyecto real).
 psql -q -v ON_ERROR_STOP=1 "$PGURL" -f "$REPO/supabase/proposals/20261021200000_podcast_v2_production.sql" >/dev/null
+# Igual que producción: #198 (20261024000000, YA aplicada en prod) + #201 + corrección de baseline, antes del estudio.
+for n in 20261024000000_spend_authorizations 20261024120000_resume_authorization_ref_match 20261024130000_spend_authorization_baseline_fix; do
+  psql -q -v ON_ERROR_STOP=1 "$PGURL" -f "$REPO/supabase/proposals/$n.sql" >/dev/null; done
 psql -q -v ON_ERROR_STOP=1 "$PGURL" -f "$REPO/supabase/proposals/20261024140000_podcast_v3_studio.sql" >/dev/null
 psql -q -v ON_ERROR_STOP=1 "$PGURL" -f "$HERE/seed-supply.sql" >/dev/null
 sed 's/^server-port = .*/server-port = 3201/' "$E2E_HOME/secrets/pgrst.conf" > "$E2E_HOME/secrets/pgrst-podcast.conf"
