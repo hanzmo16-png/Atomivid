@@ -93,7 +93,7 @@ async function main() {
         return { ...rest, beatClass: cls, description: `PROJECTION ${rest.description ?? "scene"}`.slice(0, 120), excerptId: ex[Math.min(ex.length - 1, Math.floor(k * step))].id,
           impact: rest.impact ?? 2, impactReason: rest.impactReason ?? "projection", motion: rest.motion === true, subject: rest.subject ?? "scene" };
       });
-      return new Response(JSON.stringify({ id: "proj", type: "message", role: "assistant", model: params.model, stop_reason: "end_turn", content: [{ type: "text", text: JSON.stringify({ visuals }) }], usage: { input_tokens: 0, output_tokens: 0 } }), { status: 200 });
+      return new Response(JSON.stringify({ id: "proj", type: "message", role: "assistant", model: params.model, stop_reason: "end_turn", content: [{ type: "text", text: JSON.stringify({ visuals }) }], usage: { input_tokens: 0, output_tokens: 0 } }), { status: 200, headers: { "content-type": "application/json" } });
     }
     throw Error(`OFFLINE_BOUNDARY at ${stage}`);
   }) as typeof fetch;
