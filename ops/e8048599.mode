@@ -1,3 +1,3 @@
 MODE=leonidas-close
-REPLAY_REF=1d1be5c4cbd318161a76eace3c64fa4b7c789e11
-NOTE=read-only closing analysis v3 (projection response content-type fixed)
+REPLAY_REF=5ad561ab9e48d6f7990f51d36062789ccccf0055
+NOTE=read-only closing analysis v4 (narration patch char-span fix + claim c1-1)

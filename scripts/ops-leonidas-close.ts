@@ -112,6 +112,7 @@ async function main() {
   // ---- owner corrections on the finished script
   const entry = ownerCorrectionsFor(JOB)!;
   const dry = applyOwnerCorrections(script, entry.corrections, entry.source);
+  if (!dry.ok) for (const m of dry.errors.join("\n").matchAll(/beat (\d+) escena (\d+)/g)) { const b = script.beats[+m[1]]; log("CORRECTION_FAIL", { beat: +m[1], scene: +m[2], quote: b.visuals?.[+m[2]]?.quote, excerpt: b.narration.slice(0, 0) }); }
   log("CORRECTIONS", { ok: dry.ok, errors: dry.errors, applied: dry.record?.narration?.map((a) => [a.beatIndex + 1, a.wordsBefore, a.wordsAfter]), claims: dry.record?.claims, reviewQuotesUpdated: dry.record?.reviewQuotesUpdated,
     quotesUpdated: dry.report?.quotesUpdated, marksUpdated: dry.report?.marksUpdated, wordDelta: dry.report?.wordDelta });
   // Claims/review evidence still mentioning corrected facts (to decide claim patches).
