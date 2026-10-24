@@ -23,7 +23,7 @@ export function productPlan(input: {
   const base = { beats: input.beats, topic: input.topic, strategy: input.strategy, providers: input.providers, requestedDurationSeconds: input.requestedDurationSeconds };
   if (input.cinematicV6) {
     // Densidad de planos por estrategia (cinematográfica: ≤ 8 s por plano; ninguna: > 20 s).
-    const sequences = sequencesFromScript(input.beats, { maxShotSec: SHOT_DENSITY_MAX_SEC[input.strategy] });
+    const sequences = sequencesFromScript(input.beats, { maxShotSec: SHOT_DENSITY_MAX_SEC[input.strategy], aiVideoCandidates: input.strategy === "cinematic" });
     if (sequences) {
       try {
         return { plan: computeProductionPlan({ ...base, sequences }), engine: "cinematic-v6", reason: "guion con impacto narrativo declarado en todas sus escenas" };

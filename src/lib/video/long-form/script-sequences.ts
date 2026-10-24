@@ -56,7 +56,7 @@ export function densifySlots(narration: string, slots: Slot[], maxShotSec: numbe
   const words = narrationWords(narration);
   const maxWords = Math.max(MIN_SUB_WORDS, Math.round(maxShotSec * LONG_FORM_NARRATION_WORDS_PER_SECOND));
   const spans = intentWordSpans(narration, slots.map((s) => s.visual) as never);
-  if (spans.some((sp) => sp.anchoredBy !== "quote")) return slots; // sin anclas literales no se divide (no se adivina)
+  if (spans.some((sp) => sp.anchoredBy !== "quote")) return densifyByOrder(slots, words.length, maxWords);
   const out: Slot[] = [];
   const order = slots.map((_, i) => i).sort((a, b) => spans[a].start - spans[b].start);
   const remap = new Map<number, number>();
@@ -82,7 +82,45 @@ export function densifySlots(narration: string, slots: Slot[], maxShotSec: numbe
   return out.map((s) => (s.detail ? { ...s, detail: { ...s.detail, of: remap.get(s.detail.of) ?? s.detail.of } } : s));
 }
 
-export function sequencesFromScript(beats: ScriptBeat[], opts: { maxShotSec?: number } = {}): SequenceIntent[] | null {
+/**
+ * Sin anclas literales completas el reparto es por ORDEN (intentWordSpans reparte por igual): basta añadir
+ * continuaciones (sin cita, para no fingir un ancla) hasta que cada plano cubra ≤ maxWords. Round-robin sobre los
+ * planos divisibles, en orden; nunca DETAIL/TRANSITION.
+ */
+function densifyByOrder(slots: Slot[], totalWords: number, maxWords: number): Slot[] {
+  const needed = Math.ceil(totalWords / maxWords) - slots.length;
+  const divisible = slots.map((s, i) => (FRAMINGS[s.role] && s.role !== "DETAIL" ? i : -1)).filter((i) => i >= 0);
+  if (needed <= 0 || divisible.length === 0) return slots;
+  const extra = new Map<number, number>();
+  for (let n = 0; n < needed; n++) { const i = divisible[n % divisible.length]; extra.set(i, (extra.get(i) ?? 0) + 1); }
+  const out: Slot[] = [], remap = new Map<number, number>();
+  slots.forEach((slot, i) => {
+    remap.set(i, out.length); out.push(slot);
+    for (let j = 1; j <= (extra.get(i) ?? 0); j++) {
+      const f = FRAMINGS[slot.role][(j - 1) % FRAMINGS[slot.role].length], parent = slot.visual as Record<string, unknown>;
+      const { quote: _q, ...rest } = parent; void _q;
+      out.push({ ...slot, scale: f.scale, scaleReason: `${slot.scaleReason}; continuation: ${f.framing}`,
+        visual: { ...rest, description: `${String(parent.description ?? "").trim()} — ${f.framing}`, motion: true, continuityOf: i, subShot: j },
+        impact: (Math.min(2, slot.impact ?? 2) as 1 | 2), impactReason: `continuation of the same moment (new angle, no new claim): ${slot.impactReason ?? ""}`.slice(0, 200) });
+    }
+  });
+  return out.map((s) => (s.detail ? { ...s, detail: { ...s.detail, of: remap.get(s.detail.of) ?? s.detail.of } } : s));
+}
+
+/**
+ * Clips generativos SOLO donde aportan (cinematográfica): momentos de impacto 3 con movimiento declarado, en planos que no
+ * prueban nada ni muestran un documento (CONTEXT/ATMOSPHERE). Marca de PLAN (`aiVideoCandidate`): el reparto decide
+ * con su elegibilidad y tope de clips; si no se permite, el plano queda como imagen. Planes sin la marca no cambian.
+ */
+export function markAiVideoCandidates(sequences: SequenceIntent[]): SequenceIntent[] {
+  return sequences.map((seq) => ({ ...seq, slots: seq.slots.map((slot) => {
+    const v = slot.visual as Record<string, unknown>;
+    const ok = slot.impact === 3 && v.motion === true && (slot.role === "CONTEXT" || slot.role === "ATMOSPHERE") && !v.subShot;
+    return ok ? { ...slot, visual: { ...v, aiVideoCandidate: true } } : slot;
+  }) }));
+}
+
+export function sequencesFromScript(beats: ScriptBeat[], opts: { maxShotSec?: number; aiVideoCandidates?: boolean } = {}): SequenceIntent[] | null {
   const sequences: SequenceIntent[] = [];
   for (const beat of beats) {
     const visuals = Array.isArray(beat.visuals) ? (beat.visuals as ScriptVisual[]) : [];
@@ -110,5 +148,5 @@ export function sequencesFromScript(beats: ScriptBeat[], opts: { maxShotSec?: nu
     slots.splice(0, slots.length, ...finalSlots);
     sequences.push({ id: `seq-${beat.id}`, purpose: (beat.purpose || beat.type || "sequence").slice(0, 200), viewerTakeaway: sentence(beat.narration), beatIds: [beat.id], slots });
   }
-  return sequences;
+  return opts.aiVideoCandidates ? markAiVideoCandidates(sequences) : sequences;
 }

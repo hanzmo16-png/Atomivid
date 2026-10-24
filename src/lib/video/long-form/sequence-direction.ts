@@ -76,7 +76,9 @@ export function sequenceShotsForSpan(input: {
     const range = { first: spans[i].start, last: Math.max(spans[i].start, spans[i].end - 1) };
     const fragment = fragmentForRange(input.narration, tokens ? { first: Math.floor(range.first * scale), last: Math.floor(range.last * scale) } : range, tokens) || input.narration;
     // TRANSITION es tipo (tarjeta); todo lo demás es imagen y lo decide el selector/registro (que rechazan dobles y falsos amigos).
-    const type: ShotType = slot.status === "CARD" ? "text" : "ken_burns_image";
+    // Un candidato a clip generativo (marca guardada en el plan) entra al reparto como ai_video; el reparto aplica su
+    // elegibilidad y tope y, si no procede, lo deja como imagen. Planes sin la marca: idéntico a antes.
+    const type: ShotType = slot.status === "CARD" ? "text" : (slot.visual as { aiVideoCandidate?: boolean }).aiVideoCandidate ? "ai_video" : "ken_burns_image";
     const opensSequence = slot === input.sequences[sequenceIndex].slots.find((s) => s.status !== "DROPPED");
     return {
       id: `${input.beatId}-${slot.sequenceId}-${slot.index + 1}`,
@@ -85,7 +87,7 @@ export function sequenceShotsForSpan(input: {
       endSec: round3(end),
       durationSec: round3(end - start),
       type,
-      source: type === "text" ? "local" : "stock",
+      source: type === "text" ? "local" : type === "ai_video" ? "generated" : "stock",
       assetId: `${input.beatId}-${slot.sequenceId}-${slot.index}`,
       visualIntent: slot.visual.description,
       motionRequired: slot.visual.motion || undefined,

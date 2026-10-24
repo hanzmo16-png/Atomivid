@@ -43,10 +43,34 @@ test("sin densidad (o plano corto) nada cambia; los planes ya confirmados no pas
   assert.ok(sequencesFromScript([beat5], { maxShotSec: SHOT_DENSITY_MAX_SEC.economical })![0].slots.length > 2, "incluso en económico, ningún plano sostiene 40 s");
 });
 
-test("citas que no se localizan: no se divide (no se adivina)", () => {
+test("anclas incompletas: reparto por orden — se añaden continuaciones SIN cita (no se finge un ancla)", () => {
   const bad = { ...beat5, visuals: [{ ...beat5.visuals[0], quote: "texto que no existe en la narración" }, beat5.visuals[1]] };
   const seqs = sequencesFromScript([bad], { maxShotSec: 8 })!;
-  assert.equal(seqs[0].slots.length, 2);
+  const slots = seqs[0].slots;
+  assert.ok(slots.length >= 10, `planos ${slots.length}`);
+  const subs = slots.filter((s) => (s.visual as { subShot?: number }).subShot);
+  assert.ok(subs.length > 0 && subs.every((s) => (s.visual as { quote?: string }).quote === undefined));
+  const v = validateSequenceIntents(seqs, [{ id: "beat-5", narration: BLOCK5 }] as never);
+  assert.deepEqual(v.errors, []);
+});
+
+test("clips generativos solo donde aportan: impacto 3 + movimiento en CONTEXT/ATMOSPHERE; nunca sub-planos ni pruebas", async () => {
+  const { markAiVideoCandidates } = await import("./script-sequences");
+  const { sequenceShotsForSpan } = await import("./sequence-direction");
+  const beat = { ...beat5, visuals: [{ ...beat5.visuals[0], impact: 3 }, { ...beat5.visuals[1], beatClass: "EVIDENCE", evidence: { sourceIds: ["s1"] }, impact: 3 }] };
+  const plain = sequencesFromScript([beat])!;
+  const marked = markAiVideoCandidates(plain);
+  const flags = marked[0].slots.map((s) => !!(s.visual as { aiVideoCandidate?: boolean }).aiVideoCandidate);
+  assert.deepEqual(flags.slice(0, 1), [true], "paisaje de impacto 3 con movimiento → candidato");
+  assert.ok(marked[0].slots.filter((s) => s.role === "EVIDENCE").every((s) => !(s.visual as { aiVideoCandidate?: boolean }).aiVideoCandidate), "una prueba nunca es un clip generativo");
+  const shots = sequenceShotsForSpan({ beatId: "beat-5", startSec: 0, endSec: 85, narration: BLOCK5, sequences: marked as never });
+  assert.ok(shots.some((s) => s.type === "ai_video"));
+  // Sin la marca (planes ya confirmados): ningún ai_video, idéntico a antes.
+  const before = sequenceShotsForSpan({ beatId: "beat-5", startSec: 0, endSec: 85, narration: BLOCK5, sequences: plain as never });
+  assert.ok(before.every((s) => s.type !== "ai_video"));
+  // La densidad nunca marca sub-planos.
+  const dense = sequencesFromScript([beat], { maxShotSec: 8, aiVideoCandidates: true })!;
+  assert.ok(dense[0].slots.filter((s) => (s.visual as { subShot?: number }).subShot).every((s) => !(s.visual as { aiVideoCandidate?: boolean }).aiVideoCandidate));
 });
 
 const script = () => ({ title: "T", beats: [
