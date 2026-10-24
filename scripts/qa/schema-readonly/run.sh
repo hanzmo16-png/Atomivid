@@ -20,6 +20,14 @@ w=$(printf 'begin transaction read only;\ncreate temp table _probe(x int);\nroll
 grep -q '^session_read_only | .* | on$' "$OUT/catalog.txt" && echo "PASS catalog ran with transaction_read_only=on" || echo "FAIL catalog read-only flag not confirmed"
 "$PGBIN/pg_dump" "$URL" --schema-only --no-owner --no-privileges --no-comments -n public -f "$T/public.sql" 2>"$T/dump.err" || { echo "FAIL pg_dump: $(sed "s/$PW/***/g" "$T/dump.err" | head -5)"; exit 1; }
 echo "INFO schema dump: $(wc -l < "$T/public.sql") lines, sha256 $(sha256sum "$T/public.sql" | cut -c1-16) (kept on the runner only)"
+# --- tree under test: the integrated #201 → #199 → #200 branch (INT_REF), checked out read-only next to this one ---
+INT_REF=${INT_REF:-claude/integracion-201-199-200}
+git -C "$R" fetch -q --depth=1 origin "$INT_REF" && git -C "$R" worktree add -q --detach "$T/int" FETCH_HEAD && INT="$T/int" || { echo "FAIL cannot check out $INT_REF"; exit 1; }
+echo "INFO tree under test: $INT_REF @ $(git -C "$INT" rev-parse HEAD)"
+# --- migration history: registry vs repo files vs objects really present in the production schema ---
+grep '^registered | ' "$OUT/catalog.txt" | sed 's/^registered | //; s/ | /|/' > "$T/registered.txt"
+echo "INFO production registry: $(wc -l < "$T/registered.txt") migrations recorded in supabase_migrations.schema_migrations"
+python3 -I "$R/scripts/qa/schema-readonly/history.py" "$T/registered.txt" "$INT/supabase/migrations" "$INT/supabase/proposals" "$T/public.sql"
 unset PGOPTIONS
 # --- replay on a disposable cluster ---
 L=$T/local; "$PGBIN/initdb" -D "$L" -U postgres --auth=trust >/dev/null; "$PGBIN/pg_ctl" -D "$L" -o "-p 55990 -k $T -c listen_addresses=''" -l "$T/pg.log" -w start >/dev/null
@@ -31,7 +39,7 @@ $LQ -d replica -c "create schema if not exists extensions; create extension if n
 $LQ -d replica -v ON_ERROR_STOP=0 -f "$T/public.sql" > "$T/restore.log" 2>&1
 echo "INFO restore of the production schema: $(grep -c 'ERROR' "$T/restore.log") errors (first 8 below)"; grep 'ERROR' "$T/restore.log" | sort | uniq -c | sort -rn | head -8
 step(){ if $LQ -d replica -v ON_ERROR_STOP=1 -f "$2" > "$T/step.log" 2>&1; then echo "PASS $1"; else echo "FAIL $1: $(grep -m3 ERROR "$T/step.log")"; fi; }
-P="$R/supabase/proposals"
+P="$INT/supabase/proposals"
 applied000=$(grep -c "marker 20261024000000 submit refuses podcast without authorization | t" "$OUT/catalog.txt" || true)
 [ "$applied000" = 1 ] && echo "INFO 20261024000000 is already applied in production (marker present)" || { echo "INFO 20261024000000 NOT detected in production → replay applies it first"; step "apply 20261024000000 (#198)" "$P/20261024000000_spend_authorizations.sql"; }
 step "apply 20261024120000 (#201) on the production schema" "$P/20261024120000_resume_authorization_ref_match.sql"
@@ -46,4 +54,6 @@ step "rollback 20261024120000" "$P/20261024120000_resume_authorization_ref_match
 st=$($LQ -d replica -qAt -c "select to_regprocedure('public.pi_supply_state_pre_studio(text)') is null and to_regclass('public.podcast_studio_operations') is null and to_regprocedure('public.pi_supply_state(text)') is not null")
 [ "$st" = t ] && echo "PASS after rollbacks: studio objects gone, pi_supply_state restored under its own name" || echo "FAIL rollback state ($st)"
 step "re-apply 120000 → 130000 → 140000 after rollback" <(cat "$P/20261024120000_resume_authorization_ref_match.sql" "$P/20261024130000_spend_authorization_baseline_fix.sql" "$P/20261024140000_podcast_v3_studio.sql")
+# --- economic controls (E1–E8) on the PRODUCTION schema + the integrated proposals (disposable cluster) ---
+SCHEMA_SQL="$T/public.sql" PG_BIN="$PGBIN" bash "$INT/scripts/qa/audit-pr200-final-db.sh" "$T/aud" 55996 2>&1 | grep -E '^(PASS|FAIL|FINDING|RESULT|NOTICE|skip|apply|==)' | sed 's/^/ECON /'
 rm -rf "$T/public.sql"
