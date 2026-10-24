@@ -17,7 +17,7 @@ on:
       - "src/components/**"
       - "next.config.*"
 permissions:
-  contents: read
+  contents: write  # solo para publicar la evidencia en la rama evidence/* del PR de verificación
 concurrency:
   group: qa-aceptacion-ux-${{ github.ref }}
   cancel-in-progress: true
@@ -106,3 +106,12 @@ jobs:
             .e2e-local/out/qa-podcast-timeout-red
             .e2e-local/out/recraft-repro
             .e2e-local/out/*.log
+      - name: Evidencia en rama (solo PR de verificación #204; capturas y resúmenes, sin secretos)
+        if: always() && github.head_ref == 'claude/verify-202-203'
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          set -e; D=$(mktemp -d); mkdir -p "$D/ux"
+          for t in qa-base qa-podcast qa-podcast-timeout-red recraft-repro; do [ -d ".e2e-local/out/$t" ] && { mkdir -p "$D/ux/$t"; find ".e2e-local/out/$t" -maxdepth 1 \( -name "*.png" -o -name "*.json" \) -size -3M -exec cp {} "$D/ux/$t/" \; ; }; [ -f ".e2e-local/out/$t.log" ] && cp ".e2e-local/out/$t.log" "$D/ux/"; done; true
+          cd "$D"; git init -q; git checkout -q -b "evidence/qa-202-203-ux"
+          git -c user.name=ci -c user.email=ci@local add -A; git -c user.name=ci -c user.email=ci@local commit -qm "evidencia ux ${{ github.sha }} run ${{ github.run_id }}"
+          git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "HEAD:refs/heads/evidence/qa-202-203-ux"

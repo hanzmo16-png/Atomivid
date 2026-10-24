@@ -13,7 +13,7 @@ on:
       - "src/proxy.ts"
       - "scripts/qa/security-headers-check.cjs"
 permissions:
-  contents: read
+  contents: write  # solo para publicar la evidencia en la rama evidence/* del PR de verificación
 concurrency:
   group: security-headers-${{ github.ref }}
   cancel-in-progress: true
@@ -56,3 +56,12 @@ jobs:
             security-out
             security.log
             next-start.log
+      - name: Evidencia en rama (solo PR de verificación #204; capturas y resúmenes, sin secretos)
+        if: always() && github.head_ref == 'claude/verify-202-203'
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          set -e; D=$(mktemp -d); mkdir -p "$D/headers"
+          cp -r security-out/. "$D/headers/" 2>/dev/null || true; cp security.log "$D/headers/" 2>/dev/null || true
+          cd "$D"; git init -q; git checkout -q -b "evidence/qa-202-203-headers"
+          git -c user.name=ci -c user.email=ci@local add -A; git -c user.name=ci -c user.email=ci@local commit -qm "evidencia headers ${{ github.sha }} run ${{ github.run_id }}"
+          git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "HEAD:refs/heads/evidence/qa-202-203-headers"
