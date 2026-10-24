@@ -10,7 +10,7 @@ concurrency: { group: ops-e8048599, cancel-in-progress: false }
 jobs:
   ops:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false, fetch-depth: 0 }
@@ -35,6 +35,7 @@ jobs:
           FAL_ADMIN_KEY: ${{ secrets.FAL_ADMIN_KEY }}
           FAL_KEY: ${{ secrets.FAL_KEY != '' && 'set' || '' }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set +e
@@ -47,8 +48,10 @@ jobs:
           elif [ "$MODE" = "quality" ]; then npx tsx scripts/ops-quality-e8048599.ts > out.txt 2>&1
           elif [ "$MODE" = "resume" ]; then JOB_ID=e8048599-cf92-45e8-95c8-f145cb9d3be2 EXPECTED_ERROR_CODE=12045fcd EXPECTED_RETRY_COUNT=3 npx tsx scripts/resume-script-job.ts > out.txt 2>&1
           elif [ "$MODE" = "authorize-resume" ]; then npx tsx scripts/ops-authorize-resume.ts > out.txt 2>&1
+          elif [ "$MODE" = "migrate-198" ]; then npx tsx scripts/ops-migrate-198.ts > out.txt 2>&1
+          elif [ "$MODE" = "walton" ]; then ATOMIVID_RUNTIME=production SUPPLY_GUARD_ENFORCED=true PRICING_ELEVENLABS_USD_PER_1K_CHARS=0.2 npx tsx scripts/ops-walton.ts > out.txt 2>&1
           elif [ "$MODE" = "migrate-studio" ]; then npx tsx scripts/ops-migrate-studio.ts > out.txt 2>&1
           elif [ "$MODE" = "supply" ]; then npx tsx scripts/ops-supply-read.ts > out.txt 2>&1
           elif [ "$MODE" = "replay" ]; then REPLAY_CINEMATIC=true REPLAY_JOB=e8048599 npx tsx scripts/replay-documentary-job.ts > out.txt 2>&1
           else npx tsx scripts/ops-e8048599.ts > out.txt 2>&1; fi; rc=$?; echo "::notice title=RC::exit=$rc lines=$(wc -l < out.txt)"
-          node -e 'require("fs").readFileSync("out.txt","utf8").split("\n").filter(l=>/^(JOB|OPS|BUDGET|FAILED|RECRAFT|SNAP|POLICY|FAL|REPLAY|BOUNDARY|MUSIC|VOICE|PROD|PRECHECK|STOP|STEP|END|DRY|DIAG_|PROBE|JOB_E8048599|PAID_OPS|RUNNING_SCRIPT|MODE|PODCAST|MIGRATE|RESUME|\[atomivid:documentary-format)/.test(l)).slice(0,40).forEach((b,i)=>console.log("::notice title=O"+i+"::"+b.slice(0,3800).replace(/%/g,"%25"))); const all=require("fs").readFileSync("out.txt","utf8"); console.log("::notice title=TAIL::"+all.slice(-2500).replace(/%/g,"%25").replace(/\n/g,"%0A"))'
+          node -e 'require("fs").readFileSync("out.txt","utf8").split("\n").filter(l=>/^(JOB|OPS|BUDGET|FAILED|RECRAFT|SNAP|POLICY|FAL|REPLAY|BOUNDARY|MUSIC|VOICE|PROD|PRECHECK|STOP|STEP|END|DRY|DIAG_|PROBE|JOB_E8048599|PAID_OPS|RUNNING_SCRIPT|MODE|PODCAST|MIGRATE|RESUME|VOICE|ESTIMATE|EPISODE|AUTHZ|RUN|DELIVERY|LINK|\[atomivid:documentary-format)/.test(l)).slice(0,40).forEach((b,i)=>console.log("::notice title=O"+i+"::"+b.slice(0,3800).replace(/%/g,"%25"))); const all=require("fs").readFileSync("out.txt","utf8"); console.log("::notice title=TAIL::"+all.slice(-2500).replace(/%/g,"%25").replace(/\n/g,"%0A"))'
