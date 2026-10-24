@@ -50,5 +50,13 @@
       "replace": "would have handled that narrow gap",
       "reason": "Coherencia con la corrección del ancho del paso."
     }
+  ],
+  "claimPatches": [
+    {
+      "beatIndex": 1,
+      "claimId": "c1-1",
+      "text": "Herodotus's Histories, written a few decades after the battle (most likely around 430 BCE), is the primary and most detailed ancient source for the Battle of Thermopylae",
+      "reason": "La afirmación repetía la fecha corregida en la narración («around 440 BCE»); observado en el replay offline de las 18 respuestas pagadas (run 40091018172)."
+    }
   ]
 }

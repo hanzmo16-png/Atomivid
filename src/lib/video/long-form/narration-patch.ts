@@ -22,6 +22,17 @@ export type PatchReport = { ok: boolean; errors: string[]; applied: { beatIndex:
 
 const words = (t: string) => t.trim().split(/\s+/).filter(Boolean).length;
 const located = (narration: string, quote: string | undefined) => !!quote && (quoteStart(narration, quote) !== null || locateNormalized(narration, quote) !== null);
+/** Character span [start, end) of a quote in the narration: exact, then typographic-normalized, then by its first words
+ * (`quoteStart` returns a WORD index — it must never be compared with character offsets). */
+function quoteCharSpan(narration: string, quote: string): [number, number] | null {
+  const exact = locateNormalized(narration, quote);
+  if (exact) { const at = narration.indexOf(exact); return [at, at + exact.length]; }
+  const wi = quoteStart(narration, quote);
+  if (wi === null) return null;
+  const tokens = [...narration.matchAll(/\S+/g)];
+  const n = words(quote), from = tokens[wi], to = tokens[Math.min(tokens.length - 1, wi + n - 1)];
+  return from && to ? [from.index!, to.index! + to[0].length] : null;
+}
 const MARK_KEYS = ["signatureDetail", "shareableLine", "commentMoment", "closingCta"] as const;
 
 function marksOf(cd: Record<string, unknown> | undefined): { get: () => Mark | null; set: (m: Mark) => void }[] {
@@ -54,9 +65,9 @@ export function applyNarrationPatches<T extends PatchableScript>(script: T, patc
       if (v.quote.includes(p.find)) { v.quote = v.quote.replace(p.find, p.replace); quotesUpdated++; continue; }
       // Solapamiento PARCIAL (la cita empieza antes del pasaje y termina dentro, o empieza dentro): se re-extrae del
       // texto corregido con el mismo número de palabras, desde su inicio (o desde el inicio de la corrección).
-      const qs = quoteStart(oldNarration, v.quote);
-      if (qs === null) continue;
-      const qe = qs + v.quote.length;
+      const span = quoteCharSpan(oldNarration, v.quote);
+      if (!span) continue;
+      const [qs, qe] = span;
       if (qe <= first || qs >= findEnd) continue;
       const from = qs < first ? qs : first;
       const n = Math.max(words(v.quote), 4);

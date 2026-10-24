@@ -135,3 +135,21 @@ test("audit #199: a sub-shot inherits the parent's motion (camera work is not ph
   const aSlots = sequencesFromScript([action], { maxShotSec: SHOT_DENSITY_MAX_SEC.cinematic })![0].slots;
   assert.ok(aSlots.every((s) => requiresSchematic(s.visual as never)), "continuations never launder an ancient action into a photoreal image");
 });
+
+test("audit #199: a scene quote inside a corrected passage in the MIDDLE of a beat is re-extracted (word index ≠ character offset)", () => {
+  const narration = "So when Attila's riders finally reach the wall, the old arithmetic returns. Numbers stop mattering in a pass. The 300 didn't defeat an army. They defeated open ground — and that's not a smaller story, it's a more honest one. What remains is the question of time.";
+  const s = { beats: [{ narration, visuals: [
+    { description: "riders at the wall", quote: "So when Attila's riders finally reach" },
+    { description: "ground", quote: "They defeated open ground — and that's" },
+    { description: "the 300", quote: "The 300 didn't defeat an army." },
+    { description: "time", quote: "What remains is the question of time." },
+  ] }] };
+  const r = applyNarrationPatches(s, [{ beatIndex: 0, find: "The 300 didn't defeat an army. They defeated open ground — and that's not a smaller story, it's a more honest one.",
+    replace: "The 300 didn't stop an army on their own. The narrow ground fought beside them — and that's not a smaller story, it's a more honest one.", reason: "x" }]);
+  assert.equal(r.report.ok, true, r.report.errors.join("; "));
+  const q = r.script.beats[0].visuals.map((v) => v.quote);
+  assert.equal(q[0], "So when Attila's riders finally reach", "a quote before the passage is untouched");
+  assert.equal(q[3], "What remains is the question of time.", "a quote after the passage is untouched");
+  for (const x of q) assert.ok(r.script.beats[0].narration.includes(x!), `«${x}» still located`);
+  assert.match(q[1]!, /^The 300 didn't stop/, "inside the passage → re-extracted from the start of the correction");
+});
