@@ -143,6 +143,9 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     }
     await s.p.reload();
     const before = ttsCalls().length;
+    // PR #198 (en prod): la autorización por episodio es inmutable; sin presupuesto total queda fijada al estimado de la
+    // primera narración y una edición posterior se rechaza (fail-closed, correcto). El dueño fija un presupuesto total.
+    await db.query("update public.podcast_episodes set budget_usd=1 where id=$1", [id]);
     const row = await generate(s.p, id, "c3");
     const calls = ttsCalls().slice(before);
     ok("c3: ninguna llamada TTS para los turnos con grabación propia", calls.every((c) => c.voiceId === ANA) && calls.length === row.production.turns.length - aTurns.length, `${calls.length} llamadas (solo B)`);
