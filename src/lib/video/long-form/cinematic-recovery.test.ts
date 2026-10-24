@@ -110,3 +110,14 @@ test("las correcciones del documental están bien formadas (una por pasaje exact
   for (const p of data.patches) { assert.ok(p.find.length > 10 && p.replace.length > 5 && p.reason.length > 10 && p.find !== p.replace); assert.ok(p.beatIndex >= 0 && p.beatIndex <= 9); }
   assert.ok(data.patches.some((p) => /Ammianus Marcellinus/.test(p.replace)), "cita fuentes antiguas reales sobre los hunos");
 });
+
+test("elegibilidad de clip: acción militar/ecuestre declarada en movimiento sí; paisaje, mapa o persona señalando no", async () => {
+  const { scoreAiVideoEligibility, AI_VIDEO_SCORE_THRESHOLD } = await import("./ai-video-eligibility");
+  const score = (visualIntent: string, motionRequired = true) => scoreAiVideoEligibility({ id: "s", visualIntent, durationSec: 8, type: "ai_video", motionRequired }).eligibilityScore;
+  assert.ok(score("Hun horsemen charge across open steppe at full gallop, dust rising") >= AI_VIDEO_SCORE_THRESHOLD);
+  assert.ok(score("Greek defenders clashing with Persian soldiers in the narrow mountain pass") >= AI_VIDEO_SCORE_THRESHOLD);
+  assert.ok(score("Horse stumbling and losing footing on rocky uneven narrow ground") >= AI_VIDEO_SCORE_THRESHOLD);
+  assert.ok(score("A man pointing toward a hidden mountain trail at dusk") < AI_VIDEO_SCORE_THRESHOLD);
+  assert.ok(score("Ancient map of the Thermopylae pass with cavalry charge arrows") < AI_VIDEO_SCORE_THRESHOLD, "un mapa nunca");
+  assert.ok(score("Hun horsemen charge across the steppe", false) < AI_VIDEO_SCORE_THRESHOLD, "sin movimiento declarado no");
+});
