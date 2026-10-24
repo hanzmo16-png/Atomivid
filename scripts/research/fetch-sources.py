@@ -84,7 +84,11 @@ def fetch(url: str) -> tuple[int, bytes, str]:
 def to_text(body: bytes, ctype: str, url: str) -> str:
     if "pdf" in ctype or url.endswith(".pdf") or body[:4] == b"%PDF":
         open("/tmp/src.pdf", "wb").write(body)
-        return subprocess.run(["pdftotext", "-layout", "/tmp/src.pdf", "-"], capture_output=True, text=True).stdout
+        try:
+            return subprocess.run(["pdftotext", "-layout", "/tmp/src.pdf", "-"], capture_output=True, text=True, check=True).stdout
+        except (OSError, subprocess.CalledProcessError):
+            from pypdf import PdfReader
+            return "\n".join((pg.extract_text() or "") for pg in PdfReader("/tmp/src.pdf").pages)
     t = body.decode("utf-8", "replace")
     if "csv" in ctype or url.endswith("CPIAUCNS"):
         return t
