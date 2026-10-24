@@ -22,6 +22,27 @@ sin migración productiva, sin activar el interruptor y sin ninguna llamada de p
 | 7 | Media (UX, modo C) | Quien escucha en plano general / sobre el hombro era un fotograma congelado; los fondos de transición y título también. | Movimiento de cámara sutil y continuo (zoompan lento a 2×, zoom 1.01–1.07, periodo ≥ 6 s, desfase por plano). No anima la boca: sin lip-sync falso. |
 | 8 | Baja (evidencia) | La migración del estudio no tenía auditoría reproducible (solo se aplicaba en el arnés). | `migration-audit-v3.sh` en BD desechable (ver abajo). |
 
+### Segunda ronda (cierre controlado)
+| # | Severidad | Defecto | Corrección |
+|---|---|---|---|
+| 9 | **Crítica** (pérdida de trabajo / cobro) | Lo pagado (voz, clips) solo vivía en el disco del runner; el libro guardaba una ruta local. Un reintento en otro runner de GitHub (siempre efímero) no podía reutilizarlo. | Almacén de artefactos pagados en Storage privado (`<dueño>/podcast-studio/<episodio>/paid/`); el libro guarda la referencia; si falta, falla cerrado (`PaidArtifactMissingError`) y nunca repaga. |
+| 10 | Alta (cobro doble) | La clave del clip de avatar era el hash de los bytes del máster re-codificado: otra versión de ffmpeg = otra clave = clip pagado dos veces. | Clave determinista: clave de la voz pagada del turno + desplazamiento + segundos. |
+| 11 | Alta (costos) | App y worker estimaban con tarifas distintas (Vercel vs `0.2` fijo en el workflow). | La estimación guarda sus tarifas (`estimate.rates`); el worker estima y reserva con esas. |
+| 12 | Alta (costos) | Duraciones reales mayores que las estimadas podían agotar el tope a mitad de los clips (pagados y sin terminar). | Segundo control tras la voz con duraciones reales: no se pide ningún clip si no caben todos. |
+| 13 | Alta (recuperación) | Runner muerto (tiempo/cancelación): el episodio quedaba «generating» para siempre. | `podcast-video-mark-failed.ts` lo pasa a `failed`; reservas en vuelo → `uncertain` (conciliación, nunca repago). |
+| 14 | Media (prueba) | El E2E móvil elegía el modo por posición (`MODES[2]`); al añadir el modo B pasó a probar otro modo (39 < 40 comprobaciones). | Selección por etiqueta (`c10c`, conversación). |
+
+## Pruebas reales mínimas (preparadas, NO ejecutadas)
+Requisitos: migración aplicada; `PODCAST_V3_ENABLED=1` solo para la cuenta piloto (Vercel Preview o producción con la beta cerrada); variable del repositorio para el worker. Saldos verificados (2026-10-23 22:20 UTC, lectura gratuita): ElevenLabs 100.996 caracteres, HeyGen USD 47,72 (monedero API).
+| Prueba | Configuración | Costo máximo autorizado (tope duro del episodio) |
+|---|---|---|
+| R1 Solo audio | 1 voz, ~900 caracteres | USD 0,25 |
+| R2 Narración con imágenes | 2 voces, ~900 caracteres, Pexels | USD 0,25 |
+| R3 Avatar | 1 avatar existente, 2 turnos, frecuencia 1, máx. 5 s | USD 0,60 |
+| R4 Conversación | 2 avatares, 4 turnos cortos, máx. 4 s | USD 1,00 |
+| R5 Reintento | cancelar R3 a mitad y reintentar: debe reutilizar todo lo pagado | USD 0 adicional (dentro de R3) |
+| **Total** | | **USD 2,10** |
+
 Pendiente, documentado (no corregido): un cobro **incierto** (p. ej. HeyGen agota el tiempo de espera) bloquea el
 reintento automático de esa operación — correcto para no cobrar dos veces, pero requiere conciliación manual
 (consultar el `video_id` en HeyGen y marcar la fila `settled` o `released`). Los clips de reacción del oyente no se

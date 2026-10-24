@@ -493,7 +493,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       await link.click(); await M.p.waitForURL(/\/dashboard\/podcast$/);
       const overflow = await M.p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       ok(`c11-${dev}: sin desbordamiento horizontal`, overflow <= 1, `${overflow}px`);
-      await studioFlow(M, `c11-${dev}`, { ...MODES[2], title: `E2E móvil ${dev}` });
+      await studioFlow(M, `c11-${dev}`, { ...MODES.find((x) => x.tag === "c10c"), title: `E2E móvil ${dev}` }); // conversación (por etiqueta, no por posición)
       await M.ctx.close();
     }
     const D = await session(OWNER, "c11-escritorio");
@@ -502,7 +502,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
   const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40 };
-  const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[abc]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name))).length]));
+  const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[a-d]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name))).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));
   for (const r of results.filter((x) => !x.pass)) console.log(`FALLO_DETALLE FAIL ${r.name} ${String(r.detail).slice(0, 200)}`);
