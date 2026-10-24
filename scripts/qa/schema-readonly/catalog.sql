@@ -1,4 +1,4 @@
--- READ-ONLY catalog audit (no DDL, no DML). Run with PGOPTIONS='-c default_transaction_read_only=on'.
+-- READ-ONLY catalog audit (no DDL, no DML). run.sh wraps it in BEGIN TRANSACTION READ ONLY … ROLLBACK.
 \pset footer off
 \pset format unaligned
 \pset fieldsep ' | '
@@ -34,6 +34,7 @@ select 'column', table_name, column_name, data_type, is_nullable from informatio
 select 'privilege', r.rolname, f, has_function_privilege(r.rolname, f, 'execute') from (values ('public.pi_open_spend_authorization(uuid,numeric,text)'), ('public.pi_spend_authorization_usage(text,text)')) v(f)
   cross join pg_roles r where r.rolname in ('anon','authenticated','service_role') and to_regprocedure(f) is not null order by 2,3;
 -- aggregated counts only (no personal data): what a migration would meet
-select 'count spend_authorizations', count(*) from public.pi_spend_authorizations;
+select 'count spend_authorizations', case when to_regclass('public.pi_spend_authorizations') is null then 'table absent'
+  else (xpath('/row/c/text()', query_to_xml('select count(*) c from public.pi_spend_authorizations', false, true, '')))[1]::text end;
 select 'count podcast ops by status', status, count(*) from public.pi_paid_operations where project_id like 'podcast-%' group by status order by 2;
 select 'count podcast episodes', count(*), count(*) filter (where budget_usd is not null) from public.podcast_episodes;

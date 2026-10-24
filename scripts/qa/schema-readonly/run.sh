@@ -7,12 +7,17 @@ set -uo pipefail
 R=$(git rev-parse --show-toplevel); OUT=${OUT:-$PWD/schema-out}; mkdir -p "$OUT"; T=$(mktemp -d)
 URL=$(cd "$R" && npx tsx -e 'import { resolveConnection } from "./scripts/lib/supabase-db"; const c = resolveConnection(); if (!c) { process.exit(3) } process.stdout.write(c.connectionString)') || { echo "FAIL no DB credential"; exit 1; }
 PW=$(node -e 'const u=new URL(process.argv[1]); process.stdout.write(decodeURIComponent(u.password))' "$URL"); echo "::add-mask::$PW"; echo "::add-mask::$URL"
-export PGOPTIONS='-c default_transaction_read_only=on -c statement_timeout=60000'
+export PGOPTIONS='-c statement_timeout=60000' # may be ignored by the pooler; read-only is enforced per transaction below
 PGBIN=/usr/lib/postgresql/17/bin
 "$PGBIN/psql" "$URL" -X -v ON_ERROR_STOP=1 -c "select 1" >/dev/null 2>"$T/err" || { echo "FAIL connect: $(sed "s/$PW/***/g" "$T/err" | head -3)"; exit 1; }
-ro=$("$PGBIN/psql" "$URL" -X -qAt -c "show default_transaction_read_only"); [ "$ro" = on ] || { echo "FAIL session is not read-only ($ro): stop"; exit 1; }
-w=$("$PGBIN/psql" "$URL" -X -qAt -c "create temp table _probe(x int)" 2>&1); echo "$w" | grep -q "read-only transaction" && echo "PASS write attempt refused by the read-only session" || { echo "FAIL write probe not refused: $w"; exit 1; }
-"$PGBIN/psql" "$URL" -X -v ON_ERROR_STOP=0 -f "$R/scripts/qa/schema-readonly/catalog.sql" > "$OUT/catalog.txt" 2>"$OUT/catalog.err"; cat "$OUT/catalog.txt"; sed "s/$PW/***/g" "$OUT/catalog.err" | head -20
+# The Supabase pooler drops startup options (PGOPTIONS was ignored in run 40126941145 → this script stopped). So every
+# production statement runs inside an explicit READ ONLY transaction that is rolled back; pg_dump is read-only by design
+# (BEGIN ISOLATION LEVEL REPEATABLE READ, READ ONLY).
+ro=$(printf 'begin transaction read only;\nshow transaction_read_only;\nrollback;\n' | "$PGBIN/psql" "$URL" -X -qAt 2>&1 | grep -E '^(on|off)$'); [ "$ro" = on ] || { echo "FAIL transaction is not read-only ($ro): stop"; exit 1; }
+echo "PASS explicit READ ONLY transaction honoured by the pooler (transaction_read_only=on)"
+w=$(printf 'begin transaction read only;\ncreate temp table _probe(x int);\nrollback;\n' | "$PGBIN/psql" "$URL" -X -qAt 2>&1); echo "$w" | grep -q "read-only transaction" && echo "PASS write attempt refused by the read-only transaction" || { echo "FAIL write probe not refused: $(echo "$w" | sed "s/$PW/***/g" | head -3)"; exit 1; }
+{ printf 'begin transaction read only;\n'; cat "$R/scripts/qa/schema-readonly/catalog.sql"; printf '\nrollback;\n'; } | "$PGBIN/psql" "$URL" -X -v ON_ERROR_STOP=1 > "$OUT/catalog.txt" 2>"$OUT/catalog.err"; echo "catalog exit $?"; cat "$OUT/catalog.txt"; sed "s/$PW/***/g" "$OUT/catalog.err" | head -20
+grep -q '^session_read_only | .* | on$' "$OUT/catalog.txt" && echo "PASS catalog ran with transaction_read_only=on" || echo "FAIL catalog read-only flag not confirmed"
 "$PGBIN/pg_dump" "$URL" --schema-only --no-owner --no-privileges --no-comments -n public -f "$T/public.sql" 2>"$T/dump.err" || { echo "FAIL pg_dump: $(sed "s/$PW/***/g" "$T/dump.err" | head -5)"; exit 1; }
 echo "INFO schema dump: $(wc -l < "$T/public.sql") lines, sha256 $(sha256sum "$T/public.sql" | cut -c1-16) (kept on the runner only)"
 unset PGOPTIONS
