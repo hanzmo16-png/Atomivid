@@ -10,7 +10,8 @@
  *  5. Music: original license pages (HTML), Silverman FAQ; loudness of the pending track vs the mix levels.
  */
 import { createClient } from "@supabase/supabase-js";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { writeFileSync } from "node:fs";
 const log = (t: string, v: unknown) => console.log(t, JSON.stringify(v));
 const JOB = "e8048599-cf92-45e8-95c8-f145cb9d3be2";
@@ -56,14 +57,14 @@ async function main() {
   // ---- supply / policies / snapshots (before fetch is replaced)
   const providers = ["anthropic", "elevenlabs", "recraft", "openai", "veo", "__global__"];
   const { data: policies } = await db.from("pi_supply_policies").select("provider,enabled,unit,unit_cost_usd,baseline,daily_cap_usd,monthly_cap_usd,max_concurrent,max_daily_calls,evidence").in("provider", providers);
-  log("POLICY", policies);
+  void policies; // captured in run 40091018172
   for (const p of providers.filter((p) => p !== "__global__")) {
     const st = await db.rpc("pi_supply_state", { p_provider: p });
     const { data: snaps } = await db.from("pi_capacity_snapshots").select("available,unit,health,reliability,status,checked_at").eq("provider", p).order("checked_at", { ascending: false }).limit(3);
-    log("SUPPLY", { p, state: st.data ?? st.error?.message, snapshots: snaps });
+    if (p === "recraft") log("SUPPLY", { p, state: st.data ?? st.error?.message, snapshots: snaps });
   }
   const { data: reqs } = await db.from("video_requests").select("id,status,created_at").eq("user_id", job.user_id).order("created_at", { ascending: false }).limit(3);
-  log("REQUESTS", { recent: reqs?.map((r) => ({ id: r.id.slice(0, 8), status: r.status, created: r.created_at })) });
+  void log; if (0) log("REQUESTS", { recent: reqs?.map((r) => ({ id: r.id.slice(0, 8), status: r.status, created: r.created_at })) });
 
   // ---- offline replay with projection for unpaid visual plans
   const origFetch = globalThis.fetch;
@@ -175,9 +176,11 @@ async function main() {
   }
   try {
     const r = await fetch("https://www.silvermansound.com/wp-content/uploads/passage-of-arms.mp3"); const b = Buffer.from(await r.arrayBuffer()); writeFileSync("/tmp/poa.mp3", b);
-    const out = execFileSync("ffmpeg", ["-hide_banner", "-nostats", "-i", "/tmp/poa.mp3", "-af", "ebur128=peak=true", "-f", "null", "-"], { stdio: ["ignore", "pipe", "pipe"] }).toString();
-    void out;
-  } catch (e: any) { const s = String(e?.stderr ?? e); const I = s.match(/I:\s+(-?[\d.]+) LUFS/g)?.at(-1); const P = s.match(/Peak:\s+(-?[\d.]+) dBFS/g)?.at(-1); log("MUSIC_LOUDNESS", { integrated: I, truePeak: P }); }
+    const sha = createHash("sha256").update(b).digest("hex");
+    const res = spawnSync("ffmpeg", ["-hide_banner", "-nostats", "-i", "/tmp/poa.mp3", "-af", "ebur128=peak=true", "-f", "null", "-"], { encoding: "utf8" });
+    const s = `${res.stdout ?? ""}${res.stderr ?? ""}`; const I = s.match(/I:\s+(-?[\d.]+) LUFS/g)?.at(-1); const P = s.match(/Peak:\s+(-?[\d.]+) dBFS/g)?.at(-1);
+    log("MUSIC_LOUDNESS", { http: r.status, bytes: b.length, sha256: sha, integrated: I, truePeak: P, ffmpeg: res.status ?? res.error?.message });
+  } catch (e: any) { log("MUSIC_LOUDNESS", { error: String(e).slice(0, 200) }); }
   log("END", { providerCalls: 0, writes: 0 });
 }
 main().catch((e) => { console.log("FAILED", String(e).slice(0, 400)); process.exitCode = 1; });
