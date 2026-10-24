@@ -107,9 +107,15 @@ $Q -c "insert into public.podcast_studio_operations(key,user_id,episode_id,provi
 E6=2a000000-0000-4000-8000-0000000000e6; newep $E6; openauth $E6 5 e6 >/dev/null
 op e6a podcast-$E6 0.1; r=$(submit e6a)
 if [ "$r" = concurrency ]; then finding "E6 (P2) a studio reservation left 'reserved' by a lost runner (mark-failed never ran) occupies a provider concurrency slot with no expiry: 3 days later a pipeline call is refused ('$r'). With max_concurrent=1 this blocks every ElevenLabs/HeyGen call platform-wide until someone reconciles it."; else ok 1 "E6 stale reservation does not block ($r)"; fi
+# regression of the E6 fix: free the slot e6a took (if admitted), then a FRESH studio reservation must still hold it
+$Q -c "update public.pi_paid_operations set status='COMMITTED', committed_usd=reserved_usd where idempotency_key='e6a' and status in ('SUBMITTED','RESERVED')" >/dev/null
+$Q -c "insert into public.podcast_studio_operations(key,user_id,episode_id,provider,op,state,reserved_usd) values (repeat('7',64),'$U1','$SE6','elevenlabs','tts','reserved',0.05)" >/dev/null
+op e6f podcast-$E6 0.1; rf=$(submit e6f); ok $([ "$rf" = concurrency ] && echo 1) "E6 a fresh studio reservation still holds the concurrency slot ('$rf')"
+$Q -c "delete from public.podcast_studio_operations where key=repeat('7',64)" >/dev/null
+$Q -c "update public.pi_paid_operations set status='COMMITTED', committed_usd=reserved_usd where idempotency_key='e6f' and status in ('SUBMITTED','RESERVED')" >/dev/null
 # what scripts/podcast-video-mark-failed.ts does for JOB_KIND=studio, in SQL:
 $Q -c "update public.podcast_studio_episodes set status='failed' where id='$SE6' and status='generating'; update public.podcast_studio_operations set state='uncertain' where episode_id='$SE6' and state='reserved'"
-r=$(submit e6a); ok $([ "$r" = admitted ] && echo 1) "E6 after mark-failed (reserved → uncertain) the slot is released ('$r')"
+op e6b podcast-$E6 0.1; r=$(submit e6b); ok $([ "$r" = admitted ] && echo 1) "E6 after mark-failed (reserved → uncertain) the slot is released ('$r')"
 usd=$($Q -c "select coalesce(sum(reserved_usd),0) from public.podcast_studio_operations where episode_id='$SE6' and state='uncertain'")
 ok $(awk "BEGIN{exit !($usd > 0)}" && echo 1) "E6 the uncertain amount (${usd}) still counts as possibly charged (not freed)"
 err=$($Q -c "insert into public.podcast_studio_operations(key,user_id,episode_id,provider,op,state,reserved_usd) values (repeat('9',64),'$U1','$SE6','elevenlabs','tts','reserved',0.1)" 2>&1 || true)

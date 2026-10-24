@@ -34,6 +34,17 @@ jobs:
           node --import tsx --test src/lib/supply/spend-authorization.test.ts src/lib/video/long-form/long-form-15min-readiness.test.ts src/lib/podcast/spend-authorization-open.test.ts 2>&1 | tee spend.log
           npm run test:rescate 2>&1 | tee rescate.log
           npm run test:podcast3 2>&1 | tee podcast3.log
+      - name: "Audit fixes F1 (video route order) + gate regressions D1–D3 on the integrated tree"
+        run: |
+          set -o pipefail
+          node --import tsx --test src/lib/podcast/video-request-validation.test.ts src/lib/podcast/audit-pr200-final.test.ts 2>&1 | tee audit-unit.log
+          grep -q '^# fail 0$' audit-unit.log && grep -q '^# todo 0$' audit-unit.log
+      - name: Long Form / YouTube + billing suites (spend caps, editorial gate, SaaS billing/access)
+        run: |
+          set -o pipefail
+          npm run test:spend 2>&1 | tee lf-spend.log
+          npm run test:editorial 2>&1 | tee lf-editorial.log
+          npm run test:saas 2>&1 | tee saas.log
       - name: build
         run: npm run build > build.log 2>&1 || { tail -60 build.log; exit 1; }
       - if: always()
@@ -100,6 +111,14 @@ jobs:
           set -o pipefail
           bash scripts/harness/e2e/podcast/run.sh ci "1,2,3,4,5,6,7,8,9,10,11"
           grep -Eq '^RESULTADO ([0-9]+)/\1 PASS$' "$E2E_HOME/out/ci.log" || { echo "::error::E2E failures"; exit 1; }
+      - name: Audit E2E F1–F3 on the integrated tree (F1/E6/F3 fixed → 0 FAIL, 0 FINDING)
+        if: always()
+        run: |
+          set -o pipefail
+          . "$E2E_HOME/paths.env"; OUT="$E2E_HOME/out/audit"; mkdir -p "$OUT"
+          REPO="$PWD" E2E_OUT="$OUT" E2E_CHROME="$CHROME" PLAYWRIGHT_MODULE="$E2E_HOME/deps/node_modules/playwright" HARNESS_PG_MODULE="$E2E_HOME/deps/node_modules/pg" AUDIT_F3_FIXED=1 \
+          HARNESS_PG_URL="postgres://postgres@localhost:$PGPORT/atomivid?host=$E2E_HOME/run" timeout 3000 node scripts/harness/e2e/podcast/audit-pr200-final.cjs 2>&1 | tee "$OUT/audit-e2e.log"
+          grep -Eq '^RESULT [0-9]+ PASS / 0 FAIL / 0 FINDING$' "$OUT/audit-e2e.log" || { echo "::error::audit E2E not clean"; exit 1; }
       - name: No real provider contacted
         if: always()
         run: |
@@ -107,4 +126,4 @@ jobs:
           if grep '"egress_refused"' "$f" | grep -Eiq 'elevenlabs|pexels|fal\.(ai|run)|openai|anthropic|recraft|heygen|d-id|supabase\.co|stripe'; then echo "::error::egress"; exit 1; fi
       - if: always()
         uses: actions/upload-artifact@v4
-        with: { name: integracion-e2e, retention-days: 14, path: ".e2e-local/out/ci.log" }
+        with: { name: integracion-e2e, retention-days: 14, path: ".e2e-local/out/ci.log\n.e2e-local/out/audit/*" }
