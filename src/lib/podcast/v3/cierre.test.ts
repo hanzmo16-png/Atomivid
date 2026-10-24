@@ -4,30 +4,25 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { studioReadiness } from "./readiness";
+import { studioSupplyDemands, studioSpendByProvider, unsupportedSpend } from "./readiness";
 import { stillMotion, FPS } from "./compose";
 import { draftToSpec, defaultDraft, modalityToMode, MODALITIES, type WizardDraft } from "./wizard";
 import { StudioSpec, STUDIO_VERSION, validateSpec, EL_DURO_VOICE_ID } from "./spec";
 import { studioAction, type ApiDeps } from "./api";
 import { estimateByMode } from "./studio";
 import type { AccountVoice } from "@/lib/podcast/voices";
-import type { CapacitySnapshot } from "@/lib/production-intelligence/capacity/capacity";
 
-const snap = (provider: string, unit: CapacitySnapshot["unit"], available: number | null, health: CapacitySnapshot["health"] = "OK"): CapacitySnapshot =>
-  ({ provider, accountLabel: "t", unit, available, reserved: 0, pending: 0, renewalDate: null, lastCheckedAt: "2026-10-23T00:00:00Z", health, reliability: available == null ? "none" : "provider_api" });
 const needs = (o: Partial<{ ttsChars: number; ttsUsd: number; avatarUsd: number; imagesUsd: number }> = {}) => ({ ttsChars: 9000, ttsUsd: 0.9, avatarUsd: 0, imagesUsd: 0, ...o });
 
-test("saldo previo: sin saldo verificable o insuficiente se bloquea ANTES de cualquier cargo; con saldo, listo", () => {
-  assert.equal(studioReadiness(needs(), { elevenlabs: snap("elevenlabs", "character", 50_000) }), null);
-  assert.match(studioReadiness(needs(), { elevenlabs: snap("elevenlabs", "character", 100) })!, /quedan 100 caracteres/);
-  assert.match(studioReadiness(needs(), { elevenlabs: null })!, /no verificable/);
-  assert.match(studioReadiness(needs(), { elevenlabs: snap("elevenlabs", "character", null, "DOWN") })!, /no verificable/);
-  // Avatar: solo se exige saldo HeyGen si el episodio usa avatar; saldo en créditos (no USD) no cuenta como verificado.
-  assert.equal(studioReadiness(needs({ avatarUsd: 7.7 }), { elevenlabs: snap("elevenlabs", "character", 50_000), heygen: snap("heygen", "usd", 10) }), null);
-  assert.match(studioReadiness(needs({ avatarUsd: 7.7 }), { elevenlabs: snap("elevenlabs", "character", 50_000), heygen: snap("heygen", "usd", 3) })!, /HeyGen: saldo USD 3.00/);
-  assert.match(studioReadiness(needs({ avatarUsd: 7.7 }), { elevenlabs: snap("elevenlabs", "character", 50_000), heygen: snap("heygen", "credit", 999) })!, /HeyGen/);
-  assert.match(studioReadiness(needs({ avatarUsd: 1 }), { elevenlabs: snap("elevenlabs", "character", 50_000) })!, /HeyGen/);
-  assert.match(studioReadiness(needs({ imagesUsd: 0.4 }), { elevenlabs: snap("elevenlabs", "character", 50_000) })!, /no está conectado/);
+test("saldo y topes previos: la demanda del estudio usa la regla de producción e incluye lo gastado por el estudio en 24 h", () => {
+  assert.deepEqual(studioSupplyDemands(needs(), {}), [{ provider: "elevenlabs", unit: "character", units: 9000, usd: 0.9 }]);
+  const d = studioSupplyDemands(needs({ avatarUsd: 7.7 }), studioSpendByProvider([
+    { provider: "heygen", state: "settled", reserved_usd: 0.5, actual_usd: 0.4 }, { provider: "heygen", state: "uncertain", reserved_usd: 0.3, actual_usd: null },
+    { provider: "heygen", state: "released", reserved_usd: 9, actual_usd: 0 }, { provider: "elevenlabs", state: "reserved", reserved_usd: 0.2, actual_usd: null }]));
+  assert.deepEqual(d.find((x) => x.provider === "heygen"), { provider: "heygen", unit: "usd", units: 8.4, usd: 8.4 }, "liquidado al real + incierto al reservado; liberado no cuenta");
+  assert.equal(d.find((x) => x.provider === "elevenlabs")!.usd, 1.1);
+  assert.equal(unsupportedSpend(needs({ imagesUsd: 0.4 }))?.includes("no está conectado"), true);
+  assert.equal(unsupportedSpend(needs()), null);
 });
 
 test("quien escucha no queda congelado: movimiento de cámara sutil, continuo, del largo exacto del plano y sin animar labios", () => {
@@ -100,4 +95,14 @@ test("una sola fuente de tarifas: la estimación guarda sus tarifas y el worker 
   const voz = (e: typeof a) => e.estimate.lines.find((l) => l.concept === "voz")!.usd;
   assert.ok(Math.abs(voz(b) - 2 * voz(a)) <= 0.0002, `${voz(a)} vs ${voz(b)}`);
   assert.equal(a.estimate.rates.avatarUsdPerSecond, 0.0385);
+});
+
+test("tope duro de autorización por episodio (USD 50), aunque el presupuesto escrito sea mayor", async () => {
+  const { authorizeAction, STUDIO_MAX_AUTHORIZED_USD } = await import("./api");
+  const row = { id: "e1", user_id: "u1", status: "draft", estimated_usd: 10, spec: { version: STUDIO_VERSION, mode: "narracion", title: "T", script: "y".repeat(30), target_minutes: 1, participants: [{ id: "A", name: "A", voice_id: "voiceAnaHost1" }], visual: {}, music: {}, budget_usd: 400 } };
+  let authorized = 0;
+  const d = deps({ load: async () => row as never, authorize: async () => { authorized++; return true; } });
+  assert.equal(STUDIO_MAX_AUTHORIZED_USD, 50);
+  assert.equal((await authorizeAction(d, "e1", { confirm: true, authorizedUsd: 60 })).status, 402); assert.equal(authorized, 0);
+  assert.equal((await authorizeAction(d, "e1", { confirm: true, authorizedUsd: 50 })).status, 200); assert.equal(authorized, 1);
 });

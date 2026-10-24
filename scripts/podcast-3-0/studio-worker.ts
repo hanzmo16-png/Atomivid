@@ -20,7 +20,7 @@ export async function runStudioJob(episodeId: string) {
   }
   if (!/^[0-9a-f-]{36}$/i.test(episodeId)) throw new Error("EPISODE_ID missing");
   const { createServiceClient } = await import("../../src/lib/supabase/service");
-  const { STUDIO_TABLE, STUDIO_COLUMNS, supabaseStudioLedger, supabaseRunGuard } = await import("../../src/lib/podcast/v3/store");
+  const { STUDIO_TABLE, STUDIO_OPS_TABLE, STUDIO_COLUMNS, supabaseStudioLedger, supabaseRunGuard } = await import("../../src/lib/podcast/v3/store");
   const { StudioSpec } = await import("../../src/lib/podcast/v3/spec");
   const { runEpisode } = await import("../../src/lib/podcast/v3/pipeline");
   const { lipTimeline, lipViolations, shotCoverage } = await import("../../src/lib/podcast/v3/studio");
@@ -65,13 +65,18 @@ export async function runStudioJob(episodeId: string) {
   });
   const wrapped = { ...avatar, prepare: preparePhoto, prepareUsd: 0, render: async (ref: string, a: string, s: number, d: string, m: number) => avatar.render(await resolveRef(ref), a, s, d, m) };
   // Saldo verificado ANTES de cualquier cargo (GET de facturación gratuitos; nunca generación).
+  // Misma regla de producción que el resto de Atomicvid (saldo verificado + topes diarios/mensuales por proveedor y
+  // global), ANTES de cualquier cargo. Lo que el estudio gastó en 24 h se suma a la demanda (su libro no está en pi_*).
   const readiness = async (needs: import("../../src/lib/podcast/v3/pipeline").ProviderNeeds) => {
-    const [{ elevenLabsSnapshot }, { heygenApiSnapshot }, { studioReadiness }] = await Promise.all([import("../../src/lib/production-intelligence/capacity/adapters"), import("../../src/lib/supply/heygen"), import("../../src/lib/podcast/v3/readiness")]);
-    const now = new Date().toISOString();
-    const [el, hg] = await Promise.all([needs.ttsChars > 0 ? elevenLabsSnapshot(fetch, process.env, 0, 0, now) : null, needs.avatarUsd > 0 ? heygenApiSnapshot(fetch, process.env, now) : null]);
-    const why = studioReadiness(needs, { elevenlabs: el, heygen: hg });
-    console.log("STUDIO_READINESS", JSON.stringify({ tts_chars: needs.ttsChars, el_available: el?.available ?? null, avatar_usd: needs.avatarUsd, hg_available: hg?.available ?? null, blocked: !!why }));
-    return why;
+    const [{ ensureJobSupplyReady }, { studioSupplyDemands, studioSpendByProvider, unsupportedSpend }] = await Promise.all([import("../../src/lib/supply/readiness"), import("../../src/lib/podcast/v3/readiness")]);
+    const blocked = unsupportedSpend(needs); if (blocked) return blocked;
+    const { data: recent, error: recentError } = await service.from(STUDIO_OPS_TABLE).select("provider,state,reserved_usd,actual_usd").gte("created_at", new Date(Date.now() - 24 * 3600_000).toISOString());
+    if (recentError) return "No se pudo leer el gasto reciente del estudio.";
+    const demands = studioSupplyDemands(needs, studioSpendByProvider(recent ?? []));
+    if (!demands.length) return null;
+    const r = await ensureJobSupplyReady(service, demands);
+    console.log("STUDIO_READINESS", JSON.stringify({ demands, ready: r.ready, failure: r.failure ?? null, providers: r.providers.map((p) => ({ p: p.provider, level: p.level, free: p.free, ok: p.ok, failure: p.failure ?? null })) }));
+    return r.ready ? null : `${r.failure?.provider ?? "proveedor"}: ${r.failure?.reason ?? "no disponible"}`;
   };
   // Arnés E2E local: proveedores simulados (nunca en producción).
   const simulated = process.env.PODCAST_V3_PROVIDERS === "mock" && process.env.ATOMIVID_RUNTIME !== "production";

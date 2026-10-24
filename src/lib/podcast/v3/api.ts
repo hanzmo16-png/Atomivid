@@ -35,6 +35,7 @@ export type ApiDeps = {
   env?: Record<string, string | undefined>;
 };
 type Out = { status: number; body: Record<string, unknown> };
+export const STUDIO_MAX_AUTHORIZED_USD = 50;
 const DISABLED: Out = { status: 503, body: { error: "Los modos de estudio (avatar y conversación) se activan tras autorizar la migración y PODCAST_V3_ENABLED. La narración sigue disponible." } };
 
 export async function studioAction(d: ApiDeps, body: Record<string, unknown> | null): Promise<Out> {
@@ -93,6 +94,9 @@ export async function authorizeAction(d: ApiDeps, id: string, body: Record<strin
   if (!spec.success) return { status: 409, body: { error: "Especificación del episodio inválida." } };
   if (!Number.isFinite(usd) || usd < Number(row.estimated_usd ?? 0) - 1e-9) return { status: 402, body: { error: "El monto autorizado es menor que la estimación." } };
   if (usd > spec.data.budget_usd + 1e-9) return { status: 402, body: { error: "El monto autorizado supera el presupuesto máximo del episodio." } };
+  // Tope duro por autorización (independiente del presupuesto que escriba el usuario): un error o un abuso no puede
+  // autorizar más de STUDIO_MAX_AUTHORIZED_USD por episodio.
+  if (usd > STUDIO_MAX_AUTHORIZED_USD + 1e-9) return { status: 402, body: { error: `Por seguridad, un episodio no puede autorizar más de USD ${STUDIO_MAX_AUTHORIZED_USD}.` } };
   if (!(await d.authorize(id, usd))) return { status: 409, body: { error: "Otra solicitud cambió el episodio; recarga la página." } };
   const dispatched = await d.dispatch(id);
   return { status: 200, body: { ok: true, dispatched, note: dispatched ? null : "Autorizado. No pudimos confirmar el inicio del trabajo; pulsa «Reintentar» (no se cobra dos veces)." } };
