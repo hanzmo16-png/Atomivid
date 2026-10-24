@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { resumeAuthorizationRefusal, type SpendAuthorization } from "@/lib/supply/spend-authorization";
 
 /**
  * Owner-authorised resume of ONE failed documentary script job after a deployed fix (2026-10-23, job e8048599:
@@ -31,14 +32,35 @@ export function resumeRefusal(req: ResumeRequest, row: ResumeRow | null): string
 
 export async function resumeScriptJob(service: SupabaseClient, req: ResumeRequest): Promise<{ ok: true } | { ok: false; reason: string }> {
   const { data, error } = await service.from("documentary_script_jobs")
-    .select("id,status,failure_kind,error_code,retry_count,run_token,updated_at,editorial_checkpoint").eq("id", req.jobId).maybeSingle();
+    .select("id,user_id,status,failure_kind,error_code,retry_count,run_token,updated_at,editorial_checkpoint").eq("id", req.jobId).maybeSingle();
   if (error) return { ok: false, reason: "job read failed" };
   const refusal = resumeRefusal(req, data as ResumeRow | null);
   if (refusal) return { ok: false, reason: refusal };
   const row = data as ResumeRow;
+  // Stored spend authorization BEFORE requeueing (incident PR #194: the typed confirmation was the only gate, and
+  // pi_submit_with_supply caps a documentary project only when a recovery budget row exists). Fail closed.
+  const authRefusal = await storedAuthorizationRefusal(service, row.id);
+  if (authRefusal) return { ok: false, reason: authRefusal };
   const { data: updated, error: updateError } = await service.from("documentary_script_jobs")
     .update({ status: "queued", run_token: null, failure_kind: null, error_code: null, error_message: null, stage: "En cola", updated_at: new Date().toISOString() })
     .eq("id", row.id).eq("status", "failed").eq("updated_at", row.updated_at).select("id");
   if (updateError || updated?.length !== 1) return { ok: false, reason: "the job changed concurrently; nothing was modified" };
   return { ok: true };
+}
+
+/** Reads the job's recovery budget (pi_recovery_budgets) and its usage (pi_recovery_budget_usage, read-only RPC). */
+export async function storedAuthorizationRefusal(service: SupabaseClient, jobId: string): Promise<string | null> {
+  const job = await service.from("documentary_script_jobs").select("user_id").eq("id", jobId).maybeSingle();
+  if (job.error || !job.data) return "job owner could not be read";
+  const b = await service.from("pi_recovery_budgets").select("project_id,owner_id,cap_usd,authorization_ref,status").eq("job_id", jobId).maybeSingle();
+  if (b.error) return "authorization could not be read";
+  const row = b.data as { project_id: string; owner_id: string; cap_usd: number | string; authorization_ref: string; status: string } | null;
+  const auth: SpendAuthorization | null = row ? { projectId: row.project_id, ownerId: row.owner_id, capUsd: Number(row.cap_usd), authorizationRef: row.authorization_ref, status: row.status === "ACTIVE" ? "ACTIVE" : "CLOSED" } : null;
+  let usage: { pendingUsd: number; remainingUsd: number } | null = null;
+  if (auth) {
+    const u = await service.rpc("pi_recovery_budget_usage", { p_project_id: auth.projectId, p_exclude_key: null });
+    const d = u.data as { pendingUsd?: unknown; remainingUsd?: unknown } | null;
+    if (!u.error && d) usage = { pendingUsd: Number(d.pendingUsd), remainingUsd: Number(d.remainingUsd) };
+  }
+  return resumeAuthorizationRefusal(auth, (job.data as { user_id: string }).user_id, usage);
 }
