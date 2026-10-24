@@ -104,7 +104,10 @@ def main() -> int:
         if only and sid not in only:
             continue
         status, body, ctype = fetch(url)
-        text = to_text(body, ctype, url) if status else body.decode("utf-8", "replace")
+        try:
+            text = to_text(body, ctype, url) if status else body.decode("utf-8", "replace")
+        except Exception as e:  # noqa: BLE001
+            text = f"(no se pudo convertir: {e}; {len(body)} bytes, tipo {ctype})"
         print(f"\n===== {sid} | HTTP {status} | {len(text)} chars | {url}")
         hits = 0
         for k in keys:
