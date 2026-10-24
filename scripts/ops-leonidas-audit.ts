@@ -33,9 +33,9 @@ async function main() {
     const beats = narrative.beats as any[]; const all = beats.map((b) => b.narration ?? b.text ?? "").join("\n\n");
     log("BEATS", beats.map((b, i) => ({ i, words: String(b.narration ?? b.text ?? "").split(/\s+/).length, keys: Object.keys(b).slice(0, 8), start: String(b.narration ?? b.text ?? "").slice(0, 70) })));
     log("NARRATIVE", { at: narrativeAt, beats: beats.length, words: all.split(/\s+/).filter(Boolean).length, chars: all.length, minutesAt150wpm: Math.round(all.split(/\s+/).length / 150 * 10) / 10, title: narrative.title ?? null, keys: Object.keys(narrative) });
-    const flags = ["hipot", "imagin", "nunca se enfrentaron", "jamás se enfrentaron", "siglos", "¿qué pasaría", "qué habría pasado", "si ", "ficción", "simulación"];
+    const flags = ["never happened", "hypothetical", "imagin", "what if", "millennium", "archer", "bow", "arrow", "ammianus", "priscus", "jordanes", "catalaunian", "ephialtes", "anopaea", "xerxes", "persian", "480", "fifth century", "1.7 million", "eight meters", "herodotus"];
     log("FRAMING", Object.fromEntries(flags.map((k) => [k, (all.toLowerCase().match(new RegExp(k.replace(/[?¿]/g, "\\$&"), "g")) ?? []).length])));
-    for (let i = 0, k = 0; i < all.length && k < 6; i += 3600, k++) console.log("TEXT" + k + " " + all.slice(i, i + 3600).replace(/\n/g, " ⏎ "));
+    for (let i = 0, k = 0; i < all.length && k < 8; i += 1700, k++) console.log("TEXT" + k + " " + all.slice(i, i + 1700).replace(/\n/g, " ⏎ "));
   } else log("NARRATIVE", { found: false });
   const { data: files } = await db.storage.from("videos").list(`${job.user_id}`, { limit: 100, search: "e8048599" });
   log("MEDIA", { storageMatches: files?.map((x) => x.name) ?? [] });
