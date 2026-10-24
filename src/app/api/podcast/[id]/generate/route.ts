@@ -4,7 +4,7 @@ import { podcastUser } from "@/lib/podcast/auth";
 import { loadOwnedEpisode, podcastV2Enabled, runGeneration } from "@/lib/podcast/server";
 import { narrationRunsInBackground, requestBackgroundNarration } from "@/lib/podcast/video-jobs";
 import { UNCERTAIN_CHARGE_MESSAGE, budgetDecision, narrationCapUsd, runUpperBoundUsd } from "@/lib/podcast/pilot";
-import { episodeSpentUsd, narrationChunks, productionSpend } from "@/lib/podcast/pilot-server";
+import { episodeSpentUsd, narrationChunks, pendingNarration, productionSpend } from "@/lib/podcast/pilot-server";
 import { ensurePodcastSpendAuthorization } from "@/lib/podcast/spend-authorization-open";
 
 // Short narrations run here (+ mastering). Long scripts (up to ~33 min of audio) are narrated by the background
@@ -38,9 +38,14 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   // PR #198: the DB refuses podcast paid calls without a stored authorization → record the owner's approval first.
   // Episode authorization (opened once, immutable) = what is left of the owner's TOTAL budget when one is set, so a
   // narration started alone does not lock the episode to its own estimate (audit #200 P1-1); this run needs at most capUsd.
-  const runNeedUsd = capUsd ?? Number(episode.estimated_usd);
-  const episodeCapUsd = episode.budget_usd != null ? Math.max(0, Number(episode.budget_usd) - (spentUsd ?? 0)) : runNeedUsd;
-  const authz = await ensurePodcastSpendAuthorization(service, episode.id, episodeCapUsd, `app:narration:${user.id}:${new Date().toISOString()}`, { neededUsd: runNeedUsd });
+  // What THIS run can still charge = the parts not paid yet (stored chunks/turns are reused for free), never above capUsd.
+  // TTS narrations know their pending chunks exactly; conversations (per-turn reuse, no pending estimate) only require a
+  // positive remaining balance — the DB still stops any call past the cap.
+  const fullUsd = capUsd ?? Number(episode.estimated_usd);
+  const pendingUsd = episode.source === "tts" ? (await pendingNarration(service, episode).catch(() => null))?.usd : undefined;
+  const runNeedUsd = pendingUsd == null ? (episode.source === "tts" ? fullUsd : 0.0001) : Math.min(pendingUsd, fullUsd);
+  const episodeCapUsd = episode.budget_usd != null ? Math.max(0, Number(episode.budget_usd) - (spentUsd ?? 0)) : fullUsd;
+  const authz = episode.source === "tts" && pendingUsd === 0 ? ({ ok: true } as const) : await ensurePodcastSpendAuthorization(service, episode.id, Math.max(episodeCapUsd, fullUsd || 0), `app:narration:${user.id}:${new Date().toISOString()}`, { neededUsd: runNeedUsd });
   if (!authz.ok) return NextResponse.json({ error: authz.error }, { status: authz.status });
   if (narrationRunsInBackground(episode)) {
     const queued = await requestBackgroundNarration(service, episode);
