@@ -4,6 +4,7 @@ name: integracion-201-199-200
 on:
   push:
     branches: [claude/integracion-201-199-200]
+    paths-ignore: ["docs/**"]
 permissions:
   contents: read
 concurrency:

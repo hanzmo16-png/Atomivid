@@ -13,18 +13,30 @@ trap '"$PB/pg_ctl" -D "$W/pg" -m fast stop >/dev/null 2>&1 || true' EXIT
 DB=atomivid_audit200f; PS="psql -h $W/run -p $P -U postgres -v ON_ERROR_STOP=1 -q"
 $PS -d postgres -c "create database $DB"
 $PS -d $DB -f "$R/scripts/harness/e2e/infra/stubs.sql" >/dev/null
-git -C "$R" cat-file -e 9dccd68c3b06bffab2dc91ab415de6c2a73062bd 2>/dev/null || git -C "$R" fetch -q origin 9dccd68c3b06bffab2dc91ab415de6c2a73062bd
-git -C "$R" show 9dccd68c3b06bffab2dc91ab415de6c2a73062bd:supabase/migrations/0023_production_intelligence.sql > "$W/run/0023.sql"
-echo "0b49d9a4752d19c1b6f6f24df6c3f0c6fbdbd39136a41832f5a6189aa7fa8131  $W/run/0023.sql" | sha256sum -c --quiet
-KNOWN="20261011020000_pilot_scheduler.sql 20261014183400_finished_podcast_image_slot.sql"
-d23=0; for f in $(ls "$R"/supabase/migrations/*.sql | sort); do b=$(basename "$f")
-  if [ "$b" \> "0019_long_form_production_plan.sql" ] && [ $d23 = 0 ]; then $PS -d $DB -f "$W/run/0023.sql" > "$W/logs/mig-0023.log" 2>&1; d23=1; fi
-  if ! $PS -d $DB -f "$f" > "$W/logs/mig-$b.log" 2>&1; then
-    case " $KNOWN " in *" $b "*) echo "NOTICE local-only migration skipped: $b";; *) echo "FAIL migration $b"; cat "$W/logs/mig-$b.log"; exit 1;; esac; fi
-done
-$PS -d $DB -f "$R/scripts/harness/e2e/infra/seed-config.sql" >/dev/null
-for n in 20261024000000_spend_authorizations 20261024120000_resume_authorization_ref_match 20261024130000_spend_authorization_baseline_fix 20261024140000_podcast_v3_studio; do
-  echo "apply proposal $n"; $PS -d $DB -f "$R/supabase/proposals/$n.sql" >/dev/null; done
+if [ -n "${SCHEMA_SQL:-}" ]; then
+  # Production-schema mode (scripts/qa/schema-readonly/run.sh): the read-only pg_dump of production instead of the repo
+  # migrations; proposals already present in production (by marker) are not re-applied.
+  $PS -d $DB -c "create schema if not exists extensions; create extension if not exists pgcrypto with schema extensions; create extension if not exists \"uuid-ossp\" with schema extensions" >/dev/null 2>&1 || true
+  psql -h $W/run -p $P -U postgres -q -d $DB -v ON_ERROR_STOP=0 -f "$SCHEMA_SQL" > "$W/logs/restore.log" 2>&1 || true
+  echo "NOTICE production schema restored ($(grep -c ERROR "$W/logs/restore.log") restore errors: $(grep ERROR "$W/logs/restore.log" | sed 's/.*ERROR: *//' | sort | uniq -c | head -3 | tr '\n' ';'))"
+  $PS -d $DB -f "$R/scripts/harness/e2e/infra/seed-config.sql" >/dev/null 2>"$W/logs/seed.err" || { echo "NOTICE seed-config partially applied: $(head -2 "$W/logs/seed.err")"; }
+  for n in 20261024000000_spend_authorizations 20261024120000_resume_authorization_ref_match 20261024130000_spend_authorization_baseline_fix 20261024140000_podcast_v3_studio; do
+    if [ "$n" = 20261024000000_spend_authorizations ] && [ "$($PS -qAt -d $DB -c "select to_regprocedure('public.pi_open_spend_authorization(uuid,numeric,text)') is not null")" = t ]; then echo "skip proposal $n (already in production)"; continue; fi
+    echo "apply proposal $n"; $PS -d $DB -f "$R/supabase/proposals/$n.sql" >/dev/null; done
+else
+  git -C "$R" cat-file -e 9dccd68c3b06bffab2dc91ab415de6c2a73062bd 2>/dev/null || git -C "$R" fetch -q origin 9dccd68c3b06bffab2dc91ab415de6c2a73062bd
+  git -C "$R" show 9dccd68c3b06bffab2dc91ab415de6c2a73062bd:supabase/migrations/0023_production_intelligence.sql > "$W/run/0023.sql"
+  echo "0b49d9a4752d19c1b6f6f24df6c3f0c6fbdbd39136a41832f5a6189aa7fa8131  $W/run/0023.sql" | sha256sum -c --quiet
+  KNOWN="20261011020000_pilot_scheduler.sql 20261014183400_finished_podcast_image_slot.sql"
+  d23=0; for f in $(ls "$R"/supabase/migrations/*.sql | sort); do b=$(basename "$f")
+    if [ "$b" \> "0019_long_form_production_plan.sql" ] && [ $d23 = 0 ]; then $PS -d $DB -f "$W/run/0023.sql" > "$W/logs/mig-0023.log" 2>&1; d23=1; fi
+    if ! $PS -d $DB -f "$f" > "$W/logs/mig-$b.log" 2>&1; then
+      case " $KNOWN " in *" $b "*) echo "NOTICE local-only migration skipped: $b";; *) echo "FAIL migration $b"; cat "$W/logs/mig-$b.log"; exit 1;; esac; fi
+  done
+  $PS -d $DB -f "$R/scripts/harness/e2e/infra/seed-config.sql" >/dev/null
+  for n in 20261024000000_spend_authorizations 20261024120000_resume_authorization_ref_match 20261024130000_spend_authorization_baseline_fix 20261024140000_podcast_v3_studio; do
+    echo "apply proposal $n"; $PS -d $DB -f "$R/supabase/proposals/$n.sql" >/dev/null; done
+fi
 $PS -d $DB <<'SQL'
 update public.pi_supply_policies set enabled=true, unit='character', unit_cost_usd=0.0002, baseline=63002, daily_forecast=1,
   daily_cap_usd=20, monthly_cap_usd=150, max_concurrent=4, max_daily_calls=100, timezone='America/Cancun', evidence='audit' where provider='elevenlabs';
