@@ -20,6 +20,10 @@ const DEVICES = {
 };
 const checks = [], untested = [];
 const check = (name, ok, detail) => { checks.push({ name, ok: !!ok, detail }); console.log(`${ok ? "PASS" : "FAIL"}  ${name}${ok ? "" : "  " + JSON.stringify(detail ?? null).slice(0, 400)}`); return !!ok; };
+/** Defecto conocido y documentado (docs/qa-aceptacion/RECRAFT-MOVIL-P1.md): XFAIL mientras exista, sin bloquear la batería;
+ * XPASS cuando se corrija (avisa de retirarlo de aquí). La prueba que FALLA mientras exista es recraft-mobile-repro.cjs. */
+const known = [];
+const knownDefect = (id, name, ok, detail) => { known.push({ id, name, fixed: !!ok, detail }); console.log(`${ok ? "XPASS" : "XFAIL"}  [${id}] ${name}${ok ? "  (corregido: retirar de los defectos conocidos)" : "  " + JSON.stringify(detail ?? null).slice(0, 300)}`); };
 const notTested = (name, why) => { untested.push({ name, why }); console.log(`NO PROBADO  ${name} — ${why}`); };
 const sha = (f) => crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");
 const jsonl = (f) => fs.existsSync(f) ? fs.readFileSync(f, "utf8").trim().split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return { raw: l }; } }) : [];
@@ -73,7 +77,9 @@ async function reel(dev, full) {
   const recraftDefault = await p.locator("input[name=reel_image_source][value=recraft]").isChecked().catch(() => false);
   if (recraftDefault) {
     const w = await overflow(p);
-    check(`[${dev}] Reel con Recraft visible: el ancho de diseño sigue siendo el del dispositivo (sin zoom-out en el teléfono)`, w.iw === DEVICES[dev].viewport.width, { innerWidth: w.iw, device: DEVICES[dev].viewport.width });
+    const name = `[${dev}] Reel con Recraft visible: el ancho de diseño sigue siendo el del dispositivo (sin zoom-out en el teléfono)`;
+    if (dev === "samsung") { await shot(p, "02b-recraft-ancho"); knownDefect("P1-1", name, w.iw === DEVICES[dev].viewport.width, { innerWidth: w.iw, device: DEVICES[dev].viewport.width }); }
+    else check(name, w.iw === DEVICES[dev].viewport.width, { innerWidth: w.iw, device: DEVICES[dev].viewport.width });
   }
   if (recraftDefault && dev === "desktop") {
     await p.getByRole("button", { name: "Crear solicitud" }).click(); await sleep(2500); await shot(p, "03-recraft-sin-estilo");
@@ -206,9 +212,9 @@ async function podcast(dev) {
     check("0 peticiones a proveedores pagos (ninguna salió; las salidas externas se bloquean y registran)", refused.filter((e) => PROVIDERS.test(e.host ?? "")).length === 0 && other.length === 0, { refused: [...new Set(refused.map((e) => e.host))], other: other.slice(0, 3) });
     check("render: solo despachos al worker LOCAL de prueba (0 renders pagados)", egress.filter((e) => e.kind === "dispatch").every((e) => e.body?.event_type), egress.filter((e) => e.kind === "dispatch").length);
     notTested("producción atomicvid.app con sesión", "sin credenciales autorizadas; ver la auditoría pública de solo lectura (workflow qa-aceptacion-publica)");
-    const summary = { pass: checks.filter((c) => c.ok).length, fail: checks.filter((c) => !c.ok).length, untestedCount: untested.length, anthropicMockCalls: jsonl(path.join(LOGS, "anthropic.jsonl")).length - anth0, checks, untested };
+    const summary = { pass: checks.filter((c) => c.ok).length, fail: checks.filter((c) => !c.ok).length, untestedCount: untested.length, knownDefects: known, anthropicMockCalls: jsonl(path.join(LOGS, "anthropic.jsonl")).length - anth0, checks, untested };
     fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify(summary, null, 2));
-    console.log(`RESULTADO ${summary.pass} PASS / ${summary.fail} FAIL / ${summary.untestedCount} NO PROBADO`);
+    console.log(`RESULTADO ${summary.pass} PASS / ${summary.fail} FAIL / ${summary.untestedCount} NO PROBADO / ${known.filter((k) => !k.fixed).length} XFAIL`);
     await browser.close(); await db.end(); process.exit(summary.fail ? 1 : 0);
   }
 })();

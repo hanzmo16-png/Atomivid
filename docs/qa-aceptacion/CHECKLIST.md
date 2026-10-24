@@ -35,6 +35,8 @@ Tarea T-20261024 QA-INTERFAZ-ACEPTACION-ATOMIVID (Claude). Gasto: **USD 0**.
 
 ### P1-1 (Reel, móvil): el formulario se ensancha con Recraft
 
+Detalle completo, capturas en tres teléfonos, prueba que falla y parche propuesto: [`RECRAFT-MOVIL-P1.md`](RECRAFT-MOVIL-P1.md).
+
 **Causa:** el `<select name="recraft_style_missing">` y su `<label>` en `src/app/dashboard/new/ReelImageSourcePicker.tsx` tienen un ancho intrínseco de ~430–730 px, por el texto largo de las opciones. Con ellos ocultos, el ancho vuelve a 390 px.
 
 **Corrección sugerida** (carril Recraft / Grok):
@@ -74,6 +76,15 @@ No se crearon trabajos ni cuentas, ni datos de usuario. Desde el run 40106805085
 - Long Form de punta a punta: confirmación de presupuesto → render → descarga.
 - Reproducción H.264 dentro del navegador: el Chromium local no la soporta.
 - Samsung físico: solo emulación de 390×844 a 3x.
+
+## CI (USD 0)
+
+El workflow `.github/workflows/qa-aceptacion-ux.yml` monta el arnés en el runner y ejecuta tres pasos:
+1. la batería del banco base;
+2. la reproducción de P1-1, que falla mientras el defecto exista y no bloquea el job;
+3. el banco de podcast.
+
+Además comprueba que no hubo ninguna salida hacia proveedores reales. En la batería, P1-1 figura como `XFAIL` y pasará a `XPASS` cuando se corrija.
 
 ## Cómo reproducir (USD 0, todo en 127.0.0.1)
 
