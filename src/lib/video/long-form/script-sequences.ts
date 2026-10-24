@@ -12,7 +12,8 @@
  * Si el guion no declara impacto en TODAS sus escenas, devuelve null: ese guion no
  * es v6 y sigue en el plan por defecto.
  */
-import { narrationWords } from "./scene-anchoring";
+import { intentWordSpans, narrationWords, quoteStart } from "./scene-anchoring";
+import { LONG_FORM_NARRATION_WORDS_PER_SECOND } from "./duration-budget";
 import { IMPACT_LEVELS, type ImpactLevel, type RoleSlot, type SequenceIntent, type SequenceRole } from "./sequence-intent";
 
 type ScriptVisual = Record<string, unknown> & { beatClass?: string; quote?: string; impact?: unknown; impactReason?: unknown };
@@ -31,7 +32,57 @@ const SCALE_REASON: Record<SequenceRole, string> = {
 
 const sentence = (text: string) => (text.split(/(?<=[.!?…])\s+/)[0] ?? text).trim().slice(0, 200);
 
-export function sequencesFromScript(beats: ScriptBeat[]): SequenceIntent[] | null {
+/**
+ * Densidad de planos (recuperación cinematográfica, 2026-10-23): ningún plano sostiene más de `maxShotSec` de
+ * narración. Un plano largo se divide en sub-planos consecutivos que CONTINÚAN el mismo sujeto/lugar/época con otra
+ * escala, perspectiva y movimiento (sin afirmar nada nuevo: misma clase, misma identidad/prueba que su padre).
+ * Cada sub-plano se ancla con una cita literal de su tramo, que se verifica única. Determinista.
+ * Solo afecta a planes NUEVOS: los planes confirmados guardan sus secuencias y se ejecutan tal cual.
+ */
+export const SHOT_DENSITY_MAX_SEC: Record<"economical" | "balanced" | "cinematic", number> = { economical: 20, balanced: 14, cinematic: 8 };
+const FRAMINGS: Record<string, { scale: "WIDE" | "MEDIUM"; framing: string }[]> = {
+  ANCHOR: [{ scale: "MEDIUM", framing: "medium shot, three-quarter angle, same person and costume" }, { scale: "WIDE", framing: "wide shot placing the same person in the setting" }, { scale: "MEDIUM", framing: "low-angle medium close-up, same person, dramatic light" }, { scale: "WIDE", framing: "over-the-shoulder view from behind the same person" }],
+  CONTEXT: [{ scale: "MEDIUM", framing: "closer view of the same place, different angle" }, { scale: "WIDE", framing: "high aerial perspective of the same place" }, { scale: "MEDIUM", framing: "ground-level perspective, foreground texture" }, { scale: "WIDE", framing: "reverse angle of the same place" }],
+  ATMOSPHERE: [{ scale: "MEDIUM", framing: "closer, slower detail of the same mood" }, { scale: "WIDE", framing: "wider view of the same atmosphere" }, { scale: "MEDIUM", framing: "shallow depth of field, same elements" }],
+  EVIDENCE: [{ scale: "MEDIUM", framing: "closer view of the same record, different angle, no new text" }, { scale: "WIDE", framing: "the same record in its archive setting" }],
+};
+const MIN_SUB_WORDS = 8;
+type Slot = RoleSlot;
+/** La cita de un sub-plano debe anclarse EXACTAMENTE en su posición (primera aparición = esa posición). */
+function probeUnique(narration: string, words: string[], at: number): boolean {
+  return quoteStart(narration, words.slice(at, at + 6).join(" ")) === at;
+}
+export function densifySlots(narration: string, slots: Slot[], maxShotSec: number): Slot[] {
+  const words = narrationWords(narration);
+  const maxWords = Math.max(MIN_SUB_WORDS, Math.round(maxShotSec * LONG_FORM_NARRATION_WORDS_PER_SECOND));
+  const spans = intentWordSpans(narration, slots.map((s) => s.visual) as never);
+  if (spans.some((sp) => sp.anchoredBy !== "quote")) return slots; // sin anclas literales no se divide (no se adivina)
+  const out: Slot[] = [];
+  const order = slots.map((_, i) => i).sort((a, b) => spans[a].start - spans[b].start);
+  const remap = new Map<number, number>();
+  for (const i of order) {
+    const slot = slots[i], sp = spans[i], len = sp.end - sp.start;
+    remap.set(i, out.length);
+    out.push(slot);
+    const framings = FRAMINGS[slot.role];
+    if (!framings || slot.role === "DETAIL" || len <= maxWords) continue;
+    const k = Math.ceil(len / maxWords);
+    for (let j = 1; j < k; j++) {
+      let at = sp.start + Math.round((j * len) / k);
+      while (at < sp.end - MIN_SUB_WORDS && !probeUnique(narration, words, at)) at++;
+      if (at >= sp.end - MIN_SUB_WORDS + 1 || !probeUnique(narration, words, at)) continue;
+      const f = framings[(j - 1) % framings.length];
+      const parent = slot.visual as Record<string, unknown>;
+      out.push({ ...slot, scale: f.scale, scaleReason: `${slot.scaleReason}; continuation: ${f.framing}`,
+        visual: { ...parent, description: `${String(parent.description ?? "").trim()} — ${f.framing}`, quote: words.slice(at, at + 6).join(" "), motion: true, continuityOf: i, subShot: j },
+        impact: (Math.min(2, slot.impact ?? 2) as 1 | 2), impactReason: `continuation of the same moment (new angle, no new claim): ${slot.impactReason ?? ""}`.slice(0, 200) });
+    }
+  }
+  // DETAIL apunta a un índice de la secuencia: se reasigna al nuevo índice de su padre.
+  return out.map((s) => (s.detail ? { ...s, detail: { ...s.detail, of: remap.get(s.detail.of) ?? s.detail.of } } : s));
+}
+
+export function sequencesFromScript(beats: ScriptBeat[], opts: { maxShotSec?: number } = {}): SequenceIntent[] | null {
   const sequences: SequenceIntent[] = [];
   for (const beat of beats) {
     const visuals = Array.isArray(beat.visuals) ? (beat.visuals as ScriptVisual[]) : [];
@@ -55,6 +106,8 @@ export function sequencesFromScript(beats: ScriptBeat[]): SequenceIntent[] | nul
       }
       slots.push({ role, scale: role === "ANCHOR" ? "MEDIUM" : "WIDE", scaleReason: SCALE_REASON[role], beatId: beat.id, visual: declared, impact, impactReason: v.impactReason });
     }
+    const finalSlots = opts.maxShotSec ? densifySlots(beat.narration, slots, opts.maxShotSec) : slots;
+    slots.splice(0, slots.length, ...finalSlots);
     sequences.push({ id: `seq-${beat.id}`, purpose: (beat.purpose || beat.type || "sequence").slice(0, 200), viewerTakeaway: sentence(beat.narration), beatIds: [beat.id], slots });
   }
   return sequences;

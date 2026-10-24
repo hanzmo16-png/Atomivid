@@ -7,7 +7,7 @@
  */
 import { computeProductionPlan, getRealLongFormProviderNames, VISUAL_STRATEGIES, type ProductionPlan, type ProductionPlanBeatInput } from "./production-plan";
 import { PRODUCT_DEFAULT_PLAN_VERSION } from "./production-plan-types";
-import { sequencesFromScript } from "./script-sequences";
+import { sequencesFromScript, SHOT_DENSITY_MAX_SEC } from "./script-sequences";
 import type { VisualStrategy } from "./shots";
 
 export type ProductPlanResult = { plan: ProductionPlan; engine: "cinematic-v6" | "default"; reason: string };
@@ -22,7 +22,8 @@ export function productPlan(input: {
 }): ProductPlanResult {
   const base = { beats: input.beats, topic: input.topic, strategy: input.strategy, providers: input.providers, requestedDurationSeconds: input.requestedDurationSeconds };
   if (input.cinematicV6) {
-    const sequences = sequencesFromScript(input.beats);
+    // Densidad de planos por estrategia (cinematográfica: ≤ 8 s por plano; ninguna: > 20 s).
+    const sequences = sequencesFromScript(input.beats, { maxShotSec: SHOT_DENSITY_MAX_SEC[input.strategy] });
     if (sequences) {
       try {
         return { plan: computeProductionPlan({ ...base, sequences }), engine: "cinematic-v6", reason: "guion con impacto narrativo declarado en todas sus escenas" };

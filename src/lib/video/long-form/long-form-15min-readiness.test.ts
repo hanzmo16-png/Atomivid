@@ -62,8 +62,11 @@ test("Recraft cannot be locked in while it cannot start (closed policy, no fal b
   const svc = (state: unknown, error: unknown = null) => ({ rpc: async () => ({ data: state, error }) }) as never;
   const env = { FAL_ADMIN_KEY: "admin" };
   assert.match(String(await recraftProductionBlocker(svc({ level: "UNKNOWN", reason: "policy unconfigured" }), env)), /límites de gasto/);
-  assert.match(String(await recraftProductionBlocker(svc({ level: "GREEN" }), {})), /fal\.ai/);
-  assert.match(String(await recraftProductionBlocker(svc({ level: "GREEN" }), { FAL_KEY: "api only" })), /fal\.ai/);
+  // Saldo ya verificado (p. ej. registrado por el propietario): basta aunque falte la clave Admin.
+  assert.equal(await recraftProductionBlocker(svc({ level: "GREEN" }), {}), null);
+  assert.equal(await recraftProductionBlocker(svc({ level: "GREEN" }), { FAL_KEY: "api only" }), null);
+  // Sin verificar y sin clave Admin: no se puede leer al iniciar → bloqueado.
+  assert.match(String(await recraftProductionBlocker(svc({ level: "UNKNOWN", reason: "balance unverified or stale" }), { FAL_KEY: "api only" })), /FAL_ADMIN_KEY/);
   assert.match(String(await recraftProductionBlocker(svc(null, { message: "x" }), env)), /control/);
   assert.match(String(await recraftProductionBlocker(svc({ level: "RED" }), env)), /saldo/);
   assert.equal(await recraftProductionBlocker(svc({ level: "UNKNOWN", reason: "balance unverified or stale" }), env), null, "a stale balance is refreshed at start");
