@@ -17,7 +17,8 @@ jobs:
       - name: Optional code checkout for replay
         run: |
           ref=$(sed -n 's/^REPLAY_REF=//p' ops/e8048599.mode)
-          if [ -n "$ref" ]; then cp scripts/ops-e8048599.ts /tmp/ops.ts; cp ops/e8048599.mode /tmp/mode; cp .github/workflows/ops-e8048599.yml /tmp/wf.yml
+          if [ -n "$ref" ]; then mkdir -p /tmp/opsk && cp scripts/ops-*.ts /tmp/opsk/ && cp ops/e8048599.mode /tmp/mode
+            git fetch -q origin claude/atomivid-mvp-setup-0079jv && git checkout -q "$ref" && mkdir -p ops && cp /tmp/mode ops/e8048599.mode && cp /tmp/opsk/*.ts scripts/; fi
             git fetch -q origin claude/long-form-15min-readiness claude/atomivid-mvp-setup-0079jv claude/json-syntax-12045fcd && cp scripts/ops-quality-e8048599.ts /tmp/q.ts; cp scripts/ops-step-e8048599.ts /tmp/st.ts; cp scripts/ops-unreadable-e8048599.ts /tmp/un.ts; cp scripts/ops-postdeploy.ts /tmp/pd.ts; git checkout -q "$ref" && mkdir -p ops && cp /tmp/mode ops/e8048599.mode && cp /tmp/ops.ts scripts/ops-e8048599.ts && cp /tmp/q.ts scripts/ops-quality-e8048599.ts && cp /tmp/st.ts scripts/ops-step-e8048599.ts && cp /tmp/un.ts scripts/ops-unreadable-e8048599.ts && cp /tmp/pd.ts scripts/ops-postdeploy.ts; fi
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
@@ -44,7 +45,9 @@ jobs:
           elif [ "$MODE" = "forensic" ]; then (MODE=read npx tsx scripts/ops-e8048599.ts; MIN_BLOCK=7 JOB=e8048599 npx tsx scripts/long-form-block-forensic.ts) > out.txt 2>&1
           elif [ "$MODE" = "step" ]; then npx tsx scripts/ops-step-e8048599.ts > out.txt 2>&1
           elif [ "$MODE" = "quality" ]; then npx tsx scripts/ops-quality-e8048599.ts > out.txt 2>&1
+          elif [ "$MODE" = "resume" ]; then JOB_ID=e8048599-cf92-45e8-95c8-f145cb9d3be2 EXPECTED_ERROR_CODE=12045fcd EXPECTED_RETRY_COUNT=3 npx tsx scripts/resume-script-job.ts > out.txt 2>&1
+          elif [ "$MODE" = "migrate-studio" ]; then npx tsx scripts/ops-migrate-studio.ts > out.txt 2>&1
           elif [ "$MODE" = "supply" ]; then npx tsx scripts/ops-supply-read.ts > out.txt 2>&1
           elif [ "$MODE" = "replay" ]; then REPLAY_CINEMATIC=true REPLAY_JOB=e8048599 npx tsx scripts/replay-documentary-job.ts > out.txt 2>&1
           else npx tsx scripts/ops-e8048599.ts > out.txt 2>&1; fi; rc=$?; echo "::notice title=RC::exit=$rc lines=$(wc -l < out.txt)"
-          node -e 'require("fs").readFileSync("out.txt","utf8").split("\n").filter(l=>/^(JOB|OPS|BUDGET|FAILED|RECRAFT|SNAP|POLICY|FAL|REPLAY|BOUNDARY|MUSIC|VOICE|PROD|PRECHECK|STOP|STEP|END|DRY|DIAG_|PROBE|JOB_E8048599|PAID_OPS|RUNNING_SCRIPT|MODE|PODCAST|\[atomivid:documentary-format)/.test(l)).slice(0,40).forEach((b,i)=>console.log("::notice title=O"+i+"::"+b.slice(0,3800).replace(/%/g,"%25"))); const all=require("fs").readFileSync("out.txt","utf8"); console.log("::notice title=TAIL::"+all.slice(-2500).replace(/%/g,"%25").replace(/\n/g,"%0A"))'
+          node -e 'require("fs").readFileSync("out.txt","utf8").split("\n").filter(l=>/^(JOB|OPS|BUDGET|FAILED|RECRAFT|SNAP|POLICY|FAL|REPLAY|BOUNDARY|MUSIC|VOICE|PROD|PRECHECK|STOP|STEP|END|DRY|DIAG_|PROBE|JOB_E8048599|PAID_OPS|RUNNING_SCRIPT|MODE|PODCAST|MIGRATE|RESUME|\[atomivid:documentary-format)/.test(l)).slice(0,40).forEach((b,i)=>console.log("::notice title=O"+i+"::"+b.slice(0,3800).replace(/%/g,"%25"))); const all=require("fs").readFileSync("out.txt","utf8"); console.log("::notice title=TAIL::"+all.slice(-2500).replace(/%/g,"%25").replace(/\n/g,"%0A"))'
