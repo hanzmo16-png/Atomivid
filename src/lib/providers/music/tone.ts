@@ -11,6 +11,7 @@ export const MUSIC_TONES: readonly MusicTone[] = [
   "minimal",
   "technology",
   "luxury",
+  "epic",
 ];
 
 /** Etiquetas en español para UI/logs — mismo patrón que RENDER_STAGE_LABEL. */
@@ -25,6 +26,7 @@ export const MUSIC_TONE_LABEL: Record<MusicTone, string> = {
   minimal: "Minimalista",
   technology: "Tecnología",
   luxury: "Lujo",
+  epic: "Épico orquestal",
 };
 
 // Mapea cada opción del selector de /dashboard/new (ver STYLES en
@@ -57,6 +59,11 @@ const TONE_KEYWORDS: Record<MusicTone, string[]> = {
   minimal: ["simple", "minimalista", "esencial", "minimal", "simple", "clean"],
   technology: ["tecnologia", "inteligencia artificial", "ia", "robot", "digital", "technology", "artificial intelligence", "ai"],
   luxury: ["lujo", "exclusivo", "premium", "elegante", "luxury", "exclusive"],
+  // Batallas antiguas: refuerza un tono orquestal épico POR ENCIMA de cinematic (que también puntúa con batalla/guerra)
+  // para que un documental bélico prefiera metales/percusión/coro sobre pistas cinematográficas suaves.
+  epic: ["batalla", "batallas", "battle", "battles", "espartano", "espartanos", "esparta", "spartan", "spartans", "sparta",
+    "hunos", "huns", "termopilas", "thermopylae", "falange", "phalanx", "caballeria", "cavalry", "legiones", "legions",
+    "conquista", "conquest", "asedio", "siege"],
 };
 
 function normalize(text: string): string {

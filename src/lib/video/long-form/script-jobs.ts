@@ -17,6 +17,7 @@ import { EDITORIAL_VERSION, EditorialQualityError, type EditorialReport } from "
 import { documentaryFormError } from "./form-error";
 import { ScriptJobFieldsSchema, type ScriptJobFields, type ScriptJobInput } from "./script-job-types";
 import { parseOpenQuestions, parseSources } from "@/app/dashboard/long-form/new/parse";
+import { withOwnerCorrections } from "./owner-corrections-registry";
 
 export async function enqueueScriptJob(session: SupabaseClient, user: {id:string; email_confirmed_at?:string}, rawFields: ScriptJobFields, service: SupabaseClient=createServiceClient()) {
  const fields=ScriptJobFieldsSchema.parse(rawFields);
@@ -64,7 +65,9 @@ export async function runScriptJobStep(id:string, service=createServiceClient())
      targetDurationSeconds:Number(fields.durationMinutes)*60,cinematicV6:cinematicV6Enabled(owner.user),allowVisualSceneRepair:(job.retry_count??0)>0,onStage:stage=>update({stage}),
      onDraft:draft=>update({editorial_checkpoint:draft}),onEditorialApproved:r=>{editorial=r;}});
     if(!editorial) throw new Error("Editorial approval missing");
-    return {topic:fields.topic,beats:beats.map((b,i)=>({id:`beat-${i+1}`,...b})),editorial,sources:researchPack.sources};
+    // Owner corrections (e8048599) apply to the FINISHED script, after every paid response was reused or made:
+    // applying them earlier would change the request fingerprints. All or nothing; a failure stops before persisting.
+    return withOwnerCorrections(id,{topic:fields.topic,beats:beats.map((b,i)=>({id:`beat-${i+1}`,...b})),editorial,sources:researchPack.sources});
    },job.resubmit_allowance??0));
   const {error:finishError}=await service.rpc("finish_documentary_script_job",{p_id:id,p_token:token,p_script:script});
   if(finishError) throw new Error("Could not persist approved script");

@@ -96,7 +96,7 @@ export function fragmentForRange(narration: string, range: { first: number; last
  * Posición (índice de palabra) donde empieza la cita declarada de cada
  * intención, o null si no se encuentra en la narración.
  */
-function quoteStart(narration: string, quote: string | undefined): number | null {
+export function quoteStart(narration: string, quote: string | undefined): number | null {
   if (!quote) return null;
   const tokens = narrationWords(narration).map(normalize);
   const q = normalize(quote).split(" ").filter(Boolean);
