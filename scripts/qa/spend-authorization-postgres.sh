@@ -119,7 +119,13 @@ eq "$(psql -U postgres -d $DB -qAt -c "set role service_role; select public.pi_r
 # claude/pr199-resume-ref-trigger-proposal, Postgres T10c). Probed in a rolled-back transaction and reported as PENDING —
 # never counted as a pass, never as a success of the requeue.
 ab=$($Q -c "begin; update public.documentary_script_jobs set status='queued' where id='$JOB' returning 1; rollback;" 2>/dev/null | head -1)
-[ "$ab" = 1 ] && echo "PENDING T10c DB layer: trigger still accepts a durable row for ANOTHER authorization_ref (A/B) — fix in claude/pr199-resume-ref-trigger-proposal (DB-layer owner); app layer refuses" || ok "T10c DB layer refuses A/B"
+# Integration with #201: this base suite runs on supabase/migrations only, BEFORE #201's proposal is applied, so the
+# A/B probe can only show the pre-fix behaviour here. When the proposal is in the tree, the closure of T10c is asserted
+# by scripts/qa/resume-auth-ref-postgres.sh (R02 A/B rejected, run right after this suite) — reported as INFO, not PENDING.
+T10C_FIX=$R/supabase/proposals/20261024120000_resume_authorization_ref_match.sql
+if [ "$ab" = 1 ] && [ -f "$T10C_FIX" ]; then echo "INFO T10c base schema without $(basename "$T10C_FIX"): A/B still accepted here; closure asserted by resume-auth-ref-postgres.sh (R02)"
+elif [ "$ab" = 1 ]; then echo "PENDING T10c DB layer: trigger still accepts a durable row for ANOTHER authorization_ref (A/B) — fix in claude/pr199-resume-ref-trigger-proposal (DB-layer owner); app layer refuses"
+else ok "T10c DB layer refuses A/B"; fi
 eq "$($Q -c "select status from public.documentary_script_jobs where id='$JOB'")" failed "T10b job still failed after the A/B probe (rolled back, 0 updates)"
 $Q -c "insert into public.pi_recovery_resume_authorizations(project_id,authorization_ref) values ('$DPJ','hans-2026-10-23-e8048599-150fb502')" >/dev/null
 $Q -c "update public.documentary_script_jobs set status='queued' where id='$JOB'" >/dev/null 2>&1 && ok "T10b requeue allowed with ACTIVE budget + durable authorization for the SAME ref (A/A)" || bad "T10b requeue with durable authorization (A/A)"

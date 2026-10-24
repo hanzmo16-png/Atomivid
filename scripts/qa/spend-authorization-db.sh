@@ -24,3 +24,6 @@ done
 $PS -d atomivid_sa -f "$R/scripts/harness/e2e/infra/seed-config.sql" >/dev/null
 echo "base schema: $(ls "$R"/supabase/migrations/*.sql | wc -l) migrations, postgres $("$PB/postgres" --version)"
 PGHOST=$W/run PGPORT=$P DB=atomivid_sa bash "$T"
+# P0 T-20261024-0724-chatgpt-02 (T10c DB layer, PR #201): exact project_id + authorization_ref + transaction_id on requeue.
+# Integration of #201 (this line) with #199 (parameterized test script): runs with the default suite only.
+if [ "$T" = "$R/scripts/qa/spend-authorization-postgres.sh" ]; then PGHOST=$W/run PGPORT=$P DB=atomivid_sa bash "$R/scripts/qa/resume-auth-ref-postgres.sh"; fi
