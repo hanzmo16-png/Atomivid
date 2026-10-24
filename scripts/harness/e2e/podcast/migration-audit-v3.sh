@@ -56,6 +56,8 @@ for role in authenticated anon; do
   if $D -c "begin; set local role $role; insert into public.podcast_studio_operations(key,user_id,episode_id,provider,op,state,reserved_usd) values ('$(printf 'd%.0s' $(seq 1 64))','$U1','$E1','x','y','settled',0); commit;" >/dev/null 2>&1; then bad "$role pudo escribir en el libro"; else ok "$role: no puede escribir en el libro"; fi
 done
 $D -f $RB >/dev/null && ok "reversión aplica" || bad "reversión"
+[ "$($D -c "select (to_regprocedure('public.pi_supply_state_pre_studio(text)') is null and to_regprocedure('public.pi_supply_state(text)') is not null and to_regprocedure('public.pi_studio_call_counts(text,timestamptz,text)') is null)::text")" = true ] && ok "reversión restaura pi_supply_state original" || bad "reversión pi_supply_state"
+[ "$($D -c "select position('podcast_studio' in pg_get_functiondef('public.pi_supply_spend(text,timestamptz)'::regprocedure)) = 0")" = t ] && ok "reversión restaura pi_supply_spend original" || bad "reversión pi_supply_spend"
 [ "$($D -c "select count(*) from pg_tables where schemaname='public' and tablename like 'podcast_studio_%'")" = 0 ] && [ "$(SNAP)" = "$S0" ] && ok "reversión quita solo las tablas del estudio (podcast_episodes intacta)" || bad "reversión tocó otra cosa"
 $D -f $MIG >/dev/null && [ "$($D -c "select count(*) from public.podcast_studio_episodes")" = 0 ] && ok "re-aplicación tras reversión (tablas vacías: exportar antes de revertir si hubo uso real)" || bad "re-aplicación"
 echo "RESUMEN fallos=$FAILS"

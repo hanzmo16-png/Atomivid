@@ -69,10 +69,39 @@ language sql security invoker set search_path='' as $$
  and (s.state in ('reserved','uncertain') or (s.state='settled' and s.created_at>=p_start))),0);
 $$;
 
+
+-- Concurrency and daily-call limits (ChatGPT checkpoint T-20261024-1016): activeCalls/todayCalls come from pi_paid_operations
+-- only. pi_supply_state is wrapped (same signature, invoker, search_path '') so every caller — pi_submit_with_supply included —
+-- also counts studio calls: in flight = 'reserved'; today = every studio row created today (each one is one provider call).
+-- No row is copied into pi_paid_operations, so nothing can be charged twice.
+do $$ begin
+  if to_regprocedure('public.pi_supply_state_pre_studio(text)') is null then
+    alter function public.pi_supply_state(text) rename to pi_supply_state_pre_studio;
+  end if;
+end $$;
+create or replace function public.pi_studio_call_counts(p_provider text, p_day_start timestamptz, p_exclude_key text default null) returns jsonb
+language sql stable security invoker set search_path = '' as $$
+  select jsonb_build_object('active', count(*) filter (where s.state = 'reserved'), 'today', count(*) filter (where s.created_at >= p_day_start))
+  from public.podcast_studio_operations s where s.provider = p_provider and s.key is distinct from p_exclude_key
+$$;
+create or replace function public.pi_supply_state(p_provider text) returns jsonb
+language plpgsql security invoker set search_path = '' as $$
+declare state jsonb; p public.pi_supply_policies%rowtype; c jsonb;
+begin
+  state := public.pi_supply_state_pre_studio(p_provider);
+  select * into p from public.pi_supply_policies where provider = p_provider;
+  if not found or not (state ? 'activeCalls') then return state; end if;
+  c := public.pi_studio_call_counts(p_provider, date_trunc('day', clock_timestamp() at time zone p.timezone) at time zone p.timezone);
+  return state || jsonb_build_object('activeCalls', coalesce((state->>'activeCalls')::integer, 0) + (c->>'active')::integer,
+    'todayCalls', coalesce((state->>'todayCalls')::integer, 0) + (c->>'today')::integer, 'studioActiveCalls', (c->>'active')::integer, 'studioTodayCalls', (c->>'today')::integer);
+end $$;
+revoke all on function public.pi_supply_state(text), public.pi_supply_state_pre_studio(text), public.pi_studio_call_counts(text, timestamptz, text) from public, anon, authenticated;
+grant execute on function public.pi_supply_state(text), public.pi_supply_state_pre_studio(text), public.pi_studio_call_counts(text, timestamptz, text) to service_role;
+
 alter table public.podcast_studio_episodes drop constraint if exists podcast_studio_episodes_authorized_max;
 alter table public.podcast_studio_episodes add constraint podcast_studio_episodes_authorized_max check (authorized_usd is null or authorized_usd <= 50);
 create or replace function public.podcast_studio_operations_cap() returns trigger language plpgsql security definer set search_path = '' as $$
-declare e public.podcast_studio_episodes%rowtype; used numeric; prev numeric; g public.pi_supply_policies%rowtype; p public.pi_supply_policies%rowtype;
+declare e public.podcast_studio_episodes%rowtype; used numeric; prev numeric; g public.pi_supply_policies%rowtype; p public.pi_supply_policies%rowtype; st jsonb; c jsonb;
 begin
   if new.state <> 'reserved' then return new; end if;
   if tg_op = 'UPDATE' and old.state = 'reserved' and old.reserved_usd >= new.reserved_usd then return new; end if;
@@ -99,6 +128,11 @@ begin
     if public.pi_supply_spend(p.provider, date_trunc('day', clock_timestamp() at time zone p.timezone) at time zone p.timezone) - prev + new.reserved_usd > p.daily_cap_usd
        or public.pi_supply_spend(p.provider, date_trunc('month', clock_timestamp() at time zone p.timezone) at time zone p.timezone) - prev + new.reserved_usd > p.monthly_cap_usd then
       raise exception 'STUDIO_CAP: provider funded spend ceiling (%)', p.provider; end if;
+    -- Same concurrency / daily-call limits pi_submit_with_supply applies (platform calls + other studio calls, not this key).
+    st := public.pi_supply_state_pre_studio(p.provider);
+    c := public.pi_studio_call_counts(p.provider, date_trunc('day', clock_timestamp() at time zone p.timezone) at time zone p.timezone, new.key);
+    if coalesce((st->>'activeCalls')::integer, 0) + (c->>'active')::integer >= p.max_concurrent then raise exception 'STUDIO_CAP: concurrency (%)', p.provider; end if;
+    if coalesce((st->>'todayCalls')::integer, 0) + (c->>'today')::integer >= p.max_daily_calls then raise exception 'STUDIO_CAP: daily request quota (%)', p.provider; end if;
   end if;
   return new;
 end $$;

@@ -140,6 +140,48 @@ async function partC() {
   await db.query("delete from public.podcast_studio_operations where episode_id=$1", [SE]);
 }
 
+async function partD() {
+  console.log("== D. Estudio + pipeline normal juntos: concurrencia y cuota diaria de llamadas (checkpoint ChatGPT T-20261024-1016)");
+  const fresh = () => db.query("insert into public.pi_capacity_snapshots(provider,unit,available,health,reliability,status,checked_at) values ('elevenlabs','character',500000,'OK','provider_api','GREEN',clock_timestamp())");
+  const op = (k: string, usd = 0.01) => db.query(`insert into public.pi_paid_operations(idempotency_key,project_id,shot_id,provider,model,method,attempt_kind,reserved_usd,status,capacity_units)
+     values ($1,$2,$3,'elevenlabs','eleven_multilingual_v2','tts_with_timestamps','initial',$4,'RESERVED',round($4/0.0002))`, [k, `documentary:${A}:limits`, `voice:${k}`, usd]);
+  const submit = async (k: string) => { await fresh(); return (await one("select public.pi_submit_with_supply($1, null)->>'reason'", [k])) as string; };
+  const state = async () => (await one("select public.pi_supply_state('elevenlabs')")) as { activeCalls: number; todayCalls: number; studioActiveCalls: number; studioTodayCalls: number };
+  await db.query("update public.pi_supply_policies set daily_cap_usd=500, monthly_cap_usd=2000 where provider in ('__global__','elevenlabs')");
+  // Sin otras llamadas en vuelo: cierra lo que dejaron A/C.
+  await db.query("update public.pi_paid_operations set status='COMMITTED', committed_usd=reserved_usd where provider='elevenlabs' and status in ('SUBMITTED','PROVIDER_JOB_RECORDED','RECONCILIATION_REQUIRED')");
+  await db.query("update public.podcast_studio_operations set state='settled', actual_usd=reserved_usd where state in ('reserved','uncertain')");
+  const SE = randomUUID();
+  await db.query("insert into public.podcast_studio_episodes(id,user_id,title,mode,spec,status,authorized_usd) values ($1,$2,'limits','narracion','{\"version\":\"podcast-studio/3\"}','generating',50)", [SE, A]);
+  const sres = (k: string) => db.query("insert into public.podcast_studio_operations(key,user_id,episode_id,provider,op,state,reserved_usd) values ($1,$2,$3,'elevenlabs','tts','reserved',0.01)", [k.repeat(64).slice(0, 64), A, SE]);
+  const s0 = await state();
+  await db.query("update public.pi_supply_policies set max_concurrent=2, max_daily_calls=$1 where provider='elevenlabs'", [s0.todayCalls + 100]);
+  await sres("1"); await op("lim-p1"); const p1 = await submit("lim-p1");
+  const s1 = await state();
+  ok("D1 1 llamada de estudio en vuelo + 1 del pipeline: activeCalls = 2 (el estado ve ambas)", p1 === "admitted" && s1.activeCalls === s0.activeCalls + 2 && s1.studioActiveCalls === 1, JSON.stringify({ p1, ...s1 }));
+  await op("lim-p2"); const p2 = await submit("lim-p2");
+  ok("D2 pipeline: 3ª llamada simultánea rechazada por concurrencia (cuenta la del estudio)", p2 === "concurrency", p2);
+  let e1 = ""; try { await sres("2"); } catch (e) { e1 = (e as Error).message; }
+  ok("D3 estudio: reserva simultánea rechazada por concurrencia (cuenta la del pipeline)", /STUDIO_CAP: concurrency/.test(e1), e1.slice(0, 80));
+  await db.query("update public.podcast_studio_operations set state='settled', actual_usd=0.01 where key=$1", ["1".repeat(64)]);
+  const p2b = await submit("lim-p2");
+  ok("D4 al liquidar la del estudio se libera el hueco y la llamada del pipeline entra", p2b === "admitted", p2b);
+  await db.query("update public.pi_paid_operations set status='COMMITTED', committed_usd=reserved_usd where idempotency_key in ('lim-p1','lim-p2')");
+  const s2 = await state();
+  await db.query("update public.pi_supply_policies set max_concurrent=10, max_daily_calls=$1 where provider='elevenlabs'", [s2.todayCalls + 1]);
+  await sres("3");
+  const s3 = await state();
+  ok("D5 cuota diaria: la llamada del estudio cuenta en todayCalls", s3.todayCalls === s2.todayCalls + 1 && s3.studioTodayCalls === s2.studioTodayCalls + 1, JSON.stringify(s3));
+  await op("lim-p3"); const p3 = await submit("lim-p3");
+  ok("D6 pipeline: cuota diaria agotada por el estudio → 'daily request quota'", p3 === "daily request quota", p3);
+  let e2 = ""; try { await sres("4"); } catch (e) { e2 = (e as Error).message; }
+  ok("D7 estudio: cuota diaria agotada → reserva rechazada", /STUDIO_CAP: daily request quota/.test(e2), e2.slice(0, 80));
+  ok("D8 sin duplicados: ninguna fila del estudio copiada a pi_paid_operations; filas del estudio = llamadas admitidas (2)",
+    Number(await one("select count(*) from public.pi_paid_operations where project_id like '%' || $1 || '%'", [SE])) === 0 && Number(await one("select count(*) from public.podcast_studio_operations where episode_id=$1", [SE])) === 2);
+  await db.query("update public.pi_supply_policies set max_concurrent=4, max_daily_calls=100000 where provider='elevenlabs'");
+  await db.query("update public.podcast_studio_operations set state='settled', actual_usd=0.01 where episode_id=$1", [SE]);
+}
+
 type Mode = { tag: string; spec: typeof NARRACION; owner: string };
 async function insertEpisode(m: Mode, authorizedUsd: number | null, status = "authorized") {
   const id = randomUUID(); const pf = await preflight(m.spec, mockProviders());
@@ -248,8 +290,9 @@ async function main() {
   await db.query("insert into auth.users(id,email) values ($1,'hans-e2e@local.test'),($2,'otro-e2e@local.test') on conflict do nothing", [A, B]);
   for (const [tag, spec] of [["narracion-imagenes", NARRACION], ["avatar", AVATAR], ["conversacion-avatares", DIALOGO]] as const) estimates.set(tag, (await preflight(spec, mockProviders())).estimate.totalUsd);
   try { await partA(); } catch (e) { ok("A sin excepción", false, (e as Error).stack?.slice(0, 400)); }
-  if (process.env.ONLY_C === "1") { try { await partC(); } catch (e) { ok("C sin excepción", false, (e as Error).message.slice(0, 300)); } await db.end(); console.log(`RESULTADO ${pass}/${pass + fails.length} PASS`); process.exit(fails.length ? 1 : 0); }
+  if (process.env.ONLY_C === "1") { try { await partC(); await partD(); } catch (e) { ok("C sin excepción", false, (e as Error).message.slice(0, 300)); } await db.end(); console.log(`RESULTADO ${pass}/${pass + fails.length} PASS`); process.exit(fails.length ? 1 : 0); }
   try { await partC(); } catch (e) { ok("C sin excepción", false, (e as Error).stack?.slice(0, 400)); }
+  try { await partD(); } catch (e) { ok("D sin excepción", false, (e as Error).stack?.slice(0, 400)); }
   try { await partB(); } catch (e) { ok("B sin excepción", false, (e as Error).stack?.slice(0, 600)); }
   await db.end();
   await writeFile(path.join(OUT, "evidence.json"), JSON.stringify({ pass, fails, evidence }, null, 2));

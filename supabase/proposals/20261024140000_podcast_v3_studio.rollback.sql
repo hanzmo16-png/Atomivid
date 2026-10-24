@@ -1,5 +1,9 @@
 -- Reversión de la propuesta Podcast 3.0. Solo borra las tablas nuevas (no toca podcast_episodes).
 -- ATENCIÓN: borra episodios de estudio y su libro de operaciones; exporta antes si hubo uso real.
+-- Restore pi_supply_state (wrapper → original) before dropping the studio table it reads.
+drop function if exists public.pi_supply_state(text);
+do $$ begin if to_regprocedure('public.pi_supply_state_pre_studio(text)') is not null then alter function public.pi_supply_state_pre_studio(text) rename to pi_supply_state; end if; end $$;
+drop function if exists public.pi_studio_call_counts(text, timestamptz, text);
 -- First restore pi_supply_spend exactly as in 20261005150229 (it reads podcast_studio_operations).
 create or replace function public.pi_supply_spend(p_provider text,p_start timestamptz) returns numeric
 language sql security invoker set search_path='' as $$

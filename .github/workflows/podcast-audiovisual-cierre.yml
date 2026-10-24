@@ -100,10 +100,12 @@ jobs:
           node --import tsx --test src/lib/podcast/spend-authorization-open.test.ts > before-unit.log 2>&1 || true
           ONLY_C=1 OVERRIDE_DIR="$RUNNER_TEMP/old" bash scripts/qa/podcast-cierre-db.sh "$RUNNER_TEMP/pg-before" 55932 > before-db.log 2>&1 || true
           cp "$RUNNER_TEMP/new.ts" src/lib/podcast/spend-authorization-open.ts
-          cat before-unit.log | grep -E '^(not ok|# (pass|fail))'; grep -E '^(FAIL|PASS) C-' before-db.log
+          cat before-unit.log | grep -E '^(not ok|# (pass|fail))'; grep -E '^(FAIL|PASS) (C-|D[0-9])' before-db.log
           [ "$(grep -c '^not ok' before-unit.log)" -ge 7 ] || { echo "::error::antes: P0-2/P1-1 no se reproducen"; exit 1; }
           grep -q '^FAIL C-R1 autorización existente' before-db.log || { echo "::error::antes: R1 no se reproduce"; exit 1; }
           grep -q '^FAIL C-R2 el gasto del estudio' before-db.log || { echo "::error::antes: R2 no se reproduce"; exit 1; }
+          grep -q '^FAIL D2 pipeline' before-db.log || { echo "::error::antes: límite de concurrencia compartido no se reproduce"; exit 1; }
+          grep -q '^FAIL D6 pipeline' before-db.log || { echo "::error::antes: cuota diaria compartida no se reproduce"; exit 1; }
           echo "::notice title=antes/después::antes unit $(grep -c '^not ok' before-unit.log) fallos, BD $(grep -c '^FAIL C-' before-db.log) fallos C · después unit $(grep -E '^# pass' after-unit.log), BD $(grep -E '^RESULTADO' after-db.log)"
       - if: always()
         uses: actions/upload-artifact@v4
