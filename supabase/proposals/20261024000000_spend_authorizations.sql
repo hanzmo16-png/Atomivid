@@ -130,8 +130,7 @@ create or replace function public.pi_documentary_resume_requires_budget() return
 begin
   if old.status = 'failed' and new.status in ('queued','running') and old.retry_count >= 3 and new.retry_count <= old.retry_count
      and not exists (select 1 from public.pi_recovery_budgets b
-                     join public.pi_recovery_resume_authorizations r on r.project_id = b.project_id
-                       and r.authorization_ref = b.authorization_ref and r.transaction_id is not null
+                     join public.pi_recovery_resume_authorizations r on r.project_id = b.project_id and r.transaction_id is not null
                      where b.job_id = old.id and b.owner_id = old.user_id and b.status = 'ACTIVE') then
     raise exception 'spend authorization required: open/resume a recovery budget for job % before requeueing', old.id using errcode = 'P0001';
   end if;

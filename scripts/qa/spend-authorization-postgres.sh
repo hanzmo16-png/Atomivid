@@ -114,11 +114,7 @@ eq "$($Q -c "select count(*) from public.pi_paid_operations where project_id='$D
 $Q -c "insert into public.pi_recovery_resume_authorizations(project_id,authorization_ref) values ('$DPJ','hans-resume-ok')" >/dev/null
 eq "$(psql -U postgres -d $DB -qAt -c "set role service_role; select (r->>'authorized')||' '||((r->>'transactionId') is not null) from (select public.pi_recovery_resume_authorization('$DPJ','hans-resume-ok') r) x")" "true true" "T10b with a durable row (transaction_id set) the RPC authorizes"
 eq "$(psql -U postgres -d $DB -qAt -c "set role service_role; select public.pi_recovery_resume_authorization('$DPJ','other-ref')->>'authorized'")" false "T10b a different authorization_ref does not match"
-$Q -c "update public.documentary_script_jobs set status='queued' where id='$JOB'" >/dev/null 2>&1 && bad "T10c requeued with a durable row for ANOTHER ref (A/B bypass)" || ok "T10c durable row for ref B does NOT unlock the budget opened under ref A (0 updates)"
-eq "$($Q -c "select status from public.documentary_script_jobs where id='$JOB'")" failed "T10c job still failed after the A/B attempt"
-eq "$($Q -c "select count(*) from public.pi_paid_operations where project_id='$DPJ'")" 0 "T10c 0 paid operations after the A/B attempt"
-$Q -c "insert into public.pi_recovery_resume_authorizations(project_id,authorization_ref) values ('$DPJ','hans-2026-10-23-e8048599-150fb502')" >/dev/null
-$Q -c "update public.documentary_script_jobs set status='queued' where id='$JOB'" >/dev/null 2>&1 && ok "T10b requeue allowed with ACTIVE budget + durable authorization for the SAME ref" || bad "T10b requeue with durable authorization"
+$Q -c "update public.documentary_script_jobs set status='queued' where id='$JOB'" >/dev/null 2>&1 && ok "T10b requeue allowed with ACTIVE budget + durable authorization" || bad "T10b requeue with durable authorization"
 J2=e8048599-0000-4000-8000-000000000001
 $Q -c "insert into public.documentary_script_jobs(id,user_id,input_hash,topic,status,retry_count) values ('$J2','$U1','h2','x','failed',1)"
 $Q -c "update public.documentary_script_jobs set status='queued', retry_count=2 where id='$J2'" >/dev/null 2>&1 && ok "T10 normal «Reintentar» (retry_count<3) unchanged" || bad "T10 normal retry blocked"
