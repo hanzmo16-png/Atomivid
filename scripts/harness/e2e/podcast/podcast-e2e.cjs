@@ -156,6 +156,19 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     const st = await s.p.evaluate(async ([id, turnId]) => (await fetch(`/api/podcast/${id}/turns`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "edit", turnId, text: "Reemplazo editorial de un turno de B, sin regenerar el resto." }) })).status, [id, bT.id]);
     await s.p.reload(); await generate(s.p, id, "c3-reemplazo");
     ok("c3: reemplazar un turno = exactamente 1 síntesis nueva", st === 200 && ttsCalls().length - n0 === 1, `${ttsCalls().length - n0}`);
+    // c3-sin-margen: conversación SIN presupuesto total → la autorización inmutable = estimado inicial, ya consumido.
+    // Editar un turno debe rechazarse YA (409 visible, 0 TTS, sin timeout) y fijar un presupuesto después NO la amplía.
+    const id2 = await createEpisode(s.p, { tag: "c3b", title: "E2E caso 3 sin margen", conversation: true, script: "A: Primer turno corto del caso sin margen.\n\nB: Segundo turno corto, también sin margen.", voiceA: LEO, voiceB: ANA, nameA: "A", nameB: "B" });
+    const row2 = await generate(s.p, id2, "c3b");
+    const b2 = row2.production.turns.find((t) => t.speaker === "B");
+    await s.p.evaluate(async ([id, turnId]) => (await fetch(`/api/podcast/${id}/turns`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "edit", turnId, text: "Edición posterior sin saldo autorizado." }) })).status, [id2, b2.id]);
+    const post = () => s.p.evaluate(async (id) => { const r = await fetch(`/api/podcast/${id}/generate`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }); return { st: r.status, body: await r.json().catch(() => ({})) }; }, id2);
+    let n1 = ttsCalls().length, t1 = Date.now(), r1 = await post();
+    ok("c3-sin-margen: editar sin saldo ⇒ 409 inmediato con mensaje, 0 TTS", r1.st === 409 && typeof r1.body.error === "string" && r1.body.error.length > 0 && ttsCalls().length === n1 && Date.now() - t1 < 5000, `${r1.st} «${r1.body.error ?? ""}» ${Date.now() - t1}ms`);
+    await db.query("update public.podcast_episodes set budget_usd=5 where id=$1", [id2]);
+    n1 = ttsCalls().length; const r2 = await post();
+    const cap2 = (await db.query("select cap_usd from public.pi_spend_authorizations where project_id=$1", ["podcast-" + id2])).rows[0];
+    ok("c3-sin-margen: presupuesto fijado después NO amplía la autorización abierta (409, 0 TTS, tope intacto)", r2.st === 409 && ttsCalls().length === n1 && cap2 && Number(cap2.cap_usd) < 1, `${r2.st} cap=${cap2 && cap2.cap_usd}`);
     const f = await download(s.p, "c3"); summary.c3 = { id, calls: calls.length, ownTurns: aTurns.length, sha: sha(fs.readFileSync(f)) };
   }
   if (cases.includes("5")) {
