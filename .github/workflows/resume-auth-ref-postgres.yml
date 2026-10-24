@@ -1,0 +1,24 @@
+name: resume-auth-ref-postgres
+# USD 0. P0 T-20261024-0724-chatgpt-02: disposable PostgreSQL built from the repo migrations; applies the PR198 proposal,
+# reproduces the A/B requeue bypass, applies supabase/proposals/20261024120000_resume_authorization_ref_match.sql and
+# verifies A/B rejection, A/A single transition, concurrency, ACLs, rollback + re-apply. No secrets, no providers.
+on:
+  pull_request:
+    paths: ["supabase/proposals/**", "scripts/qa/spend-authorization-*.sh", "scripts/qa/resume-auth-ref-*.sh", ".github/workflows/resume-auth-ref-postgres.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, persist-credentials: false }
+      - name: Disposable PostgreSQL (PR198 suite + T10c fix suite)
+        run: bash scripts/qa/spend-authorization-db.sh "$RUNNER_TEMP/pgra" 55902 2>&1 | tee resume-auth-ref-postgres.log; test "${PIPESTATUS[0]}" = 0
+      - name: Require the fix suite ran and passed
+        run: grep -q "^PASS R02 A/B rejected for app path" resume-auth-ref-postgres.log && test "$(grep -c '^RESULT ALL PASS' resume-auth-ref-postgres.log)" = 2 && ! grep -q '^FAIL\|PENDING' resume-auth-ref-postgres.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: resume-auth-ref-postgres, path: resume-auth-ref-postgres.log }
