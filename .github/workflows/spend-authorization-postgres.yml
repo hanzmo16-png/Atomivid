@@ -1,0 +1,21 @@
+name: spend-authorization-postgres
+# USD 0: applies supabase/proposals/20261024000000_spend_authorizations.sql to a disposable local PostgreSQL built
+# from the repo migrations and verifies it (missing authorization, caps, uncertain charges, race, rollback).
+on:
+  pull_request:
+    paths: ["supabase/**", "scripts/qa/spend-authorization-*.sh", ".github/workflows/spend-authorization-postgres.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, persist-credentials: false }
+      - name: Disposable PostgreSQL + proposal verification
+        run: bash scripts/qa/spend-authorization-db.sh "$RUNNER_TEMP/pgsa" 55901 2>&1 | tee spend-authorization-postgres.log; test "${PIPESTATUS[0]}" = 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: spend-authorization-postgres, path: spend-authorization-postgres.log }

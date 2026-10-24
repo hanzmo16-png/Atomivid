@@ -54,16 +54,22 @@ create or replace function public.pi_spend_authorization_usage(p_project_id text
 returns jsonb language sql stable as $$
   select jsonb_build_object('capUsd', a.cap_usd, 'status', a.status,
     'committedUsd', coalesce(sum(coalesce(o.committed_usd, o.reserved_usd)) filter (where o.status = 'COMMITTED'), 0),
-    'pendingUsd', coalesce(sum(o.reserved_usd) filter (where o.status in ('SUBMITTED','PROVIDER_JOB_RECORDED','RECONCILIATION_REQUIRED')), 0),
+    'pendingUsd', coalesce(sum(o.reserved_usd) filter (where o.status in ('SUBMITTED','PROVIDER_JOB_RECORDED','RECONCILIATION_REQUIRED')
+                     or (o.status = 'REFUNDED' and not coalesce(o.supply_reconciled, false))), 0),
     'remainingUsd', a.cap_usd - coalesce(sum(coalesce(o.committed_usd, o.reserved_usd)) filter (where o.status = 'COMMITTED'), 0)
-                              - coalesce(sum(o.reserved_usd) filter (where o.status in ('SUBMITTED','PROVIDER_JOB_RECORDED','RECONCILIATION_REQUIRED')), 0))
+                              - coalesce(sum(o.reserved_usd) filter (where o.status in ('SUBMITTED','PROVIDER_JOB_RECORDED','RECONCILIATION_REQUIRED')
+                                  or (o.status = 'REFUNDED' and not coalesce(o.supply_reconciled, false))), 0))
   from public.pi_spend_authorizations a
-  left join public.pi_paid_operations o on o.project_id = a.project_id and o.idempotency_key is distinct from p_exclude_key and not (o.idempotency_key = any(a.baseline_keys))
+  left join public.pi_paid_operations o on o.project_id = a.project_id and o.method <> 'capacity_hold' and o.idempotency_key is distinct from p_exclude_key and not (o.idempotency_key = any(a.baseline_keys))
   where a.project_id = p_project_id group by a.cap_usd, a.status
 $$;
 
 -- Keep the current function body as-is under a new name; the new entry point adds the authorization rule first.
-alter function public.pi_submit_with_supply(text, numeric) rename to pi_submit_with_supply_pre_authz;
+do $$ begin
+  if to_regprocedure('public.pi_submit_with_supply_pre_authz(text,numeric)') is null then
+    alter function public.pi_submit_with_supply(text, numeric) rename to pi_submit_with_supply_pre_authz;
+  end if;
+end $$;
 
 create or replace function public.pi_submit_with_supply(p_key text, p_units numeric) returns jsonb language plpgsql as $$
 declare o public.pi_paid_operations%rowtype; a public.pi_spend_authorizations%rowtype; usage jsonb; owner_ok boolean;
@@ -88,5 +94,21 @@ begin
   end if;
   return public.pi_submit_with_supply_pre_authz(p_key, p_units);
 end $$;
+
+-- Documentary backstop in the DB (PR #194 path): a job that used up its technical retries (retry_count >= 3) can go
+-- back from 'failed' to 'queued' only with an ACTIVE recovery budget of the same owner. The app's normal
+-- «Reintentar» (retry_count < 3) is unchanged. First-run documentary calls stay capped only by the global/provider
+-- ceilings: their project id is not stored on the job, so the DB cannot require an authorization per call.
+create or replace function public.pi_documentary_resume_requires_budget() returns trigger language plpgsql as $$
+begin
+  if old.status = 'failed' and new.status in ('queued','running') and old.retry_count >= 3 and new.retry_count <= old.retry_count
+     and not exists (select 1 from public.pi_recovery_budgets b where b.job_id = old.id and b.owner_id = old.user_id and b.status = 'ACTIVE') then
+    raise exception 'spend authorization required: open/resume a recovery budget for job % before requeueing', old.id using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+drop trigger if exists pi_documentary_resume_requires_budget on public.documentary_script_jobs;
+create trigger pi_documentary_resume_requires_budget before update of status on public.documentary_script_jobs
+  for each row execute function public.pi_documentary_resume_requires_budget();
 
 commit;
