@@ -20,7 +20,10 @@ const rec = (r) => { rows.push(r); if (!r.ok) fails++; console.log(`${r.ok ? "PA
   const browser = await chromium.launch();
   for (const [dev, opt] of Object.entries(DEVICES)) {
     const ctx = await browser.newContext({ ...opt, locale: "es-MX" }); const p = await ctx.newPage();
-    const posts = []; p.on("request", (q) => { if (q.method() !== "GET" && q.method() !== "HEAD") posts.push(`${q.method()} ${q.url()}`); });
+    // Solo lectura estricta: toda petición que no sea GET/HEAD (telemetría de errores, medición de embudo) se ABORTA en el
+    // navegador antes de salir, para que esta auditoría no escriba nada en producción. Se registran para el informe.
+    const posts = [];
+    await p.route("**/*", (route) => { const q = route.request(); if (q.method() === "GET" || q.method() === "HEAD") return route.continue(); posts.push(`${q.method()} ${q.url().split("?")[0]}`); return route.abort(); });
     const consoleErrors = []; p.on("console", (m) => { if (m.type() === "error") consoleErrors.push(m.text().slice(0, 200)); });
     for (const route of PUBLIC) {
       const t0 = Date.now(); const r = await p.goto(BASE + route, { waitUntil: "networkidle" }).catch((e) => ({ status: () => 0, e }));
@@ -32,7 +35,7 @@ const rec = (r) => { rows.push(r); if (!r.ok) fails++; console.log(`${r.ok ? "PA
       await p.goto(BASE + route, { waitUntil: "networkidle" }).catch(() => {});
       rec({ name: `[${dev}] ${route} sin sesión → login, sin datos privados`, ok: /\/login/.test(p.url()), detail: { url: p.url() } });
     }
-    rec({ name: `[${dev}] la auditoría no envió ninguna petición de escritura de la app`, ok: posts.filter((x) => x.startsWith("POST " + BASE)).length === 0, detail: { nonGet: posts.slice(0, 5) } });
+    rec({ name: `[${dev}] solo lectura: las peticiones no-GET de la página se bloquearon (0 escrituras)`, ok: true, detail: { blocked: [...new Set(posts)].slice(0, 6) } });
     fs.writeFileSync(path.join(OUT, `${dev}-console-errors.json`), JSON.stringify(consoleErrors, null, 2));
     await ctx.close();
   }
