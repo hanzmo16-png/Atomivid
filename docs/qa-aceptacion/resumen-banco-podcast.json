@@ -1,0 +1,115 @@
+{
+  "pass": 12,
+  "fail": 0,
+  "untestedCount": 1,
+  "anthropicMockCalls": 0,
+  "checks": [
+    {
+      "name": "[samsung] Podcast: página disponible y sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "sw": 390,
+        "iw": 390
+      }
+    },
+    {
+      "name": "[samsung] Podcast vacío: no se crea episodio",
+      "ok": true
+    },
+    {
+      "name": "[samsung] Podcast: el formulario crea el episodio y muestra su estimación",
+      "ok": true,
+      "detail": {
+        "url": "http://127.0.0.1:3300/dashboard/podcast/38615a18-8438-44cc-9686-2a7517e5e409"
+      }
+    },
+    {
+      "name": "[samsung] Podcast: la UI coincide con el estado real (sin falso éxito); estado=ready",
+      "ok": true,
+      "detail": {
+        "status": "ready",
+        "error": ""
+      }
+    },
+    {
+      "name": "[samsung] Podcast: descarga desde la UI con audio válido",
+      "ok": true,
+      "detail": {
+        "programs": [],
+        "streams": [
+          {
+            "codec_name": "aac"
+          }
+        ],
+        "format": {
+          "duration": "5.964000"
+        }
+      }
+    },
+    {
+      "name": "[desktop] Podcast: página disponible y sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "sw": 1440,
+        "iw": 1440
+      }
+    },
+    {
+      "name": "[desktop] Podcast vacío: no se crea episodio",
+      "ok": true
+    },
+    {
+      "name": "[desktop] Podcast: el formulario crea el episodio y muestra su estimación",
+      "ok": true,
+      "detail": {
+        "url": "http://127.0.0.1:3300/dashboard/podcast/f1da3a30-92eb-495d-bf85-d03396be9f41"
+      }
+    },
+    {
+      "name": "[desktop] Podcast: la UI coincide con el estado real (sin falso éxito); estado=ready",
+      "ok": true,
+      "detail": {
+        "status": "ready",
+        "error": ""
+      }
+    },
+    {
+      "name": "[desktop] Podcast: descarga desde la UI con audio válido",
+      "ok": true,
+      "detail": {
+        "programs": [],
+        "streams": [
+          {
+            "codec_name": "aac"
+          }
+        ],
+        "format": {
+          "duration": "5.964000"
+        }
+      }
+    },
+    {
+      "name": "0 peticiones a proveedores pagos (ninguna salió; las salidas externas se bloquean y registran)",
+      "ok": true,
+      "detail": {
+        "refused": [
+          "registry.npmjs.org"
+        ],
+        "other": []
+      }
+    },
+    {
+      "name": "render: solo despachos al worker LOCAL de prueba (0 renders pagados)",
+      "ok": true,
+      "detail": 0
+    }
+  ],
+  "untested": [
+    {
+      "name": "producción atomicvid.app con sesión",
+      "why": "sin credenciales autorizadas; ver la auditoría pública de solo lectura (workflow qa-aceptacion-publica)"
+    }
+  ]
+}
