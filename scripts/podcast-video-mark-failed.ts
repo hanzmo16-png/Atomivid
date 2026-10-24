@@ -7,6 +7,17 @@ async function main() {
   const id = process.env.EPISODE_ID?.trim() || fromFile;
   if (!/^[0-9a-f-]{36}$/i.test(id) || process.env.JOB_KIND === "narration" || process.env.JOB_KIND === "notices") return;
   const { createServiceClient } = await import("../src/lib/supabase/service");
+  if (process.env.JOB_KIND === "studio") {
+    // Podcast 3.0: el runner murió (tiempo/cancelación). Un solo trabajo por episodio a la vez (concurrency del workflow),
+    // así que «generating» es esta ejecución. Lo que quedó «reserved» pudo cobrarse: pasa a «uncertain» (no se reintenta
+    // a ciegas, se concilia). Lo liquidado y su archivo en Storage se reutilizan al pulsar «Reintentar».
+    const service = createServiceClient();
+    const { data } = await service.from("podcast_studio_episodes").update({ status: "failed", error: "La generación se interrumpió. Lo ya pagado se conserva y se reutiliza al reintentar; no se cobra dos veces.", updated_at: new Date().toISOString() })
+      .eq("id", id).eq("status", "generating").select("id");
+    if (data?.length) await service.from("podcast_studio_operations").update({ state: "uncertain", updated_at: new Date().toISOString() }).eq("episode_id", id).eq("state", "reserved");
+    console.log("STUDIO_MARKED_FAILED", data?.length ?? 0);
+    return;
+  }
   // The run token this job claimed (written by the worker right after its claim), when it got that far.
   const token = process.env.PODCAST_TOKEN_FILE ? (await readFile(process.env.PODCAST_TOKEN_FILE, "utf8").catch(() => "")).trim() : "";
   const patch = {
