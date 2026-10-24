@@ -23,8 +23,10 @@ if ! node -e 'process.exit(+process.versions.node.split(".")[0] >= 22 ? 0 : 1)' 
 [ -d "$E2E_HOME/deps/node_modules/playwright" ] || npm install --silent --no-audit --no-fund --prefix "$E2E_HOME/deps" playwright@1.48.2 pg@8.13.1
 [ -d "$REPO/node_modules" ] || (cd "$REPO" && npm ci --no-audit --no-fund)
 # Chrome headless shell con H.264 (el de Playwright no reproduce MP4): el que usa Remotion
-(cd "$REPO" && npx remotion browser ensure >/dev/null)
-CHROME=$(ls "$REPO"/node_modules/.remotion/chrome-headless-shell/*/chrome-headless-shell-*/chrome-headless-shell | head -1)
+# E2E_CHROME: an already-installed headless shell (offline machines); otherwise Remotion downloads its own.
+if [ -n "${E2E_CHROME:-}" ]; then CHROME=$E2E_CHROME; else
+  (cd "$REPO" && npx remotion browser ensure >/dev/null)
+  CHROME=$(ls "$REPO"/node_modules/.remotion/chrome-headless-shell/*/chrome-headless-shell-*/chrome-headless-shell | head -1); fi
 
 # Secretos locales aleatorios (nunca versionados)
 if [ ! -f "$E2E_HOME/secrets/jwt.env" ]; then (umask 077; echo "GW_JWT_SECRET=$(openssl rand -hex 32)" > "$E2E_HOME/secrets/jwt.env"); fi

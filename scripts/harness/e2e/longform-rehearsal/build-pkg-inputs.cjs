@@ -4,7 +4,7 @@
 // sources.json (stock = ilustración, ai_image = recreación; licencias NO inventadas) y manifest.json para av-qc.
 const fs = require("fs"), path = require("path");
 const [R, o] = process.argv.slice(2);
-const root = "/workspace/atomivid-recraft/.e2e-local/storage/videos";
+const root = `${process.env.E2E_HOME ?? "/workspace/atomivid-recraft/.e2e-local"}/storage/videos`;
 const d = `${root}/long-form/${R}/state/tts/`;
 fs.mkdirSync(o, { recursive: true });
 const t = fs.readdirSync(d).map((f) => JSON.parse(fs.readFileSync(d + f, "utf8"))).sort((a, b) => +a.identity.beatId.split("-")[1] - +b.identity.beatId.split("-")[1]);

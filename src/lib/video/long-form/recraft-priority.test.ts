@@ -90,8 +90,8 @@ test("mezcla por presupuesto: con menos presupuesto hay menos Recraft, pero la a
 });
 
 // ---------- execution: QC and no irrelevant filler ----------
-function webp(w: number, h: number) {
-  const b = Buffer.alloc(400); b.write("RIFF"); b.writeUInt32LE(392, 4); b.write("WEBP", 8); b.write("VP8X", 12); b.writeUInt32LE(10, 16);
+function webp(w: number, h: number, blank = false) {
+  const b = Buffer.alloc(400); if (blank) b[399] = 1; b.write("RIFF"); b.writeUInt32LE(392, 4); b.write("WEBP", 8); b.write("VP8X", 12); b.writeUInt32LE(10, 16);
   b.writeUIntLE(w - 1, 24, 3); b.writeUIntLE(h - 1, 27, 3); return b;
 }
 test("control automático: encuadre, resolución y fotograma uniforme; nunca juzga la correspondencia (queda pendiente de revisión humana)", async () => {
@@ -100,20 +100,21 @@ test("control automático: encuadre, resolución y fotograma uniforme; nunca juz
   assert.equal((await checkGeneratedImage({ buffer: webp(1024, 1024) }, "16:9", { stats: async () => ({ stdev: [40, 40, 40] }) })).passed, false, "square");
   assert.equal((await checkGeneratedImage({ buffer: webp(640, 360) }, "16:9", { stats: async () => ({ stdev: [40, 40, 40] }) })).passed, false, "too small");
   assert.equal((await checkGeneratedImage({ buffer: webp(1820, 1024) }, "16:9", { stats: async () => ({ stdev: [1, 1, 1] }) })).passed, false, "blank");
+  assert.equal((await checkGeneratedImage({ buffer: webp(1792, 1024) }, "16:9", { stats: async () => ({ stdev: [40, 40, 40] }) })).passed, true, "1792x1024 (1.75) is within framing tolerance");
 });
 
 function aiShot(id = "s1"): AllocatedShot {
   return { ...shot(1, "generated_placeholder", "hook"), id, plannedType: "generated_placeholder", source: "generated" } as AllocatedShot;
 }
-function fal(sizes: [number, number][]) {
+function fal(sizes: ([number, number] | [number, number, "blank"])[]) {
   let n = 0; const submitted: string[] = [];
   const provider: ImageProvider = {
     name: "recraft", capabilities: { id: "recraft", models: ["m"], formats: [], aspectRatios: [], timeoutMs: 1, maxRetries: 0 }, isAvailable: () => true,
     async generateImage() { throw new Error("two-step only"); },
     async submitImage() { n++; submitted.push(`fal-req-000${n}`); return { providerJobId: `fal-req-000${n}` }; },
     async resumeImage(id, req): Promise<GenerativeAsset> {
-      const [w, h] = sizes[Math.min(Number(id.slice(-1)) - 1, sizes.length - 1)];
-      return { buffer: webp(w, h), mimeType: "image/webp", extension: "webp", width: w, height: h, model: "m", costUsd: req.style?.styleId ? 0.035 : 0.04, providerJobId: id, styleId: "7a3f1c2e-9b8d-4e6f-a1b2-c3d4e5f6a7b8" };
+      const [w, h, blank] = sizes[Math.min(Number(id.slice(-1)) - 1, sizes.length - 1)];
+      return { buffer: webp(w, h, blank === "blank"), mimeType: "image/webp", extension: "webp", width: w, height: h, model: "m", costUsd: req.style?.styleId ? 0.035 : 0.04, providerJobId: id, styleId: "7a3f1c2e-9b8d-4e6f-a1b2-c3d4e5f6a7b8" };
     },
   };
   return { provider, submitted };
@@ -123,7 +124,7 @@ async function deps(provider: ImageProvider, footage?: FootageProvider, allocati
   const d: ShotExecutionDeps = {
     ledger, topic: "Marco Aurelio", imageProvider: provider, store: mem.store, budget: await ProductionBudget.open(memoryBudgetStore(), allocation),
     units: getGenerativeUnitCosts("veo", "recraft"), aiVideoCostConfig: { ...getAiVideoCostConfig("balanced"), aiVideoCostPerSecondUsd: 0.12 }, totalDurationSec: 600,
-    requireReal: false, metadata: { requestId: "req-qc" }, imageStats: async () => ({ stdev: [40, 40, 40] }),
+    requireReal: false, metadata: { requestId: "req-qc" }, imageStats: async (b) => ({ stdev: b[399] === 1 ? [1, 1, 1] : [40, 40, 40] }),
     imageStyle: createImageStyleContext({ styleId: null, referenceImageUrls: ["https://storage.test/r.png"], match: null, styleNote: null, onStyleId: async () => {} }),
     footageProvider: footage ?? { name: "pexels", async fetchFootage() { throw new Error("no stock"); }, async downloadFootage() { return Buffer.alloc(0); } },
     visualPipeline: "anchored_v1", registry: new DocumentAssetRegistry(),
@@ -132,8 +133,8 @@ async function deps(provider: ImageProvider, footage?: FootageProvider, allocati
   return { d, ledger };
 }
 
-test("imagen con defecto: se paga y se registra, NO se usa; se regenera UNA vez (clave nueva) y la buena ocupa la escena", async () => {
-  const f = fal([[1024, 1024], [1820, 1024]]);
+test("imagen en blanco: se paga y se registra, NO se usa; se regenera UNA vez (clave nueva) y la buena ocupa la escena", async () => {
+  const f = fal([[1820, 1024, "blank"], [1820, 1024]]);
   const { d, ledger } = await deps(f.provider);
   const r = await executeShot(aiShot(), d, emptyAiVideoLedgerState());
   assert.equal(r.executedType, "generated_placeholder");
@@ -144,8 +145,17 @@ test("imagen con defecto: se paga y se registra, NO se usa; se regenera UNA vez 
   assert.equal(r.assetMeta?.selection?.review?.status, "pendiente_revision_humana", "generated ≠ approved");
 });
 
+test("tamaño/encuadre del proveedor (p. ej. 1024x576 o cuadrada): se detiene con UNA imagen pagada, sin regenerar ni usar stock", async () => {
+  for (const size of [[1024, 576], [1024, 1024]] as [number, number][]) {
+    const f = fal([size, [1820, 1024]]);
+    const { d } = await deps(f.provider, undefined, { maxAiImageGenerations: 3, maxAiVideoClips: 0, maxGenerativeUsd: 1 });
+    await assert.rejects(executeShot(aiShot(), d, emptyAiVideoLedgerState()), (e: unknown) => e instanceof ChosenImageProviderError && !e.retryable && /no se paga otra generación/.test(e.message));
+    assert.equal(f.submitted.length, 1, `${size.join("x")}: no regeneration`);
+  }
+});
+
 test("defecto también tras regenerar: se detiene (soporte), sin stock y sin una tercera imagen", async () => {
-  const f = fal([[1024, 1024], [1024, 1024]]);
+  const f = fal([[1820, 1024, "blank"], [1820, 1024, "blank"]]);
   let stock = 0;
   const footage: FootageProvider = { name: "pexels", async fetchFootage() { stock++; throw new Error("x"); }, async downloadFootage() { stock++; return Buffer.alloc(0); } };
   const { d } = await deps(f.provider, footage, { maxAiImageGenerations: 3, maxAiVideoClips: 0, maxGenerativeUsd: 1 });
@@ -154,7 +164,7 @@ test("defecto también tras regenerar: se detiene (soporte), sin stock y sin una
 });
 
 test("sin reserva de regeneración: la imagen defectuosa no se sustituye por stock; se detiene", async () => {
-  const f = fal([[1024, 1024]]);
+  const f = fal([[1820, 1024, "blank"]]);
   const { d } = await deps(f.provider, undefined, { maxAiImageGenerations: 1, maxAiVideoClips: 0, maxGenerativeUsd: 0.04 });
   await assert.rejects(executeShot(aiShot(), d, emptyAiVideoLedgerState()), /reserva para regenerar/);
   assert.equal(f.submitted.length, 1);
