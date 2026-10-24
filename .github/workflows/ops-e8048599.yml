@@ -32,7 +32,8 @@ jobs:
           SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || 'aws-0-us-west-2.pooler.supabase.com' }}
           SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
           FAL_ADMIN_KEY: ${{ secrets.FAL_ADMIN_KEY }}
-          FAL_KEY: ${{ secrets.FAL_KEY != '' && 'set' || '' }}
+          FAL_KEY: ${{ (contains(github.event.head_commit.message, 'IMAGE-COMPARE') || contains(github.event.head_commit.message, 'RECRAFT-PROBE')) && secrets.FAL_KEY || (secrets.FAL_KEY != '' && 'set' || '') }}
+          OPENAI_API_KEY: ${{ contains(github.event.head_commit.message, 'IMAGE-COMPARE') && secrets.OPENAI_API_KEY || '' }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
           GH_TOKEN: ${{ github.token }}
@@ -52,11 +53,13 @@ jobs:
           elif [ "$MODE" = "walton-verify" ]; then sudo apt-get install -yq --no-install-recommends ffmpeg >/dev/null 2>&1; npx tsx scripts/ops-walton-verify.ts > out.txt 2>&1
           elif [ "$MODE" = "leonidas-audit" ]; then npx tsx scripts/ops-leonidas-audit.ts > out.txt 2>&1
           elif [ "$MODE" = "leonidas-plan" ]; then LONG_FORM_MAX_IMAGE_USD=${PLAN_MAX_IMAGE_USD:-5} LONG_FORM_MAX_TOTAL_USD=${PLAN_MAX_TOTAL_USD:-12} LONG_FORM_AI_VIDEO_ENABLED=true PREMIUM_CLIPS_ENABLED=true VIDEO_PROVIDER=veo PRICING_ELEVENLABS_USD_PER_1K_CHARS=0.2 npx tsx scripts/ops-leonidas-plan.ts > out.txt 2>&1
+          elif [ "$MODE" = "image-compare" ]; then npx tsx scripts/ops-image-compare.ts > out.txt 2>&1
+          elif [ "$MODE" = "recraft-probe" ]; then npx tsx scripts/ops-recraft-probe.ts > out.txt 2>&1
           elif [ "$MODE" = "migrate-studio" ]; then npx tsx scripts/ops-migrate-studio.ts > out.txt 2>&1
           elif [ "$MODE" = "supply" ]; then npx tsx scripts/ops-supply-read.ts > out.txt 2>&1
           elif [ "$MODE" = "replay" ]; then REPLAY_CINEMATIC=true REPLAY_JOB=e8048599 npx tsx scripts/replay-documentary-job.ts > out.txt 2>&1
           else npx tsx scripts/ops-e8048599.ts > out.txt 2>&1; fi; rc=$?; echo "::notice title=RC::exit=$rc lines=$(wc -l < out.txt)"
-          node -e 'require("fs").readFileSync("out.txt","utf8").split("\n").filter(l=>/^(JOB|OPS|BUDGET|FAILED|RECRAFT|SNAP|POLICY|FAL|REPLAY|BOUNDARY|MUSIC|VOICE|PROD|PRECHECK|STOP|STEP|END|DRY|DIAG_|PROBE|JOB_E8048599|PAID_OPS|RUNNING_SCRIPT|MODE|PODCAST|MIGRATE|RESUME|VOICE|ESTIMATE|EPISODE|AUTHZ|RUN|DELIVERY|LINK|QUALITY|PLAYBACK|PLAN|PLANS|SIM|CANDIDATES|ELIG|MARKS|OP|SUBSET|CORRECTIONS|NARRATIVE|CHECKPOINT|BEATS|FRAMING|TEXT|MEDIA|\[atomivid:documentary-format)/.test(l)).slice(0,48).forEach((b,i)=>console.log("::notice title=O"+i+"::"+b.slice(0,3800).replace(/%/g,"%25"))); const all=require("fs").readFileSync("out.txt","utf8"); console.log("::notice title=TAIL::"+all.slice(-2500).replace(/%/g,"%25").replace(/\n/g,"%0A"))'
+          node -e 'require("fs").readFileSync("out.txt","utf8").split("\n").filter(l=>/^(JOB|OPS|BUDGET|FAILED|RECRAFT|SNAP|POLICY|FAL|REPLAY|BOUNDARY|MUSIC|VOICE|PROD|PRECHECK|STOP|STEP|END|DRY|DIAG_|PROBE|JOB_E8048599|PAID_OPS|RUNNING_SCRIPT|MODE|PODCAST|MIGRATE|RESUME|VOICE|ESTIMATE|EPISODE|AUTHZ|RUN|DELIVERY|LINK|QUALITY|PLAYBACK|PLAN|PLANS|SIM|CANDIDATES|COMPARE|IMAGE|RECRAFT_PROBE|ELIG|MARKS|OP|SUBSET|CORRECTIONS|NARRATIVE|CHECKPOINT|BEATS|FRAMING|TEXT|MEDIA|\[atomivid:documentary-format)/.test(l)).slice(0,48).forEach((b,i)=>console.log("::notice title=O"+i+"::"+b.slice(0,3800).replace(/%/g,"%25"))); const all=require("fs").readFileSync("out.txt","utf8"); console.log("::notice title=TAIL::"+all.slice(-2500).replace(/%/g,"%25").replace(/\n/g,"%0A"))'
       - name: Report part 1
         if: always()
         run: |
@@ -87,3 +90,7 @@ jobs:
         run: |
           [ -f out.txt ] || exit 0
           node -e 'const L=require("fs").readFileSync("out.txt","utf8").split("\n").filter(l=>l.trim()); L.slice(54,63).forEach((b,i)=>console.log("::notice title=P6_"+i+"::"+b.slice(0,3900).replace(/%/g,"%25")))'
+      - name: Comparison artifact
+        if: always() && hashFiles('comparison/**') != ''
+        uses: actions/upload-artifact@v4
+        with: { name: image-comparison, path: comparison/, retention-days: 14 }
