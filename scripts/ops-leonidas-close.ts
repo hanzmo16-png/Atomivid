@@ -34,14 +34,16 @@ async function main() {
   if (error || !job) throw Error("job read");
   log("JOB", { status: job.status, stage: job.stage, code: job.error_code, retries: job.retry_count, updated: job.updated_at });
   const { data: owner } = await db.auth.admin.getUserById(job.user_id);
-  const v6 = cinematicV6Enabled(owner?.user as never);
+  // The worker reads CINEMATIC_V6_ENABLED_EMAILS (not passed to this workflow). The paid plans carry beatClass/impact,
+  // i.e. they were produced in V6: force it and verify below that every reused plan declares impact.
+  const v6env = cinematicV6Enabled(owner?.user as never); const v6 = true;
   const input = job.input as any, fields = input.fields;
   const scope = documentarySupplyScope(job.user_id, { ...fields, editorialVersion: EDITORIAL_VERSION, researchVersion: RESEARCH_VERSION, creativeHistory: input.creativeHistory,
     ...(input.referenceContract ? { referenceContract: input.referenceContract } : {}) }, false);
   const { data: allOps } = await db.from("pi_paid_operations").select("idempotency_key,shot_id,status,reserved_usd,committed_usd,result_ref,provider,created_at").eq("project_id", scope.projectId).order("created_at");
   const byStatus: Record<string, { n: number; usd: number }> = {};
   for (const o of allOps ?? []) { const s = (byStatus[o.status] ??= { n: 0, usd: 0 }); s.n++; s.usd += Number(o.committed_usd ?? 0) || (o.status === "COMMITTED" ? 0 : Number(o.reserved_usd ?? 0)); }
-  log("LEDGER", { project: scope.projectId.slice(0, 40), v6, byStatus, first: allOps?.[0]?.created_at, last: allOps?.at(-1)?.created_at });
+  log("LEDGER", { project: scope.projectId.slice(0, 40), v6env, v6forced: v6, byStatus, first: allOps?.[0]?.created_at, last: allOps?.at(-1)?.created_at });
   const { data: budget } = await db.from("pi_recovery_budgets").select("project_id,cap_usd,authorization_ref,status,created_at").eq("job_id", JOB).maybeSingle();
   const usage = budget ? await db.rpc("pi_recovery_budget_usage", { p_project_id: budget.project_id, p_exclude_key: null }) : null;
   const durable = budget ? await db.rpc("pi_recovery_resume_authorization", { p_project_id: budget.project_id, p_authorization_ref: budget.authorization_ref }) : null;
@@ -105,7 +107,7 @@ async function main() {
   } catch (e) { log("REPLAY", { error: String(e).slice(0, 300), stage, hits }); }
   finally { globalThis.fetch = origFetch; delete process.env.ANTHROPIC_API_KEY; }
   if (!script) return;
-  log("REPLAY", { savedResponses: responses.size, hits, projectedBlocks: [...projected].map((b) => b + 1), approved: !!editorial, approvalError: editorialApprovalError(script) });
+  log("REPLAY", { reusedPlansDeclareImpact: script.beats.filter((_: any, i: number) => !projected.has(i)).every((b: any) => (b.visuals ?? []).every((v: any) => [1, 2, 3].includes(v.impact))), savedResponses: responses.size, hits, projectedBlocks: [...projected].map((b) => b + 1), approved: !!editorial, approvalError: editorialApprovalError(script) });
 
   // ---- owner corrections on the finished script
   const entry = ownerCorrectionsFor(JOB)!;
