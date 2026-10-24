@@ -2,9 +2,8 @@
 import { readFileSync } from "node:fs";
 async function main() {
   if (process.env.CONFIRM !== "MIGRATE-STUDIO-V3") throw Error("confirmation missing");
-  const { Client } = await import("pg"); const ref = process.env.SUPABASE_PROJECT_REF;
-  const c = new Client({ host: process.env.SUPABASE_DB_HOST, port: Number(process.env.SUPABASE_DB_PORT || 5432), user: `postgres.${ref}`, password: process.env.SUPABASE_DB_PASSWORD, database: "postgres", ssl: { rejectUnauthorized: false } });
-  await c.connect();
+  const { connectResolved } = await import("./lib/supabase-db");
+  const { client: c } = await connectResolved();
   const q = async (sql: string) => (await c.query(sql)).rows;
   try {
     const before = await q("select count(*)::int n from public.podcast_episodes");

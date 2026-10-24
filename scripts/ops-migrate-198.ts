@@ -8,9 +8,8 @@ import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 async function main() {
   if (process.env.CONFIRM !== "MIGRATE-198") throw Error("confirmation missing");
-  const { Client } = await import("pg"); const ref = process.env.SUPABASE_PROJECT_REF;
-  const c = new Client({ host: process.env.SUPABASE_DB_HOST, port: Number(process.env.SUPABASE_DB_PORT || 5432), user: `postgres.${ref}`, password: process.env.SUPABASE_DB_PASSWORD, database: "postgres", ssl: { rejectUnauthorized: false } });
-  await c.connect();
+  const { connectResolved } = await import("./lib/supabase-db");
+  const { client: c } = await connectResolved();
   const q = async (sql: string, p: unknown[] = []) => (await c.query(sql, p)).rows;
   const counts = async () => (await q(`select (select count(*) from public.podcast_episodes)::int episodes, (select count(*) from public.documentary_script_jobs)::int jobs,
     (select count(*) from public.pi_paid_operations)::int ops, (select count(*) from public.pi_recovery_budgets)::int budgets,

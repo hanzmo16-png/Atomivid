@@ -8,9 +8,8 @@ async function main() {
   if (process.env.CONFIRM !== "AUTHZ-RESUME-e8048599") throw Error("confirmation missing");
   const ref = String(process.env.AUTHORIZATION_REF ?? "").trim(); if (ref.length < 8) throw Error("AUTHORIZATION_REF required");
   const JOB = "e8048599-cf92-45e8-95c8-f145cb9d3be2";
-  const { Client } = await import("pg"); const pref = process.env.SUPABASE_PROJECT_REF;
-  const c = new Client({ host: process.env.SUPABASE_DB_HOST, port: Number(process.env.SUPABASE_DB_PORT || 5432), user: `postgres.${pref}`, password: process.env.SUPABASE_DB_PASSWORD, database: "postgres", ssl: { rejectUnauthorized: false } });
-  await c.connect();
+  const { connectResolved } = await import("./lib/supabase-db");
+  const { client: c } = await connectResolved();
   try {
     await c.query("begin");
     const b = (await c.query("select project_id, status, cap_usd from public.pi_recovery_budgets where job_id = $1 for update", [JOB])).rows[0];
