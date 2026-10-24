@@ -19,7 +19,6 @@ jobs:
           ref=$(sed -n 's/^REPLAY_REF=//p' ops/e8048599.mode)
           if [ -n "$ref" ]; then mkdir -p /tmp/opsk && cp scripts/ops-*.ts /tmp/opsk/ && cp ops/e8048599.mode /tmp/mode
             git fetch -q origin claude/atomivid-mvp-setup-0079jv && git checkout -q "$ref" && mkdir -p ops && cp /tmp/mode ops/e8048599.mode && cp /tmp/opsk/*.ts scripts/; fi
-            git fetch -q origin claude/long-form-15min-readiness claude/atomivid-mvp-setup-0079jv claude/json-syntax-12045fcd && cp scripts/ops-quality-e8048599.ts /tmp/q.ts; cp scripts/ops-step-e8048599.ts /tmp/st.ts; cp scripts/ops-unreadable-e8048599.ts /tmp/un.ts; cp scripts/ops-postdeploy.ts /tmp/pd.ts; git checkout -q "$ref" && mkdir -p ops && cp /tmp/mode ops/e8048599.mode && cp /tmp/ops.ts scripts/ops-e8048599.ts && cp /tmp/q.ts scripts/ops-quality-e8048599.ts && cp /tmp/st.ts scripts/ops-step-e8048599.ts && cp /tmp/un.ts scripts/ops-unreadable-e8048599.ts && cp /tmp/pd.ts scripts/ops-postdeploy.ts; fi
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
