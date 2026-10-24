@@ -47,7 +47,11 @@ async function createEpisode(p, o) {
 }
 async function generate(p, id, tag) {
   const DLOG = path.join(E2E, "logs/dispatch.jsonl"), dlen = () => (fs.existsSync(DLOG) ? fs.statSync(DLOG).size : 0), d0 = dlen();
+  // Espera la respuesta del POST antes de leer el estado: reanudar desde «failed» ya es terminal y, si el servidor
+  // tarda en despachar (p. ej. al calcular lo pendiente), el bucle salía antes de ver el despacho (carrera, c4).
+  const resp = p.waitForResponse((r) => r.request().method() === "POST" && /\/api\/podcast\/[^/]+\/generate$/.test(new URL(r.url()).pathname), { timeout: 60000 }).catch(() => null);
   await p.getByRole("button", { name: /Generar narración|Continuar \/ reintentar/ }).click();
+  await resp;
   // Corto (≤6000 car.): narra dentro de la petición. Largo: despacha al worker (aquí, al registrador local) → se ejecuta el worker real.
   let row; for (let i = 0; i < 600; i++) { await p.waitForTimeout(500); row = await ep(id); if (row.status !== "generating" && row.status !== "draft") break; if (dlen() > d0) { await p.waitForTimeout(500); break; } }
   row = await ep(id);
