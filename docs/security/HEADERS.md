@@ -49,7 +49,7 @@ Aplicarla sin datos reales podría romper el login, las subidas o la reproducci�
 - **deben dar 0 violaciones**, ni aplicadas ni de informe: login con Supabase Auth, Realtime (WebSocket), imagen y video firmados de Storage, subida firmada (PUT), vistas previas `blob:`, envío a Sentry (simulado), API propia y Stripe simulado (formulario directo y formulario → 303 → Checkout / Portal);
 - **controles negativos**, que deben producir la violación esperada para probar que el detector funciona: conexión a un origen no permitido y formulario a un origen no permitido (directo y por 303) dan un aviso de informe sin bloquear; `<object>` y `<base>` ajeno se bloquean.
 
-Ningún host externo sale del runner: los stubs locales responden antes de la red, el navegador no resuelve DNS externos y lleva un proxy muerto. Resultado en `security-out/csp-scenarios.json`.
+Ningún host externo sale del runner: los stubs locales responden antes de la red y el navegador no resuelve ningún DNS externo. Resultado en `security-out/csp-scenarios.json`.
 
 **Con sesión y flujos completos:** la batería de aceptación de #202 registra las violaciones de CSP (aplicada = FAIL, informe = INFO) y se ejecuta con estas cabeceras en la rama de verificación `claude/verify-202-203` (#202 + #203).
 

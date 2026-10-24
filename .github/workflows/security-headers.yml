@@ -45,8 +45,10 @@ jobs:
           export PROD_SUPABASE_URL=https://abcdefghijklmnop.supabase.co PROD_SENTRY_ORIGIN=https://o4500000000000000.ingest.us.sentry.io
           export PROD_HEADERS_JSON=$(npx tsx -e 'import { securityHeaders } from "./src/lib/security-headers"; console.log(JSON.stringify(securityHeaders({ NEXT_PUBLIC_SUPABASE_URL: process.env.PROD_SUPABASE_URL, NEXT_PUBLIC_SENTRY_DSN: "https://k@o4500000000000000.ingest.us.sentry.io/1", NODE_ENV: "production" })))')
           [ -n "$PROD_HEADERS_JSON" ] || { echo "::error::no se pudieron calcular las cabeceras de producción"; exit 1; }
-          BASE=http://127.0.0.1:3000 OUT=security-out node scripts/qa/security-headers-check.cjs | tee security.log
-          echo "::notice title=security-headers::$(grep -E '^(FAIL|INFO|RESULTADO)' security.log | cut -c1-200 | sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g')"
+          echo "::notice title=prod-headers::$(echo "$PROD_HEADERS_JSON" | cut -c1-300)"
+          set +e; BASE=http://127.0.0.1:3000 OUT=security-out node scripts/qa/security-headers-check.cjs > security.log 2>&1; code=$?; set -e; cat security.log
+          echo "::notice title=security-headers::$(grep -E '^(FAIL|INFO|RESULTADO)|Error|error'  security.log | cut -c1-200 | sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g')"
+          exit $code
       - if: always()
         uses: actions/upload-artifact@v4
         with:
