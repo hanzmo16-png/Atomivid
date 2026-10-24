@@ -45,6 +45,14 @@ Aplicarla sin datos reales podría romper el login, las subidas o la reproducci�
   - Podcast;
   - 0 salidas a proveedores.
 
+**Funciones frente a la política** (mismo script, sección 4; T-20261024 QA final), en Samsung 390×844 y escritorio 1440×900, sobre el servidor Next real y sobre una página servida con las cabeceras calculadas para la forma de producción (Supabase `https://…supabase.co`, DSN de Sentry):
+- **deben dar 0 violaciones**, ni aplicadas ni de informe: login con Supabase Auth, Realtime (WebSocket), imagen y video firmados de Storage, subida firmada (PUT), vistas previas `blob:`, envío a Sentry (simulado), API propia y Stripe simulado (formulario directo y formulario → 303 → Checkout / Portal);
+- **controles negativos**, que deben producir la violación esperada para probar que el detector funciona: conexión a un origen no permitido y formulario a un origen no permitido (directo y por 303) dan un aviso de informe sin bloquear; `<object>` y `<base>` ajeno se bloquean.
+
+Ningún host externo sale del runner: los stubs locales responden antes de la red, el navegador no resuelve DNS externos y lleva un proxy muerto. Resultado en `security-out/csp-scenarios.json`.
+
+**Con sesión y flujos completos:** la batería de aceptación de #202 registra las violaciones de CSP (aplicada = FAIL, informe = INFO) y se ejecuta con estas cabeceras en la rama de verificación `claude/verify-202-203` (#202 + #203).
+
 ## Siguiente paso (no incluido aquí)
 
 1. Desplegar y observar los avisos del modo informe en producción durante unos días: consola, o un `report-to` propio si se decide.
