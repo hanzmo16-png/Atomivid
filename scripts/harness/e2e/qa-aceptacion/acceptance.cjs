@@ -34,10 +34,15 @@ let db, browser;
 const REQUIRE_PODCAST_DOWNLOAD = process.env.QA_REQUIRE_PODCAST_DOWNLOAD === "1";
 const PODCAST_READY_TIMEOUT_MS = Number(process.env.QA_PODCAST_READY_TIMEOUT_MS ?? 240000);
 const podcastDownloads = [];
+const cspEnforced = [], cspReportOnly = [];
 
 async function ctxFor(dev, tag) {
   const ctx = await browser.newContext({ ...DEVICES[dev], acceptDownloads: true, locale: "es-MX" });
-  const p = await ctx.newPage(); p.setDefaultTimeout(90000); p.tag = `${dev}-${tag}`; return { ctx, p };
+  const p = await ctx.newPage(); p.setDefaultTimeout(90000); p.tag = `${dev}-${tag}`;
+  // Cabeceras de seguridad (PR #203): toda violación de la CSP APLICADA es un fallo (función bloqueada); las del modo
+  // informe se registran para decidir qué directivas pueden pasar a aplicadas. Sin cabeceras CSP, ambas listas quedan vacías.
+  p.on("console", (m) => { const t = m.text(); if (!/Content Security Policy/i.test(t)) return; (/Report Only|report-only/i.test(t) ? cspReportOnly : cspEnforced).push({ page: p.tag, url: p.url(), text: t.slice(0, 300) }); });
+  return { ctx, p };
 }
 const shot = (p, n) => p.screenshot({ path: path.join(OUT, `${p.tag}-${n}.png`), fullPage: true }).catch(() => {});
 const skipTour = (p) => p.getByRole("button", { name: "Omitir" }).click({ timeout: 4000 }).catch(() => {});
@@ -236,9 +241,11 @@ async function podcast(dev) {
     const PROVIDERS = /anthropic|openai|elevenlabs|heygen|fal\.(ai|run)|recraft|pexels|pixabay|runway|googleapis|beatoven|stripe/i;
     check("0 peticiones a proveedores pagos (ninguna salió; las salidas externas se bloquean y registran)", refused.filter((e) => PROVIDERS.test(e.host ?? "")).length === 0 && other.length === 0, { refused: [...new Set(refused.map((e) => e.host))], other: other.slice(0, 3) });
     check("render: solo despachos al worker LOCAL de prueba (0 renders pagados)", egress.filter((e) => e.kind === "dispatch").every((e) => e.body?.event_type), egress.filter((e) => e.kind === "dispatch").length);
+    check("0 violaciones de la CSP aplicada en todas las páginas recorridas (ninguna función bloqueada por cabeceras)", cspEnforced.length === 0, cspEnforced.slice(0, 5));
+    console.log(`INFO  avisos de la CSP en modo informe (no bloquean): ${cspReportOnly.length}${cspReportOnly.length ? " — " + JSON.stringify([...new Set(cspReportOnly.map((x) => x.text))].slice(0, 5)).slice(0, 900) : ""}`);
     if (REQUIRE_PODCAST_DOWNLOAD) check("Podcast: descarga íntegra verificada en Samsung 390x844 Y escritorio 1440x900", ["samsung", "desktop"].every((d) => podcastDownloads.some((x) => x.dev === d)), podcastDownloads.map((x) => x.dev));
     notTested("producción atomicvid.app con sesión", "sin credenciales autorizadas; ver la auditoría pública de solo lectura (workflow qa-aceptacion-publica)");
-    const summary = { pass: checks.filter((c) => c.ok).length, fail: checks.filter((c) => !c.ok).length, untestedCount: untested.length, knownDefects: known, anthropicMockCalls: jsonl(path.join(LOGS, "anthropic.jsonl")).length - anth0, podcastDownloads, checks, untested };
+    const summary = { pass: checks.filter((c) => c.ok).length, fail: checks.filter((c) => !c.ok).length, untestedCount: untested.length, knownDefects: known, anthropicMockCalls: jsonl(path.join(LOGS, "anthropic.jsonl")).length - anth0, podcastDownloads, csp: { enforced: cspEnforced, reportOnly: cspReportOnly }, checks, untested };
     fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify(summary, null, 2));
     console.log(`RESULTADO ${summary.pass} PASS / ${summary.fail} FAIL / ${summary.untestedCount} NO PROBADO / ${known.filter((k) => !k.fixed).length} XFAIL`);
     await browser.close(); await db.end(); process.exit(summary.fail ? 1 : 0);
