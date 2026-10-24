@@ -26,8 +26,12 @@ async function main() {
   }
   log("OPS", { count: ops?.length ?? 0, committedUsd: Math.round(usd * 1e4) / 1e4, statuses: (ops ?? []).map((o) => o.status).join(",") });
   for (const p of plans) log("PLAN", p);
+  const cp = job.editorial_checkpoint?.script;
+  log("CHECKPOINT", { type: Array.isArray(cp) ? "array" : typeof cp, keys: cp && !Array.isArray(cp) ? Object.keys(cp) : null, len: Array.isArray(cp) ? cp.length : null, review: job.editorial_checkpoint?.review ? Object.keys(job.editorial_checkpoint.review) : null, status: job.editorial_checkpoint?.status, sources: (job.editorial_checkpoint?.researchPack?.sources ?? []).map((x: any) => String(x?.title ?? x?.url ?? "").slice(0, 80)).slice(0, 8) });
+  if (!narrative && cp) narrative = Array.isArray(cp) ? { beats: cp } : cp.beats ? cp : null, narrativeAt = "checkpoint";
   if (narrative) {
-    const beats = narrative.beats as any[]; const all = beats.map((b) => b.narration).join("\n\n");
+    const beats = narrative.beats as any[]; const all = beats.map((b) => b.narration ?? b.text ?? "").join("\n\n");
+    log("BEATS", beats.map((b, i) => ({ i, words: String(b.narration ?? b.text ?? "").split(/\s+/).length, keys: Object.keys(b).slice(0, 8), start: String(b.narration ?? b.text ?? "").slice(0, 70) })));
     log("NARRATIVE", { at: narrativeAt, beats: beats.length, words: all.split(/\s+/).filter(Boolean).length, chars: all.length, minutesAt150wpm: Math.round(all.split(/\s+/).length / 150 * 10) / 10, title: narrative.title ?? null, keys: Object.keys(narrative) });
     const flags = ["hipot", "imagin", "nunca se enfrentaron", "jamás se enfrentaron", "siglos", "¿qué pasaría", "qué habría pasado", "si ", "ficción", "simulación"];
     log("FRAMING", Object.fromEntries(flags.map((k) => [k, (all.toLowerCase().match(new RegExp(k.replace(/[?¿]/g, "\\$&"), "g")) ?? []).length])));
