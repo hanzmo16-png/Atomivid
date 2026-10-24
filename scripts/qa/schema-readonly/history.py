@@ -2,6 +2,7 @@
 """READ-ONLY migration history audit (runs on the runner, on local files only).
 
 Inputs: registered.txt (``version|name`` lines read from production's supabase_migrations.schema_migrations),
+optionally applied.txt (comma-separated file names from public._migrations_applied, the repo's apply workflow registry),
 a migrations directory, a proposals directory and the schema-only pg_dump of production (public schema).
 For every repo migration/proposal it lists the objects the file creates (tables, columns, functions, indexes,
 policies, triggers, views) and checks each one in the production dump, so the verdict does not depend on how the
@@ -12,6 +13,11 @@ import re
 import sys
 
 reg_path, mig_dir, prop_dir, dump_path = sys.argv[1:5]
+applied_path = sys.argv[5] if len(sys.argv) > 5 else None
+applied_files = set()
+if applied_path and os.path.exists(applied_path):
+    raw = open(applied_path, encoding="utf-8").read().strip()
+    applied_files = {x.strip() for x in raw.split(",") if x.strip() and not x.startswith("(")}
 dump = open(dump_path, encoding="utf-8", errors="replace").read()
 registered = []
 for line in open(reg_path, encoding="utf-8"):
@@ -92,7 +98,9 @@ for label, d in (("migration", mig_dir), ("proposal", prop_dir)):
         if not f.endswith(".sql") or f.endswith(".rollback.sql"):
             continue
         version, _, rest = f[:-4].partition("_")
-        is_reg = version in reg_versions or rest in reg_names
+        in_sm = version in reg_versions or rest in reg_names
+        in_ma = f in applied_files
+        is_reg = in_sm or in_ma
         if version in reg_versions:
             matched_registry.add(version)
         for v, n in registered:
@@ -101,8 +109,11 @@ for label, d in (("migration", mig_dir), ("proposal", prop_dir)):
         status, have, total, missing = classify(os.path.join(d, f), is_reg)
         summary[(label, status)] = summary.get((label, status), 0) + 1
         extra = f" missing={','.join(missing[:6])}{'…' if len(missing) > 6 else ''}" if missing else ""
-        print(f"HISTORY {label} {f} registered={'yes' if is_reg else 'no'} objects={have}/{total} {status}{extra}")
+        print(f"HISTORY {label} {f} schema_migrations={'yes' if in_sm else 'no'} _migrations_applied={'yes' if in_ma else 'no'} objects={have}/{total} {status}{extra}")
 for v, n in registered:
     if v not in matched_registry:
         print(f"HISTORY registry-only {v} {n or '(sin nombre)'} — registered in production, no file with this version/name in the repo")
+for f in sorted(applied_files):
+    if not os.path.exists(os.path.join(mig_dir, f)) and not os.path.exists(os.path.join(prop_dir, f)):
+        print(f"HISTORY applied-registry-only {f} — in public._migrations_applied, no such file in the repo")
 print("HISTORY_SUMMARY " + " ".join(f"{label}:{status}={n}" for (label, status), n in sorted(summary.items())))

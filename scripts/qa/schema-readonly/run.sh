@@ -27,7 +27,9 @@ echo "INFO tree under test: $INT_REF @ $(git -C "$INT" rev-parse HEAD)"
 # --- migration history: registry vs repo files vs objects really present in the production schema ---
 grep '^registered | ' "$OUT/catalog.txt" | sed 's/^registered | //; s/ | /|/' > "$T/registered.txt"
 echo "INFO production registry: $(wc -l < "$T/registered.txt") migrations recorded in supabase_migrations.schema_migrations"
-python3 -I "$R/scripts/qa/schema-readonly/history.py" "$T/registered.txt" "$INT/supabase/migrations" "$INT/supabase/proposals" "$T/public.sql"
+grep '^applied_registry | ' "$OUT/catalog.txt" | sed 's/^applied_registry | //' > "$T/applied.txt"
+echo "INFO repo apply-workflow registry (public._migrations_applied): $(tr ',' '\n' < "$T/applied.txt" | grep -c .) file names"
+python3 -I "$R/scripts/qa/schema-readonly/history.py" "$T/registered.txt" "$INT/supabase/migrations" "$INT/supabase/proposals" "$T/public.sql" "$T/applied.txt"
 unset PGOPTIONS
 # --- replay on a disposable cluster ---
 L=$T/local; "$PGBIN/initdb" -D "$L" -U postgres --auth=trust >/dev/null; "$PGBIN/pg_ctl" -D "$L" -o "-p 55990 -k $T -c listen_addresses=''" -l "$T/pg.log" -w start >/dev/null

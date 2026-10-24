@@ -7,6 +7,9 @@ select 'server', current_setting('server_version'), pg_is_in_recovery();
 select 'migration', version from supabase_migrations.schema_migrations where version >= '20261015' order by version;
 -- full registry (version|name) for history.py
 select 'registered', m.version, coalesce(to_jsonb(m)->>'name', '') from supabase_migrations.schema_migrations m order by m.version;
+-- the repo's own registry (scripts/apply-supabase-migration.ts → public._migrations_applied, by file name)
+select 'applied_registry', case when to_regclass('public._migrations_applied') is null then '(table absent)'
+  else (xpath('/row/n/text()', query_to_xml('select string_agg(name, '','' order by name) n from public._migrations_applied', false, true, '')))[1]::text end;
 select 'table', t, to_regclass('public.'||t) is not null from unnest(array['pi_spend_authorizations','pi_recovery_resume_authorizations','pi_recovery_budgets',
   'pi_paid_operations','pi_supply_policies','podcast_episodes','documentary_script_jobs','podcast_studio_episodes','podcast_studio_operations']) t;
 select 'function', p.oid::regprocedure::text, p.prosecdef as secdef, coalesce(array_to_string(p.proconfig, ','), '') as config, pg_get_userbyid(p.proowner) owner, md5(pg_get_functiondef(p.oid)) def_md5
