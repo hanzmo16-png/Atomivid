@@ -1,0 +1,53 @@
+# Encabezados de seguridad (src/lib/security-headers.ts). USD 0, sin secretos: build de producción con URLs públicas de
+# marcador, `next start` local y comprobación en navegador (Samsung 390x844 y escritorio 1440x900): cabeceras en cada ruta,
+# iframe ajeno bloqueado (clickjacking) y 0 violaciones de la CSP aplicada. La CSP completa va en modo informe.
+name: security-headers
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [claude/atomivid-mvp-setup-0079jv]
+    paths:
+      - ".github/workflows/security-headers.yml"
+      - "next.config.*"
+      - "src/lib/security-headers*"
+      - "src/proxy.ts"
+      - "scripts/qa/security-headers-check.cjs"
+permissions:
+  contents: read
+concurrency:
+  group: security-headers-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  headers:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-not-a-secret
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Pruebas unitarias de los encabezados
+        run: node --import tsx --test src/lib/security-headers.test.ts
+      - name: Build de producción
+        run: npm run build
+      - name: Servidor local + comprobación en navegador
+        run: |
+          npx playwright install --with-deps chromium
+          (npx next start -p 3000 -H 127.0.0.1 > next-start.log 2>&1 &)
+          for i in $(seq 1 60); do curl -s -o /dev/null http://127.0.0.1:3000/login && break; sleep 2; done
+          set -o pipefail
+          BASE=http://127.0.0.1:3000 OUT=security-out node scripts/qa/security-headers-check.cjs | tee security.log
+          echo "::notice title=security-headers::$(grep -E '^(PASS|FAIL|INFO|RESULTADO)' security.log | cut -c1-200 | sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g')"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-headers
+          retention-days: 14
+          path: |
+            security-out
+            security.log
+            next-start.log
