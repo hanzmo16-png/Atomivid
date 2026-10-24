@@ -1,0 +1,100 @@
+# Final independent audit of PR #200 (claude/audit-pr200-final, based on grok/podcast-audiovisual-cierre @ 7153c35).
+# USD 0: no repository secret, everything on 127.0.0.1 (disposable PG, PostgREST, mocks). Never modifies Grok's branch.
+name: audit-pr200-final
+on:
+  push:
+    branches: [claude/audit-pr200-final]
+permissions:
+  contents: read
+concurrency:
+  group: audit-pr200-final-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  gate-unit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Gate regressions (audit) + Grok's own gate/studio unit tests
+        run: |
+          set -o pipefail
+          node --import tsx --test src/lib/podcast/audit-pr200-final.test.ts src/lib/podcast/spend-authorization-open.test.ts \
+            src/lib/podcast/v3/v3.test.ts src/lib/podcast/v3/studio.test.ts src/lib/podcast/v3/cierre.test.ts 2>&1 | tee gate-unit.log
+          grep -q '^# fail 0$' gate-unit.log && grep -q '^# todo 0$' gate-unit.log && grep -q '^# skipped 0$' gate-unit.log
+      - name: Same regressions against the gate of 6ce9fcb (must FAIL → the tests detect the old defects)
+        run: |
+          git fetch -q --depth=50 origin 6ce9fcbf18b43b8ec088376fac47200dc1ccd390 || git fetch -q origin
+          git show 6ce9fcbf18b43b8ec088376fac47200dc1ccd390:src/lib/podcast/spend-authorization-open.ts > src/lib/podcast/spend-authorization-open.ts
+          node --import tsx --test src/lib/podcast/audit-pr200-final.test.ts > gate-before.log 2>&1 && { echo "::error::old gate passes the regressions"; exit 1; } || true
+          echo "before (6ce9fcb): $(grep -c '^not ok' gate-before.log) of $(grep -cE '^(ok|not ok)' gate-before.log) regressions fail"; git checkout -- src/lib/podcast/spend-authorization-open.ts
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: audit-gate-unit, retention-days: 14, path: "gate-*.log" }
+  db:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: PostgreSQL 17
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -yq postgresql-17
+          sudo systemctl stop postgresql || true
+      - name: Adversarial SQL (E1–E8) on a disposable database
+        run: set -o pipefail; PG_BIN=/usr/lib/postgresql/17/bin bash scripts/qa/audit-pr200-final-db.sh "$RUNNER_TEMP/a200" 55931 2>&1 | tee audit-db.log
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: audit-db, retention-days: 14, path: audit-db.log }
+  e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CI: "1"
+      E2E_HOME: ${{ github.workspace }}/.e2e-local
+      E2E_PGPORT: "55532"
+      E2E_TIMEOUT: "3600"
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - name: System dependencies
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -yq postgresql-17 espeak-ng ffmpeg python3-numpy xz-utils
+          sudo systemctl stop postgresql || true
+          echo "PG_BIN=/usr/lib/postgresql/17/bin" >> "$GITHUB_ENV"
+      - run: npm ci --no-audit --no-fund
+      - name: Local harness
+        run: bash scripts/harness/e2e/infra/setup.sh
+      - name: Podcast environment (real routes, mocks for providers)
+        run: bash scripts/harness/e2e/podcast/start.sh
+      - name: Audit E2E F1 (video route order), F2 (2.1 worker killed in flight), F3 (studio worker killed in flight)
+        run: |
+          set -o pipefail
+          . "$E2E_HOME/paths.env"; OUT="$E2E_HOME/out/audit"; mkdir -p "$OUT"
+          REPO="$PWD" E2E_OUT="$OUT" E2E_CHROME="$CHROME" PLAYWRIGHT_MODULE="$E2E_HOME/deps/node_modules/playwright" HARNESS_PG_MODULE="$E2E_HOME/deps/node_modules/pg" \
+          HARNESS_PG_URL="postgres://postgres@localhost:$PGPORT/atomivid?host=$E2E_HOME/run" timeout 3000 node scripts/harness/e2e/podcast/audit-pr200-final.cjs 2>&1 | tee audit-e2e.log
+      - name: No real provider contacted
+        if: always()
+        run: |
+          f="$E2E_HOME/logs/egress.jsonl"; [ -f "$f" ] || exit 0
+          if grep '"egress_refused"' "$f" | grep -Eiq 'elevenlabs|pexels|fal\.(ai|run)|openai|anthropic|recraft|heygen|d-id|supabase\.co|stripe'; then echo "::error::egress to a real provider"; exit 1; fi
+          echo "egress to real providers: 0"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-e2e
+          retention-days: 14
+          path: |
+            audit-e2e.log
+            .e2e-local/out/audit/*.png
+            .e2e-local/out/audit/*.json
+            .e2e-local/out/audit/*.log
+            .e2e-local/logs/elevenlabs.jsonl
+            .e2e-local/logs/next.log
