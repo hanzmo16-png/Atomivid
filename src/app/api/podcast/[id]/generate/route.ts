@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { podcastUser } from "@/lib/podcast/auth";
-import { loadOwnedEpisode, podcastV2Enabled, runGeneration } from "@/lib/podcast/server";
+import { loadOwnedEpisode, pendingProductionNarration, podcastV2Enabled, runGeneration } from "@/lib/podcast/server";
 import { narrationRunsInBackground, requestBackgroundNarration } from "@/lib/podcast/video-jobs";
 import { UNCERTAIN_CHARGE_MESSAGE, budgetDecision, narrationCapUsd, runUpperBoundUsd } from "@/lib/podcast/pilot";
 import { episodeSpentUsd, narrationChunks, pendingNarration, productionSpend } from "@/lib/podcast/pilot-server";
@@ -42,10 +42,14 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   // TTS narrations know their pending chunks exactly; conversations (per-turn reuse, no pending estimate) only require a
   // positive remaining balance — the DB still stops any call past the cap.
   const fullUsd = capUsd ?? Number(episode.estimated_usd);
-  const pendingUsd = episode.source === "tts" ? (await pendingNarration(service, episode).catch(() => null))?.usd : undefined;
-  const runNeedUsd = pendingUsd == null ? (episode.source === "tts" ? fullUsd : 0.0001) : Math.min(pendingUsd, fullUsd);
+  // v2 conversations: exactly the unpaid turns (owner recordings and stored turns are free); plain TTS: unpaid chunks.
+  // Unreadable estimate → the full run upper bound (fail-closed: never under-reserve).
+  const isProduction = podcastV2Enabled() && Boolean((episode as { production?: unknown }).production);
+  const pendingUsd = isProduction ? (await pendingProductionNarration(service, episode).catch(() => null))?.usd
+    : episode.source === "tts" ? (await pendingNarration(service, episode).catch(() => null))?.usd : undefined;
+  const runNeedUsd = pendingUsd == null ? fullUsd : Math.min(pendingUsd, fullUsd);
   const episodeCapUsd = episode.budget_usd != null ? Math.max(0, Number(episode.budget_usd) - (spentUsd ?? 0)) : fullUsd;
-  const authz = episode.source === "tts" && pendingUsd === 0 ? ({ ok: true } as const) : await ensurePodcastSpendAuthorization(service, episode.id, Math.max(episodeCapUsd, fullUsd || 0), `app:narration:${user.id}:${new Date().toISOString()}`, { neededUsd: runNeedUsd });
+  const authz = pendingUsd === 0 ? ({ ok: true } as const) : await ensurePodcastSpendAuthorization(service, episode.id, Math.max(episodeCapUsd, fullUsd || 0), `app:narration:${user.id}:${new Date().toISOString()}`, { neededUsd: runNeedUsd });
   if (!authz.ok) return NextResponse.json({ error: authz.error }, { status: authz.status });
   if (narrationRunsInBackground(episode)) {
     const queued = await requestBackgroundNarration(service, episode);

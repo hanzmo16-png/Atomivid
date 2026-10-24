@@ -17,7 +17,7 @@ import { estimatePodcast, podcastDemand, normalizeScript, PODCAST_STALE_RUN_MS, 
 import { listAccountVoices, VoicesUnavailableError } from "./voices";
 import { visibleVoices, type VoiceViewer } from "@/lib/voices/private-voices";
 import { buildProduction, estimateProduction, productionScript, type ProductionInput } from "./v2/production";
-import { MusicUnavailableError, narrateProduction } from "./v2/narrate-v2";
+import { MusicUnavailableError, narrateProduction, pendingProductionUsd } from "./v2/narrate-v2";
 import { TTS_MODEL_ID } from "@/lib/ai/voice";
 import { PODCAST_MUSIC_LIBRARY } from "./v2/music";
 import { bundledV2Music } from "./v3/music-library";
@@ -118,6 +118,14 @@ export async function refuseUnreadV2Production(service: SupabaseClient, episodeI
  * One generation run. Claim (CAS) → narrate (gated) → store → ready. Any failure leaves the episode
  * 'failed' with a clear message; chunks already paid stay stored for the next run.
  */
+/** Unpaid part of a v2 conversation (turns not recorded by the owner and not already paid/stored); null = no production. */
+export async function pendingProductionNarration(service: SupabaseClient, episode: PodcastEpisode): Promise<{ usd: number; turns: number } | null> {
+  const production = (episode as PodcastEpisode & { production?: unknown }).production;
+  if (!(production && podcastV2Enabled())) return null;
+  return pendingProductionUsd({ ledger: supabaseLedgerStore(service), results: supabaseResultStore(service, BUCKET), modelId: TTS_MODEL_ID,
+    voiceFor: (vid, settings) => ({ provider: { name: "elevenlabs" } as unknown as VoiceProvider, identity: getVoiceIdentity(episode.language, vid, settings ?? undefined) }) }, episode, production);
+}
+
 export async function runGeneration(service: SupabaseClient, episode: PodcastEpisode, now: () => number = Date.now, opts: { capUsd?: number | null } = {}): Promise<{ ok: true; episode: PodcastEpisode } | { error: string; status: number }> {
   if (episode.source !== "tts" || !episode.script || !episode.voice_id) return { error: "Este episodio no se genera con voz sintética.", status: 409 };
   if (episode.status === "ready") return { error: "El episodio ya está listo.", status: 409 };

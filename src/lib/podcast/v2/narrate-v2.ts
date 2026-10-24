@@ -55,6 +55,25 @@ export function planProduction(p: PodcastProduction, modelId: string): Direction
 const settingsFor = (s: SegmentDirection, style: PodcastProduction["style"]) => style === "emotional" ? { stability: s.native.stability, style: s.native.style } : null;
 const speedFor = (s: SegmentDirection, style: PodcastProduction["style"]) => style === "emotional" && s.pace !== 1 ? s.pace : undefined;
 
+/** What a narration of this production can still charge: turns without own recording and without a stored result,
+ *  at the same per-turn estimate the narrator reserves with (audit #200 P1-1: resumes/edits need only the unpaid turns). */
+export async function pendingProductionUsd(deps: Pick<ProductionDeps, "ledger" | "results" | "modelId" | "voiceFor">, episode: Pick<PodcastEpisode, "id" | "language">, raw: unknown): Promise<{ usd: number; turns: number }> {
+  const prod = PodcastProduction.parse(raw);
+  const plan = planProduction(prod, deps.modelId);
+  const parts = new Map(prod.participants.map((x) => [x.id, x]));
+  const rate = getPricingConfig().elevenLabsUsdPer1kChars;
+  let usd = 0, turns = 0;
+  for (const seg of plan.segments) {
+    const who = parts.get(seg.speaker_id as "A" | "B")!;
+    if (who.recordings[seg.segment_id]) continue;
+    const { provider, identity } = deps.voiceFor(who.voice_id!, settingsFor(seg, prod.style));
+    const gateDeps = { ...deps, requestId: podcastLedgerProject(episode.id), voiceProvider: provider, voiceIdentity: identity } as unknown as Parameters<typeof storedVoiceResult>[0];
+    if (await storedVoiceResult(gateDeps, seg.text, episode.language, speedFor(seg, prod.style))) continue;
+    usd += ceilLedgerUsd(seg.text.length / 1000 * rate); turns++;
+  }
+  return { usd: ceilLedgerUsd(usd), turns };
+}
+
 export async function narrateProduction(deps: ProductionDeps, episode: Pick<PodcastEpisode, "id" | "user_id" | "language">, raw: unknown): Promise<ProductionOutcome> {
   const prod = PodcastProduction.parse(raw);
   // Música pedida sin ninguna pista con licencia disponible: se detiene ANTES de cualquier llamada de pago en vez de
