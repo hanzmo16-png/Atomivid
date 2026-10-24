@@ -25,14 +25,14 @@ const rec = (name, ok, detail) => { rows.push({ name, ok: !!ok, detail }); if (!
   }
   // Ningún host externo se resuelve (ni siquiera conexiones especulativas del navegador): solo 127.0.0.1/localhost.
   // Los escenarios con hosts externos se sirven con stubs locales (ctx.route) antes de cualquier resolución.
-  const browser = await chromium.launch({ executablePath: process.env.E2E_CHROME || undefined, args: ["--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost"],
-    proxy: { server: "http://127.0.0.1:9", bypass: "127.0.0.1,localhost" } }); // proxy muerto: lo no local no tiene salida
+  const browser = await chromium.launch({ executablePath: process.env.E2E_CHROME || undefined, args: ["--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE 127.0.0.2, EXCLUDE localhost"] });
+  // (Sin proxy: Chromium no resuelve ningún nombre externo; el runner de CI no define proxy de entorno.)
   // 2. Clickjacking: una página de otro origen intenta incrustar /login.
   const evil = http.createServer((q, s) => { s.setHeader("content-type", "text/html"); s.end(`<!doctype html><iframe id=f src="${BASE}/login" width=800 height=600></iframe>`); });
-  await new Promise((r) => evil.listen(0, "127.0.0.1", r));
+  await new Promise((r) => evil.listen(0, "127.0.0.2", r));
   const port = evil.address().port;
   { const ctx = await browser.newContext(); const p = await ctx.newPage();
-    await p.goto(`http://localhost:${port}/`); await p.waitForTimeout(3000);
+    await p.goto(`http://127.0.0.2:${port}/`); await p.waitForTimeout(3000);
     const frame = p.frames().find((f) => f !== p.mainFrame());
     const loaded = frame ? await frame.evaluate(() => !!document.querySelector("input[name=email]")).catch(() => false) : false;
     await p.screenshot({ path: path.join(OUT, "iframe-bloqueado.png") });
