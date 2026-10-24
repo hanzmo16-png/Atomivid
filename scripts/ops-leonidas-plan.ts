@@ -48,7 +48,7 @@ async function main() {
   const providers = getRealLongFormProviderNames();
   for (const strategy of ["economical", "balanced", "cinematic"] as const) {
     for (const [label, maxShotSec] of [["before", undefined], ["after", SHOT_DENSITY_MAX_SEC[strategy]]] as const) {
-      const seqs = sequencesFromScript(beats, maxShotSec ? { maxShotSec } : {});
+      const seqs = sequencesFromScript(beats, maxShotSec ? { maxShotSec, aiVideoCandidates: strategy === "cinematic" } : {});
       if (!seqs) { log("SIM", { strategy, label, error: "not v6" }); continue; }
       const perBeat = seqs.map((s, i) => ({ beat: i + 1, slots: s.slots.length, secPerSlot: Math.round(durationSec(beats[i]) / s.slots.length) }));
       for (const image of ["openai", "recraft"] as const) for (const ai of [false, true]) {
