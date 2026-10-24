@@ -23,9 +23,9 @@ async function main() {
     let visuals: any[] | null = null;
     try { const p = parseVisualPlan(resp, { cinematic: true, referenceContract: true, dropStubs: true }); visuals = (p as any).visuals; }
     catch { try { const t = textOf(resp).replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, ""); const o = JSON.parse(t); if (Array.isArray(o?.visuals)) visuals = o.visuals.filter((v: any) => typeof v?.description === "string" && v.description.trim() && v.excerptId); } catch { /* not a plan */ } }
-    if (!visuals?.length) { log("OP", { at: op.created_at.slice(11, 19), visuals: 0 }); continue; }
+    if (!visuals?.length) continue;
     const beatsSeen = [...new Set(visuals.map((v: any) => (catalog.get(v.excerptId) as any)?.beatIndex ?? (v.quote ? "q" : "?")))];
-    log("OP", { at: op.created_at.slice(11, 19), visuals: visuals.length, beats: beatsSeen, keys: Object.keys(visuals[0]).slice(0, 12) });
+    void beatsSeen;
     const resolved = visuals.map((v: any) => { const e: any = v.excerptId ? catalog.get(v.excerptId) : null; const { excerptId: _x, ...rest } = v; return e ? { ...rest, quote: e.quote, _beat: e.beatIndex } : null; }).filter(Boolean) as any[];
     if (!resolved.length) continue;
     const b = resolved[0]._beat;
@@ -46,7 +46,7 @@ async function main() {
   const pr = applyNarrationPatches(full, corr.patches);
   log("CORRECTIONS", pr.report);
   const providers = getRealLongFormProviderNames();
-  for (const strategy of ["economical", "balanced", "cinematic"] as const) {
+  for (const strategy of (process.env.SIM_ONLY ? [process.env.SIM_ONLY] : ["economical", "balanced", "cinematic"]) as ("economical" | "balanced" | "cinematic")[]) {
     for (const [label, maxShotSec] of [["before", undefined], ["after", SHOT_DENSITY_MAX_SEC[strategy]]] as const) {
       const seqs = sequencesFromScript(beats, maxShotSec ? { maxShotSec, aiVideoCandidates: strategy === "cinematic" } : {});
       if (!seqs) { log("SIM", { strategy, label, error: "not v6" }); continue; }
