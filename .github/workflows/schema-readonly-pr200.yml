@@ -1,0 +1,33 @@
+# READ-ONLY audit of the production schema against PR #200's proposals (no DDL/DML in production; disposable replay).
+name: schema-readonly-pr200
+on:
+  push:
+    branches: [claude/schema-readonly-pr200]
+permissions:
+  contents: read
+jobs:
+  readonly:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: PostgreSQL 17 client/server (for pg_dump of the remote and the disposable replay)
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -yq postgresql-17
+          sudo systemctl stop postgresql || true
+      - name: Read-only catalog + schema-only dump + disposable replay
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || 'aws-0-us-west-2.pooler.supabase.com' }}
+          SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
+        run: bash scripts/qa/schema-readonly/run.sh 2>&1 | tee schema-readonly.log
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: schema-readonly, retention-days: 14, path: "schema-readonly.log" }
