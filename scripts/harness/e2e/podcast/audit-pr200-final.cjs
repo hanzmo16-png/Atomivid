@@ -107,7 +107,7 @@ async function f3(s) {
   const SID = "3c000000-0000-4000-8000-0000000000f3";
   await db.query("delete from public.podcast_studio_episodes where id=$1", [SID]);
   await db.query("insert into public.podcast_studio_episodes(id,user_id,title,mode,spec,status,estimated_usd,authorized_usd,authorized_at) values ($1,$2,'Auditoría F3 estudio',$3,$4,'authorized',0.5,5,now())", [SID, OWNER.id, sp.mode, sp]);
-  const w = spawnWorker("scripts/podcast-3-0/studio-worker.ts", SID, "studio"); let wout = ""; w.stdout.on("data", (d) => (wout += d)); w.stderr.on("data", (d) => (wout += d));
+  const w = spawnWorker("scripts/podcast-video-worker.ts", SID, "studio"); let wout = ""; w.stdout.on("data", (d) => (wout += d)); w.stderr.on("data", (d) => (wout += d));
   let caught = null;
   for (let i = 0; i < 2400; i++) {
     const r = await one("select count(*) filter (where state='reserved')::int reserved, count(*) filter (where state='settled')::int settled from public.podcast_studio_operations where episode_id=$1", [SID]);
@@ -115,7 +115,7 @@ async function f3(s) {
     await sleep(15);
   }
   await sleep(1500); fs.appendFileSync(path.join(OUT, "f3-worker.log"), wout);
-  if (!caught) { ok("F3 caught the worker with a reservation in flight", false, "timing: no reserved row observed"); return; }
+  if (!caught) { console.log(wout.slice(-3000)); ok("F3 caught the worker with a reservation in flight", false, "timing: no reserved row observed"); return; }
   const before = (await db.query("select key, state from public.podcast_studio_operations where episode_id=$1 order by created_at", [SID])).rows;
   ok("F3 killed mid-call: one row left 'reserved', the finished ones 'settled'", before.some((r) => r.state === "reserved") && before.some((r) => r.state === "settled"), JSON.stringify(before.map((r) => r.state)));
   const ep1 = await one("select status from public.podcast_studio_episodes where id=$1", [SID]);
@@ -131,7 +131,7 @@ async function f3(s) {
   const a2 = await api(s.p, "POST", `/api/podcast/v3/${SID}`, { confirm: true, authorizedUsd: 5 });
   ok("F3 owner presses Reintentar → authorized + dispatched", a2.st === 200, `${a2.st} ${JSON.stringify(a2.body).slice(0, 100)}`);
   const settledBefore = after.filter((r) => r.state === "settled").map((r) => r.key);
-  const rr = await runTsx("scripts/podcast-3-0/studio-worker.ts", SID, "studio");
+  const rr = await runTsx("scripts/podcast-video-worker.ts", SID, "studio");
   fs.appendFileSync(path.join(OUT, "f3-worker-retry.log"), rr.out);
   const final = (await db.query("select key, state from public.podcast_studio_operations where episode_id=$1 order by created_at", [SID])).rows;
   const ep3 = await one("select status, error from public.podcast_studio_episodes where id=$1", [SID]);
