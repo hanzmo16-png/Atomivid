@@ -46,7 +46,9 @@ begin
   if exists (select 1 from public.pi_spend_authorizations where project_id = pid) then return jsonb_build_object('opened', false, 'reason', 'already_open'); end if;
   if exists (select 1 from public.pi_paid_operations where project_id = pid and status in ('SUBMITTED','PROVIDER_JOB_RECORDED','RECONCILIATION_REQUIRED')) then
     return jsonb_build_object('opened', false, 'reason', 'uncertain operations must be reconciled first'); end if;
-  select coalesce(array_agg(idempotency_key order by idempotency_key), '{}') into keys from public.pi_paid_operations where project_id = pid;
+  -- Baseline = only operations already SETTLED before the authorization (never a RESERVED one: a reservation left by a
+  -- refused attempt would otherwise be submitted later outside the cap — closure audit grok/podcast-audiovisual-cierre).
+  select coalesce(array_agg(idempotency_key order by idempotency_key), '{}') into keys from public.pi_paid_operations where project_id = pid and status <> 'RESERVED';
   insert into public.pi_spend_authorizations(project_id, owner_id, cap_usd, authorization_ref, baseline_keys) values (pid, e.user_id, p_cap_usd, p_authorization_ref, keys);
   return jsonb_build_object('opened', true, 'projectId', pid, 'capUsd', p_cap_usd, 'baselineOperations', cardinality(keys));
 end $$;

@@ -28,7 +28,11 @@ SPEC='{"version":"podcast-studio/3","mode":"narracion"}'
 E1=33333333-0000-4000-8000-000000000001; E2=33333333-0000-4000-8000-000000000002
 $D -c "insert into public.podcast_studio_episodes(id,user_id,title,mode,spec) values ('$E1','$U1','ep1','narracion','$SPEC'),('$E2','$U2','ep2','dialogo','$SPEC')" && ok "service/postgres inserta episodios válidos" || bad "insert válido"
 K=$(printf 'a%.0s' $(seq 1 64))
+if $D -c "insert into public.podcast_studio_operations(key,user_id,episode_id,provider,op,state,reserved_usd) values ('$K','$U1','$E1','elevenlabs','tts','reserved',0.01)" >/dev/null 2>&1; then bad "tope BD: reserva aceptada en borrador sin autorizar"; else ok "tope BD: reserva rechazada sin autorización"; fi
+$D -c "update public.podcast_studio_episodes set status='authorized', authorized_usd=0.05 where id='$E1'"
 $D -c "insert into public.podcast_studio_operations(key,user_id,episode_id,provider,op,state,reserved_usd) values ('$K','$U1','$E1','elevenlabs','tts','reserved',0.01)" && ok "libro: fila válida" || bad "libro válido"
+if $D -c "insert into public.podcast_studio_operations(key,user_id,episode_id,provider,op,state,reserved_usd) values ('$(printf 'e%.0s' $(seq 1 64))','$U1','$E1','elevenlabs','tts','reserved',0.05)" >/dev/null 2>&1; then bad "tope BD: reserva sobre el autorizado aceptada"; else ok "tope BD: 0.01+0.05 > 0.05 rechazada"; fi
+$D -c "update public.podcast_studio_episodes set status='draft' where id='$E1'"
 for q in "insert into public.podcast_studio_operations(key,user_id,episode_id,provider,op,state,reserved_usd) values ('NOHEX','$U1','$E1','x','y','reserved',0)" \
          "insert into public.podcast_studio_operations(key,user_id,episode_id,provider,op,state,reserved_usd) values ('$(printf 'b%.0s' $(seq 1 64))','$U1','$E1','x','y','gastado',0)" \
          "insert into public.podcast_studio_operations(key,user_id,episode_id,provider,op,state,reserved_usd) values ('$(printf 'c%.0s' $(seq 1 64))','$U1','$E1','x','y','reserved',-1)" \

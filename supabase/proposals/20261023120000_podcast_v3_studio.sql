@@ -47,3 +47,29 @@ alter table public.podcast_studio_operations enable row level security;
 drop policy if exists podcast_studio_operations_owner_read on public.podcast_studio_operations;
 create policy podcast_studio_operations_owner_read on public.podcast_studio_operations for select to authenticated using (user_id = auth.uid());
 revoke insert, update, delete on public.podcast_studio_operations from anon, authenticated;
+
+-- Cierre audiovisual (grok/podcast-audiovisual-cierre): tope de gasto del estudio aplicado EN LA BASE, no solo en la app.
+-- El estudio usa su propio libro (no pi_paid_operations), así que pi_spend_authorizations (PR #198) no lo cubre. Toda
+-- RESERVA nueva (antes de llamar al proveedor) se admite solo si el episodio es del mismo dueño, está autorizado o
+-- generándose, y reservado+liquidado+incierto (sin esta clave) + esta reserva ≤ min(authorized_usd, 50). La fila del
+-- episodio se bloquea FOR UPDATE: dos reservas concurrentes no pueden pasar el mismo saldo. Sin reserva no hay llamada.
+alter table public.podcast_studio_episodes drop constraint if exists podcast_studio_episodes_authorized_max;
+alter table public.podcast_studio_episodes add constraint podcast_studio_episodes_authorized_max check (authorized_usd is null or authorized_usd <= 50);
+create or replace function public.podcast_studio_operations_cap() returns trigger language plpgsql security definer set search_path = '' as $$
+declare e public.podcast_studio_episodes%rowtype; used numeric;
+begin
+  if new.state <> 'reserved' then return new; end if;
+  if tg_op = 'UPDATE' and old.state = 'reserved' and old.reserved_usd >= new.reserved_usd then return new; end if;
+  select * into e from public.podcast_studio_episodes where id = new.episode_id for update;
+  if not found then raise exception 'STUDIO_CAP: episode missing'; end if;
+  if e.user_id <> new.user_id then raise exception 'STUDIO_CAP: owner mismatch'; end if;
+  if e.status not in ('authorized','generating') or e.authorized_usd is null then raise exception 'STUDIO_CAP: episode not authorized'; end if;
+  select coalesce(sum(case when o.state = 'settled' then coalesce(o.actual_usd, o.reserved_usd) when o.state in ('reserved','uncertain') then o.reserved_usd else 0 end), 0)
+    into used from public.podcast_studio_operations o where o.episode_id = new.episode_id and o.key <> new.key;
+  if used + new.reserved_usd > least(e.authorized_usd, 50) + 0.00001 then
+    raise exception 'STUDIO_CAP: authorization exceeded (used %, requested %, cap %)', used, new.reserved_usd, least(e.authorized_usd, 50); end if;
+  return new;
+end $$;
+revoke all on function public.podcast_studio_operations_cap() from public, anon, authenticated;
+drop trigger if exists podcast_studio_operations_cap on public.podcast_studio_operations;
+create trigger podcast_studio_operations_cap before insert or update on public.podcast_studio_operations for each row execute function public.podcast_studio_operations_cap();

@@ -101,3 +101,16 @@ export async function authorizeAction(d: ApiDeps, id: string, body: Record<strin
   const dispatched = await d.dispatch(id);
   return { status: 200, body: { ok: true, dispatched, note: dispatched ? null : "Autorizado. No pudimos confirmar el inicio del trabajo; pulsa «Reintentar» (no se cobra dos veces)." } };
 }
+
+/**
+ * GET del episodio de estudio (estado + enlaces de descarga firmados). Solo el dueño; solo rutas dentro de su carpeta
+ * del episodio; enlaces solo cuando está «ready». Separado de Next para probar aislamiento y descarga sin red.
+ */
+export async function episodeAction(userId: string, row: StudioEpisodeRow | "missing" | null, sign: (path: string, name: string) => Promise<string | null>): Promise<Out> {
+  if (row === "missing") return { status: 503, body: { error: "Requiere la migración del estudio." } };
+  if (!row || row.user_id !== userId) return { status: 404, body: { error: "Episodio no encontrado." } };
+  const signOwn = async (p: string | null, name: string) => (!p || !p.startsWith(`${userId}/podcast-studio/${row.id}/`) ? null : sign(p, name));
+  const { spec: _spec, ...pub } = row;
+  return { status: 200, body: { episode: pub, video_url: row.status === "ready" ? await signOwn(row.video_path, `${row.title}.mp4`) : null,
+    audio_url: row.status === "ready" ? await signOwn(row.audio_path, `${row.title}.${row.audio_path?.split(".").pop() ?? "mp3"}`) : null } };
+}

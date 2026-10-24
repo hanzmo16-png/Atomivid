@@ -1,0 +1,73 @@
+# Cierre Podcast audiovisual (grok/podcast-audiovisual-cierre). USD 0: sin secretos del repo, proveedores SIMULADOS,
+# PostgreSQL DESECHABLE en el runner (las propuestas #198 y Podcast 3.0 se aplican SOLO ahí). E2E: creación → generación
+# (voz/narración/imágenes/avatar/conversación) → MP4 con ffmpeg real → reproducción (ffprobe) → descarga · aislamiento A/B ·
+# interrupción/reanudación sin cobros duplicados (conteos del libro) · tope de gasto en la BD · autorización #198 para Podcast 2.x.
+# El E2E de navegador completo (casos 1–11) corre en podcast-3-0-e2e.yml sobre el mismo PR.
+name: podcast-audiovisual-cierre
+on:
+  pull_request:
+    branches: [claude/atomivid-mvp-setup-0079jv]
+  push:
+    branches: ["grok/podcast-audiovisual-cierre"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: podcast-audiovisual-cierre-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  typecheck:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - run: npx next typegen && npm run typecheck
+  e2e-db:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - name: PostgreSQL 17, ffmpeg, espeak-ng
+        timeout-minutes: 15
+        run: |
+          sudo rm -f /var/lib/man-db/auto-update
+          sudo apt-get -o Acquire::Retries=3 update -q
+          sudo apt-get install -yq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -yq --no-install-recommends postgresql-17 ffmpeg espeak-ng fonts-dejavu-core
+          sudo systemctl stop postgresql || true
+          echo "PG_BIN=/usr/lib/postgresql/17/bin" >> "$GITHUB_ENV"
+      - run: npm ci --no-audit --no-fund
+      - name: Pruebas unitarias de gasto/autorización (sin red)
+        run: node --import tsx --test src/lib/supply/spend-authorization.test.ts
+      - name: Propuesta #198 en BD desechable (incluye corrección de baseline)
+        run: set -o pipefail; bash scripts/qa/spend-authorization-db.sh "$RUNNER_TEMP/pgsa" 55901 2>&1 | tee spend-authorization-postgres.log
+      - name: E2E de cierre (BD desechable + ffmpeg real + proveedores simulados)
+        env: { OUT_DIR: "${{ github.workspace }}/podcast-cierre-out" }
+        run: |
+          set -o pipefail
+          bash scripts/qa/podcast-cierre-db.sh "$RUNNER_TEMP/pgcierre" 55911 2>&1 | tee podcast-cierre-e2e.log
+          grep -Eq '^RESULTADO ([0-9]+)/\1 PASS$' podcast-cierre-e2e.log
+      - name: Resumen (anotaciones, sin secretos)
+        if: always()
+        run: |
+          [ -f podcast-cierre-e2e.log ] && echo "::notice title=E2E cierre::$(grep -E '^RESULTADO' podcast-cierre-e2e.log) · $(grep -c '^FAIL' podcast-cierre-e2e.log) FAIL"
+          [ -f spend-authorization-postgres.log ] && echo "::notice title=#198 BD::$(grep -c '^PASS' spend-authorization-postgres.log) PASS · $(grep -c '^FAIL' spend-authorization-postgres.log) FAIL"
+          grep -E '^FAIL' podcast-cierre-e2e.log spend-authorization-postgres.log 2>/dev/null | head -8 | while read -r l; do echo "::warning title=fallo::${l:0:300}"; done
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: podcast-audiovisual-cierre
+          retention-days: 14
+          path: |
+            podcast-cierre-e2e.log
+            spend-authorization-postgres.log
+            podcast-cierre-out/evidence.json
+            podcast-cierre-out/storage/**/*.mp4

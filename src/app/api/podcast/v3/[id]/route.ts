@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { podcastUser } from "@/lib/podcast/auth";
 import { listAccountVoices } from "@/lib/podcast/voices";
-import { authorizeAction } from "@/lib/podcast/v3/api";
+import { authorizeAction, episodeAction } from "@/lib/podcast/v3/api";
 import { STUDIO_COLUMNS, STUDIO_TABLE, type StudioEpisodeRow } from "@/lib/podcast/v3/store";
 import { dispatchPodcastJob } from "@/lib/podcast/video-jobs";
 
@@ -23,16 +23,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   const service = createServiceClient();
   const row = await load(service, id);
-  if (row === "missing") return NextResponse.json({ error: "Requiere la migración del estudio." }, { status: 503 });
-  if (!row || row.user_id !== user.id) return NextResponse.json({ error: "Episodio no encontrado." }, { status: 404 });
-  const sign = async (p: string | null, name: string) => {
-    if (!p || !p.startsWith(`${user.id}/podcast-studio/${row.id}/`)) return null;
-    const { data } = await service.storage.from(BUCKET).createSignedUrl(p, 3600, { download: name });
-    return data?.signedUrl ?? null;
-  };
-  const { spec: _spec, ...pub } = row;
-  return NextResponse.json({ episode: pub, video_url: row.status === "ready" ? await sign(row.video_path, `${row.title}.mp4`) : null,
-    audio_url: row.status === "ready" ? await sign(row.audio_path, `${row.title}.${row.audio_path?.split(".").pop() ?? "mp3"}`) : null });
+  const out = await episodeAction(user.id, row, async (p, name) => (await service.storage.from(BUCKET).createSignedUrl(p, 3600, { download: name })).data?.signedUrl ?? null);
+  return NextResponse.json(out.body, { status: out.status });
 }
 
 /** Autorización explícita del cargo y despacho del trabajo (paso 10 del asistente). */
