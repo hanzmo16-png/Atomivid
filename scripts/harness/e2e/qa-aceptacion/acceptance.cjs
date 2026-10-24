@@ -102,7 +102,9 @@ async function reel(dev, full) {
   if (!full) { await ctx.close(); return id; }
   await p.getByRole("button", { name: "Generar video final" }).click(); await sleep(3000); await shot(p, "06-en-proceso");
   const mid = await p.locator("main").innerText().catch(() => "");
-  check(`[${dev}] Reel en proceso: la UI no anuncia «listo» antes de tiempo`, !FALSE_SUCCESS.test(mid) || (await db.query("select status from public.video_requests where id=$1", [id])).rows[0].status === "completed", mid.slice(0, 200));
+  // Solo la tarjeta de ESTE Reel: el historial muestra también videos anteriores ya terminados.
+  const at = mid.indexOf(topic), card = at >= 0 ? mid.slice(at, at + topic.length + 120) : mid;
+  check(`[${dev}] Reel en proceso: su tarjeta no anuncia «listo» antes de tiempo`, !FALSE_SUCCESS.test(card) || (await db.query("select status from public.video_requests where id=$1", [id])).rows[0].status === "completed", card.slice(0, 200));
   let v; const t0 = Date.now(); while (Date.now() - t0 < 15 * 60000) { v = (await db.query("select * from public.video_requests where id=$1", [id])).rows[0]; if (["completed", "failed"].includes(v.status)) break; await sleep(4000); }
   check(`[${dev}] Reel: termina «completed» con el worker de prueba`, v.status === "completed", { status: v.status, err: v.error_message });
   await ctx.close(); return v.status === "completed" ? id : null;
