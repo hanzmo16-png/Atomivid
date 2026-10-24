@@ -23,7 +23,9 @@ async function main() {
     let visuals: any[] | null = null;
     try { const p = parseVisualPlan(resp, { cinematic: true, referenceContract: true, dropStubs: true }); visuals = (p as any).visuals; }
     catch { try { const t = textOf(resp).replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, ""); const o = JSON.parse(t); if (Array.isArray(o?.visuals)) visuals = o.visuals.filter((v: any) => typeof v?.description === "string" && v.description.trim() && v.excerptId); } catch { /* not a plan */ } }
-    if (!visuals?.length) continue;
+    if (!visuals?.length) { log("OP", { at: op.created_at.slice(11, 19), visuals: 0 }); continue; }
+    const beatsSeen = [...new Set(visuals.map((v: any) => (catalog.get(v.excerptId) as any)?.beatIndex ?? (v.quote ? "q" : "?")))];
+    log("OP", { at: op.created_at.slice(11, 19), visuals: visuals.length, beats: beatsSeen, keys: Object.keys(visuals[0]).slice(0, 12) });
     const resolved = visuals.map((v: any) => { const e: any = v.excerptId ? catalog.get(v.excerptId) : null; const { excerptId: _x, ...rest } = v; return e ? { ...rest, quote: e.quote, _beat: e.beatIndex } : null; }).filter(Boolean) as any[];
     if (!resolved.length) continue;
     const b = resolved[0]._beat;
@@ -31,13 +33,16 @@ async function main() {
   }
   log("PLANS", { beats: [...byBeat.entries()].sort((a, b) => a[0] - b[0]).map(([b, v]) => ({ beat: b, scenes: v.length })) });
   const plans: any[] = []; for (let i = 0; i < 10; i++) plans.push(byBeat.get(i));
+  const have = plans.map((p, i) => (p ? i : -1)).filter((i) => i >= 0);
+  const beats = have.map((i, k) => ({ id: `beat-${k + 1}`, type: cp.beats[i].type, purpose: cp.beats[i].purpose, narration: cp.beats[i].narration, visuals: plans[i] }));
+  log("SUBSET", { beatsSimulated: have, words: beats.reduce((n: number, b: any) => n + b.narration.split(/\s+/).length, 0) });
   const cd = cp.creativeDirection ?? {};
   log("MARKS", ["signatureDetail", "shareableLine", "commentMoment", "closingCta"].map((k) => [k, cd[k]?.beatIndex, String(cd[k]?.quote ?? "").slice(0, 120)]).concat((cd.protectInEdit ?? []).map((m: any, i: number) => [`protect${i}`, m?.beatIndex, String(m?.quote ?? "").slice(0, 160)])));
   const words = (t: string) => t.trim().split(/\s+/).length;
   const durationSec = (b: any) => words(b.narration) / 2.5;
   // Corrections dry-run on the FULL checkpoint script (no visuals yet for 8–10; quotes of 1–7 attached).
   const corr = JSON.parse(readFileSync("content/long-form/e8048599/correcciones.json", "utf8"));
-  const full = { ...cp, beats: cp.beats.map((b: any, i: number) => ({ ...b, visuals: i < n ? plans[i] : [] })) };
+  const full = { ...cp, beats: cp.beats.map((b: any, i: number) => ({ ...b, visuals: plans[i] ?? [] })) };
   const pr = applyNarrationPatches(full, corr.patches);
   log("CORRECTIONS", pr.report);
   const providers = getRealLongFormProviderNames();
