@@ -95,6 +95,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       const n0 = ttsCalls().length;
       await s.p.reload(); await s.p.goto(`${BASE}/dashboard`); await s.p.goto(`${BASE}/dashboard/podcast/${id}`);
       await db.query("update podcast_episodes set status='failed', run_token=null where id=$1", [id]);
+      const DLOG4 = path.join(E2E, "logs/dispatch.jsonl"), dispatches = () => (fs.existsSync(DLOG4) ? fs.readFileSync(DLOG4, "utf8").trim().split("\n").filter(Boolean) : []);
       const d4 = dispatches().length;
       await s.p.reload(); await generate(s.p, id, "c4-reanudar");
       ok("c4: reanudar despacha el worker real (sin nada pendiente que pagar)", dispatches().length > d4 && (await ep(id)).status === "ready", `despachos=${dispatches().length - d4}`);
