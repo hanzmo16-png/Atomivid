@@ -11,7 +11,7 @@ Tarea T-20261024 QA-INTERFAZ-ACEPTACION-ATOMIVID (Claude). Gasto: **USD 0**.
 |---|---|---|
 | **Producción pública, solo lectura** (workflow `qa-aceptacion-publica`, run [40106805085](https://github.com/hanzmo16-png/Atomivid/actions/runs/40106805085)) | `/`, `/login`, `/register` y 4 rutas privadas sin sesión, en Samsung 390×844 y escritorio 1440×900 | **17/17 PASS** |
 | **Local simulado, banco base** (`scripts/harness/e2e/qa-aceptacion/acceptance.cjs`) | Reel, Long Form y Podcast, en Samsung y escritorio | **44 PASS / 3 FAIL / 7 NO PROBADO**. 1 FAIL es un defecto real (P1-1); los otros 2 eran un error de la prueba, ya corregido: Long Form da 10/10 |
-| **Local simulado, banco de podcast** (`scripts/harness/e2e/podcast/start.sh` + `QA_FLOWS=podcast`) | Crear → narrar con el mock de ElevenLabs → descargar, en Samsung y escritorio | **12/12 PASS** |
+| **Local simulado, banco de podcast** (`scripts/harness/e2e/podcast/start.sh` + `QA_FLOWS=podcast`) | Crear → narrar con el mock de ElevenLabs → descargar, en Samsung y escritorio. Desde T-20261024 QA final, la descarga es **obligatoria** en ambos dispositivos y sus bytes se comparan (sha256 del archivo = el registrado en la BD = el objeto almacenado); la espera del episodio y la de la batería están acotadas y agotarlas es un FAIL explícito, nunca un PASS parcial | **12/12 PASS** |
 
 **Detalles de la auditoría pública:**
 - En los dos dispositivos, todas las páginas devuelven 2xx sin scroll horizontal, y las rutas privadas redirigen a `/login`.
@@ -93,7 +93,7 @@ scripts/harness/e2e/infra/setup.sh && scripts/harness/e2e/infra/start.sh
 E2E_SCRIPT=qa-aceptacion/acceptance.cjs scripts/harness/e2e/infra/run-e2e.sh qa      # Reel, Long Form, Podcast (sin voces)
 # Podcast completo: parar el Next del banco base y luego:
 scripts/harness/e2e/podcast/start.sh
-E2E_BASE=http://127.0.0.1:3300 QA_FLOWS=podcast E2E_SCRIPT=qa-aceptacion/acceptance.cjs scripts/harness/e2e/infra/run-e2e.sh qa-podcast
+E2E_BASE=http://127.0.0.1:3300 QA_FLOWS=podcast QA_REQUIRE_PODCAST_DOWNLOAD=1 E2E_SCRIPT=qa-aceptacion/acceptance.cjs scripts/harness/e2e/infra/run-e2e.sh qa-podcast
 ```
 
 Las capturas están en `docs/qa-aceptacion/capturas/` y los resúmenes por banco en `resumen-*.json`.

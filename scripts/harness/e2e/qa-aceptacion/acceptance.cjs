@@ -30,6 +30,10 @@ const jsonl = (f) => fs.existsSync(f) ? fs.readFileSync(f, "utf8").trim().split(
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const FALSE_SUCCESS = /(video|episodio|guion)\s+(está\s+)?list[oa]|¡listo!|completad[oa] con éxito/i;
 let db, browser;
+/** Banco de podcast (mock ElevenLabs): la descarga íntegra en AMBOS dispositivos es obligatoria. */
+const REQUIRE_PODCAST_DOWNLOAD = process.env.QA_REQUIRE_PODCAST_DOWNLOAD === "1";
+const PODCAST_READY_TIMEOUT_MS = Number(process.env.QA_PODCAST_READY_TIMEOUT_MS ?? 240000);
+const podcastDownloads = [];
 
 async function ctxFor(dev, tag) {
   const ctx = await browser.newContext({ ...DEVICES[dev], acceptDownloads: true, locale: "es-MX" });
@@ -164,7 +168,8 @@ async function podcast(dev) {
     await p.locator("textarea").first().fill("Hola. Este es un episodio de prueba de aceptación. No se usa ningún proveedor real.").catch(() => {});
     const disabled = await p.getByRole("button", { name: /Crear episodio/ }).isDisabled();
     check(`[${dev}] Podcast sin voces disponibles (proveedor inalcanzable): aviso visible y creación bloqueada (falla cerrada)`, disabled, { alert: voicesAlert.slice(0, 160) });
-    notTested(`[${dev}] Podcast: crear → narrar → descargar`, "en este banco no hay mock de ElevenLabs; se cubre con QA_BASE del arnés de podcast (scripts/harness/e2e/podcast/start.sh, puerto 3300)");
+    if (REQUIRE_PODCAST_DOWNLOAD) check(`[${dev}] Podcast: el banco de podcast debe ofrecer voces (mock ElevenLabs) — sin ellas no hay descarga que verificar`, false, { alert: voicesAlert.slice(0, 160) });
+    else notTested(`[${dev}] Podcast: crear → narrar → descargar`, "en este banco no hay mock de ElevenLabs; se cubre con QA_BASE del arnés de podcast (scripts/harness/e2e/podcast/start.sh, puerto 3300)");
     await ctx.close(); return;
   }
   await p.locator("textarea").first().fill("Hola. Este es un episodio de prueba de aceptación. No se usa ningún proveedor real.").catch(() => {});
@@ -174,22 +179,38 @@ async function podcast(dev) {
   const estimate = created && await p.getByText(/USD|costo estimado|estimaci/i).first().waitFor({ timeout: 30000 }).then(() => true).catch(() => false);
   await shot(p, "02-episodio");
   check(`[${dev}] Podcast: el formulario crea el episodio y muestra su estimación`, created && estimate, { url: p.url(), main: (await p.locator("main").innerText().catch(() => "")).slice(0, 200) });
-  if (created) {
-    const btn = p.getByRole("button", { name: /Generar narración/ });
-    if (await btn.isVisible().catch(() => false)) {
-      await btn.click(); await sleep(6000); await p.reload(); await shot(p, "03-tras-generar");
-      const id = p.url().split("/").pop(); const e = (await db.query("select status, audio_path, error from public.podcast_episodes where id=$1", [id])).rows[0];
-      const t = await p.locator("main").innerText().catch(() => "");
-      const consistent = e.status === "ready" ? !!e.audio_path : !/Descargar episodio/.test(t);
-      check(`[${dev}] Podcast: la UI coincide con el estado real (sin falso éxito); estado=${e.status}`, consistent, { status: e.status, error: (e.error ?? "").slice(0, 160) });
-      if (e.status === "ready") {
-        const [d] = await Promise.all([p.waitForEvent("download"), p.getByText(/Descargar episodio/).first().click()]);
-        const f = path.join(OUT, `${dev}-podcast-${id}.m4a`); await d.saveAs(f);
-        const pr = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration:stream=codec_name", "-of", "json", f]).toString());
-        check(`[${dev}] Podcast: descarga desde la UI con audio válido`, Number(pr.format?.duration) > 1 && pr.streams?.some((s) => s.codec_name), pr);
-      }
-    } else notTested(`[${dev}] Podcast: generar narración`, "el botón no está disponible en esta configuración local");
+  if (!created) { if (REQUIRE_PODCAST_DOWNLOAD) check(`[${dev}] Podcast: descarga verificada`, false, "el episodio no llegó a crearse"); await ctx.close(); return; }
+  const btn = p.getByRole("button", { name: /Generar narración/ });
+  if (!(await btn.isVisible().catch(() => false))) {
+    if (REQUIRE_PODCAST_DOWNLOAD) check(`[${dev}] Podcast: botón «Generar narración» disponible`, false, "no visible en el banco de podcast");
+    else notTested(`[${dev}] Podcast: generar narración`, "el botón no está disponible en esta configuración local");
+    await ctx.close(); return;
   }
+  const id = p.url().split("/").pop();
+  await btn.click();
+  // Espera ACOTADA al estado terminal; agotarla es un FAIL explícito (nunca un PASS parcial).
+  let e; const t0 = Date.now();
+  while (Date.now() - t0 < PODCAST_READY_TIMEOUT_MS) { e = (await db.query("select status, audio_path, audio_sha256, error from public.podcast_episodes where id=$1", [id])).rows[0]; if (["ready", "failed"].includes(e?.status)) break; await sleep(2000); }
+  const timedOut = !["ready", "failed"].includes(e?.status);
+  await p.reload(); await skipTour(p); await shot(p, "03-tras-generar");
+  const t = await p.locator("main").innerText().catch(() => "");
+  if (timedOut) check(`[${dev}] Podcast: TIMEOUT — el episodio no llegó a un estado terminal en ${PODCAST_READY_TIMEOUT_MS / 1000} s`, false, { status: e?.status });
+  const consistent = e?.status === "ready" ? !!e.audio_path : !/Descargar episodio/.test(t);
+  check(`[${dev}] Podcast: la UI coincide con el estado real (sin falso éxito); estado=${e?.status}`, consistent, { status: e?.status, error: (e?.error ?? "").slice(0, 160) });
+  if (e?.status !== "ready") {
+    if (REQUIRE_PODCAST_DOWNLOAD) check(`[${dev}] Podcast: descarga verificada`, false, `estado=${e?.status}${timedOut ? " (timeout)" : ""}`);
+    await ctx.close(); return;
+  }
+  // Descarga OBLIGATORIA desde la UI + integridad de bytes: sha256 = el registrado en la BD = el objeto almacenado.
+  const d = await Promise.all([p.waitForEvent("download", { timeout: 60000 }), p.getByText(/Descargar episodio/).first().click()]).then(([x]) => x).catch((err) => err);
+  if (!d || typeof d.saveAs !== "function") { check(`[${dev}] Podcast: TIMEOUT/ERROR — la descarga desde la UI no se produjo`, false, String(d).slice(0, 200)); await ctx.close(); return; }
+  const f = path.join(OUT, `${dev}-podcast-${id}.${path.extname(e.audio_path).slice(1) || "m4a"}`); await d.saveAs(f);
+  const stored = path.join(STORE, "videos", e.audio_path);
+  const got = sha(f), size = fs.statSync(f).size;
+  let pr = null; try { pr = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration:stream=codec_name", "-of", "json", f]).toString()); } catch (err) { pr = { err: String(err).slice(0, 160) }; }
+  const ok = size > 1024 && !!e.audio_sha256 && got === e.audio_sha256 && fs.existsSync(stored) && got === sha(stored) && Number(pr?.format?.duration) > 1 && pr?.streams?.some((s) => s.codec_name);
+  check(`[${dev}] Podcast: descarga desde la UI íntegra (sha256 = BD = almacenado) con audio válido`, ok, { size, sha: got.slice(0, 16), db: (e.audio_sha256 ?? "").slice(0, 16), storedExists: fs.existsSync(stored), duration: pr?.format?.duration });
+  if (ok) podcastDownloads.push({ dev, id, sha256: got, bytes: size, duration: Number(pr.format.duration) });
   await ctx.close();
 }
 
@@ -215,8 +236,9 @@ async function podcast(dev) {
     const PROVIDERS = /anthropic|openai|elevenlabs|heygen|fal\.(ai|run)|recraft|pexels|pixabay|runway|googleapis|beatoven|stripe/i;
     check("0 peticiones a proveedores pagos (ninguna salió; las salidas externas se bloquean y registran)", refused.filter((e) => PROVIDERS.test(e.host ?? "")).length === 0 && other.length === 0, { refused: [...new Set(refused.map((e) => e.host))], other: other.slice(0, 3) });
     check("render: solo despachos al worker LOCAL de prueba (0 renders pagados)", egress.filter((e) => e.kind === "dispatch").every((e) => e.body?.event_type), egress.filter((e) => e.kind === "dispatch").length);
+    if (REQUIRE_PODCAST_DOWNLOAD) check("Podcast: descarga íntegra verificada en Samsung 390x844 Y escritorio 1440x900", ["samsung", "desktop"].every((d) => podcastDownloads.some((x) => x.dev === d)), podcastDownloads.map((x) => x.dev));
     notTested("producción atomicvid.app con sesión", "sin credenciales autorizadas; ver la auditoría pública de solo lectura (workflow qa-aceptacion-publica)");
-    const summary = { pass: checks.filter((c) => c.ok).length, fail: checks.filter((c) => !c.ok).length, untestedCount: untested.length, knownDefects: known, anthropicMockCalls: jsonl(path.join(LOGS, "anthropic.jsonl")).length - anth0, checks, untested };
+    const summary = { pass: checks.filter((c) => c.ok).length, fail: checks.filter((c) => !c.ok).length, untestedCount: untested.length, knownDefects: known, anthropicMockCalls: jsonl(path.join(LOGS, "anthropic.jsonl")).length - anth0, podcastDownloads, checks, untested };
     fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify(summary, null, 2));
     console.log(`RESULTADO ${summary.pass} PASS / ${summary.fail} FAIL / ${summary.untestedCount} NO PROBADO / ${known.filter((k) => !k.fixed).length} XFAIL`);
     await browser.close(); await db.end(); process.exit(summary.fail ? 1 : 0);
