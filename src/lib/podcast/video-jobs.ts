@@ -40,7 +40,16 @@ export type ProductionOptions = { budgetUsd?: number | null; scheduleAt?: string
  * limit and the schedule; then either queues it and dispatches the worker now, or leaves it scheduled for the
  * worker's scheduled tick (one-shot). Compare-and-set on the row: two requests never start two runs.
  */
-export async function requestPodcastVideo(service: SupabaseClient, episode: PodcastEpisode, options: ProductionOptions = {}, now = Date.now()): Promise<VideoRequestResult> {
+export type VideoRequestValidation =
+  | { ok: true; state: string; budgetUsd: number | null; runBudgetUsd: number | null; attempts: Extract<ReturnType<typeof attemptsDecision>, { ok: true }>; schedule: Extract<ReturnType<typeof scheduleDecision>, { ok: true }> }
+  | { ok?: false; error: string; status: number };
+
+/**
+ * Pure checks of a production request (no writes): episode ready, not already producing, no uncertain charge, total
+ * budget, run limit, attempts and schedule. The route runs it BEFORE opening the episode's (immutable) spend
+ * authorization, so a refused request never fixes that cap (audit F1, #200).
+ */
+export function validatePodcastVideoRequest(episode: PodcastEpisode, options: ProductionOptions = {}, now = Date.now()): VideoRequestValidation {
   if (episode.source === "upload" && episode.status !== "ready") return { error: "Sube y termina la grabación antes de producir el video.", status: 409 };
   if (episode.source === "tts" && (!episode.script || !episode.voice_id)) return { error: "El episodio no tiene guion o voz.", status: 409 };
   const state = episode.video_status ?? "none";
@@ -58,6 +67,14 @@ export async function requestPodcastVideo(service: SupabaseClient, episode: Podc
   if (!attempts.ok) return { error: attempts.message, status: 429 };
   const schedule = scheduleDecision(options.scheduleAt, now);
   if (!schedule.ok) return { error: schedule.message, status: 400 };
+  return { ok: true, state, budgetUsd: budgetUsd == null ? null : Number(budgetUsd), runBudgetUsd, attempts, schedule };
+}
+
+export async function requestPodcastVideo(service: SupabaseClient, episode: PodcastEpisode, options: ProductionOptions = {}, now = Date.now()): Promise<VideoRequestResult> {
+  const v = validatePodcastVideoRequest(episode, options, now);
+  if (v.ok !== true) return { error: v.error, status: v.status };
+  const { state, attempts, schedule, runBudgetUsd } = v;
+  const budgetUsd = options.budgetUsd !== undefined ? options.budgetUsd : (episode.budget_usd ?? null);
   const at = new Date(now).toISOString();
   // The run limit is written only where its column exists; without it, only runs with no new spend get here.
   const common = { budget_usd: budgetUsd, ...(options.runBudgetColumn ? { run_budget_usd: runBudgetUsd ?? 0 } : {}), retry_count: attempts.retryCount, video_error: null, video_checks: null, review_status: "pending", review_note: null, reviewed_at: null, publish_status: "held", updated_at: at };

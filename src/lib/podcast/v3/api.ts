@@ -30,12 +30,17 @@ export type ApiDeps = {
   /** CAS draft→authorized (devuelve true si cambió exactamente una fila). */
   authorize: (id: string, usd: number) => Promise<boolean>;
   dispatch: (id: string) => Promise<boolean>;
+  /** Runner perdido (audit F3, #200): CAS generating→failed para un inicio anterior a `startedBefore` y reserved→uncertain,
+   *  igual que scripts/podcast-video-mark-failed.ts. Devuelve true si cambió exactamente el episodio. */
+  markStale?: (id: string, startedBefore: string) => Promise<boolean>;
   /** El avatar existente pertenece al usuario y está listo (aislamiento por usuario). */
   ownsAvatar?: (avatarId: string) => Promise<boolean>;
   env?: Record<string, string | undefined>;
 };
 type Out = { status: number; body: Record<string, unknown> };
 export const STUDIO_MAX_AUTHORIZED_USD = 50;
+/** Más que el timeout del job de estudio (podcast-video.yml: 200 min): pasado esto, ningún runner sigue vivo. */
+export const STUDIO_RUNNER_MAX_MS = 4 * 3600_000;
 const DISABLED: Out = { status: 503, body: { error: "Los modos de estudio (avatar y conversación) se activan tras autorizar la migración y PODCAST_V3_ENABLED. La narración sigue disponible." } };
 
 export async function studioAction(d: ApiDeps, body: Record<string, unknown> | null): Promise<Out> {
@@ -84,9 +89,19 @@ export async function studioAction(d: ApiDeps, body: Record<string, unknown> | n
 /** Autorización explícita del cargo (paso 10). Requiere confirmación, monto ≥ estimación y ≤ presupuesto. */
 export async function authorizeAction(d: ApiDeps, id: string, body: Record<string, unknown> | null): Promise<Out> {
   if (!d.enabled) return DISABLED;
-  const row = await d.load(id);
+  let row = await d.load(id);
   if (row === "missing") return DISABLED;
   if (!row || row.user_id !== d.userId) return { status: 404, body: { error: "Episodio no encontrado." } };
+  // Audit F3 (#200): «generating» cuyo runner ya no puede existir (inicio anterior al timeout del job) → se cierra como
+  // lo haría mark-failed (lo reservado pasa a «uncertain», nunca a «released») y el dueño puede reintentar.
+  if (row.status === "generating" && d.markStale && (!row.run_started_at || Date.parse(row.run_started_at) < Date.now() - STUDIO_RUNNER_MAX_MS)) {
+    const before = new Date(Date.now() - STUDIO_RUNNER_MAX_MS).toISOString();
+    if (await d.markStale(id, before)) {
+      const again = await d.load(id);
+      if (again === "missing" || !again || again.user_id !== d.userId) return { status: 409, body: { error: "Otra solicitud cambió el episodio; recarga la página." } };
+      row = again;
+    }
+  }
   if (row.status !== "draft" && row.status !== "failed") return { status: 409, body: { error: row.status === "generating" ? "Ya se está generando; no se inicia otra vez." : "Este episodio ya fue autorizado." } };
   if (body?.confirm !== true) return { status: 400, body: { error: "Confirma explícitamente el costo antes de generar." } };
   const usd = Number(body?.authorizedUsd);
