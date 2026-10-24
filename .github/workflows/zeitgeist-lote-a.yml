@@ -1,0 +1,105 @@
+name: ZEITGEIST MP30 — Lote A (manual, capped)
+
+# Manual-only. No push/PR trigger. No deploy jobs.
+# Plan: ZEITGEIST MP30 Lote A confirmación v1 (Storyboard V3.1).
+# Assets (max with retries):
+#   - Recraft v3 (fal): 12 stills LOOK-1..6 x2, landscape_16_9 @ 0.04  -> 0.48
+#   - Recraft V4 (fal): create style_id once @ 0.005                    -> 0.01
+#   - Recraft V4 Styles (fal): 8 stills + 1 retry each @ 0.035          -> 0.56
+#   - Runway gen4_turbo: 3 clips x 5 s, max 2 attempts @ 0.05/s         -> 1.50
+#   - HeyGen / ElevenLabs: NOT used in lote A                          -> 0.00
+# HARD CAPS:
+#   OPERATIONAL_CAP_USD = 2.55  (lote A max; abort any call that would exceed)
+#   HARD_CAP_USD        = 6.00  (cumulative all providers; never exceed)
+# execute_paid=false (default): validates secret presence (masked) + prints plan. USD 0.
+
+on:
+  workflow_dispatch:
+    inputs:
+      execute_paid:
+        description: 'Run paid lote A generation (spends up to USD 2.55)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zeitgeist-lote-a
+  cancel-in-progress: false
+
+env:
+  OPERATIONAL_CAP_USD: '2.55'
+  HARD_CAP_USD: '6.00'
+  OUT_DIR: zeitgeist/lote_a
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate secrets presence (values never printed)
+        env:
+          FAL_KEY: ${{ secrets.FAL_KEY }}
+          RUNWAY_API_KEY: ${{ secrets.RUNWAY_API_KEY }}
+        run: |
+          ok=1
+          for n in FAL_KEY RUNWAY_API_KEY; do
+            if [ -n "${!n}" ]; then echo "$n: present (masked)"; else echo "::error::$n missing"; ok=0; fi
+          done
+          [ "$ok" = 1 ]
+      - name: Print plan
+        run: |
+          echo "execute_paid=${{ inputs.execute_paid }}"
+          echo "Planned max USD: 0.48 + 0.01 + 0.56 + 1.50 = 2.55 (cap ${OPERATIONAL_CAP_USD}, hard ${HARD_CAP_USD})"
+          awk -v a=2.55 -v c="$OPERATIONAL_CAP_USD" -v h="$HARD_CAP_USD" 'BEGIN{ if (a>c || a>h) { print "::error::plan exceeds cap"; exit 1 } }'
+
+  lote-a:
+    needs: preflight
+    if: ${{ inputs.execute_paid == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      FAL_KEY: ${{ secrets.FAL_KEY }}
+      RUNWAY_API_KEY: ${{ secrets.RUNWAY_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Init output + spend log
+        run: |
+          mkdir -p "$OUT_DIR/img" "$OUT_DIR/clips"
+          printf 'ts\tprovider\titem\tusd\tcumulative_usd\n' > "$OUT_DIR/spend_log.tsv"
+          echo '{}' > "$OUT_DIR/lote_A_ids.json"
+      # Each paid step MUST check: cumulative + next_cost <= OPERATIONAL_CAP_USD (and <= HARD_CAP_USD), else abort.
+      - name: Recraft v3 LOOK stills (fal) — STUB
+        run: |
+          if [ -f scripts/zeitgeist/lote-a-recraft-v3.mjs ]; then node scripts/zeitgeist/lote-a-recraft-v3.mjs; else
+            echo "::error::STUB: scripts/zeitgeist/lote-a-recraft-v3.mjs missing; no spend performed"; exit 1; fi
+      - name: Recraft V4 style_id + styled stills (fal) — STUB
+        run: |
+          if [ -f scripts/zeitgeist/lote-a-recraft-v4.mjs ]; then node scripts/zeitgeist/lote-a-recraft-v4.mjs; else
+            echo "::error::STUB: scripts/zeitgeist/lote-a-recraft-v4.mjs missing"; exit 1; fi
+      - name: Runway gen4_turbo clips — STUB
+        run: |
+          if [ -f scripts/zeitgeist/lote-a-runway.mjs ]; then node scripts/zeitgeist/lote-a-runway.mjs; else
+            echo "::error::STUB: scripts/zeitgeist/lote-a-runway.mjs missing"; exit 1; fi
+      - name: Enforce caps on final spend log
+        if: always()
+        run: |
+          f="$OUT_DIR/spend_log.tsv"; [ -f "$f" ] || exit 0
+          awk -F'\t' -v c="$OPERATIONAL_CAP_USD" -v h="$HARD_CAP_USD" 'NR>1{s+=$4} END{printf "total USD %.3f\n", s; if (s>c||s>h) {print "::error::cap exceeded"; exit 1}}' "$f"
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zeitgeist-lote-a
+          if-no-files-found: warn
+          retention-days: 30
+          path: |
+            ${{ env.OUT_DIR }}/img/
+            ${{ env.OUT_DIR }}/clips/
+            ${{ env.OUT_DIR }}/lote_A_ids.json
+            ${{ env.OUT_DIR }}/spend_log.tsv
