@@ -46,6 +46,7 @@ jobs:
           elif [ "$MODE" = "step" ]; then npx tsx scripts/ops-step-e8048599.ts > out.txt 2>&1
           elif [ "$MODE" = "quality" ]; then npx tsx scripts/ops-quality-e8048599.ts > out.txt 2>&1
           elif [ "$MODE" = "resume" ]; then JOB_ID=e8048599-cf92-45e8-95c8-f145cb9d3be2 EXPECTED_ERROR_CODE=12045fcd EXPECTED_RETRY_COUNT=3 npx tsx scripts/resume-script-job.ts > out.txt 2>&1
+          elif [ "$MODE" = "authorize-resume" ]; then npx tsx scripts/ops-authorize-resume.ts > out.txt 2>&1
           elif [ "$MODE" = "migrate-studio" ]; then npx tsx scripts/ops-migrate-studio.ts > out.txt 2>&1
           elif [ "$MODE" = "supply" ]; then npx tsx scripts/ops-supply-read.ts > out.txt 2>&1
           elif [ "$MODE" = "replay" ]; then REPLAY_CINEMATIC=true REPLAY_JOB=e8048599 npx tsx scripts/replay-documentary-job.ts > out.txt 2>&1
