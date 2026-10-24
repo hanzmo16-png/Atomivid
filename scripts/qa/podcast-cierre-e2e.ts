@@ -79,8 +79,10 @@ async function partA() {
   const again = await submit("cierre-k0");
   ok("A3 reintento de la MISMA clave no se admite otra vez (sin doble cobro)", again !== "admitted", again);
   ok("A3 libro: exactamente 1 operación de la clave y 1 SUBMITTED", Number(await one("select count(*) from public.pi_paid_operations where idempotency_key='cierre-k0' and status='SUBMITTED'")) === 1);
-  const second = await ensurePodcastSpendAuthorization(rpc, EA, 50, "otra");
-  ok("A4 segunda apertura: ya existe → se respeta la inmutable (tope no sube)", second.ok && second.state === "already_open" && Number(await one("select cap_usd from public.pi_spend_authorizations where project_id=$1", [PJ])) === 1.24, JSON.stringify(second));
+  const second = await ensurePodcastSpendAuthorization(rpc, EA, 50, "otra", { neededUsd: 0.10 });
+  ok("A4 segunda apertura: ya existe → se respeta la inmutable (tope no sube) y la ejecución que cabe se admite", second.ok && second.state === "already_open" && Number(await one("select cap_usd from public.pi_spend_authorizations where project_id=$1", [PJ])) === 1.24, JSON.stringify(second));
+  const big = await ensurePodcastSpendAuthorization(rpc, EA, 50, "otra", { neededUsd: 50 });
+  ok("A4 ejecución que no cabe en el saldo de la autorización existente → 409 antes de despachar", !big.ok && "status" in big && big.status === 409);
   await db.query("update public.pi_paid_operations set status='COMMITTED', committed_usd=0.60 where idempotency_key='cierre-k0'");
   await op("cierre-k1", PJ, 0.50); const k1 = await submit("cierre-k1");
   await op("cierre-k1b", PJ, 0.20); const over = await submit("cierre-k1b");
@@ -91,7 +93,7 @@ async function partA() {
   const nothing = await ensurePodcastSpendAuthorization(rpc, EB, 0, "x");
   ok("A6 sin nada que pagar no se abre autorización", nothing.ok && nothing.state === "nothing_to_pay" && Number(await one("select count(*) from public.pi_spend_authorizations where project_id=$1", [`podcast-${EB}`])) === 0);
   const notInstalled = await ensurePodcastSpendAuthorization({ rpc: async () => ({ data: null, error: { code: "PGRST202", message: "Could not find the function" } }) }, EA, 1, "x");
-  ok("A7 propuesta #198 no aplicada → la BD no lo exige, la app sigue igual", notInstalled.ok && notInstalled.state === "not_installed");
+  ok("A7 RPC ausente/no encontrada → 503 y nada se despacha (falla cerrada, auditoría #200 P0-2)", !notInstalled.ok && "status" in notInstalled && notInstalled.status === 503, JSON.stringify(notInstalled).slice(0, 120));
   const broken = await ensurePodcastSpendAuthorization({ rpc: async () => ({ data: null, error: { code: "57014", message: "timeout" } }) }, EA, 1, "x");
   ok("A8 error al registrar la autorización → no se despacha (falla cerrada)", !broken.ok);
   await op("cierre-k2", PJ, 0.10); await db.query("update public.pi_paid_operations set status='RECONCILIATION_REQUIRED' where idempotency_key='cierre-k2'");
@@ -99,6 +101,43 @@ async function partA() {
   await op("cierre-k3", `podcast-${EC}`, 0.10); await db.query("update public.pi_paid_operations set status='RECONCILIATION_REQUIRED' where idempotency_key='cierre-k3'");
   const unc = await ensurePodcastSpendAuthorization(rpc, EC, 1, "x");
   ok("A9 cobro incierto pendiente → no se autoriza gasto nuevo (409)", !unc.ok && unc.status === 409);
+}
+
+async function partC() {
+  console.log("== C. Reproducciones adversariales de la auditoría #200 (Claude, claude/audit-pr200 @ bead03f)");
+  const EP = randomUUID(), PJ = `podcast-${EP}`;
+  await db.query("insert into public.podcast_episodes(id,user_id,title,source,script,voice_id,characters,estimated_usd) values ($1,$2,'audit R1','tts','x','v',2500,0.50)", [EP, A]);
+  const fresh = () => db.query("insert into public.pi_capacity_snapshots(provider,unit,available,health,reliability,status,checked_at) values ('elevenlabs','character',500000,'OK','provider_api','GREEN',clock_timestamp())");
+  const op = (k: string, p: string, usd: number) => db.query(`insert into public.pi_paid_operations(idempotency_key,project_id,shot_id,provider,model,method,attempt_kind,reserved_usd,status,capacity_units)
+     values ($1,$2,$3,'elevenlabs','eleven_multilingual_v2','tts_with_timestamps','initial',$4,'RESERVED',round($4/0.0002))`, [k, p, `voice:${k}`, usd]);
+  const submit = async (k: string) => { await fresh(); return (await one("select public.pi_submit_with_supply($1, null)->>'reason'", [k])) as string; };
+  // R1 (P1-1): narración sola abre 0.50 y consume 0.45; la producción pide 2.40 → antes: ok + despacho + rechazo a mitad.
+  const o1 = await ensurePodcastSpendAuthorization(rpc, EP, 0.50, "app:narration:audit", { neededUsd: 0.50 });
+  await op("audit-n1", PJ, 0.45); const n1 = await submit("audit-n1"); await db.query("update public.pi_paid_operations set status='COMMITTED',committed_usd=0.45 where idempotency_key='audit-n1'");
+  const o2 = await ensurePodcastSpendAuthorization(rpc, EP, 2.40, "app:production:audit", { neededUsd: 2.40 });
+  ok("C-R1 autorización existente con saldo 0.05 < 2.40 → 409 ANTES de despachar (no se inicia un job condenado)", o1.ok && n1 === "admitted" && !o2.ok && "status" in o2 && o2.status === 409, JSON.stringify(o2).slice(0, 160));
+  const o3 = await ensurePodcastSpendAuthorization(rpc, EP, 2.40, "app:production:audit", { neededUsd: 0.04 });
+  ok("C-R1 si la ejecución cabe en el saldo (0.04 ≤ 0.05) se admite", o3.ok && o3.state === "already_open", JSON.stringify(o3).slice(0, 120));
+  // R2 (P1-2): USD 30 de ElevenLabs liquidados hoy en el estudio; una llamada documental de 15 (cap proveedor 20, global 40).
+  await db.query("update public.pi_supply_policies set daily_cap_usd=200, monthly_cap_usd=1000 where provider='__global__'");
+  await db.query("update public.pi_supply_policies set daily_cap_usd=200, monthly_cap_usd=1000, max_daily_calls=200 where provider='elevenlabs'");
+  const SE = randomUUID();
+  await db.query("insert into public.podcast_studio_episodes(id,user_id,title,mode,spec,status,authorized_usd) values ($1,$2,'audit R2','narracion','{\"version\":\"podcast-studio/3\"}','generating',50)", [SE, A]);
+  await db.query("insert into public.podcast_studio_operations(key,user_id,episode_id,provider,op,state,reserved_usd) values (repeat('a',64),$1,$2,'elevenlabs','tts','reserved',30)", [A, SE]);
+  await db.query("update public.podcast_studio_operations set state='settled', actual_usd=30 where key=repeat('a',64)");
+  await db.query("update public.pi_supply_policies set daily_cap_usd=40 where provider='__global__'");
+  await db.query("update public.pi_supply_policies set daily_cap_usd=20 where provider='elevenlabs'");
+  await op("audit-d1", `documentary:${A}:audit`, 15); const d1 = await submit("audit-d1");
+  ok("C-R2 el gasto del estudio (30) cuenta en los topes de la plataforma: llamada de 15 (cap proveedor 20 / global 40) rechazada", d1 !== "admitted" && /ceiling|cap/i.test(d1 ?? ""), String(d1));
+  ok("C-R2 la operación rechazada nunca pasa a SUBMITTED", (await one("select status from public.pi_paid_operations where idempotency_key='audit-d1'")) === "RESERVED");
+  let sErr = ""; try { await db.query("insert into public.podcast_studio_operations(key,user_id,episode_id,provider,op,state,reserved_usd) values (repeat('b',64),$1,$2,'elevenlabs','tts','reserved',1)", [A, SE]); } catch (e) { sErr = (e as Error).message; }
+  ok("C-R2 y al revés: una reserva nueva del estudio sobre el cap del proveedor (30+1 > 20) se rechaza en la BD", /STUDIO_CAP: provider funded spend ceiling/.test(sErr), sErr.slice(0, 90));
+  await db.query("update public.pi_supply_policies set daily_cap_usd=200 where provider in ('__global__','elevenlabs')");
+  let gErr = ""; await db.query("update public.pi_supply_policies set daily_cap_usd=30.5 where provider='__global__'");
+  try { await db.query("insert into public.podcast_studio_operations(key,user_id,episode_id,provider,op,state,reserved_usd) values (repeat('c',64),$1,$2,'pexels','imagen','reserved',1)", [A, SE]); } catch (e) { gErr = (e as Error).message; }
+  ok("C-R2 cap global: reserva del estudio de otro proveedor que supera el global se rechaza", /global funded spend ceiling/.test(gErr), gErr.slice(0, 90));
+  await db.query("update public.pi_supply_policies set daily_cap_usd=200 where provider='__global__'");
+  await db.query("delete from public.podcast_studio_operations where episode_id=$1", [SE]);
 }
 
 type Mode = { tag: string; spec: typeof NARRACION; owner: string };
@@ -209,6 +248,8 @@ async function main() {
   await db.query("insert into auth.users(id,email) values ($1,'hans-e2e@local.test'),($2,'otro-e2e@local.test') on conflict do nothing", [A, B]);
   for (const [tag, spec] of [["narracion-imagenes", NARRACION], ["avatar", AVATAR], ["conversacion-avatares", DIALOGO]] as const) estimates.set(tag, (await preflight(spec, mockProviders())).estimate.totalUsd);
   try { await partA(); } catch (e) { ok("A sin excepción", false, (e as Error).stack?.slice(0, 400)); }
+  if (process.env.ONLY_C === "1") { try { await partC(); } catch (e) { ok("C sin excepción", false, (e as Error).message.slice(0, 300)); } await db.end(); console.log(`RESULTADO ${pass}/${pass + fails.length} PASS`); process.exit(fails.length ? 1 : 0); }
+  try { await partC(); } catch (e) { ok("C sin excepción", false, (e as Error).stack?.slice(0, 400)); }
   try { await partB(); } catch (e) { ok("B sin excepción", false, (e as Error).stack?.slice(0, 600)); }
   await db.end();
   await writeFile(path.join(OUT, "evidence.json"), JSON.stringify({ pass, fails, evidence }, null, 2));

@@ -53,10 +53,26 @@ revoke insert, update, delete on public.podcast_studio_operations from anon, aut
 -- RESERVA nueva (antes de llamar al proveedor) se admite solo si el episodio es del mismo dueño, está autorizado o
 -- generándose, y reservado+liquidado+incierto (sin esta clave) + esta reserva ≤ min(authorized_usd, 50). La fila del
 -- episodio se bloquea FOR UPDATE: dos reservas concurrentes no pueden pasar el mismo saldo. Sin reserva no hay llamada.
+-- Studio spend visible to EVERY platform cap (pi_submit_with_supply, job reservations, supply state): pi_supply_spend adds the
+-- studio ledger. Same signature, invoker, search_path ''; grants unchanged (create or replace keeps the ACL).
+create or replace function public.pi_supply_spend(p_provider text,p_start timestamptz) returns numeric
+language sql security invoker set search_path='' as $$
+ select coalesce((select sum(greatest(reserved_usd,coalesce(committed_usd,0))) from public.pi_paid_operations
+ where (p_provider is null or provider=p_provider) and method<>'capacity_hold'
+ and (status in ('SUBMITTED','PROVIDER_JOB_RECORDED','RECONCILIATION_REQUIRED')
+ or (created_at>=p_start and (status='COMMITTED' or (status='REFUNDED' and not supply_reconciled))))),0)
+ +coalesce((select sum(reserved_usd-consumed_usd) from public.pi_supply_job_reservations
+ where (p_provider is null or provider=p_provider) and status='OPEN'),0)
+ -- Podcast Studio (own ledger): open reservations/uncertain always count; settled count from p_start (actual cost).
+ +coalesce((select sum(case when s.state='settled' then greatest(s.reserved_usd,coalesce(s.actual_usd,0)) else s.reserved_usd end)
+ from public.podcast_studio_operations s where (p_provider is null or s.provider=p_provider)
+ and (s.state in ('reserved','uncertain') or (s.state='settled' and s.created_at>=p_start))),0);
+$$;
+
 alter table public.podcast_studio_episodes drop constraint if exists podcast_studio_episodes_authorized_max;
 alter table public.podcast_studio_episodes add constraint podcast_studio_episodes_authorized_max check (authorized_usd is null or authorized_usd <= 50);
 create or replace function public.podcast_studio_operations_cap() returns trigger language plpgsql security definer set search_path = '' as $$
-declare e public.podcast_studio_episodes%rowtype; used numeric;
+declare e public.podcast_studio_episodes%rowtype; used numeric; prev numeric; g public.pi_supply_policies%rowtype; p public.pi_supply_policies%rowtype;
 begin
   if new.state <> 'reserved' then return new; end if;
   if tg_op = 'UPDATE' and old.state = 'reserved' and old.reserved_usd >= new.reserved_usd then return new; end if;
@@ -68,6 +84,22 @@ begin
     into used from public.podcast_studio_operations o where o.episode_id = new.episode_id and o.key <> new.key;
   if used + new.reserved_usd > least(e.authorized_usd, 50) + 0.00001 then
     raise exception 'STUDIO_CAP: authorization exceeded (used %, requested %, cap %)', used, new.reserved_usd, least(e.authorized_usd, 50); end if;
+  -- Platform caps (audit #200 P1-2): the same daily/monthly ceilings pi_submit_with_supply applies, per provider (when the
+  -- provider has a policy) and global (required, fail closed). pi_supply_spend already includes the studio ledger, minus
+  -- this row's previous amount when it is being re-reserved.
+  prev := case when tg_op = 'UPDATE' and old.state in ('reserved','uncertain') then old.reserved_usd else 0 end;
+  select * into g from public.pi_supply_policies where provider = '__global__' for update;
+  if not found or not g.enabled then raise exception 'STUDIO_CAP: global supply policy unavailable'; end if;
+  if public.pi_supply_spend(null, date_trunc('day', clock_timestamp() at time zone g.timezone) at time zone g.timezone) - prev + new.reserved_usd > g.daily_cap_usd
+     or public.pi_supply_spend(null, date_trunc('month', clock_timestamp() at time zone g.timezone) at time zone g.timezone) - prev + new.reserved_usd > g.monthly_cap_usd then
+    raise exception 'STUDIO_CAP: global funded spend ceiling'; end if;
+  select * into p from public.pi_supply_policies where provider = new.provider for update;
+  if found then
+    if not p.enabled then raise exception 'STUDIO_CAP: provider % disabled', new.provider; end if;
+    if public.pi_supply_spend(p.provider, date_trunc('day', clock_timestamp() at time zone p.timezone) at time zone p.timezone) - prev + new.reserved_usd > p.daily_cap_usd
+       or public.pi_supply_spend(p.provider, date_trunc('month', clock_timestamp() at time zone p.timezone) at time zone p.timezone) - prev + new.reserved_usd > p.monthly_cap_usd then
+      raise exception 'STUDIO_CAP: provider funded spend ceiling (%)', p.provider; end if;
+  end if;
   return new;
 end $$;
 revoke all on function public.podcast_studio_operations_cap() from public, anon, authenticated;

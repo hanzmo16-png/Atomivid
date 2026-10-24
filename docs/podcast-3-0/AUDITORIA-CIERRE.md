@@ -77,7 +77,7 @@ entregado = reservas liberadas; exclusión de ejecuciones duplicadas por compare
 `podcast_studio_operations` y `cost_usd`.
 
 ## Migración (propuesta, NO aplicada)
-`supabase/proposals/20261023120000_podcast_v3_studio.sql`: aditiva (2 tablas nuevas), `if not exists`, RLS con solo
+`supabase/proposals/20261024140000_podcast_v3_studio.sql`: aditiva (2 tablas nuevas), `if not exists`, RLS con solo
 lectura del dueño, escritura revocada a `anon`/`authenticated` (solo service role). Auditoría en CI
 (`migration-audit-v3.sh`): re-ejecutable, `podcast_episodes` intacta, CHECKs, aislamiento entre usuarios, reversión
 limpia y re-aplicación. La reversión **borra** los episodios de estudio y su libro: exportar antes si hubo uso real.

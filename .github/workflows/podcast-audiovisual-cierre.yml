@@ -46,8 +46,8 @@ jobs:
           echo "PG_BIN=/usr/lib/postgresql/17/bin" >> "$GITHUB_ENV"
       - run: npm ci --no-audit --no-fund
       - name: Pruebas unitarias de gasto/autorización (sin red)
-        run: node --import tsx --test src/lib/supply/spend-authorization.test.ts
-      - name: Propuesta #198 en BD desechable (incluye corrección de baseline)
+        run: node --import tsx --test src/lib/supply/spend-authorization.test.ts src/lib/podcast/spend-authorization-open.test.ts
+      - name: Propuesta #198 (ya aplicada en prod, sin editar) + #201 en BD desechable
         run: set -o pipefail; bash scripts/qa/spend-authorization-db.sh "$RUNNER_TEMP/pgsa" 55901 2>&1 | tee spend-authorization-postgres.log
       - name: E2E de cierre (BD desechable + ffmpeg real + proveedores simulados)
         env: { OUT_DIR: "${{ github.workspace }}/podcast-cierre-out" }
@@ -71,3 +71,46 @@ jobs:
             spend-authorization-postgres.log
             podcast-cierre-out/evidence.json
             podcast-cierre-out/storage/**/*.mp4
+  repro-before-after:
+    # Auditoría #200 (Claude, claude/audit-pr200 @ bead03f): las reproducciones FALLAN con la implementación de 6ce9fcb y
+    # PASAN con la cabeza. Si «antes» no falla exactamente en los casos esperados, el job falla (la prueba no reproduce nada).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - name: PostgreSQL 17
+        run: |
+          sudo apt-get -o Acquire::Retries=3 update -q && sudo apt-get install -yq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -yq postgresql-17 && sudo systemctl stop postgresql || true
+          echo "PG_BIN=/usr/lib/postgresql/17/bin" >> "$GITHUB_ENV"
+      - run: npm ci --no-audit --no-fund
+      - name: DESPUÉS (cabeza) — unit P0-2/P1-1 y BD R1/R2
+        run: |
+          set -o pipefail
+          node --import tsx --test src/lib/podcast/spend-authorization-open.test.ts 2>&1 | tee after-unit.log; grep -q '^# fail 0$' after-unit.log
+          ONLY_C=1 bash scripts/qa/podcast-cierre-db.sh "$RUNNER_TEMP/pg-after" 55931 2>&1 | tee after-db.log
+      - name: ANTES (6ce9fcb) — deben fallar los casos de los defectos
+        run: |
+          cp src/lib/podcast/spend-authorization-open.ts "$RUNNER_TEMP/new.ts"
+          git show 6ce9fcbf18b43b8ec088376fac47200dc1ccd390:src/lib/podcast/spend-authorization-open.ts > src/lib/podcast/spend-authorization-open.ts
+          mkdir -p "$RUNNER_TEMP/old" && git show 6ce9fcbf18b43b8ec088376fac47200dc1ccd390:supabase/proposals/20261023120000_podcast_v3_studio.sql > "$RUNNER_TEMP/old/20261024140000_podcast_v3_studio.sql"
+          node --import tsx --test src/lib/podcast/spend-authorization-open.test.ts > before-unit.log 2>&1 || true
+          ONLY_C=1 OVERRIDE_DIR="$RUNNER_TEMP/old" bash scripts/qa/podcast-cierre-db.sh "$RUNNER_TEMP/pg-before" 55932 > before-db.log 2>&1 || true
+          cp "$RUNNER_TEMP/new.ts" src/lib/podcast/spend-authorization-open.ts
+          cat before-unit.log | grep -E '^(not ok|# (pass|fail))'; grep -E '^(FAIL|PASS) C-' before-db.log
+          [ "$(grep -c '^not ok' before-unit.log)" -ge 7 ] || { echo "::error::antes: P0-2/P1-1 no se reproducen"; exit 1; }
+          grep -q '^FAIL C-R1 autorización existente' before-db.log || { echo "::error::antes: R1 no se reproduce"; exit 1; }
+          grep -q '^FAIL C-R2 el gasto del estudio' before-db.log || { echo "::error::antes: R2 no se reproduce"; exit 1; }
+          echo "::notice title=antes/después::antes unit $(grep -c '^not ok' before-unit.log) fallos, BD $(grep -c '^FAIL C-' before-db.log) fallos C · después unit $(grep -E '^# pass' after-unit.log), BD $(grep -E '^RESULTADO' after-db.log)"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: repro-before-after
+          path: |
+            before-unit.log
+            before-db.log
+            after-unit.log
+            after-db.log

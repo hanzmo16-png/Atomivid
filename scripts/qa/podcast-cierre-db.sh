@@ -23,9 +23,11 @@ d23=0; for f in $(ls "$R"/supabase/migrations/*.sql | sort); do b=$(basename "$f
     case " $KNOWN " in *" $b "*) echo "NOTICE migración solo-local omitida: $b";; *) echo "FAIL migración $b"; cat "$W/logs/mig-$b.log"; exit 1;; esac; fi
 done
 $PS -d $DB -f "$R/scripts/harness/e2e/infra/seed-config.sql" >/dev/null
-$PS -d $DB -f "$R/supabase/proposals/20261024000000_spend_authorizations.sql" >/dev/null
-$PS -d $DB -f "$R/supabase/proposals/20261023120000_podcast_v3_studio.sql" >/dev/null
-$PS -d $DB -f "$R/supabase/proposals/20261023120000_podcast_v3_studio.sql" >/dev/null   # re-ejecutable
+# Orden de propuestas (por nombre): 20261024000000 (#198, YA aplicada en prod) → 20261024120000 (#201) → 20261024130000 (fix baseline)
+# → 20261024140000 (estudio). OVERRIDE_DIR permite aplicar versiones antiguas (reproducción «antes») sin tocar el árbol.
+PROPS="${PROPOSALS:-20261024000000_spend_authorizations 20261024120000_resume_authorization_ref_match 20261024130000_spend_authorization_baseline_fix 20261024140000_podcast_v3_studio}"
+for n in $PROPS; do f="${OVERRIDE_DIR:-$R/supabase/proposals}/$n.sql"; [ -f "$f" ] || f="$R/supabase/proposals/$n.sql"; echo "aplica propuesta $n"; $PS -d $DB -f "$f" >/dev/null; done
+$PS -d $DB -f "${OVERRIDE_DIR:-$R/supabase/proposals}/$(echo $PROPS | tr ' ' '\n' | grep podcast_v3_studio).sql" >/dev/null   # re-ejecutable
 $PS -d $DB <<'SQL'
 update public.pi_supply_policies set enabled=true, unit='character', unit_cost_usd=0.0002, baseline=63002, daily_forecast=1,
   daily_cap_usd=20, monthly_cap_usd=150, max_concurrent=4, max_daily_calls=40, timezone='America/Cancun', evidence='local test' where provider='elevenlabs';

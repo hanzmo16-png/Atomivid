@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# USD 0. Auditoría reproducible de la migración PROPUESTA del estudio Podcast 3.0 (20261023120000_podcast_v3_studio)
+# USD 0. Auditoría reproducible de la migración PROPUESTA del estudio Podcast 3.0 (20261024140000_podcast_v3_studio)
 # en una BD local desechable «migauditv3» (clon del esquema del arnés). Comprueba: aditiva (podcast_episodes intacta),
 # re-ejecutable, RLS solo-lectura-del-dueño, escrituras solo con service role, CHECKs, reversión limpia y re-aplicación.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd); R=$(git -C "$HERE" rev-parse --show-toplevel); E2E_HOME=${E2E_HOME:-$R/.e2e-local}
 . "$E2E_HOME/paths.env"; H=$E2E_HOME/run; PORT=$PGPORT   # requiere podcast/start.sh (PG local en marcha)
 PS="psql -h $H -p $PORT -U postgres -v ON_ERROR_STOP=1 -qAt"
-MIG=$R/supabase/proposals/20261023120000_podcast_v3_studio.sql; RB=$R/supabase/proposals/20261023120000_podcast_v3_studio.rollback.sql
+MIG=$R/supabase/proposals/20261024140000_podcast_v3_studio.sql; RB=$R/supabase/proposals/20261024140000_podcast_v3_studio.rollback.sql
 ok(){ echo "PASS $*"; }; bad(){ echo "FAIL $*"; FAILS=$((FAILS+1)); }; FAILS=0
 $PS -d postgres -c "drop database if exists migauditv3"; $PS -d postgres -c "create database migauditv3"
 pg_dump -h $H -p $PORT -U postgres -s atomivid | $PS -d migauditv3 >/dev/null 2>&1 || true
@@ -28,6 +28,7 @@ SPEC='{"version":"podcast-studio/3","mode":"narracion"}'
 E1=33333333-0000-4000-8000-000000000001; E2=33333333-0000-4000-8000-000000000002
 $D -c "insert into public.podcast_studio_episodes(id,user_id,title,mode,spec) values ('$E1','$U1','ep1','narracion','$SPEC'),('$E2','$U2','ep2','dialogo','$SPEC')" && ok "service/postgres inserta episodios válidos" || bad "insert válido"
 K=$(printf 'a%.0s' $(seq 1 64))
+$D -c "insert into public.pi_supply_policies(provider,enabled,unit,baseline,unit_cost_usd,daily_forecast,daily_cap_usd,monthly_cap_usd,max_concurrent,max_daily_calls,free_daily_cap_usd,timezone,evidence) values ('__global__',true,'usd',100,1,1,5,20,10,1000,0,'America/Cancun','auditoría local') on conflict (provider) do update set enabled=true, daily_cap_usd=5, monthly_cap_usd=20" >/dev/null
 if $D -c "insert into public.podcast_studio_operations(key,user_id,episode_id,provider,op,state,reserved_usd) values ('$K','$U1','$E1','elevenlabs','tts','reserved',0.01)" >/dev/null 2>&1; then bad "tope BD: reserva aceptada en borrador sin autorizar"; else ok "tope BD: reserva rechazada sin autorización"; fi
 $D -c "update public.podcast_studio_episodes set status='authorized', authorized_usd=0.05 where id='$E1'"
 $D -c "insert into public.podcast_studio_operations(key,user_id,episode_id,provider,op,state,reserved_usd) values ('$K','$U1','$E1','elevenlabs','tts','reserved',0.01)" && ok "libro: fila válida" || bad "libro válido"

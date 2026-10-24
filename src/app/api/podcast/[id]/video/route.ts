@@ -37,7 +37,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (pending.usd > 0) {
     const total = budgetUsd ?? (episode.budget_usd == null ? null : Number(episode.budget_usd));
     const approved = narrationCapUsd(runBudgetUsd, total, spend?.spentUsd ?? 0) ?? pending.usd;
-    const authz = await ensurePodcastSpendAuthorization(service, episode.id, approved, `app:production:${user.id}:${new Date().toISOString()}`);
+    const episodeCapUsd = total != null ? Math.max(0, total - (spend?.spentUsd ?? 0)) : approved;
+    const authz = await ensurePodcastSpendAuthorization(service, episode.id, episodeCapUsd, `app:production:${user.id}:${new Date().toISOString()}`, { neededUsd: approved });
     if (!authz.ok) return NextResponse.json({ error: authz.error }, { status: authz.status });
   }
   const out = await requestPodcastVideo(service, episode, { ...(budgetUsd === undefined ? {} : { budgetUsd }), scheduleAt, spentUsd: spend?.spentUsd ?? null, uncertainCharges: spend?.uncertain ?? 0,

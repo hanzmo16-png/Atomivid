@@ -46,7 +46,7 @@ Con la tarifa configurada en producción (`PRICING_ELEVENLABS_USD_PER_1K_CHARS=0
 | Música | biblioteca CC0 propia | igual (sin proveedor externo) |
 
 ## Activación (requiere autorización del propietario)
-1. Aplicar `supabase/proposals/20261023120000_podcast_v3_studio.sql` (aditiva: dos tablas nuevas con RLS de lectura por dueño; rollback en `.rollback.sql`). **No aplicada** en producción.
+1. Aplicar `supabase/proposals/20261024140000_podcast_v3_studio.sql` (aditiva: dos tablas nuevas con RLS de lectura por dueño; rollback en `.rollback.sql`). **No aplicada** en producción.
 2. `PODCAST_V3_ENABLED=1` en Vercel y en el workflow del worker; `HEYGEN_API_KEY` en el entorno del worker para B/C.
 3. Opcional: `PODCAST_V3_LLM=1` para la conversación con IA.
 

@@ -1,6 +1,6 @@
 /**
  * Podcast 3.0 — persistencia (Supabase, service role) de episodios de estudio y su libro de operaciones.
- * Tablas nuevas (propuesta supabase/proposals/20261023120000_podcast_v3_studio.sql, NO aplicada). Si no existen,
+ * Tablas nuevas (propuesta supabase/proposals/20261024140000_podcast_v3_studio.sql, NO aplicada). Si no existen,
  * las rutas responden 503 «requiere migración» y nada se cobra.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";

@@ -36,7 +36,11 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   // narration stops before any paid chunk past that, or past what is left of the total budget.
   const capUsd = narrationCapUsd(runUpperBoundUsd(Number(episode.estimated_usd) || 0, narrationChunks(episode)), episode.budget_usd == null ? null : Number(episode.budget_usd), spentUsd ?? 0);
   // PR #198: the DB refuses podcast paid calls without a stored authorization → record the owner's approval first.
-  const authz = await ensurePodcastSpendAuthorization(service, episode.id, capUsd ?? Number(episode.estimated_usd), `app:narration:${user.id}:${new Date().toISOString()}`);
+  // Episode authorization (opened once, immutable) = what is left of the owner's TOTAL budget when one is set, so a
+  // narration started alone does not lock the episode to its own estimate (audit #200 P1-1); this run needs at most capUsd.
+  const runNeedUsd = capUsd ?? Number(episode.estimated_usd);
+  const episodeCapUsd = episode.budget_usd != null ? Math.max(0, Number(episode.budget_usd) - (spentUsd ?? 0)) : runNeedUsd;
+  const authz = await ensurePodcastSpendAuthorization(service, episode.id, episodeCapUsd, `app:narration:${user.id}:${new Date().toISOString()}`, { neededUsd: runNeedUsd });
   if (!authz.ok) return NextResponse.json({ error: authz.error }, { status: authz.status });
   if (narrationRunsInBackground(episode)) {
     const queued = await requestBackgroundNarration(service, episode);
