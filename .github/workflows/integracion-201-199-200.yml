@@ -71,11 +71,12 @@ jobs:
           set -o pipefail
           bash scripts/qa/spend-authorization-db.sh "$RUNNER_TEMP/pgsa" 55901 2>&1 | tee pg-spend.log
           bash scripts/qa/spend-authorization-db.sh "$RUNNER_TEMP/pgmb" 55902 scripts/qa/manual-balance-postgres.sh 2>&1 | tee -a pg-spend.log
-          # The #198/#199 suite runs on supabase/migrations only, BEFORE #201's proposal → its "PENDING T10c" probe line is
-          # expected there. T10c is closed when #201's own suite (proposal applied) rejects A/B at the DB layer.
+          # The #198/#199 suite runs on supabase/migrations only, BEFORE #201's proposal → its T10c probe reports INFO there.
+          # T10c is closed when #201's own suite (proposal applied) rejects A/B at the DB layer.
           grep -q '^PASS R02 A/B' pg-spend.log || { echo "::error::T10c A/B not rejected with #201 applied"; exit 1; }
           [ "$(grep -c '^RESULT ALL PASS' pg-spend.log)" -ge 3 ] && ! grep -q '^FAIL' pg-spend.log || { echo "::error::a spend/T10c/manual-balance suite did not pass"; exit 1; }
-          echo "::notice title=T10c::pre-#201 probe: $(grep -c '^PENDING T10c' pg-spend.log) PENDING (expected); with #201: $(grep '^PASS R02 A/B' pg-spend.log | head -1 | cut -c1-120)"
+          ! grep -q '^PENDING' pg-spend.log || { echo "::error::PENDING line left (resume-auth-ref-postgres.yml forbids it)"; exit 1; }
+          echo "::notice title=T10c::$(grep '^INFO T10c' pg-spend.log | head -1 | cut -c1-140) · with #201: $(grep '^PASS R02 A/B' pg-spend.log | head -1 | cut -c1-120)"
       - name: "#200 closure E2E on DB (cierre)"
         run: set -o pipefail; bash scripts/qa/podcast-cierre-db.sh "$RUNNER_TEMP/pgc" 55911 2>&1 | tee pg-cierre.log; grep -Eq '^RESULTADO ([0-9]+)/\1 PASS' pg-cierre.log
       - name: Audit adversarial SQL (E1–E8)
