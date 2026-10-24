@@ -54,7 +54,16 @@ async function main() {
         const all = seqs.flatMap((q) => q.slots);
         const dist: Record<string, number> = {}; for (const sl of all) { const k = `${sl.role}:i${sl.impact}:${(sl.visual as any).motion ? "m" : "s"}`; dist[k] = (dist[k] ?? 0) + 1; }
         log("CANDIDATES", { aiVideoCandidates: all.filter((sl) => (sl.visual as any).aiVideoCandidate).length, dist });
-        try { const { assessAiVideoEligibility } = await import("../src/lib/video/long-form/ai-video-eligibility" as string); log("ELIG", { fn: typeof assessAiVideoEligibility }); } catch (e) { log("ELIG", { error: String(e).slice(0, 120) }); }
+        try {
+          const [{ scoreAiVideoEligibility }, { planSequenceShots }, { resolveSequences, PLAN_ESTIMATE_AVAILABILITY }, pp] = await Promise.all([import("../src/lib/video/long-form/ai-video-eligibility"), import("../src/lib/video/long-form/sequence-direction"), import("../src/lib/video/long-form/sequence-intent"), import("../src/lib/video/long-form/production-plan")]);
+          const { shots, narrationSeconds } = planSequenceShots(beats as any, resolveSequences(seqs, PLAN_ESTIMATE_AVAILABILITY));
+          const limits = pp.strategyLimits("cinematic", 2.36, { aiVideoEnabled: true, units: pp.getGenerativeUnitCosts("veo", "recraft") });
+          const av = shots.filter((sh: any) => sh.type === "ai_video");
+          log("ELIG", { limits: { maxClips: limits.maxAiVideoClips, maxImages: limits.maxAiImageGenerations, maxGenUsd: limits.maxGenerativeUsd, clipUsd: limits.units.veoClipUsd, cfg: limits.aiVideoCostConfig },
+            shots: av.map((sh: any) => { const e = scoreAiVideoEligibility({ id: sh.id, visualIntent: sh.visualIntent, durationSec: sh.durationSec, type: "ai_video", motionRequired: sh.motionRequired }, limits.aiVideoCostConfig); return { d: Math.round(sh.durationSec), score: e.eligibilityScore, rec: e.recommendedAssetType, why: e.reason.slice(0, 90), intent: sh.visualIntent.slice(0, 70) }; }) });
+          const alloc = pp.allocateShotTypes(shots, narrationSeconds, limits);
+          log("ELIG", { allocated: alloc.aiVideoClipCount, reasons: alloc.shots.filter((x: any) => x.plannedType === "ai_video" || (x as any).degradeReason?.includes("video")).map((x: any) => x.degradeReason ?? x.plannedType).slice(0, 10) });
+        } catch (e) { log("ELIG", { error: String(e).slice(0, 200) }); }
       }
       const perBeat = seqs.map((s, i) => ({ beat: i + 1, slots: s.slots.length, secPerSlot: Math.round(durationSec(beats[i]) / s.slots.length) }));
       for (const image of ["openai", "recraft"] as const) for (const ai of [false, true]) {
