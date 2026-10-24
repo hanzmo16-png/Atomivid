@@ -1,0 +1,104 @@
+# Integration simulation #201 → #199 → #200 on base 762714e (branch claude/integracion-201-199-200, never merged).
+# USD 0: no repository secret; disposable PostgreSQL / PostgREST / provider mocks on 127.0.0.1.
+name: integracion-201-199-200
+on:
+  push:
+    branches: [claude/integracion-201-199-200]
+permissions:
+  contents: read
+concurrency:
+  group: integracion-201-199-200
+  cancel-in-progress: true
+jobs:
+  static:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-not-a-secret
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: typecheck
+        run: npx next typegen && npm run typecheck
+      - name: test:unit (union of #199 and #200 lists)
+        run: set -o pipefail; NODE_OPTIONS=--test-reporter=tap npm run test:unit 2>&1 | tee unit.log; grep -E '^# (tests|pass|fail|skipped|todo)' unit.log
+      - name: spend + editorial + rescate + podcast3 suites
+        run: |
+          set -o pipefail
+          node --import tsx --test src/lib/supply/spend-authorization.test.ts src/lib/video/long-form/long-form-15min-readiness.test.ts src/lib/podcast/spend-authorization-open.test.ts 2>&1 | tee spend.log
+          npm run test:rescate 2>&1 | tee rescate.log
+          npm run test:podcast3 2>&1 | tee podcast3.log
+      - name: build
+        run: npm run build > build.log 2>&1 || { tail -60 build.log; exit 1; }
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: integracion-static, retention-days: 14, path: "*.log" }
+  postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - name: PostgreSQL 17 + ffmpeg
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -yq postgresql-17 ffmpeg espeak-ng
+          sudo systemctl stop postgresql || true
+          echo "PG_BIN=/usr/lib/postgresql/17/bin" >> "$GITHUB_ENV"
+      - run: npm ci --no-audit --no-fund
+      - name: "#198 spend authorization + #201 T10c (resume-auth-ref) + #199 manual balance"
+        run: |
+          set -o pipefail
+          bash scripts/qa/spend-authorization-db.sh "$RUNNER_TEMP/pgsa" 55901 2>&1 | tee pg-spend.log
+          bash scripts/qa/spend-authorization-db.sh "$RUNNER_TEMP/pgmb" 55902 scripts/qa/manual-balance-postgres.sh 2>&1 | tee -a pg-spend.log
+          ! grep -q '^PENDING T10c' pg-spend.log || { echo "::error::T10c still pending after #201"; exit 1; }
+      - name: "#200 closure E2E on DB (cierre)"
+        run: set -o pipefail; bash scripts/qa/podcast-cierre-db.sh "$RUNNER_TEMP/pgc" 55911 2>&1 | tee pg-cierre.log; grep -Eq '^RESULTADO ([0-9]+)/\1 PASS' pg-cierre.log
+      - name: Audit adversarial SQL (E1–E8)
+        run: set -o pipefail; bash scripts/qa/audit-pr200-final-db.sh "$RUNNER_TEMP/pga" 55931 2>&1 | tee pg-audit.log
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: integracion-postgres, retention-days: 14, path: "pg-*.log" }
+  e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    env:
+      CI: "1"
+      E2E_HOME: ${{ github.workspace }}/.e2e-local
+      E2E_PGPORT: "55532"
+      E2E_TIMEOUT: "7200"
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - name: System dependencies
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -yq postgresql-17 espeak-ng ffmpeg python3-numpy xz-utils
+          sudo systemctl stop postgresql || true
+          echo "PG_BIN=/usr/lib/postgresql/17/bin" >> "$GITHUB_ENV"
+      - run: npm ci --no-audit --no-fund
+      - run: bash scripts/harness/e2e/infra/setup.sh
+      - run: node "$E2E_HOME/deps/node_modules/playwright/cli.js" install ffmpeg
+      - run: bash scripts/harness/e2e/podcast/start.sh
+      - name: Podcast 2.1 + 3.0 browser E2E (cases 1–11) on the integrated tree
+        run: |
+          set -o pipefail
+          bash scripts/harness/e2e/podcast/run.sh ci "1,2,3,4,5,6,7,8,9,10,11"
+          grep -Eq '^RESULTADO ([0-9]+)/\1 PASS$' "$E2E_HOME/out/ci.log" || { echo "::error::E2E failures"; exit 1; }
+      - name: No real provider contacted
+        if: always()
+        run: |
+          f="$E2E_HOME/logs/egress.jsonl"; [ -f "$f" ] || exit 0
+          if grep '"egress_refused"' "$f" | grep -Eiq 'elevenlabs|pexels|fal\.(ai|run)|openai|anthropic|recraft|heygen|d-id|supabase\.co|stripe'; then echo "::error::egress"; exit 1; fi
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: integracion-e2e, retention-days: 14, path: ".e2e-local/out/ci.log" }
