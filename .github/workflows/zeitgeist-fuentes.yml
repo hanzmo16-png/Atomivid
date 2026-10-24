@@ -15,4 +15,4 @@ jobs:
       - uses: actions/checkout@v4
       - run: (sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils) >/dev/null || echo "poppler no disponible"
       - run: pip install -q pypdf==5.1.0
-      - run: python3 scripts/research/fetch-sources.py
+      - run: python3 scripts/research/fetch-sources.py ${{ vars.ZG_ONLY || 'bls-1913 bls-2025 nsa-hanyok-wb stlfed-wb' }}

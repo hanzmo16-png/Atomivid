@@ -54,6 +54,11 @@ SOURCES = [
     ("wiki-magi", "https://en.wikipedia.org/wiki/Biblical_Magi", ["three", "number", "kings", "Matthew"]),
     ("wiki-zimmermann", "https://en.wikipedia.org/wiki/Zimmermann_Telegram", ["Mexico", "January 1917", "April 1917"]),
     ("skeptoid-196", "https://skeptoid.com/episodes/4196", ["Zeitgeist", "New York Times", "moved away", "Massey", "income tax"]),
+    ("bls-1913", "https://api.bls.gov/publicAPI/v1/timeseries/data/CUUR0000SA0?startyear=1913&endyear=1913", ["\"year\":\"1913\""]),
+    ("bls-2025", "https://api.bls.gov/publicAPI/v1/timeseries/data/CUUR0000SA0?startyear=2025&endyear=2026", ["\"year\":\"2026\"", "\"year\":\"2025\""]),
+    ("nsa-hanyok-wb", "https://web.archive.org/web/2017/https://www.nsa.gov/news-features/declassified-documents/gulf-of-tonkin/articles/assets/files/release-1/rel1_skunks_bogies.pdf",
+     ["did not happen", "no attack", "Herrick", "doubtful", "4 August"]),
+    ("stlfed-wb", "https://web.archive.org/web/2025/https://www.stlouisfed.org/in-plain-english/who-owns-the-federal-reserve-banks", ["stock", "dividend", "Treasury", "sold"]),
     # Tarifas públicas
     ("price-elevenlabs-api", "https://elevenlabs.io/pricing/api", ["per 1K", "1K characters", "Multilingual", "Flash", "per minute", "$"]),
     ("price-elevenlabs", "https://elevenlabs.io/pricing", ["Creator", "Pro", "credits", "characters", "$22", "$99", "$5"]),
@@ -117,6 +122,8 @@ def main() -> int:
                 print(f"  [{k}] …{text[max(0, i - 220):i + 280].replace(chr(10), ' ')}…")
             if not ms:
                 print(f"  [{k}] (sin coincidencias)")
+        if sid.startswith("bls-"):
+            print("  RAW:", text[:2500])
         if sid == "fred-cpi" and status == 200:
             rows = [r.split(",") for r in text.strip().splitlines()[1:]]
             print("  CPI first/last:", rows[:2], rows[-3:])
