@@ -18,14 +18,16 @@ function verifiedCostUsd(provider: string, estimatedCostUsd: number): number {
 
 /**
  * Bounded retry of the WRITE of an already-paid result (the provider has charged by then). A transient storage error
- * must not turn a recoverable asset into a permanently unloadable one. Defaults: 3 attempts, waits 500 ms then 1500 ms.
+ * must not turn a recoverable asset into a permanently unloadable one. Defaults: 3 attempts, waits 500 ms then 1500 ms;
+ * `attempts` must be a finite integer (anything else falls back to 3) and is clamped to 1–5.
  */
 export type StorageRetry = { attempts?: number; retryDelayMs?: (retry: number) => number };
 export type PaidCallDeps = { ledger: LedgerStore; results: PaidResultStore; requestId: string; storageRetry?: StorageRetry };
 
 const STORAGE_RETRY_DELAYS_MS = [500, 1500];
 async function withStorageRetry(retry: StorageRetry | undefined, write: () => Promise<void>): Promise<void> {
-  const attempts = Math.max(1, Math.min(5, retry?.attempts ?? 3));
+  const requested = retry?.attempts;
+  const attempts = Number.isInteger(requested) ? Math.max(1, Math.min(5, requested as number)) : 3;
   for (let i = 1; ; i++) {
     try { return await write(); } catch (err) {
       if (i >= attempts) throw err;
@@ -48,9 +50,12 @@ async function storeAudio<M extends { audioPath: string; sha256: string; bytes: 
 ): Promise<string> {
   const audioPath = paidResultPath(requestId, key, audio.extension);
   const jsonPath = paidResultPath(requestId, key, "json");
+  // Sidecar FIRST, then bytes. The sidecar holds the only copy of the metadata (word timings, duration, track) and
+  // the sha256 + length of the audio, so bytes are never left durable without it: a persistent failure leaves either
+  // nothing, or a sidecar whose missing bytes fail verification. Both stay fail-closed (no reuse, no second payment).
   try {
-    await withStorageRetry(retry, () => results.putBytes(audioPath, audio.audioBuffer, audio.mimeType));
     await withStorageRetry(retry, () => results.putJson(jsonPath, { ...meta, audioPath, sha256: sha256Hex(audio.audioBuffer), bytes: audio.audioBuffer.byteLength }));
+    await withStorageRetry(retry, () => results.putBytes(audioPath, audio.audioBuffer, audio.mimeType));
     return jsonPath;
   } catch (err) {
     // The provider already charged: commit with an unloadable ref rather than lose the row. A
