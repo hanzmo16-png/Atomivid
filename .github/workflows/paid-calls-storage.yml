@@ -1,0 +1,33 @@
+name: paid-calls-storage
+# USD 0: storage reliability of already-paid voice/music results (fake providers, in-memory store, no network)
+# plus the whole spend suite. The targeted step must report exactly 12 passing cases and 0 failures.
+on:
+  pull_request:
+    paths: ["src/lib/paid-calls/**", "src/lib/production-intelligence/**", ".github/workflows/paid-calls-storage.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Storage reliability (voice + music, 12 cases)
+        run: |
+          set -o pipefail
+          node --import tsx --test src/lib/paid-calls/storage-reliability.test.ts 2>&1 | tee storage-reliability.tap
+          grep -qx '# pass 12' storage-reliability.tap
+          grep -qx '# fail 0' storage-reliability.tap
+      - name: Full spend suite (npm run test:spend)
+        run: |
+          set -o pipefail
+          npm run -s test:spend 2>&1 | tee test-spend.tap
+          grep -qx '# fail 0' test-spend.tap
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: paid-calls-storage, path: "*.tap" }
