@@ -1,6 +1,6 @@
 # P1-1 — En el móvil, el formulario de Reel se ensancha cuando se elige Recraft
 
-**Estado:** abierto.
+**Estado:** abierto en producción. Corrección propuesta en un PR independiente, [#219](https://github.com/hanzmo16-png/Atomivid/pull/219) (solo CSS, el parche de abajo). Verificada en emulación en el PR de verificación [#220](https://github.com/hanzmo16-png/Atomivid/pull/220) (#202 + #219): reproducción 3/3 PASS y `XPASS [P1-1]`. Falta confirmarla en un Samsung físico.
 
 **Dueño de la corrección:** carril Recraft (Grok). Este documento **no** modifica `src/app/dashboard/new/ReelImageSourcePicker.tsx`; solo aporta la reproducción, la evidencia y una propuesta.
 
