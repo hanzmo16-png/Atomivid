@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Onboarding } from "./Onboarding";
 
 /**
- * Regresión M3-1 (QA móvil, docs/qa/m3-mobile/REPORTE.md): en el teléfono el botón de ayuda flotante
+ * Regresión M3-1 (QA móvil, PR #216): en el teléfono el botón de ayuda flotante
  * (fixed bottom-5 right-5) tapaba el borde derecho de «Generar video final» (revisión del Reel) y de «Siguiente»
  * (asistente de Podcast), las barras de acción fijas inferiores. Por debajo de `sm` la ayuda va al final de la página,
  * en el flujo; desde `sm` sigue flotando. La prueba de interfaz real es scripts/harness/e2e/qa-aceptacion/m3-help-overlap.cjs.
