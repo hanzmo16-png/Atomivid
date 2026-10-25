@@ -3,6 +3,7 @@ name: cierre-supabase-ensayo
 on:
   push:
     branches: [claude/cierre-supabase-ensayo]
+    paths-ignore: ["docs/**"]
 permissions:
   contents: read
 jobs:
