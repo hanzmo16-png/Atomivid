@@ -1,0 +1,139 @@
+{
+ "topic": "El Canal de Panamá: cómo se unieron dos océanos",
+ "title": "El Canal de Panamá: la obra que unió dos océanos",
+ "storyPlan": {
+  "centralQuestion": "¿Cómo se logró abrir un paso de barcos a través de una selva y una cordillera?",
+  "openingPromise": "Seguir la obra desde el fracaso francés hasta la apertura de 1914.",
+  "firstAnswer": "La solución fue no excavar hasta el nivel del mar, sino subir los barcos con esclusas.",
+  "endingAnswer": "El canal funcionó porque combinó esclusas, un lago artificial y el control de las enfermedades."
+ },
+ "sources": [
+  {
+   "id": "src-britannica",
+   "title": "Encyclopaedia Britannica — Panama Canal",
+   "kind": "reference",
+   "locator": "https://www.britannica.com/topic/Panama-Canal"
+  },
+  {
+   "id": "src-acp",
+   "title": "Autoridad del Canal de Panamá — Historia del Canal",
+   "kind": "primary",
+   "locator": "https://pancanal.com/historia/"
+  },
+  {
+   "id": "src-mccullough",
+   "title": "David McCullough, The Path Between the Seas (1977)",
+   "kind": "secondary"
+  }
+ ],
+ "facts": [
+  {
+   "id": "f-1881",
+   "beat": 1,
+   "token": "1881",
+   "statement": "Las obras francesas comenzaron en 1881",
+   "sourceIds": [
+    "src-britannica",
+    "src-mccullough"
+   ]
+  },
+  {
+   "id": "f-1904",
+   "beat": 2,
+   "token": "1904",
+   "statement": "Estados Unidos asumió las obras en 1904",
+   "sourceIds": [
+    "src-britannica",
+    "src-acp"
+   ]
+  },
+  {
+   "id": "f-gorgas",
+   "beat": 3,
+   "token": "Gorgas",
+   "statement": "William Gorgas dirigió el control sanitario del mosquito",
+   "sourceIds": [
+    "src-mccullough"
+   ]
+  },
+  {
+   "id": "f-26m",
+   "beat": 4,
+   "token": "26 metros",
+   "statement": "Las esclusas elevan los barcos unos 26 metros hasta el lago Gatún",
+   "sourceIds": [
+    "src-acp"
+   ]
+  },
+  {
+   "id": "f-1914",
+   "beat": 5,
+   "token": "15 de agosto de 1914",
+   "statement": "El canal se inauguró el 15 de agosto de 1914 con el vapor Ancón",
+   "sourceIds": [
+    "src-britannica",
+    "src-acp"
+   ]
+  },
+  {
+   "id": "f-1999",
+   "beat": 6,
+   "token": "1999",
+   "statement": "Panamá asumió el control total del canal el 31 de diciembre de 1999",
+   "sourceIds": [
+    "src-acp"
+   ]
+  }
+ ],
+ "beats": [
+  {
+   "type": "hook",
+   "purpose": "Plantear la pregunta central",
+   "visual": "barco portacontenedores entrando en una esclusa entre selva tropical",
+   "narration": "Imagina un barco enorme que en lugar de rodear todo un continente cruza una selva en unas pocas horas. Entre el Atlántico y el Pacífico hay montañas, lluvias constantes y ríos que se desbordan. Durante siglos, unir esos dos océanos parecía imposible. Entonces, ¿cómo se logró abrir un paso para barcos a través de una cordillera y una selva?",
+   "quote": "Imagina un barco enorme que en lugar de rodear todo un continente cruza una selva en unas pocas horas"
+  },
+  {
+   "type": "setup",
+   "purpose": "El intento francés y su fracaso",
+   "visual": "grabado antiguo de obreros excavando con palas en una zanja de barro",
+   "narration": "La primera gran respuesta llegó de Francia. En 1881 comenzaron las obras dirigidas por Ferdinand de Lesseps, el mismo que había construido el canal de Suez. Su plan era excavar un canal a nivel del mar, sin esclusas. Pero la selva no era el desierto egipcio. Los deslizamientos de tierra rellenaban cada zanja y la empresa terminó en la bancarrota.",
+   "quote": "La primera gran respuesta llegó de Francia"
+  },
+  {
+   "type": "discovery",
+   "purpose": "El relevo de Estados Unidos y el cambio de plan",
+   "visual": "ingenieros revisando planos sobre una mesa de madera",
+   "narration": "En 1904 Estados Unidos asumió las obras. Los ingenieros llegaron a una conclusión decisiva: no había que excavar hasta el nivel del mar. Era mejor subir los barcos con esclusas hasta un lago en lo alto y luego bajarlos al otro lado. Ese cambio redujo la cantidad de tierra que había que mover y convirtió el problema en algo que sí podía resolverse.",
+   "quote": "Los ingenieros llegaron a una conclusión decisiva: no había que excavar hasta el nivel del mar"
+  },
+  {
+   "type": "escalation",
+   "purpose": "La batalla contra las enfermedades",
+   "visual": "mosquito sobre agua estancada en primer plano",
+   "narration": "Quedaba un enemigo más pequeño y más peligroso que las montañas: el mosquito. La fiebre amarilla y la malaria habían matado a miles de trabajadores. El médico William Gorgas organizó campañas para eliminar el agua estancada, fumigar y proteger las viviendas. Cuando las enfermedades retrocedieron, la obra pudo avanzar sin perder a tantos obreros.",
+   "quote": "Quedaba un enemigo más pequeño y más peligroso que las montañas: el mosquito"
+  },
+  {
+   "type": "insight",
+   "purpose": "Cómo funcionan las esclusas y el lago Gatún",
+   "visual": "compuertas gigantes de una esclusa abriéndose lentamente",
+   "narration": "El corazón del sistema son las esclusas. Cada cámara se llena de agua y eleva el barco paso a paso, unos 26 metros, hasta el lago Gatún. Ese lago se formó al represar el río Chagres y, en su tiempo, fue uno de los lagos artificiales más grandes del mundo. El agua que mueve los barcos baja por gravedad, sin bombas.",
+   "quote": "El corazón del sistema son las esclusas"
+  },
+  {
+   "type": "payoff",
+   "purpose": "La inauguración",
+   "visual": "vapor antiguo navegando por un canal con colinas verdes a los lados",
+   "narration": "El 15 de agosto de 1914 el vapor Ancón hizo el primer tránsito oficial de océano a océano. El mundo estaba entrando en la Primera Guerra Mundial y la noticia pasó casi en silencio. Aun así, la ruta entre Nueva York y San Francisco se acortó en miles de kilómetros, y el comercio marítimo cambió para siempre.",
+   "quote": "Aun así, la ruta entre Nueva York y San Francisco se acortó en miles de kilómetros"
+  },
+  {
+   "type": "next_curiosity",
+   "purpose": "El canal en manos de Panamá",
+   "visual": "bandera de Panamá ondeando frente a una esclusa moderna",
+   "narration": "Durante décadas el canal estuvo bajo control estadounidense. Tras los tratados firmados en 1977, Panamá asumió el control total el 31 de diciembre de 1999. Hoy la obra que nació del fracaso francés sigue funcionando gracias a la misma idea sencilla: no luchar contra la montaña, sino subir los barcos sobre ella con agua.",
+   "quote": "Hoy la obra que nació del fracaso francés sigue funcionando"
+  }
+ ]
+}
