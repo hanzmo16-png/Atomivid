@@ -18,6 +18,9 @@ const UA = "Mozilla/5.0 (Linux; Android 14; SM-A155M) AppleWebKit/537.36 (KHTML,
 const DEVICES = {
   "android-360": { viewport: { width: 360, height: 800 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3, userAgent: UA },
   "android-412": { viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2.625, userAgent: UA },
+  // Teléfono en horizontal y tableta pequeña: de 640 a ~765 px la barra fija (max-w-2xl) llega al borde donde flota la ayuda.
+  "tablet-640": { viewport: { width: 640, height: 900 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, userAgent: UA },
+  "android-horizontal-740": { viewport: { width: 740, height: 360 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3, userAgent: UA },
   "desktop-1366": { viewport: { width: 1366, height: 768 } },
   "desktop-1440": { viewport: { width: 1440, height: 900 } },
 };
@@ -77,6 +80,9 @@ const hitTest = (loc) => loc.evaluate((el) => {
       if (!cfg.isMobile) check(`[${dev}] escritorio: la ayuda sigue flotando (position: fixed)`, pos === "fixed", { pos });
       await ctx.close();
     }
+  } catch (e) {
+    // Una excepción (login, navegación, botón ausente) nunca puede terminar en verde con dispositivos sin medir.
+    check("recorrido completo sin excepción", false, String(e).slice(0, 300));
   } finally {
     const s = { pass: checks.filter((c) => c.ok).length, fail: checks.filter((c) => !c.ok).length, checks };
     fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify(s, null, 2));

@@ -33,6 +33,8 @@ const check = (name, ok, detail) => { checks.push({ name, ok: !!ok, detail }); c
       }
       await ctx.close();
     }
+  } catch (e) {
+    check("recorrido completo sin excepción", false, String(e).slice(0, 300));
   } finally {
     const s = { pass: checks.filter((c) => c.ok).length, fail: checks.filter((c) => !c.ok).length, checks };
     fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify(s, null, 2));

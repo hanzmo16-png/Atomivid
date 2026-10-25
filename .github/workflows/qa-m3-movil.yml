@@ -51,13 +51,15 @@ jobs:
         run: |
           set +e; E2E_SCRIPT=qa-aceptacion/m3-help-overlap.cjs bash scripts/harness/e2e/infra/run-e2e.sh m3-help-overlap; code=$?
           log="$E2E_HOME/out/m3-help-overlap.log"; grep -E '^(PASS|FAIL)  ' "$log"
-          grep -q '^RESULTADO' "$log" || { echo "::error::m3-help-overlap terminó sin RESULTADO"; [ "$code" = 0 ] && code=1; }
+          # Total exacto: 6 dispositivos (360, 412, 640, 740 → 3 comprobaciones; 1366, 1440 → 4). Menos = algo no se midió.
+          grep -qx 'RESULTADO 20 PASS / 0 FAIL' "$log" || { echo "::error::m3-help-overlap: se esperaba exactamente «RESULTADO 20 PASS / 0 FAIL»"; [ "$code" = 0 ] && code=1; }
           exit $code
       - name: M3-2 — las páginas públicas no se ensanchan (320/360/412)
         run: |
           set +e; E2E_SCRIPT=qa-aceptacion/m3-public-width.cjs bash scripts/harness/e2e/infra/run-e2e.sh m3-public-width; code=$?
           log="$E2E_HOME/out/m3-public-width.log"; grep -E '^(PASS|FAIL)  ' "$log"
-          grep -q '^RESULTADO' "$log" || { echo "::error::m3-public-width terminó sin RESULTADO"; [ "$code" = 0 ] && code=1; }
+          # Total exacto: 8 páginas × 3 anchos.
+          grep -qx 'RESULTADO 24 PASS / 0 FAIL' "$log" || { echo "::error::m3-public-width: se esperaba exactamente «RESULTADO 24 PASS / 0 FAIL»"; [ "$code" = 0 ] && code=1; }
           # Los tres anchos pedidos deben haberse medido de verdad (no solo un RESULTADO global).
           for w in 320 360 412; do grep -qE "^PASS  \\[${w}px\\]" "$log" || { echo "::error::m3-public-width: sin PASS a ${w} px"; [ "$code" = 0 ] && code=1; }; done
           exit $code
@@ -67,7 +69,7 @@ jobs:
           # con el mismo sha256 que el objeto almacenado, en ambos dispositivos. La reproducción se intenta con el Chrome
           # headless de Remotion (decodifica H.264); si no avanza, la batería lo declara NO PROBADO y no cuenta como PASS.
           set +e; QA_FLOWS=reel E2E_SCRIPT=qa-aceptacion/acceptance.cjs bash scripts/harness/e2e/infra/run-e2e.sh qa-reel; code=$?
-          log="$E2E_HOME/out/qa-reel.log"; grep -E '^(PASS|FAIL|NO PROBADO)  ' "$log"
+          log="$E2E_HOME/out/qa-reel.log"; grep -E '^(PASS|FAIL|NO PROBADO|XFAIL)  ' "$log"
           [ "$code" = 124 ] && echo "::error::qa-reel: TIMEOUT de la batería — no hay PASS parcial"
           grep -q '^RESULTADO' "$log" || { echo "::error::qa-reel terminó sin RESULTADO"; [ "$code" = 0 ] && code=1; }
           n=$(grep -cE '^PASS  \[(samsung|desktop)\] descarga desde la UI: MP4 H.264 \+ AAC idéntico al almacenado' "$log")
@@ -79,6 +81,14 @@ jobs:
         id: p11
         run: |
           set +e; E2E_SCRIPT=qa-aceptacion/recraft-mobile-repro.cjs bash scripts/harness/e2e/infra/run-e2e.sh recraft-repro; code=$?
+          log="$E2E_HOME/out/recraft-repro.log"; grep -E '^(PASS|FAIL)  |^RESULTADO' "$log"
+          # XFAIL solo si el exit 1 se debe EXACTAMENTE a P1-1: RESULTADO del defecto, y cada FAIL con «con archivo N px
+          # (dispositivo N px)» (el ancho sin Recraft es correcto). Un cuelgue, una excepción u otra regresión de ancho
+          # también salen con 1 y se informan como NO-EVALUABLE, nunca como el defecto conocido.
+          if [ "$code" = 1 ]; then
+            nf=$(grep -c '^FAIL  ' "$log"); ok=$(grep -cE '^FAIL  .*con archivo ([0-9]+) px \(dispositivo \1 px\)' "$log")
+            if ! grep -q 'defecto P1-1 presente' "$log" || [ "$nf" = 0 ] || [ "$nf" != "$ok" ]; then code=99; fi
+          fi
           case "$code" in
             1) echo "::notice title=P1-1::XFAIL — el defecto sigue presente (esperado; carril de Grok)"; echo "result=XFAIL" >> "$GITHUB_OUTPUT" ;;
             0) echo "::warning title=P1-1::XPASS — la reproducción ya no falla; revisar y retirar el XFAIL"; echo "result=XPASS" >> "$GITHUB_OUTPUT" ;;
@@ -88,9 +98,9 @@ jobs:
       - name: Ningún proveedor real contactado
         if: always()
         run: |
-          f="$E2E_HOME/logs/egress.jsonl"; [ -f "$f" ] || exit 0
+          f="$E2E_HOME/logs/egress.jsonl"; [ -f "$f" ] || { echo "::error::sin registro de salidas (egress.jsonl): no hay evidencia de que no se contactara a proveedores"; exit 1; }
           grep '"egress_refused"' "$f" | sort -u || true
-          if grep '"egress_refused"' "$f" | grep -Eiq 'elevenlabs|pexels|fal\.(ai|run)|openai|anthropic|recraft|heygen|d-id|supabase\.co|stripe'; then
+          if grep '"egress_refused"' "$f" | grep -Eiq 'elevenlabs|pexels|pixabay|runway|googleapis|beatoven|fal\.(ai|run)|openai|anthropic|recraft|heygen|d-id|supabase\.co|stripe'; then
             echo "::error::intento de salida hacia un proveedor real"; exit 1; fi
       - name: Resumen
         if: always()
