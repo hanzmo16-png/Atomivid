@@ -42,15 +42,24 @@ select qa.check('A0 naive release rolled back', qa.st('qa-r11') = 'RESERVED');
 
 -- A1 RESERVED → cancelled_before_submission
 create temp table s1 as select qa.spend('openai', (select s from w)) v;
+create temp table d1 as select qa.st('qa-r1') st, qa.upd('qa-r1') u;
 select qa.check('A1 RESERVED cancelled_before_submission → REFUNDED', (qa.rec('dec-0001-r1', 'qa-r1', 'cancelled_before_submission', 'never submitted (no SUBMITTED transition, no job id)')->>'status') = 'REFUNDED');
 select qa.check('A1 row: committed 0, supply_reconciled, result_ref cancelled-before-submission:',
   (select committed_usd = 0 and supply_reconciled and result_ref = 'cancelled-before-submission:dec-0001-r1' from public.pi_paid_operations where idempotency_key = 'qa-r1'));
 select qa.check('A1 pi_supply_spend unchanged (was not counted, still not counted)', qa.spend('openai', (select s from w)) = (select v from s1));
 -- A2 idempotent replay
-select qa.check('A2 replay of the same decision → replayed', (public.pi_reconcile_open_operation('dec-0001-r1', 'qa-r1', 'whatever', now(), 'cancelled_before_submission', 'x')->>'replayed')::boolean);
+select qa.check('A2 replay of the identical decision → replayed', (public.pi_reconcile_open_operation('dec-0001-r1', 'qa-r1', (select st from d1), (select u from d1), 'cancelled_before_submission', 'never submitted (no SUBMITTED transition, no job id)')->>'replayed')::boolean);
 select qa.check('A2 replay changed nothing (one log row, row unchanged)', (select count(*) from public.pi_reconciliation_log where idempotency_key = 'qa-r1') = 1 and qa.st('qa-r1') = 'REFUNDED');
+-- A2b: a replay that differs in ANY field of the decision must fail closed (never an ambiguous success)
+select qa.check('A2b replay with different evidence is refused', qa.err($q$select public.pi_reconcile_open_operation('dec-0001-r1', 'qa-r1', (select st from d1), (select u from d1), 'cancelled_before_submission', 'other evidence')$q$) like '%different parameters%');
+select qa.check('A2b replay with a different amount is refused', qa.err($q$select public.pi_reconcile_open_operation('dec-0001-r1', 'qa-r1', (select st from d1), (select u from d1), 'cancelled_before_submission', 'never submitted (no SUBMITTED transition, no job id)', 0.01)$q$) like '%different parameters%');
+select qa.check('A2b replay with a different over-reservation flag is refused', qa.err($q$select public.pi_reconcile_open_operation('dec-0001-r1', 'qa-r1', (select st from d1), (select u from d1), 'cancelled_before_submission', 'never submitted (no SUBMITTED transition, no job id)', null, true)$q$) like '%different parameters%');
+select qa.check('A2b replay with a different expected status is refused', qa.err($q$select public.pi_reconcile_open_operation('dec-0001-r1', 'qa-r1', 'SUBMITTED', (select u from d1), 'cancelled_before_submission', 'never submitted (no SUBMITTED transition, no job id)')$q$) like '%different parameters%');
+select qa.check('A2b replay with a different expected updated_at is refused', qa.err($q$select public.pi_reconcile_open_operation('dec-0001-r1', 'qa-r1', (select st from d1), (select u from d1) + interval '1 microsecond', 'cancelled_before_submission', 'never submitted (no SUBMITTED transition, no job id)')$q$) like '%different parameters%');
+select qa.check('A2b replay with an amount where the original had none is refused (NULL ≠ 0)', qa.err($q$select public.pi_reconcile_open_operation('dec-0001-r1', 'qa-r1', (select st from d1), (select u from d1), 'cancelled_before_submission', 'never submitted (no SUBMITTED transition, no job id)', 0)$q$) like '%different parameters%');
+select qa.check('A2b the log stores the decision hash', (select length(decision_sha256) = 64 from public.pi_reconciliation_log where decision_id = 'dec-0001-r1'));
 -- A3/A4 decision ids and double decisions
-select qa.check('A3 a used decision_id cannot be reused for another operation', qa.err($q$select qa.rec('dec-0001-r1', 'qa-r2', 'cancelled_before_submission', 'x')$q$) like '%already used%');
+select qa.check('A3 a used decision_id cannot be reused for another operation', qa.err($q$select qa.rec('dec-0001-r1', 'qa-r2', 'cancelled_before_submission', 'x')$q$) like '%different parameters%' and qa.st('qa-r2') = 'RESERVED');
 select qa.check('A4 a second decision on a reconciled operation is refused',
   qa.err($q$select public.pi_reconcile_open_operation('dec-0002-r1', 'qa-r1', 'REFUNDED', qa.upd('qa-r1'), 'not_charged', 'x')$q$) like '%already reconciled%');
 -- A5 RESERVED can never be charged or "not_charged"
@@ -84,7 +93,10 @@ select qa.check('A9 row: supply_reconciled, committed 0', (select supply_reconci
 select qa.check('A9 spend decreases by exactly the reservation', (select v from s9) - qa.spend('openai', (select s from w)) = 0.40);
 -- A10 charged above the reservation needs an explicit flag
 select qa.check('A10 charged above reservation refused without flag', qa.err($q$select qa.rec('dec-0010-a', 'qa-r8', 'charged', 'BFL task t1', 0.05)$q$) like '%exceeds the reservation%');
+create temp table d10 as select qa.st('qa-r8') st, qa.upd('qa-r8') u;
 select qa.check('A10 charged above reservation with flag → COMMITTED', (qa.rec('dec-0010-b', 'qa-r8', 'charged', 'BFL task t1', 0.05, true)->>'amountUsd')::numeric = 0.05);
+select qa.check('A10 replay of the same amount written with another scale (0.050) replays', (public.pi_reconcile_open_operation('dec-0010-b', 'qa-r8', (select st from d10), (select u from d10), 'charged', 'BFL task t1', 0.050, true)->>'replayed')::boolean);
+select qa.check('A10 replay with a different amount (0.06) is refused', qa.err($q$select public.pi_reconcile_open_operation('dec-0010-b', 'qa-r8', (select st from d10), (select u from d10), 'charged', 'BFL task t1', 0.06, true)$q$) like '%different parameters%');
 select qa.check('A10 row: committed_usd = provider amount 0.05', (select committed_usd = 0.05 and status = 'COMMITTED' from public.pi_paid_operations where idempotency_key = 'qa-r8'));
 -- A11 SUBMITTED internal (USD 0)
 select qa.check('A11 SUBMITTED internal not_charged → REFUNDED', (qa.rec('dec-0011-r5', 'qa-r5', 'not_charged', 'internal provider: no external call, reserved 0')->>'status') = 'REFUNDED');
@@ -104,6 +116,11 @@ select qa.check('A14 anon/authenticated/service_role cannot EXECUTE the tool',
   not has_function_privilege('anon', 'public.pi_reconcile_open_operation(text,text,text,timestamptz,text,text,numeric,boolean)', 'execute')
   and not has_function_privilege('authenticated', 'public.pi_reconcile_open_operation(text,text,text,timestamptz,text,text,numeric,boolean)', 'execute')
   and not has_function_privilege('service_role', 'public.pi_reconcile_open_operation(text,text,text,timestamptz,text,text,numeric,boolean)', 'execute'));
+select qa.check('A14 PUBLIC (any role) cannot EXECUTE the tool', not exists (select 1 from pg_proc p, aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+  where p.oid = 'public.pi_reconcile_open_operation(text,text,text,timestamptz,text,text,numeric,boolean)'::regprocedure and a.grantee = 0 and a.privilege_type = 'EXECUTE'));
+select qa.check('A14 only the owner holds EXECUTE', (select array_agg(distinct pg_get_userbyid(a.grantee)::text) = array['postgres'] from pg_proc p, aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+  where p.oid = 'public.pi_reconcile_open_operation(text,text,text,timestamptz,text,text,numeric,boolean)'::regprocedure and a.privilege_type = 'EXECUTE'));
+select qa.check('A14 PUBLIC has no privilege on the log', not exists (select 1 from pg_class c, aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) a where c.oid = 'public.pi_reconciliation_log'::regclass and a.grantee = 0));
 select qa.check('A14 clients cannot read or write the log',
   not has_table_privilege('anon', 'public.pi_reconciliation_log', 'select') and not has_table_privilege('authenticated', 'public.pi_reconciliation_log', 'insert')
   and not has_table_privilege('service_role', 'public.pi_reconciliation_log', 'insert'));

@@ -34,6 +34,10 @@ sha=$(sha256sum "$TOOL" | cut -d' ' -f1); echo "INFO tool sha256 $sha"
 grep -q "  docs/ops/conciliacion/pi_reconcile_open_operation.sql$" "$R/docs/ops/conciliacion/SHA256SUMS" 2>/dev/null && (cd "$R" && sha256sum -c --quiet docs/ops/conciliacion/SHA256SUMS) && pass "tool files match docs/ops/conciliacion/SHA256SUMS" || fail "tool files do not match SHA256SUMS"
 $Q -d rec -v ON_ERROR_STOP=1 -f "$TOOL" > "$W/logs/tool.log" 2>&1 && pass "tool applies" || { fail "tool does not apply: $(grep -m2 ERROR "$W/logs/tool.log")"; echo "RESULT conciliacion: $fails FAIL"; exit 1; }
 $Q -d rec -v ON_ERROR_STOP=1 -f "$TOOL" > /dev/null 2>&1 && pass "tool re-applies (idempotent definition)" || fail "tool re-apply"
+# an incompatible pre-existing log table must not be accepted silently by IF NOT EXISTS
+$Q -d postgres -c "create database inc template rec" >/dev/null 2>&1 && $Q -d inc -c "drop table public.pi_reconciliation_log cascade; create table public.pi_reconciliation_log (decision_id text primary key, note text)" >/dev/null 2>&1
+$Q -d inc -v ON_ERROR_STOP=1 -f "$TOOL" > "$W/logs/inc.log" 2>&1 && fail "tool accepted an incompatible pre-existing pi_reconciliation_log" || { grep -q 'incompatible' "$W/logs/inc.log" && pass "tool refuses an incompatible pre-existing pi_reconciliation_log (fail closed)" || fail "incompatible table: unexpected error $(grep -m1 ERROR "$W/logs/inc.log")"; }
+$Q -d postgres -c "drop database if exists inc" >/dev/null 2>&1
 
 # ---- dry run of the default plan on the real open operations (copy) BEFORE the synthetic tests touch anything ----
 if [ -n "${DATA_SQL:-}" ]; then

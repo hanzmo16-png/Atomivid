@@ -3,7 +3,7 @@
 name: conciliacion-y-puerta
 on:
   push:
-    branches: [claude/conciliacion-y-puerta]
+    branches: [claude/conciliacion-y-puerta, claude/conciliacion-hardening]
     paths-ignore: ["docs/*.md"]
 permissions:
   contents: read
@@ -52,8 +52,8 @@ jobs:
           sudo apt-get update -q && sudo apt-get install -yq postgresql-common
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -yq postgresql-17
           sudo systemctl stop postgresql || true
-      - name: Live gate before O1 (full rehearsal + stage gate; production read-only)
-        run: set -o pipefail; GATE_NEXT=O1 bash scripts/qa/schema-readonly/cierre.sh 2>&1 | tee puerta.log
+      - name: Live gate before O1 (gate only, no data rows read; production read-only)
+        run: set -o pipefail; GATE_ONLY=1 GATE_NEXT=O1 bash scripts/qa/schema-readonly/cierre.sh 2>&1 | tee puerta.log
       - name: Live gate for the NEXT stage O2 must fail closed today (O1 not done)
         run: |
           set -o pipefail

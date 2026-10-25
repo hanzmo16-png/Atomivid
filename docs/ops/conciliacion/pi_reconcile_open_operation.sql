@@ -21,6 +21,7 @@ begin;
 create table if not exists public.pi_reconciliation_log (
   decision_id text primary key check (length(trim(decision_id)) >= 8),
   idempotency_key text not null unique references public.pi_paid_operations (idempotency_key),
+  decision_sha256 text not null check (decision_sha256 ~ '^[0-9a-f]{64}$'),
   outcome text not null check (outcome in ('cancelled_before_submission', 'not_charged', 'charged', 'assumed_charged')),
   evidence text not null check (length(trim(evidence)) > 0),
   amount_usd numeric(12,4) not null check (amount_usd >= 0),
@@ -29,6 +30,15 @@ create table if not exists public.pi_reconciliation_log (
   actor text not null default current_user,
   decided_at timestamptz not null default clock_timestamp()
 );
+-- IF NOT EXISTS must never accept a different table silently: the exact column contract is checked.
+do $$ begin
+  if (select array_agg(column_name::text || ':' || data_type order by ordinal_position) from information_schema.columns
+      where table_schema = 'public' and table_name = 'pi_reconciliation_log')
+     is distinct from array['decision_id:text', 'idempotency_key:text', 'decision_sha256:text', 'outcome:text', 'evidence:text', 'amount_usd:numeric',
+                            'before_row:jsonb', 'after_row:jsonb', 'actor:text', 'decided_at:timestamp with time zone'] then
+    raise exception 'pi_reconciliation_log exists with an incompatible definition; refusing to install over it' using errcode = 'P0001';
+  end if;
+end $$;
 alter table public.pi_reconciliation_log enable row level security;
 revoke all on table public.pi_reconciliation_log from public, anon, authenticated, service_role;
 
@@ -54,16 +64,21 @@ declare
   prev public.pi_reconciliation_log%rowtype;
   amount numeric;
   n int;
+  h text;
 begin
   if p_decision_id is null or length(trim(p_decision_id)) < 8 then raise exception 'RECONCILE: decision_id required (>= 8 chars)' using errcode = 'P0001'; end if;
   -- Serialize every decision on the same operation (also covers the not-yet-logged race between two decision ids).
   perform pg_advisory_xact_lock(hashtext('pi_reconcile:' || coalesce(p_key, '')));
+  -- Canonical hash of the WHOLE decision (amount normalized to the ledger scale, timestamp to UTC microseconds).
+  h := encode(sha256(convert_to(jsonb_build_array(p_decision_id, p_key, p_expected_status,
+         to_char(p_expected_updated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'), p_outcome, p_evidence,
+         (p_actual_usd::numeric(12,4))::text, coalesce(p_allow_over_reserved, false))::text, 'UTF8')), 'hex');
   select * into prev from public.pi_reconciliation_log where decision_id = p_decision_id;
   if found then
-    if prev.idempotency_key is distinct from p_key or prev.outcome is distinct from p_outcome then
-      raise exception 'RECONCILE: decision % was already used for another operation or outcome', p_decision_id using errcode = 'P0001';
+    if prev.decision_sha256 is distinct from h then
+      raise exception 'RECONCILE: decision % replayed with different parameters (operation, preconditions, outcome, evidence, amount or override)', p_decision_id using errcode = 'P0001';
     end if;
-    return jsonb_build_object('replayed', true, 'status', prev.after_row->>'status', 'amountUsd', prev.amount_usd);
+    return jsonb_build_object('replayed', true, 'status', prev.after_row->>'status', 'amountUsd', prev.amount_usd, 'decisionSha256', h);
   end if;
   if p_evidence is null or length(trim(p_evidence)) = 0 then raise exception 'RECONCILE: provider evidence required' using errcode = 'P0001'; end if;
   select * into o from public.pi_paid_operations where idempotency_key = p_key for update;
@@ -117,9 +132,9 @@ begin
   get diagnostics n = row_count;
   if n <> 1 then raise exception 'RECONCILE: operation changed during reconciliation' using errcode = 'P0001'; end if;
   select * into a from public.pi_paid_operations where idempotency_key = p_key;
-  insert into public.pi_reconciliation_log (decision_id, idempotency_key, outcome, evidence, amount_usd, before_row, after_row)
-    values (p_decision_id, p_key, p_outcome, p_evidence, amount, to_jsonb(o), to_jsonb(a));
-  return jsonb_build_object('replayed', false, 'status', a.status, 'amountUsd', amount);
+  insert into public.pi_reconciliation_log (decision_id, idempotency_key, decision_sha256, outcome, evidence, amount_usd, before_row, after_row)
+    values (p_decision_id, p_key, h, p_outcome, p_evidence, amount, to_jsonb(o), to_jsonb(a));
+  return jsonb_build_object('replayed', false, 'status', a.status, 'amountUsd', amount, 'decisionSha256', h);
 end $$;
 alter function public.pi_reconcile_open_operation(text, text, text, timestamptz, text, text, numeric, boolean) owner to postgres;
 revoke all on function public.pi_reconcile_open_operation(text, text, text, timestamptz, text, text, numeric, boolean) from public, anon, authenticated, service_role;
