@@ -18,6 +18,23 @@
 --   * EXECUTE only for the owner (postgres): neither the app (service_role) nor clients can call it.
 begin;
 
+-- Every function this install defines must either not exist yet or already belong to postgres: CREATE OR REPLACE keeps
+-- the previous owner, who could later swap the body (e.g. make the append-only trigger function a no-op). The two
+-- install-time helpers never survive an install, so any pre-existing one is foreign and refused outright.
+do $$ declare f text; o text; begin
+  foreach f in array array['public.pi_reconciliation_log_immutable()',
+                           'public.pi_reconcile_open_operation(text, text, text, timestamptz, text, text, numeric, boolean)'] loop
+    select pg_catalog.pg_get_userbyid(p.proowner) into o from pg_catalog.pg_proc p where p.oid = pg_catalog.to_regprocedure(f);
+    if o is not null and o <> 'postgres' then
+      raise exception 'tool function % exists with an incompatible owner (%); refusing to install over it', f, o using errcode = 'P0001';
+    end if;
+  end loop;
+  if pg_catalog.to_regprocedure('public.pi_reconciliation_contract_parts(regclass)') is not null
+     or pg_catalog.to_regprocedure('public.pi_reconciliation_security_problem()') is not null then
+    raise exception 'install helper functions already exist (incompatible leftover); refusing to install' using errcode = 'P0001';
+  end if;
+end $$;
+
 -- Catalog fingerprint of a relation's contract (names of auto-generated constraints are excluded: they embed the table name).
 create or replace function public.pi_reconciliation_contract_parts(t regclass) returns setof text
 language sql stable set search_path = '' as $f$
@@ -122,6 +139,7 @@ language plpgsql set search_path = '' as $$
 begin
   raise exception 'pi_reconciliation_log is append-only (% rejected)', tg_op using errcode = 'P0001';
 end $$;
+alter function public.pi_reconciliation_log_immutable() owner to postgres;
 drop trigger if exists pi_reconciliation_log_append_only on public.pi_reconciliation_log;
 create trigger pi_reconciliation_log_append_only before update or delete on public.pi_reconciliation_log
   for each row execute function public.pi_reconciliation_log_immutable();
@@ -214,9 +232,25 @@ end $$;
 alter function public.pi_reconcile_open_operation(text, text, text, timestamptz, text, text, numeric, boolean) owner to postgres;
 revoke all on function public.pi_reconcile_open_operation(text, text, text, timestamptz, text, text, numeric, boolean) from public, anon, authenticated, service_role;
 revoke all on function public.pi_reconciliation_log_immutable() from public, anon, authenticated, service_role;
--- Final gate: the installed log must be in the exact security state, else the whole install is rolled back.
-do $$ declare bad text := public.pi_reconciliation_security_problem(); begin
+-- Final gate: the installed log and both tool functions must be in the exact security state, else the whole install is
+-- rolled back. Functions: owner postgres, plpgsql, the expected SECURITY DEFINER flag, search_path pinned to '', and no
+-- EXECUTE (or any privilege) for anyone but the owner.
+do $$ declare bad text := public.pi_reconciliation_security_problem(); r record; begin
   if bad is not null then raise exception 'pi_reconciliation_log security state after install: %; install aborted', bad using errcode = 'P0001'; end if;
+  for r in select f.sig, f.secdef, p.oid, p.proowner, p.prosecdef, p.proconfig, l.lanname, p.proacl
+           from (values ('public.pi_reconciliation_log_immutable()', false),
+                        ('public.pi_reconcile_open_operation(text, text, text, timestamptz, text, text, numeric, boolean)', true)) f(sig, secdef)
+           left join pg_catalog.pg_proc p on p.oid = pg_catalog.to_regprocedure(f.sig)
+           left join pg_catalog.pg_language l on l.oid = p.prolang loop
+    if r.oid is null then raise exception 'tool function % missing after install', r.sig using errcode = 'P0001'; end if;
+    if pg_catalog.pg_get_userbyid(r.proowner) <> 'postgres' then
+      raise exception 'tool function % has an incompatible owner (%) after install; install aborted', r.sig, pg_catalog.pg_get_userbyid(r.proowner) using errcode = 'P0001'; end if;
+    if r.lanname <> 'plpgsql' or r.prosecdef <> r.secdef or r.proconfig is distinct from array['search_path=""'] then
+      raise exception 'tool function % has incompatible attributes (language %, security definer %, config %); install aborted',
+        r.sig, r.lanname, r.prosecdef, r.proconfig using errcode = 'P0001'; end if;
+    if exists (select 1 from pg_catalog.aclexplode(coalesce(r.proacl, pg_catalog.acldefault('f', r.proowner))) x where x.grantee <> r.proowner) then
+      raise exception 'tool function % has incompatible privileges (granted to roles other than the owner); install aborted', r.sig using errcode = 'P0001'; end if;
+  end loop;
 end $$;
 drop function public.pi_reconciliation_security_problem();
 
