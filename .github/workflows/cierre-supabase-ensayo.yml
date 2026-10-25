@@ -1,0 +1,33 @@
+# Integration-close rehearsal (USD 0): production is ONLY read; reconciliation + 120000 → 130000 → 140000 run on a disposable replica.
+name: cierre-supabase-ensayo
+on:
+  push:
+    branches: [claude/cierre-supabase-ensayo]
+permissions:
+  contents: read
+jobs:
+  ensayo:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: PostgreSQL 17 client/server
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -yq postgresql-17
+          sudo systemctl stop postgresql || true
+      - name: Read-only production snapshot + disposable rehearsal
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || 'aws-0-us-west-2.pooler.supabase.com' }}
+          SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
+        run: set -o pipefail; bash scripts/qa/schema-readonly/cierre.sh 2>&1 | tee cierre.log
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: cierre-supabase-ensayo, retention-days: 14, path: "cierre.log\ncierre-out/reconcile/*.sql" }

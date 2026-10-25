@@ -1,0 +1,31 @@
+-- READ-ONLY aggregates (no personal data): what 120000 / 130000 / 140000 would meet in production.
+-- cierre.sh wraps it in BEGIN TRANSACTION READ ONLY … ROLLBACK.
+\pset footer off
+\pset format unaligned
+\pset fieldsep ' | '
+select 'session_read_only', current_setting('transaction_read_only');
+-- row counts of every table the rehearsal copies (compared with the replica after restore)
+select format('select %L, %L, count(*) from public.%I', 'prod_rows', c.relname, c.relname)
+  from pg_class c join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public' and c.relkind = 'r' and (c.relname like 'pi\_%' or c.relname = '_migrations_applied') order by 1 \gexec
+select 'prod_rows', 'supabase_migrations.schema_migrations', count(*) from supabase_migrations.schema_migrations;
+-- 120000: exhausted documentary jobs (failed, retry_count >= 3) that the CURRENT trigger lets requeue (project-only join)
+-- and how many of those the NEW rule (same project_id + authorization_ref + non-empty transaction_id) would still allow.
+select 'impact120000 exhausted_failed_jobs', count(*) from public.documentary_script_jobs j where j.status = 'failed' and j.retry_count >= 3;
+select 'impact120000 requeue_allowed_old_rule', count(*) from public.documentary_script_jobs j where j.status = 'failed' and j.retry_count >= 3
+  and exists (select 1 from public.pi_recovery_budgets b join public.pi_recovery_resume_authorizations r on r.project_id = b.project_id and r.transaction_id is not null
+              where b.job_id = j.id and b.owner_id = j.user_id and b.status = 'ACTIVE');
+select 'impact120000 requeue_allowed_new_rule', count(*) from public.documentary_script_jobs j where j.status = 'failed' and j.retry_count >= 3
+  and exists (select 1 from public.pi_recovery_budgets b join public.pi_recovery_resume_authorizations r on r.project_id = b.project_id and r.authorization_ref = b.authorization_ref
+              where b.job_id = j.id and b.owner_id = j.user_id and b.status = 'ACTIVE' and length(trim(coalesce(b.authorization_ref, ''))) > 0
+                and r.transaction_id is not null and length(trim(r.transaction_id::text)) > 0);
+select 'impact120000 active_recovery_budgets', count(*) from public.pi_recovery_budgets where status = 'ACTIVE';
+-- 130000: podcast projects WITHOUT an authorization yet that hold RESERVED ops (the new baseline no longer hides them)
+select 'impact130000 podcast_projects_without_authorization_with_reserved', count(distinct o.project_id) from public.pi_paid_operations o
+  where o.project_id like 'podcast-%' and o.status = 'RESERVED' and not exists (select 1 from public.pi_spend_authorizations a where a.project_id = o.project_id);
+select 'impact130000 podcast_projects_blocked_by_open_charge', count(distinct o.project_id) from public.pi_paid_operations o
+  where o.project_id like 'podcast-%' and o.status in ('SUBMITTED','PROVIDER_JOB_RECORDED','RECONCILIATION_REQUIRED');
+select 'impact130000 existing_authorizations', count(*) from public.pi_spend_authorizations;
+-- 140000: supply state per provider TODAY (the replica must give the same answer before and after 140000)
+select 'prod_supply_state', p.provider, md5(public.pi_supply_state(p.provider)::text) from public.pi_supply_policies p order by 2;
+select 'impact140000 studio_tables_present', to_regclass('public.podcast_studio_episodes') is not null, to_regclass('public.podcast_studio_operations') is not null;
