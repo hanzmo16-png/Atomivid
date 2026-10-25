@@ -8,6 +8,9 @@ on:
       - 'src/app/api/generate/**'
       - 'supabase/migrations/**'
       - 'scripts/qa/reel-budget-*.ts'
+      - 'scripts/qa/reconcile-not-charged-postgres.ts'
+      - 'src/lib/production-intelligence/ledger*.ts'
+      - 'src/lib/paid-calls/supabase-ledger-store*.ts'
       - 'scripts/qa/fixtures/0023-production-intelligence.sql'
       - 'scripts/qa/director/**'
       - '.github/workflows/reel-budget-postgres.yml'
@@ -47,6 +50,7 @@ jobs:
       - run: chmod +x node_modules/@ffprobe-installer/linux-x64/ffprobe
       - run: node --import tsx scripts/qa/reel-budget-postgres.ts
       - run: node --import tsx scripts/qa/reel-budget-ledger-integration.ts
+      - run: node --import tsx scripts/qa/reconcile-not-charged-postgres.ts
       - run: npm run test:spend
       - run: npx next typegen
       - run: npx tsc --noEmit

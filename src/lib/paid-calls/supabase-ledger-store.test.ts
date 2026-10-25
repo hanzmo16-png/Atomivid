@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { supabaseLedgerStore } from "./supabase-ledger-store";
 import { PaidLedgerUnavailableError } from "./errors";
+import { reconcileWithProviderEvidence } from "@/lib/production-intelligence/ledger";
 
 type Row = Record<string, unknown>;
 function fakeSupabase(opts: { failInsert?: { code: string; message: string } } = {}) {
@@ -56,4 +57,17 @@ test("a missing table (0023 not applied) fails closed instead of returning 'abse
   const { client } = fakeSupabase({ failInsert: { code: "42P01", message: 'relation "pi_paid_operations" does not exist' } });
   const store = supabaseLedgerStore(client);
   await assert.rejects(store.insert(op), PaidLedgerUnavailableError);
+});
+
+test("not_charged reconciliation writes supply_reconciled=true to pi_paid_operations (T-20261025-0112-chatgpt-02)", async () => {
+  const { client, rows } = fakeSupabase();
+  const store = supabaseLedgerStore(client);
+  await store.insert({ ...op, status: "RECONCILIATION_REQUIRED" });
+  assert.equal(rows.get("op_1")!.supply_reconciled, undefined, "insert leaves the column to its DB default");
+  const r = await reconcileWithProviderEvidence(store, "op_1", { kind: "not_charged", proof: "provider:no-job" }, () => "2026-10-25T00:00:00Z");
+  assert.deepEqual({ s: rows.get("op_1")!.status, c: rows.get("op_1")!.committed_usd, sr: rows.get("op_1")!.supply_reconciled }, { s: "REFUNDED", c: 0, sr: true });
+  assert.equal(r.supplyReconciled, true);
+  await store.insert({ ...op, idempotencyKey: "op_2", status: "RECONCILIATION_REQUIRED" });
+  await reconcileWithProviderEvidence(store, "op_2", { kind: "committed", providerJobId: "j", resultRef: "r", actualUsd: 0.4 }, () => "2026-10-25T00:00:00Z");
+  assert.equal(rows.get("op_2")!.supply_reconciled, undefined, "a real charge never marks the row reconciled");
 });
