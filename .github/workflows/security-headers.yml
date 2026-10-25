@@ -1,0 +1,62 @@
+# Encabezados de seguridad (src/lib/security-headers.ts). USD 0, sin secretos: build de producción con URLs públicas de
+# marcador, `next start` local y comprobación en navegador (Samsung 390x844 y escritorio 1440x900): cabeceras en cada ruta,
+# iframe ajeno bloqueado (clickjacking) y 0 violaciones de la CSP aplicada. La CSP completa va en modo informe.
+name: security-headers
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [claude/atomivid-mvp-setup-0079jv]
+    paths:
+      - ".github/workflows/security-headers.yml"
+      - "next.config.*"
+      - "src/lib/security-headers*"
+      - "src/proxy.ts"
+      - "scripts/qa/security-headers-check.cjs"
+permissions:
+  contents: read
+concurrency:
+  group: security-headers-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  headers:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-not-a-secret
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Pruebas unitarias de los encabezados
+        run: node --import tsx --test src/lib/security-headers.test.ts
+      - name: Build de producción
+        run: npm run build
+      - name: Servidor local + comprobación en navegador
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.48.2 && npx playwright install --with-deps chromium
+          (npx next start -p 3000 -H 127.0.0.1 > next-start.log 2>&1 &)
+          for i in $(seq 1 60); do curl -s -o /dev/null http://127.0.0.1:3000/login && break; sleep 2; done
+          set -o pipefail
+          # Cabeceras con la forma de PRODUCCIÓN (Supabase https, DSN de Sentry) para los escenarios de funciones; valores
+          # de marcador, no secretos.
+          export PROD_SUPABASE_URL=https://abcdefghijklmnop.supabase.co PROD_SENTRY_ORIGIN=https://o4500000000000000.ingest.us.sentry.io
+          export PROD_HEADERS_JSON=$(npx tsx -e 'import { securityHeaders } from "./src/lib/security-headers"; console.log(JSON.stringify(securityHeaders({ NEXT_PUBLIC_SUPABASE_URL: process.env.PROD_SUPABASE_URL, NEXT_PUBLIC_SENTRY_DSN: "https://k@o4500000000000000.ingest.us.sentry.io/1", NODE_ENV: "production" })))')
+          [ -n "$PROD_HEADERS_JSON" ] || { echo "::error::no se pudieron calcular las cabeceras de producción"; exit 1; }
+          echo "::notice title=prod-headers::$(echo "$PROD_HEADERS_JSON" | cut -c1-300)"
+          # PROD_PREVIEW_BASE: carga /, /login y /register REALES de producción (solo GET; lo demás se aborta) con estas
+          # cabeceras inyectadas en el documento, para medir la política sobre el frontend desplegado hoy.
+          set +e; PROD_PREVIEW_BASE=https://atomicvid.app BASE=http://127.0.0.1:3000 OUT=security-out node --import tsx scripts/qa/security-headers-check.cjs > security.log 2>&1; code=$?; set -e; cat security.log
+          echo "::notice title=security-headers::$(grep -E '^(FAIL|INFO|RESULTADO)|Error|error'  security.log | cut -c1-200 | sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g')"
+          exit $code
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-headers
+          retention-days: 14
+          path: |
+            security-out
+            security.log
+            next-start.log
