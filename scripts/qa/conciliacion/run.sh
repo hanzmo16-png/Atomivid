@@ -40,7 +40,7 @@ $Q -d rec -v ON_ERROR_STOP=1 -f "$TOOL" > /dev/null 2>&1 && pass "tool re-applie
 BARE="drop table public.pi_reconciliation_log cascade; create table public.pi_reconciliation_log (decision_id text, idempotency_key text,
   decision_sha256 text, outcome text, evidence text, amount_usd numeric(12,4), before_row jsonb, after_row jsonb, actor text, decided_at timestamptz)"
 L=public.pi_reconciliation_log
-FP_Q="select md5(string_agg(p, ',' order by p)) from (select a.attname||format_type(a.atttypid,a.atttypmod)||a.attnotnull||coalesce(a.attacl::text,'') p from pg_attribute a where a.attrelid='$L'::regclass and a.attnum>0 and not a.attisdropped union all select contype::text||pg_get_constraintdef(oid) from pg_constraint where conrelid='$L'::regclass union all select tgname||tgenabled::text from pg_trigger where tgrelid='$L'::regclass and not tgisinternal union all select 'rel'||pg_get_userbyid(relowner)||coalesce(relacl::text,'')||relrowsecurity from pg_class where oid='$L'::regclass union all select 'pol'||polname from pg_policy where polrelid='$L'::regclass) x"
+FP_Q="select md5(string_agg(p, ',' order by p)) from (select a.attname||format_type(a.atttypid,a.atttypmod)||a.attnotnull||coalesce(a.attacl::text,'') p from pg_attribute a where a.attrelid='$L'::regclass and a.attnum>0 and not a.attisdropped union all select contype::text||pg_get_constraintdef(oid) from pg_constraint where conrelid='$L'::regclass union all select tgname||tgenabled::text from pg_trigger where tgrelid='$L'::regclass and not tgisinternal union all select 'rel'||pg_get_userbyid(relowner)||coalesce(relacl::text,'')||relrowsecurity from pg_class where oid='$L'::regclass union all select 'pol'||polname from pg_policy where polrelid='$L'::regclass union all select 'fn'||proname||pg_get_userbyid(proowner)||coalesce(proacl::text,'')||md5(prosrc) from pg_proc where pronamespace='public'::regnamespace and proname in ('pi_reconciliation_log_immutable','pi_reconcile_open_operation','pi_reconciliation_contract_parts','pi_reconciliation_security_problem')) x"
 inc_case() { # name, SQL that alters the log table
   $Q -d postgres -c "drop database if exists inc" >/dev/null 2>&1; $Q -d postgres -c "create database inc template rec" >/dev/null 2>&1
   $Q -d inc -v ON_ERROR_STOP=1 -c "$2" > "$W/logs/inc-setup.log" 2>&1 || { fail "incompatible case '$1': setup failed $(grep -m1 ERROR "$W/logs/inc-setup.log")"; return; }
@@ -74,6 +74,30 @@ inc_case "a GRANT to PUBLIC" "grant select on $L to public"
 inc_case "row level security disabled" "alter table $L disable row level security"
 inc_case "a permissive policy" "create policy inc_all on $L for all using (true) with check (true)"
 inc_case "the append-only trigger disabled" "alter table $L disable trigger pi_reconciliation_log_append_only"
+# CORRECCION-3: CREATE OR REPLACE keeps a function's owner; a foreign owner of a tool function is refused before anything
+FN=public.pi_reconciliation_log_immutable
+NOOP="create or replace function $FN() returns trigger language plpgsql set search_path = '' as \$f\$ begin return coalesce(new, old); end \$f\$"
+inc_case "the append-only function owned by inc_owner" "$ROLES; alter function $FN() owner to inc_owner"
+inc_case "the reconciliation function owned by inc_owner" "$ROLES; alter function public.pi_reconcile_open_operation(text, text, text, timestamptz, text, text, numeric, boolean) owner to inc_owner"
+inc_case "an extra EXECUTE grant on the append-only function to inc_reader" "$ROLES; grant execute on function $FN() to inc_reader"
+inc_case "a leftover install helper function" "create function public.pi_reconciliation_security_problem() returns text language sql as 'select null::text'"
+# fresh database (no log yet): the append-only function pre-created by inc_owner with a no-op body → abort, nothing created
+$Q -d postgres -c "drop database if exists inc" >/dev/null 2>&1; $Q -d postgres -c "create database inc template rec" >/dev/null 2>&1
+$Q -d inc -v ON_ERROR_STOP=1 -f "$RB" > "$W/logs/inc.log" 2>&1 && $Q -d inc -v ON_ERROR_STOP=1 -c "$ROLES" -c "grant create on schema public to inc_owner" -c "set role inc_owner" -c "$NOOP" >> "$W/logs/inc.log" 2>&1
+if $Q -d inc -v ON_ERROR_STOP=1 -f "$TOOL" >> "$W/logs/inc.log" 2>&1; then fail "fresh install accepted an append-only function pre-created by inc_owner"
+else grep -q 'incompatible owner' "$W/logs/inc.log" && [ "$($Q -d inc -At -c "select to_regclass('$L') is null and pg_get_userbyid(proowner) = 'inc_owner' and to_regprocedure('public.pi_reconcile_open_operation(text, text, text, timestamptz, text, text, numeric, boolean)') is null from pg_proc where oid = '$FN()'::regprocedure")" = t ] \
+  && pass "fresh install refuses an append-only function pre-created by inc_owner (nothing created, foreign function untouched)" || fail "fresh install with a foreign append-only function: $(grep -m1 ERROR "$W/logs/inc.log")"; fi
+# after a correct install the append-only function is durable: inc_owner cannot replace it and UPDATE/DELETE/TRUNCATE stay refused
+$Q -d postgres -c "drop database if exists inc" >/dev/null 2>&1; $Q -d postgres -c "create database inc template rec" >/dev/null 2>&1
+$Q -d inc -v ON_ERROR_STOP=1 -c "$ROLES" -c "grant create, usage on schema public to inc_owner" > "$W/logs/inc.log" 2>&1
+[ "$($Q -d inc -At -c "select pg_get_userbyid(proowner) from pg_proc where oid = '$FN()'::regprocedure")" = postgres ] && pass "installed append-only function is owned by postgres" || fail "append-only function owner after install"
+$Q -d inc -v ON_ERROR_STOP=1 -c "set role inc_owner" -c "$NOOP" >> "$W/logs/inc.log" 2>&1 && fail "inc_owner replaced the installed append-only function" \
+  || { grep -qE 'must be owner|permission denied' "$W/logs/inc.log" && pass "inc_owner cannot replace the installed append-only function ($(grep -oE 'must be owner of function [a-z_]+|permission denied[^.]*' "$W/logs/inc.log" | head -1))" || fail "replace attempt: unexpected $(grep -m1 ERROR "$W/logs/inc.log")"; }
+$Q -d inc -v ON_ERROR_STOP=1 -c "insert into public.pi_paid_operations (idempotency_key, project_id, shot_id, provider, model, method, attempt_kind, reserved_usd, status) values ('inc-op-1', 'inc', 's', 'internal', 'm', 'x', 'initial', 0, 'RESERVED')" \
+  -c "insert into $L (decision_id, idempotency_key, decision_sha256, outcome, evidence, amount_usd, before_row, after_row) values ('inc-decision-1', 'inc-op-1', repeat('a', 64), 'not_charged', 'synthetic', 0, '{}', '{}')" >> "$W/logs/inc.log" 2>&1
+nb=0; for stmt in "update $L set evidence = 'x'" "delete from $L" "truncate $L"; do
+  $Q -d inc -v ON_ERROR_STOP=1 -c "$stmt" > "$W/logs/inc-dml.log" 2>&1 || { grep -q 'append-only' "$W/logs/inc-dml.log" && nb=$((nb+1)); }; done
+[ "$nb" = 3 ] && [ "$($Q -d inc -At -c "select count(*) from $L where evidence = 'synthetic'")" = 1 ] && pass "after install, UPDATE / DELETE / TRUNCATE of the log are still refused (append-only), row intact" || fail "append-only after install: $nb/3 refused"
 # a FRESH install is normalized: default privileges granting the log to another role are revoked, owner is postgres
 $Q -d postgres -c "drop database if exists inc" >/dev/null 2>&1; $Q -d postgres -c "create database inc template rec" >/dev/null 2>&1
 $Q -d inc -v ON_ERROR_STOP=1 -f "$RB" > "$W/logs/inc.log" 2>&1 && $Q -d inc -v ON_ERROR_STOP=1 -c "$ROLES; alter default privileges in schema public grant select on tables to inc_reader" >> "$W/logs/inc.log" 2>&1 \
