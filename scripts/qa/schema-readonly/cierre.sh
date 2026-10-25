@@ -25,7 +25,7 @@ echo "== 1. Production (read-only): catalog, impact aggregates, schema + pi_* da
 RO "$R/scripts/qa/schema-readonly/catalog.sql" > "$OUT/catalog.txt"; echo "catalog exit $?"
 RO "$R/scripts/qa/schema-readonly/impact.sql" > "$OUT/impact.txt"; echo "impact exit $?"
 grep -q '^session_read_only | on$' "$OUT/impact.txt" && pass "impact queries ran with transaction_read_only=on" || fail "impact read-only flag not confirmed"
-grep -E '^(impact|prod_rows|prod_supply_state)' "$OUT/impact.txt"
+grep -E "^(impact|prod_rows|prod_supply_state|inflight)" "$OUT/impact.txt"
 grep -E '^(migration|marker|trigger|privilege|count) ' "$OUT/catalog.txt"
 "$PGBIN/pg_dump" "$URL" --schema-only --no-owner --no-comments -n public -f "$T/public.sql" 2>"$T/d1" || { echo "FAIL pg_dump schema: $(mask < "$T/d1" | head -3)"; exit 1; }
 "$PGBIN/pg_dump" "$URL" --data-only --disable-triggers --no-owner -t 'public.pi_*' -t public._migrations_applied -f "$T/data.sql" 2>"$T/d2" || { echo "FAIL pg_dump data: $(mask < "$T/d2" | head -3)"; exit 1; }

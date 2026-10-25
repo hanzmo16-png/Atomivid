@@ -33,3 +33,10 @@ select 'impact140000 studio_tables_present', to_regclass('public.podcast_studio_
 select 'prod_acl', p.oid::regprocedure::text, coalesce(p.proacl::text, '(default: PUBLIC execute)'), has_function_privilege('anon', p.oid, 'execute'), has_function_privilege('authenticated', p.oid, 'execute')
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in ('pi_documentary_resume_requires_budget','pi_recovery_resume_authorization',
   'pi_open_spend_authorization','pi_spend_authorization_usage','pi_supply_state','pi_supply_spend','pi_submit_with_supply') order by 2;
+-- In-flight work at deploy time (the new code would resume it): aggregates only
+select 'inflight podcast_episodes video_status', coalesce(video_status, '(null)'), count(*) from public.podcast_episodes group by 2 order by 2;
+select 'inflight podcast_episodes scheduled_due_now', count(*) from public.podcast_episodes where video_status = 'scheduled' and scheduled_at <= now();
+select 'inflight podcast_episodes scheduled_future', count(*) from public.podcast_episodes where video_status = 'scheduled' and scheduled_at > now();
+select 'inflight documentary_script_jobs status', status, count(*) from public.documentary_script_jobs group by 2 order by 2;
+select 'inflight video_requests status (last 7 days)', status, count(*) from public.video_requests where created_at > now() - interval '7 days' group by 2 order by 2;
+select 'inflight pi_paid_operations open (all projects)', status, count(*) from public.pi_paid_operations where status in ('RESERVED','SUBMITTED','PROVIDER_JOB_RECORDED','RECONCILIATION_REQUIRED') group by 2 order by 2;
