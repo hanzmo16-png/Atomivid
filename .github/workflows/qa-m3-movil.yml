@@ -13,6 +13,8 @@ on:
       - "scripts/harness/e2e/infra/**"
       - "src/components/onboarding/**"
       - "src/app/page.tsx"
+      - "src/app/dashboard/**"
+      - "src/components/**"
 permissions:
   contents: read
 concurrency:
@@ -48,12 +50,30 @@ jobs:
       - name: M3-1 — el botón de ayuda no tapa las acciones principales (360/412/1366/1440)
         run: |
           set +e; E2E_SCRIPT=qa-aceptacion/m3-help-overlap.cjs bash scripts/harness/e2e/infra/run-e2e.sh m3-help-overlap; code=$?
-          grep -q '^RESULTADO' "$E2E_HOME/out/m3-help-overlap.log" || { echo "::error::m3-help-overlap terminó sin RESULTADO"; [ "$code" = 0 ] && code=1; }
+          log="$E2E_HOME/out/m3-help-overlap.log"; grep -E '^(PASS|FAIL)  ' "$log"
+          grep -q '^RESULTADO' "$log" || { echo "::error::m3-help-overlap terminó sin RESULTADO"; [ "$code" = 0 ] && code=1; }
           exit $code
       - name: M3-2 — las páginas públicas no se ensanchan (320/360/412)
         run: |
           set +e; E2E_SCRIPT=qa-aceptacion/m3-public-width.cjs bash scripts/harness/e2e/infra/run-e2e.sh m3-public-width; code=$?
-          grep -q '^RESULTADO' "$E2E_HOME/out/m3-public-width.log" || { echo "::error::m3-public-width terminó sin RESULTADO"; [ "$code" = 0 ] && code=1; }
+          log="$E2E_HOME/out/m3-public-width.log"; grep -E '^(PASS|FAIL)  ' "$log"
+          grep -q '^RESULTADO' "$log" || { echo "::error::m3-public-width terminó sin RESULTADO"; [ "$code" = 0 ] && code=1; }
+          # Los tres anchos pedidos deben haberse medido de verdad (no solo un RESULTADO global).
+          for w in 320 360 412; do grep -qE "^PASS  \\[${w}px\\]" "$log" || { echo "::error::m3-public-width: sin PASS a ${w} px"; [ "$code" = 0 ] && code=1; }; done
+          exit $code
+      - name: Reel en navegador — reproducción y descarga del MP4 (Samsung 390 + escritorio 1440)
+        run: |
+          # Flujo completo del Reel con el worker local de prueba (USD 0). La descarga desde la UI debe ser un MP4 H.264 + AAC
+          # con el mismo sha256 que el objeto almacenado, en ambos dispositivos. La reproducción se intenta con el Chrome
+          # headless de Remotion (decodifica H.264); si no avanza, la batería lo declara NO PROBADO y no cuenta como PASS.
+          set +e; QA_FLOWS=reel E2E_SCRIPT=qa-aceptacion/acceptance.cjs bash scripts/harness/e2e/infra/run-e2e.sh qa-reel; code=$?
+          log="$E2E_HOME/out/qa-reel.log"; grep -E '^(PASS|FAIL|NO PROBADO)  ' "$log"
+          [ "$code" = 124 ] && echo "::error::qa-reel: TIMEOUT de la batería — no hay PASS parcial"
+          grep -q '^RESULTADO' "$log" || { echo "::error::qa-reel terminó sin RESULTADO"; [ "$code" = 0 ] && code=1; }
+          n=$(grep -cE '^PASS  \[(samsung|desktop)\] descarga desde la UI: MP4 H.264 \+ AAC idéntico al almacenado' "$log")
+          [ "$n" = 2 ] || { echo "::error::qa-reel: descarga íntegra verificada en $n de 2 dispositivos"; [ "$code" = 0 ] && code=1; }
+          p=$(grep -cE '^PASS  \[(samsung|desktop)\] reproducción: el tiempo avanza' "$log")
+          echo "::notice title=reproducción::reproducción verificada en $p de 2 dispositivos (el resto queda NO PROBADO, nunca PASS)"
           exit $code
       - name: P1-1 (Recraft en móvil) — XFAIL explícito, no se corrige en esta rama
         id: p11
@@ -75,7 +95,7 @@ jobs:
       - name: Resumen
         if: always()
         run: |
-          s=""; for t in m3-help-overlap m3-public-width recraft-repro; do f="$E2E_HOME/out/$t.log"; [ -f "$f" ] && s="$s$t: $(grep -E '^RESULTADO' "$f" | tail -1)%0A"; done
+          s=""; for t in m3-help-overlap m3-public-width qa-reel recraft-repro; do f="$E2E_HOME/out/$t.log"; [ -f "$f" ] && s="$s$t: $(grep -E '^RESULTADO' "$f" | tail -1)%0A"; done
           echo "::notice title=qa-m3-movil::${s}P1-1: ${{ steps.p11.outputs.result }}"
       - name: Evidencia (capturas, resúmenes, registros; sin secretos)
         if: always()
@@ -86,5 +106,6 @@ jobs:
           path: |
             .e2e-local/out/m3-help-overlap
             .e2e-local/out/m3-public-width
+            .e2e-local/out/qa-reel
             .e2e-local/out/recraft-repro
             .e2e-local/out/*.log
