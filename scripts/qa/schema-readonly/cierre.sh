@@ -28,9 +28,9 @@ grep -q '^session_read_only | on$' "$OUT/impact.txt" && pass "impact queries ran
 grep -E "^(impact|prod_rows|prod_supply_state|inflight)" "$OUT/impact.txt"
 grep -E '^(migration|marker|trigger|privilege|count) ' "$OUT/catalog.txt"
 "$PGBIN/pg_dump" "$URL" --schema-only --no-owner --no-comments -n public -f "$T/public.sql" 2>"$T/d1" || { echo "FAIL pg_dump schema: $(mask < "$T/d1" | head -3)"; exit 1; }
-"$PGBIN/pg_dump" "$URL" --data-only --disable-triggers --no-owner -t 'public.pi_*' -t public._migrations_applied -f "$T/data.sql" 2>"$T/d2" || { echo "FAIL pg_dump data: $(mask < "$T/d2" | head -3)"; exit 1; }
-"$PGBIN/pg_dump" "$URL" --no-owner --no-privileges -n supabase_migrations -f "$T/sm.sql" 2>"$T/d3" || { echo "FAIL pg_dump registry: $(mask < "$T/d3" | head -3)"; exit 1; }
-echo "INFO dumps kept on the runner only: schema $(wc -l < "$T/public.sql") lines, pi_* data $(wc -c < "$T/data.sql") bytes, schema_migrations $(wc -l < "$T/sm.sql") lines"
+if [ "${GATE_ONLY:-0}" != 1 ]; then "$PGBIN/pg_dump" "$URL" --data-only --disable-triggers --no-owner -t 'public.pi_*' -t public._migrations_applied -f "$T/data.sql" 2>"$T/d2" || { echo "FAIL pg_dump data: $(mask < "$T/d2" | head -3)"; exit 1; }; fi  # gate-only mode reads no data rows
+if [ "${GATE_ONLY:-0}" != 1 ]; then "$PGBIN/pg_dump" "$URL" --no-owner --no-privileges -n supabase_migrations -f "$T/sm.sql" 2>"$T/d3" || { echo "FAIL pg_dump registry: $(mask < "$T/d3" | head -3)"; exit 1; }; fi
+echo "INFO dumps kept on the runner only: schema $(wc -l < "$T/public.sql") lines, pi_* data $( [ -f "$T/data.sql" ] && wc -c < "$T/data.sql" || echo 0) bytes (GATE_ONLY=${GATE_ONLY:-0})"
 unset PGOPTIONS
 
 # --- tree to be released: #205 (integration of #201 → #199 → #200) has the same supabase/ as the sequential merge ---
