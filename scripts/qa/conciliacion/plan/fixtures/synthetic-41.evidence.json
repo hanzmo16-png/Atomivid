@@ -1,0 +1,53 @@
+{
+ "format": "atomivid.reconcile-evidence/v1",
+ "items": [
+  {
+   "op": "k-1916750bcc51aaf704f8fe6ce41cfd05",
+   "outcome": "charged",
+   "evidence": "synthetic:anthropic-usage-export:row-01",
+   "actual_usd": "0.0412"
+  },
+  {
+   "op": "k-fbd9ba11c9840425b9197ebabca636e3",
+   "outcome": "charged",
+   "evidence": "synthetic:anthropic-usage-export:row-02",
+   "actual_usd": "0.0466"
+  },
+  {
+   "op": "k-2e9d4c97fc0220cbd8e1c610dc579d81",
+   "outcome": "not_charged",
+   "evidence": "synthetic:anthropic-usage-export:no-row"
+  },
+  {
+   "op": "k-c83a2b1958bab56da3d581b664c7a9c6",
+   "outcome": "not_charged",
+   "evidence": "synthetic:openai-usage-export:no-image-in-window"
+  },
+  {
+   "op": "k-34936739c3c7483b18cdcb831d48dedd",
+   "outcome": "assumed_charged",
+   "evidence": "synthetic:openai-usage-not-itemized"
+  },
+  {
+   "op": "k-0a763dfe1dfe0f8fa5f8229c05a70fe0",
+   "outcome": "assumed_charged",
+   "evidence": "synthetic:openai-usage-not-itemized"
+  },
+  {
+   "op": "k-9f3a6122acb3f5ffe3c07bb0ce048006",
+   "outcome": "assumed_charged",
+   "evidence": "synthetic:openai-usage-not-itemized"
+  },
+  {
+   "op": "k-3ac22995f9f0792e55619084b3a45cdd",
+   "outcome": "charged",
+   "evidence": "synthetic:bfl-credit-ledger:row-09",
+   "actual_usd": "0.0300"
+  },
+  {
+   "op": "k-5aad3d6d2ddbeeaf2c8d5a1b9d83a2fe",
+   "outcome": "not_charged",
+   "evidence": "synthetic:internal-provider:no-external-call"
+  }
+ ]
+}
