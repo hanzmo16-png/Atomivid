@@ -61,8 +61,12 @@ $LQ -d replica -f "$INT/scripts/harness/e2e/infra/stubs.sql" >/dev/null 2>&1
 $LQ -d replica -c "create schema if not exists extensions; create extension if not exists pgcrypto with schema extensions; create extension if not exists \"uuid-ossp\" with schema extensions" >/dev/null 2>&1
 # the schema dump keeps production's privileges (REVOKE … FROM PUBLIC + GRANTs); GRANTs to Supabase-internal roles absent here fail harmlessly
 $LQ -d replica -f "$T/public.sql" > "$T/restore.log" 2>&1; echo "INFO schema restore: $(grep -c ERROR "$T/restore.log") errors ($(grep ERROR "$T/restore.log" | grep -c 'role .* does not exist') of them grants to Supabase-internal roles)"; grep ERROR "$T/restore.log" | grep -v 'role .* does not exist' | sort | uniq -c | sort -rn | head -5
-priv=$($LQ -d replica -At -c "select count(*) filter (where has_function_privilege('anon', 'public.pi_spend_authorization_usage(text,text)', 'execute')) + count(*) filter (where has_function_privilege('anon', 'public.pi_supply_spend(text,timestamptz)', 'execute'))")
-[ "$priv" = 0 ] && pass "replica carries production's function privileges (anon cannot execute pi_spend_authorization_usage / pi_supply_spend)" || fail "replica privileges do not match production"
+acl(){ $LQ -d replica -At -c "select 'acl', p.oid::regprocedure::text, has_function_privilege('anon', p.oid, 'execute'), has_function_privilege('authenticated', p.oid, 'execute') from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in ('pi_documentary_resume_requires_budget','pi_recovery_resume_authorization','pi_open_spend_authorization','pi_spend_authorization_usage','pi_supply_state','pi_supply_state_pre_studio','pi_studio_call_counts','pi_supply_spend','pi_submit_with_supply','podcast_studio_operations_cap') order by 2"; }
+acl > "$T/acl0"
+grep '^prod_acl' "$OUT/impact.txt" | awk -F' [|] ' '{print "acl|" $2 "|" $4 "|" $5}' | sort > "$T/acl_prod"
+grep -E "^acl\|($(cut -d'|' -f2 "$T/acl_prod" | sed 's/[()]/\\&/g' | paste -sd'|'))\|" "$T/acl0" | sort > "$T/acl0p"
+diff -q "$T/acl_prod" "$T/acl0p" >/dev/null && pass "replica anon/authenticated EXECUTE == production for every touched function" || { echo "INFO replica ACLs differ from production (Supabase default privileges not reproducible); the migration check below compares replica before/after:"; diff "$T/acl_prod" "$T/acl0p"; }
+echo "INFO production anon/authenticated EXECUTE on touched functions:"; grep '^prod_acl' "$OUT/impact.txt"
 $LQ -d replica -f "$T/sm.sql" > "$T/restore2.log" 2>&1; echo "INFO registry restore: $(grep -c ERROR "$T/restore2.log") errors"; grep ERROR "$T/restore2.log" | head -3
 $LQ -d replica -f "$T/data.sql" > "$T/restore3.log" 2>&1; echo "INFO pi_* data restore: $(grep -c ERROR "$T/restore3.log") errors"; grep ERROR "$T/restore3.log" | head -3
 rows_ok=1
@@ -140,7 +144,11 @@ select 'perm', r.rolname, p.oid::regprocedure::text, has_function_privilege(r.ro
 select 'rls', c.relname, c.relrowsecurity, has_table_privilege('anon', c.oid, 'insert'), has_table_privilege('authenticated', c.oid, 'insert,update,delete')
   from pg_class c where c.oid in (to_regclass('public.podcast_studio_episodes'), to_regclass('public.podcast_studio_operations'));
 SQL
-bad=$(grep '^perm|anon\|^perm|authenticated' "$T/perm.txt" | awk -F'|' '$4=="t"'); [ -z "$bad" ] && pass "anon/authenticated cannot EXECUTE any touched function ($(grep -c '^perm|anon' "$T/perm.txt") functions)" || { fail "anon/authenticated can execute:"; echo "$bad"; }
+acl > "$T/acl3"
+# a function the migration did NOT create must keep its ACL; a function it created must be closed to anon/authenticated
+widened=$(join -t'|' -j2 <(sort -t'|' -k2,2 "$T/acl0") <(sort -t'|' -k2,2 "$T/acl3") | awk -F'|' '($3=="f" && $6=="t") || ($4=="f" && $7=="t")')
+newopen=$(comm -13 <(cut -d'|' -f2 "$T/acl0" | sort) <(cut -d'|' -f2 "$T/acl3" | sort) | while read -r f; do grep -F "acl|$f|" "$T/acl3"; done | awk -F'|' '$3=="t" || $4=="t"')
+[ -z "$widened$newopen" ] && pass "the three migrations widen no EXECUTE privilege, and every function they create is closed to anon/authenticated" || { fail "privileges widened:"; echo "$widened$newopen"; }
 nosp=$(grep '^perm|service_role' "$T/perm.txt" | awk -F'|' '$3 !~ /requires_budget|_cap\(/ && $4=="f"'); [ -z "$nosp" ] && pass "service_role can EXECUTE every RPC the app calls" || { fail "service_role lacks execute:"; echo "$nosp"; }
 nopath=$(grep '^perm|service_role' "$T/perm.txt" | awk -F'|' '$6 !~ /search_path=""/'); [ -z "$nopath" ] && pass "every touched function pins search_path=''" || { fail "functions without search_path='':"; echo "$nopath"; }
 grep '^rls' "$T/perm.txt" | awk -F'|' '{ if ($3=="t" && $4=="f" && $5=="f") print "PASS studio table " $2 ": RLS on, anon/authenticated cannot write"; else print "FAIL studio table " $2 ": " $0 }' | tee -a "$T/rls.out"

@@ -29,3 +29,7 @@ select 'impact130000 existing_authorizations', count(*) from public.pi_spend_aut
 -- 140000: supply state per provider TODAY (the replica must give the same answer before and after 140000)
 select 'prod_supply_state', p.provider, md5(public.pi_supply_state(p.provider)::text) from public.pi_supply_policies p order by 2;
 select 'impact140000 studio_tables_present', to_regclass('public.podcast_studio_episodes') is not null, to_regclass('public.podcast_studio_operations') is not null;
+-- ACLs of every function the three proposals touch (production truth for the privilege checks)
+select 'prod_acl', p.oid::regprocedure::text, coalesce(p.proacl::text, '(default: PUBLIC execute)'), has_function_privilege('anon', p.oid, 'execute'), has_function_privilege('authenticated', p.oid, 'execute')
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in ('pi_documentary_resume_requires_budget','pi_recovery_resume_authorization',
+  'pi_open_spend_authorization','pi_spend_authorization_usage','pi_supply_state','pi_supply_spend','pi_submit_with_supply') order by 2;
