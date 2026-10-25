@@ -40,3 +40,6 @@ select 'inflight podcast_episodes scheduled_future', count(*) from public.podcas
 select 'inflight documentary_script_jobs status', status, count(*) from public.documentary_script_jobs group by 2 order by 2;
 select 'inflight video_requests status (last 7 days)', status, count(*) from public.video_requests where created_at > now() - interval '7 days' group by 2 order by 2;
 select 'inflight pi_paid_operations open (all projects)', status, count(*) from public.pi_paid_operations where status in ('RESERVED','SUBMITTED','PROVIDER_JOB_RECORDED','RECONCILIATION_REQUIRED') group by 2 order by 2;
+-- rows in the studio ledger (only meaningful after 140000; -1 = tables absent)
+select 'impact140000 studio_rows', case when to_regclass('public.podcast_studio_operations') is null or to_regclass('public.podcast_studio_episodes') is null then -1
+  else (xpath('/row/c/text()', query_to_xml('select (select count(*) from public.podcast_studio_episodes) + (select count(*) from public.podcast_studio_operations) c', false, true, '')))[1]::text::int end;

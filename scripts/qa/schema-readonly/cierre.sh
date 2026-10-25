@@ -45,13 +45,15 @@ grep '^applied_registry | ' "$OUT/catalog.txt" | sed 's/^applied_registry | //' 
 echo "INFO schema_migrations: $(wc -l < "$T/registered.txt") rows; _migrations_applied: $(tr ',' '\n' < "$T/applied.txt" | grep -c .) names"
 python3 -I "$R/scripts/qa/schema-readonly/history.py" "$T/registered.txt" "$INT/supabase/migrations" "$INT/supabase/proposals" "$T/public.sql" "$T/applied.txt" > "$OUT/history.txt"
 grep -E 'registry-only|PARTIAL|NOT_APPLIED|SUMMARY' "$OUT/history.txt"
-python3 -I "$R/scripts/qa/schema-readonly/reconcile.py" "$OUT/history.txt" "$OUT/catalog.txt" "$INT/supabase/migrations" "$OUT/reconcile"
+python3 -I "$R/scripts/qa/schema-readonly/reconcile.py" "$OUT/history.txt" "$OUT/catalog.txt" "$INT/supabase/migrations" "$OUT/reconcile" | tee "$T/reconcile.out"
+grep '^RECONCILE A ' "$T/reconcile.out" | sed 's/^RECONCILE A //' | sort > "$T/regenA.txt"
 if [ -f "$INT/docs/ops/20261024_register_applied_migrations.sql" ]; then
   grep -oE "'[^']+\.sql'" "$INT/docs/ops/20261024_register_applied_migrations.sql" | tr -d "'" | sort > "$T/ops.txt"
   grep '^RECONCILE A ' <(python3 -I "$R/scripts/qa/schema-readonly/reconcile.py" "$OUT/history.txt" "$OUT/catalog.txt" "$INT/supabase/migrations" "$T/rc2") | sed 's/^RECONCILE A //' | sort > "$T/a.txt"
   diff -q "$T/ops.txt" "$T/a.txt" >/dev/null && pass "fresh list A == docs/ops/20261024_register_applied_migrations.sql ($(wc -l < "$T/a.txt") names)" || { fail "fresh list A differs from docs/ops (registry changed?)"; diff "$T/ops.txt" "$T/a.txt"; }
 fi
 
+if [ "${GATE_ONLY:-0}" != 1 ]; then  # GATE_ONLY=1: production reads + gate only (stages after O1 no longer match the pre-O1 rehearsal)
 echo "== 3. Disposable replica: production schema + pi_* data + both registries"
 L=$T/local; "$PGBIN/initdb" -D "$L" -U postgres --auth=trust >/dev/null; "$PGBIN/pg_ctl" -D "$L" -o "-p 55990 -k $T -c listen_addresses=''" -l "$T/pg.log" -w start >/dev/null
 trap '"$PGBIN/pg_ctl" -D "$L" -m fast stop >/dev/null 2>&1 || true; rm -rf "$T/public.sql" "$T/data.sql" "$T/sm.sql"' EXIT
@@ -191,18 +193,38 @@ ok=1; for v in 20261024120000_resume_authorization_ref_match 20261024130000_spen
 echo "== reconciliation files (to be applied in production only with the owner's authorization):"
 for f in "$OUT"/reconcile/*.sql; do echo "--- $(basename "$f") sha256 $(sha256sum "$f" | cut -c1-16)"; cat "$f"; done
 
-echo "== GATE (pre-integration, fail closed): the exact tree, production state and reconciliation files still match what was rehearsed"
-EXPECT_SHA=${EXPECT_SHA:-d8b203d665e62602cec5cb72620f03b5630edd12}
-[ "$(git -C "$INT" rev-parse HEAD)" = "$EXPECT_SHA" ] && pass "GATE tree under test = #207 @ $EXPECT_SHA" || fail "GATE tree under test is $(git -C "$INT" rev-parse HEAD), expected $EXPECT_SHA"
-for m in "20261024120000 trigger joins authorization_ref" "20261024130000 baseline excludes RESERVED" "20261024140000 pi_supply_state wrapped"; do
-  grep -q "^marker $m | f$" "$OUT/catalog.txt" && pass "GATE production marker still f: $m (not applied outside the plan)" || fail "GATE production marker changed: $m"; done
-grep -q "^marker 20261024000000 submit refuses podcast without authorization | t$" "$OUT/catalog.txt" && pass "GATE 20261024000000 still applied in production" || fail "GATE 20261024000000 marker not t"
-grep -q '^impact140000 studio_tables_present | f | f$' "$OUT/impact.txt" && pass "GATE studio tables absent in production" || fail "GATE studio tables present in production"
-for f in A_register_migrations_applied.sql A_register_migrations_applied.rollback.sql B_register_schema_migrations.sql B_register_schema_migrations.rollback.sql; do
-  cmp -s "$OUT/reconcile/$f" "$R/docs/ops/cierre/$f" && pass "GATE regenerated $f == committed docs/ops/cierre/$f (sha256 $(sha256sum "$R/docs/ops/cierre/$f" | cut -c1-16))" || fail "GATE $f regenerated today differs from the committed file: registry or schema changed — do not run O1"; done
-due=$(grep '^inflight podcast_episodes scheduled_due_now' "$OUT/impact.txt" | awk -F' [|] ' '{print $2}')
+fi  # end of the replica rehearsal
+echo "== GATE[${GATE_NEXT:=O1}] (fail closed): production state expected right before ${GATE_NEXT}"
+BASE_BR=claude/atomivid-mvp-setup-0079jv
+git -C "$R" fetch -q --depth=2 origin "$BASE_BR" 9944360b5a32130d46811ea9d57f569b1e9031f5 49594f1e989d1c6f8c21bae4e650075ea4532ed4 d8b203d665e62602cec5cb72620f03b5630edd12 762714e2ff3d19a62d2c705b7487ff9a364677e7 2>/dev/null
+BH=$(git -C "$R" ls-remote origin "refs/heads/$BASE_BR" | cut -f1); git -C "$R" cat-file -e "$BH" 2>/dev/null || git -C "$R" fetch -q --depth=2 origin "$BH"
+head_of(){ git -C "$R" ls-remote origin "refs/heads/$1" | cut -f1; }
+tree_of(){ git -C "$R" rev-parse "$1^{tree}" 2>/dev/null; }
+mk(){ grep -q "^marker $1 | t$" "$OUT/catalog.txt" && echo true || { grep -q "^marker $1 | f$" "$OUT/catalog.txt" && echo false || echo null; }; }
+studio_present=$(grep -q '^impact140000 studio_tables_present | t | t$' "$OUT/impact.txt" && echo true || { grep -q '^impact140000 studio_tables_present | f | f$' "$OUT/impact.txt" && echo false || echo null; })
+studio_rows=$(grep '^impact140000 studio_rows' "$OUT/impact.txt" | awk -F' [|] ' '{print $2}'); [ "$studio_rows" = "-1" ] && studio_rows=null
+due=$(grep '^inflight podcast_episodes scheduled_due_now' "$OUT/impact.txt" | awk -F' [|] ' '{print $2+0}')
 busy=$(grep -E '^inflight podcast_episodes video_status \| (queued|running|scheduled) ' "$OUT/impact.txt" | awk -F' [|] ' '{s+=$3} END {print s+0}')
 dq=$(grep -E '^inflight documentary_script_jobs status \| (queued|running) ' "$OUT/impact.txt" | awk -F' [|] ' '{s+=$3} END {print s+0}')
-echo "INFO GATE in-flight now: podcast scheduled_due=$due queued/running/scheduled=$busy; documentary queued/running=$dq (O4/O5/O7 need 0 at the moment of merging; re-run right before)"
+( cd "$R" && sha256sum -c --quiet docs/ops/cierre/SHA256SUMS && sha256sum -c --quiet docs/ops/conciliacion/SHA256SUMS ) && sha_ok=true || sha_ok=false
+grep -oE "'[^']+\.sql'" "$R/docs/ops/cierre/A_register_migrations_applied.sql" | tr -d "'" | sort -u > "$T/committedA.txt"
+tr ',' '\n' < "$T/applied.txt" | grep . | sort -u > "$T/registry.txt"
+jsl(){ python3 -I -c 'import json,sys; print(json.dumps([l.strip() for l in open(sys.argv[1]) if l.strip()]))' "$1"; }
+cat > "$OUT/gate-facts.json" <<JSON
+{"next": "$GATE_NEXT",
+ "markers": {"000000": $(mk "20261024000000 submit refuses podcast without authorization"), "120000": $(mk "20261024120000 trigger joins authorization_ref"),
+             "130000": $(mk "20261024130000 baseline excludes RESERVED"), "140000": $(mk "20261024140000 pi_supply_state wrapped")},
+ "studio": {"present": $studio_present, "rows": ${studio_rows:-null}},
+ "sha_ok": $sha_ok, "regen_A_identical": $(cmp -s "$OUT/reconcile/A_register_migrations_applied.sql" "$R/docs/ops/cierre/A_register_migrations_applied.sql" && echo true || echo false),
+ "registry_names": $(jsl "$T/registry.txt"), "regen_A_names": $(jsl "$T/regenA.txt"), "committed_A_names": $(jsl "$T/committedA.txt"),
+ "base": {"head": "$BH", "tree": "$(tree_of "$BH")", "parents": $(git -C "$R" rev-list --parents -n1 "$BH" 2>/dev/null | python3 -I -c 'import json,sys; print(json.dumps(sys.stdin.read().split()[1:]))')},
+ "trees": {"base": "$(tree_of 762714e2ff3d19a62d2c705b7487ff9a364677e7)", "201": "$(tree_of 9944360b5a32130d46811ea9d57f569b1e9031f5)",
+           "199": "$(tree_of 49594f1e989d1c6f8c21bae4e650075ea4532ed4)", "207": "$(tree_of d8b203d665e62602cec5cb72620f03b5630edd12)"},
+ "heads": {"201": "$(head_of grok/p0-auth-ref-trigger)", "199": "$(head_of claude/documental-cinematografico)", "207": "$(head_of claude/pr200-sobre-201-199)"},
+ "inflight": {"due": ${due:-null}, "busy": ${busy:-null}, "documentary": ${dq:-null}}}
+JSON
+python3 -I "$R/scripts/qa/schema-readonly/gate.py" "$OUT/gate-facts.json" | tee "$T/gate.out"
+fails=$((fails + $(grep -c '^FAIL' "$T/gate.out")))
+python3 -I "$R/scripts/qa/schema-readonly/gate_test.py" > "$T/gate_test.out"; tail -1 "$T/gate_test.out"; grep -q '^RESULT gate_test: 0 FAIL$' "$T/gate_test.out" || fails=$((fails+1))
 echo "RESULT cierre: $fails FAIL"
 [ $fails = 0 ]
