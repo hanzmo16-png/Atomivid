@@ -1,0 +1,5 @@
+FAIL  samsung-s24-390: ancho de diseño con Recraft 732 px / con archivo 390 px (dispositivo 390 px) — fuerzan el ancho: div «Una imagen por escena con un estilo únic»; label «Si Recraft crea el estilo pero no devuel»; select[name=recraft_style_missing] «Detener y conservar la imagen pagada (re»
+FAIL  pixel-7-412: ancho de diseño con Recraft 732 px / con archivo 412 px (dispositivo 412 px) — fuerzan el ancho: div «Una imagen por escena con un estilo únic»; label «Si Recraft crea el estilo pero no devuel»; select[name=recraft_style_missing] «Detener y conservar la imagen pagada (re»
+FAIL  iphone-se-375: ancho de diseño con Recraft 732 px / con archivo 375 px (dispositivo 375 px) — fuerzan el ancho: div «Una imagen por escena con un estilo únic»; label «Si Recraft crea el estilo pero no devuel»; select[name=recraft_style_missing] «Detener y conservar la imagen pagada (re»
+RESULTADO 0/3 PASS — defecto P1-1 presente
+exit=1

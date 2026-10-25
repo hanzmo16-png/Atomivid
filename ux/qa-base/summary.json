@@ -1,0 +1,400 @@
+{
+  "pass": 49,
+  "fail": 0,
+  "untestedCount": 5,
+  "knownDefects": [
+    {
+      "id": "P1-1",
+      "name": "[samsung] Reel con Recraft visible: el ancho de diseño sigue siendo el del dispositivo (sin zoom-out en el teléfono)",
+      "fixed": false,
+      "detail": {
+        "innerWidth": 732,
+        "device": 390
+      }
+    }
+  ],
+  "anthropicMockCalls": 2,
+  "podcastDownloads": [],
+  "csp": {
+    "enforced": [],
+    "reportOnly": []
+  },
+  "checks": [
+    {
+      "name": "[samsung] / responde 2xx y sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "sw": 390,
+        "iw": 390
+      }
+    },
+    {
+      "name": "[samsung] /login responde 2xx y sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "sw": 390,
+        "iw": 390
+      }
+    },
+    {
+      "name": "[samsung] /register responde 2xx y sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "sw": 390,
+        "iw": 390
+      }
+    },
+    {
+      "name": "[samsung] /dashboard sin sesión redirige a login (no muestra datos)",
+      "ok": true,
+      "detail": {
+        "url": "http://127.0.0.1:3100/login?redirectedFrom=%2Fdashboard"
+      }
+    },
+    {
+      "name": "[samsung] login con contraseña incorrecta: queda en login con mensaje de error",
+      "ok": true,
+      "detail": {
+        "url": "http://127.0.0.1:3100/login?error=Correo%20o%20contrase%C3%B1a%20incorrectos.",
+        "body": "Atomicvid\n\nInicia sesión en tu cuenta\n\nCorreo o contraseña incorrectos.\nCorreo electrónico\nContraseña\n\n¿Olvidaste tu contraseña?\n\nIniciar sesión\n\n¿No tienes cuenta? Regístrate"
+      }
+    },
+    {
+      "name": "[desktop] / responde 2xx y sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "sw": 1440,
+        "iw": 1440
+      }
+    },
+    {
+      "name": "[desktop] /login responde 2xx y sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "sw": 1440,
+        "iw": 1440
+      }
+    },
+    {
+      "name": "[desktop] /register responde 2xx y sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "sw": 1440,
+        "iw": 1440
+      }
+    },
+    {
+      "name": "[desktop] /dashboard sin sesión redirige a login (no muestra datos)",
+      "ok": true,
+      "detail": {
+        "url": "http://127.0.0.1:3100/login?redirectedFrom=%2Fdashboard"
+      }
+    },
+    {
+      "name": "[desktop] login con contraseña incorrecta: queda en login con mensaje de error",
+      "ok": true,
+      "detail": {
+        "url": "http://127.0.0.1:3100/login?error=Correo%20o%20contrase%C3%B1a%20incorrectos.",
+        "body": "Atomicvid\n\nInicia sesión en tu cuenta\n\nCorreo o contraseña incorrectos.\nCorreo electrónico\nContraseña\n\n¿Olvidaste tu contraseña?\n\nIniciar sesión\n\n¿No tienes cuenta? Regístrate"
+      }
+    },
+    {
+      "name": "[desktop] panel: sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "sw": 1440,
+        "iw": 1440
+      }
+    },
+    {
+      "name": "[desktop] Reel sin tema: no se crea ninguna solicitud",
+      "ok": true
+    },
+    {
+      "name": "[desktop] Reel con Recraft visible: el ancho de diseño sigue siendo el del dispositivo (sin zoom-out en el teléfono)",
+      "ok": true,
+      "detail": {
+        "innerWidth": 1440,
+        "device": 1440
+      }
+    },
+    {
+      "name": "[desktop] Reel con Recraft (opción por defecto) sin estilo: error explicado, 0 solicitudes",
+      "ok": true,
+      "detail": {
+        "url": "http://127.0.0.1:3100/dashboard/new?error=Para%20Recraft%20indica%20un%20style_id%20o%20sube%20entre%201%20y%2010%20im%C3%A1genes%20de%20referencia%20de%20estilo."
+      }
+    },
+    {
+      "name": "[desktop] Reel con «Material de archivo»: ancho de diseño = dispositivo",
+      "ok": true,
+      "detail": {
+        "sw": 1440,
+        "iw": 1440
+      }
+    },
+    {
+      "name": "[desktop] Reel: el formulario crea exactamente 1 solicitud",
+      "ok": true,
+      "detail": 1
+    },
+    {
+      "name": "[desktop] Reel: revisión del guion visible (preflight antes de render), sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "sw": 1440,
+        "iw": 1440
+      }
+    },
+    {
+      "name": "[desktop] Reel en proceso: su tarjeta no anuncia «listo» antes de tiempo",
+      "ok": true,
+      "detail": "QA aceptación desktop pulpo tres corazones 1792971242455\n\nCuriosidades · 30s · 25/10/2026, 11:34:14 p.m.\n\nEn cola, esperando un espacio para procesar…\n\nGenerando\nEn cola, esper"
+    },
+    {
+      "name": "[desktop] Reel: termina «completed» con el worker de prueba",
+      "ok": true,
+      "detail": {
+        "status": "completed",
+        "err": null
+      }
+    },
+    {
+      "name": "[samsung] panel: sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "sw": 390,
+        "iw": 390
+      }
+    },
+    {
+      "name": "[samsung] Reel sin tema: no se crea ninguna solicitud",
+      "ok": true
+    },
+    {
+      "name": "[samsung] Reel con «Material de archivo»: ancho de diseño = dispositivo",
+      "ok": true,
+      "detail": {
+        "sw": 390,
+        "iw": 390
+      }
+    },
+    {
+      "name": "[samsung] Reel: el formulario crea exactamente 1 solicitud",
+      "ok": true,
+      "detail": 1
+    },
+    {
+      "name": "[samsung] Reel: revisión del guion visible (preflight antes de render), sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "sw": 390,
+        "iw": 390
+      }
+    },
+    {
+      "name": "[samsung] resultado: <video> presente y sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "sw": 390,
+        "iw": 390
+      }
+    },
+    {
+      "name": "[samsung] reproducción: el tiempo avanza",
+      "ok": true,
+      "detail": {
+        "adv": 2.4601200000000003,
+        "err": null,
+        "w": 1080,
+        "h": 1920
+      }
+    },
+    {
+      "name": "[samsung] descarga desde la UI: MP4 H.264 + AAC idéntico al almacenado",
+      "ok": true,
+      "detail": {
+        "v": "h264",
+        "a": "aac"
+      }
+    },
+    {
+      "name": "[samsung] enlace de descarga firmado y renovado al recargar",
+      "ok": true,
+      "detail": {
+        "href": "http://127.0.0.1:54321/storage/v1/object/sign/videos/0b1f87f5-33bd-8538-b3e1-c95"
+      }
+    },
+    {
+      "name": "[desktop] resultado: <video> presente y sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "sw": 1440,
+        "iw": 1440
+      }
+    },
+    {
+      "name": "[desktop] reproducción: el tiempo avanza",
+      "ok": true,
+      "detail": {
+        "adv": 2.460066,
+        "err": null,
+        "w": 1080,
+        "h": 1920
+      }
+    },
+    {
+      "name": "[desktop] descarga desde la UI: MP4 H.264 + AAC idéntico al almacenado",
+      "ok": true,
+      "detail": {
+        "v": "h264",
+        "a": "aac"
+      }
+    },
+    {
+      "name": "[desktop] enlace de descarga firmado y renovado al recargar",
+      "ok": true,
+      "detail": {
+        "href": "http://127.0.0.1:54321/storage/v1/object/sign/videos/0b1f87f5-33bd-8538-b3e1-c95"
+      }
+    },
+    {
+      "name": "[samsung] Long Form: formulario sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "sw": 390,
+        "iw": 390
+      }
+    },
+    {
+      "name": "[samsung] Long Form sin tema: no se crea nada",
+      "ok": true
+    },
+    {
+      "name": "[samsung] Long Form: tras crear, su tarjeta muestra un estado en curso y ningún «listo» falso",
+      "ok": true,
+      "detail": "QA aceptación samsung el canal de Panamá 1792971443899\nEn cola\n\nEn cola · 25/10/2026, 11:37:23 p.m.\n\nTu trabajo está guardado. Puedes salir y volver a consultar el progreso a"
+    },
+    {
+      "name": "[samsung] Long Form: página siguiente sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "sw": 390,
+        "iw": 390
+      }
+    },
+    {
+      "name": "[desktop] Long Form: formulario sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "sw": 1440,
+        "iw": 1440
+      }
+    },
+    {
+      "name": "[desktop] Long Form sin tema: no se crea nada",
+      "ok": true
+    },
+    {
+      "name": "[desktop] Long Form: tras crear, su tarjeta muestra un estado en curso y ningún «listo» falso",
+      "ok": true,
+      "detail": "QA aceptación desktop el canal de Panamá 1792971450765\nEn cola\n\nEn cola · 25/10/2026, 11:37:30 p.m.\n\nTu trabajo está guardado. Puedes salir y volver a consultar el progreso a"
+    },
+    {
+      "name": "[desktop] Long Form: página siguiente sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "sw": 1440,
+        "iw": 1440
+      }
+    },
+    {
+      "name": "[samsung] Podcast: página disponible y sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "sw": 390,
+        "iw": 390
+      }
+    },
+    {
+      "name": "[samsung] Podcast vacío: no se crea episodio",
+      "ok": true
+    },
+    {
+      "name": "[samsung] Podcast sin voces disponibles (proveedor inalcanzable): aviso visible y creación bloqueada (falla cerrada)",
+      "ok": true,
+      "detail": {
+        "alert": "La voz sintética no está configurada en el servidor (falta la credencial de ElevenLabs)."
+      }
+    },
+    {
+      "name": "[desktop] Podcast: página disponible y sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "sw": 1440,
+        "iw": 1440
+      }
+    },
+    {
+      "name": "[desktop] Podcast vacío: no se crea episodio",
+      "ok": true
+    },
+    {
+      "name": "[desktop] Podcast sin voces disponibles (proveedor inalcanzable): aviso visible y creación bloqueada (falla cerrada)",
+      "ok": true,
+      "detail": {
+        "alert": "La voz sintética no está configurada en el servidor (falta la credencial de ElevenLabs)."
+      }
+    },
+    {
+      "name": "0 peticiones a proveedores pagos (ninguna salió; las salidas externas se bloquean y registran)",
+      "ok": true,
+      "detail": {
+        "refused": [
+          "registry.npmjs.org"
+        ],
+        "other": []
+      }
+    },
+    {
+      "name": "render: solo despachos al worker LOCAL de prueba (0 renders pagados)",
+      "ok": true,
+      "detail": 3
+    },
+    {
+      "name": "0 violaciones de la CSP aplicada en todas las páginas recorridas (ninguna función bloqueada por cabeceras)",
+      "ok": true,
+      "detail": []
+    }
+  ],
+  "untested": [
+    {
+      "name": "[samsung] Long Form: confirmación de presupuesto → render → descarga",
+      "why": "el guion documental real requiere el modelo (mock-anthropic no lo cubre); el ensayo completo con guion inyectado existe en scripts/harness/e2e/longform-rehearsal (e-run.cjs)"
+    },
+    {
+      "name": "[desktop] Long Form: confirmación de presupuesto → render → descarga",
+      "why": "el guion documental real requiere el modelo (mock-anthropic no lo cubre); el ensayo completo con guion inyectado existe en scripts/harness/e2e/longform-rehearsal (e-run.cjs)"
+    },
+    {
+      "name": "[samsung] Podcast: crear → narrar → descargar",
+      "why": "en este banco no hay mock de ElevenLabs; se cubre con QA_BASE del arnés de podcast (scripts/harness/e2e/podcast/start.sh, puerto 3300)"
+    },
+    {
+      "name": "[desktop] Podcast: crear → narrar → descargar",
+      "why": "en este banco no hay mock de ElevenLabs; se cubre con QA_BASE del arnés de podcast (scripts/harness/e2e/podcast/start.sh, puerto 3300)"
+    },
+    {
+      "name": "producción atomicvid.app con sesión",
+      "why": "sin credenciales autorizadas; ver la auditoría pública de solo lectura (workflow qa-aceptacion-publica)"
+    }
+  ]
+}

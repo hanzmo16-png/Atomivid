@@ -1,0 +1,18 @@
+PASS  [samsung] Podcast: página disponible y sin scroll horizontal
+PASS  [samsung] Podcast vacío: no se crea episodio
+PASS  [samsung] Podcast: el formulario crea el episodio y muestra su estimación
+PASS  [samsung] Podcast: la UI coincide con el estado real (sin falso éxito); estado=ready
+PASS  [samsung] Podcast: descarga desde la UI íntegra (sha256 = BD = almacenado) con audio válido
+PASS  [desktop] Podcast: página disponible y sin scroll horizontal
+PASS  [desktop] Podcast vacío: no se crea episodio
+PASS  [desktop] Podcast: el formulario crea el episodio y muestra su estimación
+PASS  [desktop] Podcast: la UI coincide con el estado real (sin falso éxito); estado=ready
+PASS  [desktop] Podcast: descarga desde la UI íntegra (sha256 = BD = almacenado) con audio válido
+PASS  0 peticiones a proveedores pagos (ninguna salió; las salidas externas se bloquean y registran)
+PASS  render: solo despachos al worker LOCAL de prueba (0 renders pagados)
+PASS  0 violaciones de la CSP aplicada en todas las páginas recorridas (ninguna función bloqueada por cabeceras)
+INFO  avisos de la CSP en modo informe (no bloquean): 0
+PASS  Podcast: descarga íntegra verificada en Samsung 390x844 Y escritorio 1440x900
+NO PROBADO  producción atomicvid.app con sesión — sin credenciales autorizadas; ver la auditoría pública de solo lectura (workflow qa-aceptacion-publica)
+RESULTADO 14 PASS / 0 FAIL / 1 NO PROBADO / 0 XFAIL
+exit=0

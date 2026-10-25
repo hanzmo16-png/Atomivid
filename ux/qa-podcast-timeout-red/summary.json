@@ -1,0 +1,125 @@
+{
+  "pass": 9,
+  "fail": 7,
+  "untestedCount": 1,
+  "knownDefects": [],
+  "anthropicMockCalls": 0,
+  "podcastDownloads": [],
+  "csp": {
+    "enforced": [],
+    "reportOnly": []
+  },
+  "checks": [
+    {
+      "name": "[samsung] Podcast: página disponible y sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "sw": 390,
+        "iw": 390
+      }
+    },
+    {
+      "name": "[samsung] Podcast vacío: no se crea episodio",
+      "ok": true
+    },
+    {
+      "name": "[samsung] Podcast: el formulario crea el episodio y muestra su estimación",
+      "ok": true,
+      "detail": {
+        "url": "http://127.0.0.1:3300/dashboard/podcast/78edf387-a378-419c-aa02-7186879ee42e",
+        "main": "← Podcast\nQA aceptación samsung 1792971974438\nOrigen\nVoz sintética: Ana (catálogo)\nIdioma\nEspañol\nCaracteres\n83 (1 parte(s))\nCosto estimado\nUSD 0.0083 (USD 0.10 por 1 000 caracteres)\nDuración estimada"
+      }
+    },
+    {
+      "name": "[samsung] Podcast: TIMEOUT — el episodio no llegó a un estado terminal en 0.001 s",
+      "ok": false,
+      "detail": {
+        "status": "draft"
+      }
+    },
+    {
+      "name": "[samsung] Podcast: la UI coincide con el estado real (sin falso éxito); estado=draft",
+      "ok": false,
+      "detail": {
+        "status": "draft",
+        "error": ""
+      }
+    },
+    {
+      "name": "[samsung] Podcast: descarga verificada",
+      "ok": false,
+      "detail": "estado=draft (timeout)"
+    },
+    {
+      "name": "[desktop] Podcast: página disponible y sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "sw": 1440,
+        "iw": 1440
+      }
+    },
+    {
+      "name": "[desktop] Podcast vacío: no se crea episodio",
+      "ok": true
+    },
+    {
+      "name": "[desktop] Podcast: el formulario crea el episodio y muestra su estimación",
+      "ok": true,
+      "detail": {
+        "url": "http://127.0.0.1:3300/dashboard/podcast/93e19593-d4e7-4fab-ad69-0b7402af6a37",
+        "main": "← Podcast\nQA aceptación desktop 1792972074058\nOrigen\nVoz sintética: Ana (catálogo)\nIdioma\nEspañol\nCaracteres\n83 (1 parte(s))\nCosto estimado\nUSD 0.0083 (USD 0.10 por 1 000 caracteres)\nDuración estimada"
+      }
+    },
+    {
+      "name": "[desktop] Podcast: TIMEOUT — el episodio no llegó a un estado terminal en 0.001 s",
+      "ok": false,
+      "detail": {
+        "status": "draft"
+      }
+    },
+    {
+      "name": "[desktop] Podcast: la UI coincide con el estado real (sin falso éxito); estado=draft",
+      "ok": false,
+      "detail": {
+        "status": "draft",
+        "error": ""
+      }
+    },
+    {
+      "name": "[desktop] Podcast: descarga verificada",
+      "ok": false,
+      "detail": "estado=draft (timeout)"
+    },
+    {
+      "name": "0 peticiones a proveedores pagos (ninguna salió; las salidas externas se bloquean y registran)",
+      "ok": true,
+      "detail": {
+        "refused": [],
+        "other": []
+      }
+    },
+    {
+      "name": "render: solo despachos al worker LOCAL de prueba (0 renders pagados)",
+      "ok": true,
+      "detail": 0
+    },
+    {
+      "name": "0 violaciones de la CSP aplicada en todas las páginas recorridas (ninguna función bloqueada por cabeceras)",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "Podcast: descarga íntegra verificada en Samsung 390x844 Y escritorio 1440x900",
+      "ok": false,
+      "detail": []
+    }
+  ],
+  "untested": [
+    {
+      "name": "producción atomicvid.app con sesión",
+      "why": "sin credenciales autorizadas; ver la auditoría pública de solo lectura (workflow qa-aceptacion-publica)"
+    }
+  ]
+}

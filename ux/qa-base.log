@@ -1,0 +1,58 @@
+PASS  [samsung] / responde 2xx y sin scroll horizontal
+PASS  [samsung] /login responde 2xx y sin scroll horizontal
+PASS  [samsung] /register responde 2xx y sin scroll horizontal
+PASS  [samsung] /dashboard sin sesión redirige a login (no muestra datos)
+PASS  [samsung] login con contraseña incorrecta: queda en login con mensaje de error
+PASS  [desktop] / responde 2xx y sin scroll horizontal
+PASS  [desktop] /login responde 2xx y sin scroll horizontal
+PASS  [desktop] /register responde 2xx y sin scroll horizontal
+PASS  [desktop] /dashboard sin sesión redirige a login (no muestra datos)
+PASS  [desktop] login con contraseña incorrecta: queda en login con mensaje de error
+PASS  [desktop] panel: sin scroll horizontal
+PASS  [desktop] Reel sin tema: no se crea ninguna solicitud
+PASS  [desktop] Reel con Recraft visible: el ancho de diseño sigue siendo el del dispositivo (sin zoom-out en el teléfono)
+PASS  [desktop] Reel con Recraft (opción por defecto) sin estilo: error explicado, 0 solicitudes
+PASS  [desktop] Reel con «Material de archivo»: ancho de diseño = dispositivo
+PASS  [desktop] Reel: el formulario crea exactamente 1 solicitud
+PASS  [desktop] Reel: revisión del guion visible (preflight antes de render), sin scroll horizontal
+PASS  [desktop] Reel en proceso: su tarjeta no anuncia «listo» antes de tiempo
+PASS  [desktop] Reel: termina «completed» con el worker de prueba
+PASS  [samsung] panel: sin scroll horizontal
+PASS  [samsung] Reel sin tema: no se crea ninguna solicitud
+XFAIL  [P1-1] [samsung] Reel con Recraft visible: el ancho de diseño sigue siendo el del dispositivo (sin zoom-out en el teléfono)  {"innerWidth":732,"device":390}
+PASS  [samsung] Reel con «Material de archivo»: ancho de diseño = dispositivo
+PASS  [samsung] Reel: el formulario crea exactamente 1 solicitud
+PASS  [samsung] Reel: revisión del guion visible (preflight antes de render), sin scroll horizontal
+PASS  [samsung] resultado: <video> presente y sin scroll horizontal
+PASS  [samsung] reproducción: el tiempo avanza
+PASS  [samsung] descarga desde la UI: MP4 H.264 + AAC idéntico al almacenado
+PASS  [samsung] enlace de descarga firmado y renovado al recargar
+PASS  [desktop] resultado: <video> presente y sin scroll horizontal
+PASS  [desktop] reproducción: el tiempo avanza
+PASS  [desktop] descarga desde la UI: MP4 H.264 + AAC idéntico al almacenado
+PASS  [desktop] enlace de descarga firmado y renovado al recargar
+PASS  [samsung] Long Form: formulario sin scroll horizontal
+PASS  [samsung] Long Form sin tema: no se crea nada
+PASS  [samsung] Long Form: tras crear, su tarjeta muestra un estado en curso y ningún «listo» falso
+PASS  [samsung] Long Form: página siguiente sin scroll horizontal
+NO PROBADO  [samsung] Long Form: confirmación de presupuesto → render → descarga — el guion documental real requiere el modelo (mock-anthropic no lo cubre); el ensayo completo con guion inyectado existe en scripts/harness/e2e/longform-rehearsal (e-run.cjs)
+PASS  [desktop] Long Form: formulario sin scroll horizontal
+PASS  [desktop] Long Form sin tema: no se crea nada
+PASS  [desktop] Long Form: tras crear, su tarjeta muestra un estado en curso y ningún «listo» falso
+PASS  [desktop] Long Form: página siguiente sin scroll horizontal
+NO PROBADO  [desktop] Long Form: confirmación de presupuesto → render → descarga — el guion documental real requiere el modelo (mock-anthropic no lo cubre); el ensayo completo con guion inyectado existe en scripts/harness/e2e/longform-rehearsal (e-run.cjs)
+PASS  [samsung] Podcast: página disponible y sin scroll horizontal
+PASS  [samsung] Podcast vacío: no se crea episodio
+PASS  [samsung] Podcast sin voces disponibles (proveedor inalcanzable): aviso visible y creación bloqueada (falla cerrada)
+NO PROBADO  [samsung] Podcast: crear → narrar → descargar — en este banco no hay mock de ElevenLabs; se cubre con QA_BASE del arnés de podcast (scripts/harness/e2e/podcast/start.sh, puerto 3300)
+PASS  [desktop] Podcast: página disponible y sin scroll horizontal
+PASS  [desktop] Podcast vacío: no se crea episodio
+PASS  [desktop] Podcast sin voces disponibles (proveedor inalcanzable): aviso visible y creación bloqueada (falla cerrada)
+NO PROBADO  [desktop] Podcast: crear → narrar → descargar — en este banco no hay mock de ElevenLabs; se cubre con QA_BASE del arnés de podcast (scripts/harness/e2e/podcast/start.sh, puerto 3300)
+PASS  0 peticiones a proveedores pagos (ninguna salió; las salidas externas se bloquean y registran)
+PASS  render: solo despachos al worker LOCAL de prueba (0 renders pagados)
+PASS  0 violaciones de la CSP aplicada en todas las páginas recorridas (ninguna función bloqueada por cabeceras)
+INFO  avisos de la CSP en modo informe (no bloquean): 0
+NO PROBADO  producción atomicvid.app con sesión — sin credenciales autorizadas; ver la auditoría pública de solo lectura (workflow qa-aceptacion-publica)
+RESULTADO 49 PASS / 0 FAIL / 5 NO PROBADO / 1 XFAIL
+exit=0

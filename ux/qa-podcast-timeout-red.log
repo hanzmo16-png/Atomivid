@@ -1,0 +1,20 @@
+PASS  [samsung] Podcast: página disponible y sin scroll horizontal
+PASS  [samsung] Podcast vacío: no se crea episodio
+PASS  [samsung] Podcast: el formulario crea el episodio y muestra su estimación
+FAIL  [samsung] Podcast: TIMEOUT — el episodio no llegó a un estado terminal en 0.001 s  {"status":"draft"}
+FAIL  [samsung] Podcast: la UI coincide con el estado real (sin falso éxito); estado=draft  {"status":"draft","error":""}
+FAIL  [samsung] Podcast: descarga verificada  "estado=draft (timeout)"
+PASS  [desktop] Podcast: página disponible y sin scroll horizontal
+PASS  [desktop] Podcast vacío: no se crea episodio
+PASS  [desktop] Podcast: el formulario crea el episodio y muestra su estimación
+FAIL  [desktop] Podcast: TIMEOUT — el episodio no llegó a un estado terminal en 0.001 s  {"status":"draft"}
+FAIL  [desktop] Podcast: la UI coincide con el estado real (sin falso éxito); estado=draft  {"status":"draft","error":""}
+FAIL  [desktop] Podcast: descarga verificada  "estado=draft (timeout)"
+PASS  0 peticiones a proveedores pagos (ninguna salió; las salidas externas se bloquean y registran)
+PASS  render: solo despachos al worker LOCAL de prueba (0 renders pagados)
+PASS  0 violaciones de la CSP aplicada en todas las páginas recorridas (ninguna función bloqueada por cabeceras)
+INFO  avisos de la CSP en modo informe (no bloquean): 0
+FAIL  Podcast: descarga íntegra verificada en Samsung 390x844 Y escritorio 1440x900  []
+NO PROBADO  producción atomicvid.app con sesión — sin credenciales autorizadas; ver la auditoría pública de solo lectura (workflow qa-aceptacion-publica)
+RESULTADO 9 PASS / 7 FAIL / 1 NO PROBADO / 0 XFAIL
+exit=1

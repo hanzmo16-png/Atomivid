@@ -1,0 +1,143 @@
+{
+  "pass": 14,
+  "fail": 0,
+  "untestedCount": 1,
+  "knownDefects": [],
+  "anthropicMockCalls": 0,
+  "podcastDownloads": [
+    {
+      "dev": "samsung",
+      "id": "bcd1238d-052d-4aa9-8835-c8250003c968",
+      "sha256": "f9dc98c3977adeeb8cde989d02b8006735d81bea1a0ea62cac8b96b95aebdb5f",
+      "bytes": 145429,
+      "duration": 5.964
+    },
+    {
+      "dev": "desktop",
+      "id": "55c4aa14-dd51-4e31-8643-7b538826368b",
+      "sha256": "f9dc98c3977adeeb8cde989d02b8006735d81bea1a0ea62cac8b96b95aebdb5f",
+      "bytes": 145429,
+      "duration": 5.964
+    }
+  ],
+  "csp": {
+    "enforced": [],
+    "reportOnly": []
+  },
+  "checks": [
+    {
+      "name": "[samsung] Podcast: página disponible y sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "sw": 390,
+        "iw": 390
+      }
+    },
+    {
+      "name": "[samsung] Podcast vacío: no se crea episodio",
+      "ok": true
+    },
+    {
+      "name": "[samsung] Podcast: el formulario crea el episodio y muestra su estimación",
+      "ok": true,
+      "detail": {
+        "url": "http://127.0.0.1:3300/dashboard/podcast/bcd1238d-052d-4aa9-8835-c8250003c968",
+        "main": "← Podcast\nQA aceptación samsung 1792971772704\nOrigen\nVoz sintética: Ana (catálogo)\nIdioma\nEspañol\nCaracteres\n83 (1 parte(s))\nCosto estimado\nUSD 0.0083 (USD 0.10 por 1 000 caracteres)\nDuración estimada"
+      }
+    },
+    {
+      "name": "[samsung] Podcast: la UI coincide con el estado real (sin falso éxito); estado=ready",
+      "ok": true,
+      "detail": {
+        "status": "ready",
+        "error": ""
+      }
+    },
+    {
+      "name": "[samsung] Podcast: descarga desde la UI íntegra (sha256 = BD = almacenado) con audio válido",
+      "ok": true,
+      "detail": {
+        "size": 145429,
+        "sha": "f9dc98c3977adeeb",
+        "db": "f9dc98c3977adeeb",
+        "storedExists": true,
+        "duration": "5.964000"
+      }
+    },
+    {
+      "name": "[desktop] Podcast: página disponible y sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "status": 200,
+        "sw": 1440,
+        "iw": 1440
+      }
+    },
+    {
+      "name": "[desktop] Podcast vacío: no se crea episodio",
+      "ok": true
+    },
+    {
+      "name": "[desktop] Podcast: el formulario crea el episodio y muestra su estimación",
+      "ok": true,
+      "detail": {
+        "url": "http://127.0.0.1:3300/dashboard/podcast/55c4aa14-dd51-4e31-8643-7b538826368b",
+        "main": "← Podcast\nQA aceptación desktop 1792971874484\nOrigen\nVoz sintética: Ana (catálogo)\nIdioma\nEspañol\nCaracteres\n83 (1 parte(s))\nCosto estimado\nUSD 0.0083 (USD 0.10 por 1 000 caracteres)\nDuración estimada"
+      }
+    },
+    {
+      "name": "[desktop] Podcast: la UI coincide con el estado real (sin falso éxito); estado=ready",
+      "ok": true,
+      "detail": {
+        "status": "ready",
+        "error": ""
+      }
+    },
+    {
+      "name": "[desktop] Podcast: descarga desde la UI íntegra (sha256 = BD = almacenado) con audio válido",
+      "ok": true,
+      "detail": {
+        "size": 145429,
+        "sha": "f9dc98c3977adeeb",
+        "db": "f9dc98c3977adeeb",
+        "storedExists": true,
+        "duration": "5.964000"
+      }
+    },
+    {
+      "name": "0 peticiones a proveedores pagos (ninguna salió; las salidas externas se bloquean y registran)",
+      "ok": true,
+      "detail": {
+        "refused": [
+          "registry.npmjs.org"
+        ],
+        "other": []
+      }
+    },
+    {
+      "name": "render: solo despachos al worker LOCAL de prueba (0 renders pagados)",
+      "ok": true,
+      "detail": 0
+    },
+    {
+      "name": "0 violaciones de la CSP aplicada en todas las páginas recorridas (ninguna función bloqueada por cabeceras)",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "Podcast: descarga íntegra verificada en Samsung 390x844 Y escritorio 1440x900",
+      "ok": true,
+      "detail": [
+        "samsung",
+        "desktop"
+      ]
+    }
+  ],
+  "untested": [
+    {
+      "name": "producción atomicvid.app con sesión",
+      "why": "sin credenciales autorizadas; ver la auditoría pública de solo lectura (workflow qa-aceptacion-publica)"
+    }
+  ]
+}
