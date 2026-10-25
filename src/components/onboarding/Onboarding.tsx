@@ -100,9 +100,10 @@ export function Onboarding() {
         ref={triggerRef}
         type="button"
         onClick={openFresh}
-        // En el teléfono va al final de la página (en el flujo): flotando tapaba el borde derecho de las barras de
-        // acción fijas inferiores («Generar video final», «Siguiente» del Podcast). Desde sm vuelve a flotar.
-        className="mb-6 ml-auto mr-4 flex size-11 sm:fixed sm:bottom-5 sm:right-5 sm:z-30 sm:m-0 items-center justify-center rounded-full border border-border-strong bg-surface-raised text-ink-muted shadow-lg transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
+        // Hasta md (768 px) va al final de la página (en el flujo): flotando tapaba el borde derecho de las barras de
+        // acción fijas inferiores («Generar video final», «Siguiente» del Podcast), también en horizontal y en tabletas
+        // pequeñas (640–765 px, donde la barra max-w-2xl llega a su esquina). Desde md vuelve a flotar.
+        className="mb-6 ml-auto mr-4 flex size-11 md:fixed md:bottom-5 md:right-5 md:z-30 md:m-0 items-center justify-center rounded-full border border-border-strong bg-surface-raised text-ink-muted shadow-lg transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
         aria-label="Ver cómo funciona Atomicvid"
         title="Ayuda: cómo funciona"
       >

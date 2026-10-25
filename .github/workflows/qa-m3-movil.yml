@@ -47,7 +47,7 @@ jobs:
         run: bash scripts/harness/e2e/infra/setup.sh
       - name: Entorno base (Next 3100)
         run: bash scripts/harness/e2e/infra/start.sh
-      - name: M3-1 — el botón de ayuda no tapa las acciones principales (360/412/1366/1440)
+      - name: M3-1 — el botón de ayuda no tapa las acciones principales (360/412/640/740/1366/1440)
         run: |
           set +e; E2E_SCRIPT=qa-aceptacion/m3-help-overlap.cjs bash scripts/harness/e2e/infra/run-e2e.sh m3-help-overlap; code=$?
           log="$E2E_HOME/out/m3-help-overlap.log"; grep -E '^(PASS|FAIL)  ' "$log"
