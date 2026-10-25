@@ -165,6 +165,11 @@ async function podcast(dev) {
   check(`[${dev}] Podcast: página disponible y sin scroll horizontal`, r && r.status() < 400 && o.sw <= o.iw + 1, { status: r?.status(), ...o });
   const n0 = await count("select count(*) n from public.podcast_episodes where user_id=$1", [OWNER.id]);
   // Desde Podcast 2.1/3.0 (#207) la página abre con el asistente y el formulario clásico queda plegado en <details>.
+  // Comprobación separada del asistente (sus propios selectores, sin mezclarlos con los del formulario clásico).
+  const wizard = p.getByTestId("podcast-wizard");
+  const wizardOk = await wizard.waitFor({ timeout: 15000 }).then(async () => (await wizard.getAttribute("data-hydrated")) === "1" || (await p.waitForTimeout(3000), (await wizard.getAttribute("data-hydrated")) === "1")).catch(() => false);
+  const stepTitle = await p.getByTestId("wizard-step-title").innerText({ timeout: 5000 }).catch(() => "");
+  check(`[${dev}] Podcast: el asistente nuevo es la vista principal (hidratado, paso 1)`, wizardOk && /^Paso 1 de \d+/.test(stepTitle), { wizardOk, stepTitle });
   const classic = p.locator("summary", { hasText: "Formulario clásico" });
   if (await classic.count()) { await classic.first().click(); await sleep(300); }
   await p.getByRole("button", { name: /Crear episodio/ }).click().catch(() => {}); await sleep(1500);
