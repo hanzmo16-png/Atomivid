@@ -26,7 +26,7 @@ Aplicarla sin datos reales podría romper el login, las subidas o la reproducci�
 
 ## Verificación (USD 0)
 
-**Unitarias** (`src/lib/security-headers.test.ts`, incluidas en `test:unit`):
+**Unitarias** (`src/lib/security-headers.test.ts`, en el workflow propio `security-headers`, que se dispara con cualquier cambio en `next.config.*`, `src/lib/security-headers*` o `src/proxy.ts`; no van en `test:unit` para no chocar en `package.json` con #199/#200):
 - valores exactos de cada encabezado;
 - la CSP aplicada no contiene directivas de carga;
 - el modo informe incluye Supabase https/wss y Sentry, sin `unsafe-eval` en producción y sin endpoint de informes;
