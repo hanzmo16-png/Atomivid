@@ -16,7 +16,24 @@ function verifiedCostUsd(provider: string, estimatedCostUsd: number): number {
   return estimatedCostUsd;
 }
 
-export type PaidCallDeps = { ledger: LedgerStore; results: PaidResultStore; requestId: string };
+/**
+ * Bounded retry of the WRITE of an already-paid result (the provider has charged by then). A transient storage error
+ * must not turn a recoverable asset into a permanently unloadable one. Defaults: 3 attempts, waits 500 ms then 1500 ms.
+ */
+export type StorageRetry = { attempts?: number; retryDelayMs?: (retry: number) => number };
+export type PaidCallDeps = { ledger: LedgerStore; results: PaidResultStore; requestId: string; storageRetry?: StorageRetry };
+
+const STORAGE_RETRY_DELAYS_MS = [500, 1500];
+async function withStorageRetry(retry: StorageRetry | undefined, write: () => Promise<void>): Promise<void> {
+  const attempts = Math.max(1, Math.min(5, retry?.attempts ?? 3));
+  for (let i = 1; ; i++) {
+    try { return await write(); } catch (err) {
+      if (i >= attempts) throw err;
+      const wait = retry?.retryDelayMs ? retry.retryDelayMs(i) : STORAGE_RETRY_DELAYS_MS[Math.min(i, STORAGE_RETRY_DELAYS_MS.length) - 1];
+      if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+    }
+  }
+}
 
 type StoredVoice = { audioPath: string; sha256: string; bytes: number; durationSeconds: number; words: WordTiming[]; mimeType: string; extension: string };
 type StoredMusic = { audioPath: string; sha256: string; bytes: number; durationSeconds: number; mimeType: string; extension: string; track?: MusicResult["track"] };
@@ -27,12 +44,13 @@ async function storeAudio<M extends { audioPath: string; sha256: string; bytes: 
   key: string,
   audio: { audioBuffer: Buffer; mimeType: string; extension: string },
   meta: Omit<M, "audioPath" | "sha256" | "bytes">,
+  retry?: StorageRetry,
 ): Promise<string> {
   const audioPath = paidResultPath(requestId, key, audio.extension);
   const jsonPath = paidResultPath(requestId, key, "json");
   try {
-    await results.putBytes(audioPath, audio.audioBuffer, audio.mimeType);
-    await results.putJson(jsonPath, { ...meta, audioPath, sha256: sha256Hex(audio.audioBuffer), bytes: audio.audioBuffer.byteLength });
+    await withStorageRetry(retry, () => results.putBytes(audioPath, audio.audioBuffer, audio.mimeType));
+    await withStorageRetry(retry, () => results.putJson(jsonPath, { ...meta, audioPath, sha256: sha256Hex(audio.audioBuffer), bytes: audio.audioBuffer.byteLength }));
     return jsonPath;
   } catch (err) {
     // The provider already charged: commit with an unloadable ref rather than lose the row. A
@@ -163,7 +181,7 @@ export async function gatedVoiceSynthesize(
     {
       call: async ({ key }) => {
         const r = await deps.voiceProvider.synthesize(ttsText, language, speed);
-        const resultRef = await storeAudio<StoredVoice>(deps.results, deps.requestId, key, r, { durationSeconds: r.durationSeconds, words: r.words, mimeType: r.mimeType, extension: r.extension });
+        const resultRef = await storeAudio<StoredVoice>(deps.results, deps.requestId, key, r, { durationSeconds: r.durationSeconds, words: r.words, mimeType: r.mimeType, extension: r.extension }, deps.storageRetry);
         return { result: r, costUsd, resultRef };
       },
       load,
@@ -219,7 +237,7 @@ export async function gatedMusicTrack(
     {
       call: async ({ key }) => {
         const r = await deps.musicProvider.getTrack(context);
-        const resultRef = await storeAudio<StoredMusic>(deps.results, deps.requestId, key, r, { durationSeconds: r.durationSeconds, mimeType: r.mimeType, extension: r.extension, track: r.track });
+        const resultRef = await storeAudio<StoredMusic>(deps.results, deps.requestId, key, r, { durationSeconds: r.durationSeconds, mimeType: r.mimeType, extension: r.extension, track: r.track }, deps.storageRetry);
         return { result: r, costUsd, resultRef };
       },
       load: (resultRef) => loadMusic(deps.results, resultRef),
