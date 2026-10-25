@@ -27,7 +27,7 @@ RO "$R/scripts/qa/schema-readonly/impact.sql" > "$OUT/impact.txt"; echo "impact 
 grep -q '^session_read_only | on$' "$OUT/impact.txt" && pass "impact queries ran with transaction_read_only=on" || fail "impact read-only flag not confirmed"
 grep -E '^(impact|prod_rows|prod_supply_state)' "$OUT/impact.txt"
 grep -E '^(migration|marker|trigger|privilege|count) ' "$OUT/catalog.txt"
-"$PGBIN/pg_dump" "$URL" --schema-only --no-owner --no-privileges --no-comments -n public -f "$T/public.sql" 2>"$T/d1" || { echo "FAIL pg_dump schema: $(mask < "$T/d1" | head -3)"; exit 1; }
+"$PGBIN/pg_dump" "$URL" --schema-only --no-owner --no-comments -n public -f "$T/public.sql" 2>"$T/d1" || { echo "FAIL pg_dump schema: $(mask < "$T/d1" | head -3)"; exit 1; }
 "$PGBIN/pg_dump" "$URL" --data-only --disable-triggers --no-owner -t 'public.pi_*' -t public._migrations_applied -f "$T/data.sql" 2>"$T/d2" || { echo "FAIL pg_dump data: $(mask < "$T/d2" | head -3)"; exit 1; }
 "$PGBIN/pg_dump" "$URL" --no-owner --no-privileges -n supabase_migrations -f "$T/sm.sql" 2>"$T/d3" || { echo "FAIL pg_dump registry: $(mask < "$T/d3" | head -3)"; exit 1; }
 echo "INFO dumps kept on the runner only: schema $(wc -l < "$T/public.sql") lines, pi_* data $(wc -c < "$T/data.sql") bytes, schema_migrations $(wc -l < "$T/sm.sql") lines"
@@ -59,7 +59,10 @@ LQ="$PGBIN/psql -h $T -p 55990 -U postgres -X -q"
 $LQ -d postgres -c "create database replica" >/dev/null
 $LQ -d replica -f "$INT/scripts/harness/e2e/infra/stubs.sql" >/dev/null 2>&1
 $LQ -d replica -c "create schema if not exists extensions; create extension if not exists pgcrypto with schema extensions; create extension if not exists \"uuid-ossp\" with schema extensions" >/dev/null 2>&1
-$LQ -d replica -f "$T/public.sql" > "$T/restore.log" 2>&1; echo "INFO schema restore: $(grep -c ERROR "$T/restore.log") errors"; grep ERROR "$T/restore.log" | sort | uniq -c | sort -rn | head -5
+# the schema dump keeps production's privileges (REVOKE … FROM PUBLIC + GRANTs); GRANTs to Supabase-internal roles absent here fail harmlessly
+$LQ -d replica -f "$T/public.sql" > "$T/restore.log" 2>&1; echo "INFO schema restore: $(grep -c ERROR "$T/restore.log") errors ($(grep ERROR "$T/restore.log" | grep -c 'role .* does not exist') of them grants to Supabase-internal roles)"; grep ERROR "$T/restore.log" | grep -v 'role .* does not exist' | sort | uniq -c | sort -rn | head -5
+priv=$($LQ -d replica -At -c "select count(*) filter (where has_function_privilege('anon', 'public.pi_spend_authorization_usage(text,text)', 'execute')) + count(*) filter (where has_function_privilege('anon', 'public.pi_supply_spend(text,timestamptz)', 'execute'))")
+[ "$priv" = 0 ] && pass "replica carries production's function privileges (anon cannot execute pi_spend_authorization_usage / pi_supply_spend)" || fail "replica privileges do not match production"
 $LQ -d replica -f "$T/sm.sql" > "$T/restore2.log" 2>&1; echo "INFO registry restore: $(grep -c ERROR "$T/restore2.log") errors"; grep ERROR "$T/restore2.log" | head -3
 $LQ -d replica -f "$T/data.sql" > "$T/restore3.log" 2>&1; echo "INFO pi_* data restore: $(grep -c ERROR "$T/restore3.log") errors"; grep ERROR "$T/restore3.log" | head -3
 rows_ok=1
@@ -84,11 +87,12 @@ SQL
 data(){ $LQ -d replica -At <<'SQL'
 select 'data', c.relname, (xpath('/row/h/text()', query_to_xml(format('select md5(coalesce(string_agg(t::text, ''|'' order by t::text), '''')) h from public.%I t', c.relname), false, true, '')))[1]::text
   from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r' and c.relname like 'pi\_%' order by 2;
-select 'supply', provider, md5(public.pi_supply_state(provider)::text) from public.pi_supply_policies order by 2;
+select 'supply', provider, md5((public.pi_supply_state(provider) - 'studioActiveCalls' - 'studioTodayCalls')::text) from public.pi_supply_policies order by 2;
 select 'usage', project_id, md5(public.pi_spend_authorization_usage(project_id)::text) from public.pi_spend_authorizations order by 2;
 SQL
 }
-snap > "$T/s0"; data > "$T/d0"
+snap > "$T/s0"; data > "$T/d0"; sleep 3; data > "$T/d0b"
+noise=$(diff <(grep '^supply' "$T/d0") <(grep '^supply' "$T/d0b") | grep -c '^<' || true); echo "INFO supply-state time noise: $noise provider(s) change between two reads 3 s apart with no change at all"
 echo "INFO start state: $(grep -c '^fn' "$T/s0") functions, $(grep -c '^data' "$T/d0") pi_* tables, $(grep -c '^supply' "$T/d0") providers, $(grep -c '^usage' "$T/d0") authorizations"
 
 LURL="postgresql://postgres@localhost/replica?host=$T&port=55990"
@@ -109,7 +113,7 @@ missing=$(for f in "$INT"/supabase/migrations/*.sql; do b=$(basename "$f"); [ "$
 [ -z "$missing" ] && pass "every file in supabase/migrations is registered in _migrations_applied" || fail "still unregistered: $missing"
 APPLY replica "$INT" > "$T/all.log"; rc=$?; grep -E 'DETENIDO|Aplicando|FALLÓ|Resumen' "$T/all.log" | head -6
 [ $rc = 0 ] && grep -q 'Resumen: 0 aplicada(s)' "$T/all.log" && pass "'apply all pending' after A: exit 0, 0 applied (nothing re-executed)" || fail "'apply all pending' after A: exit $rc"
-snap > "$T/s1"; data > "$T/d1"; diff -q <(grep -v '^reg_ma' "$T/s1") <(grep -v '^reg_ma' "$T/s0") >/dev/null && diff -q "$T/d1" "$T/d0" >/dev/null && pass "A changed only _migrations_applied (functions, pi_* data, economic answers identical)" || fail "A changed more than the registry"
+snap > "$T/s1"; data > "$T/d1"; diff -q <(grep -v '^reg_ma' "$T/s1") <(grep -v '^reg_ma' "$T/s0") >/dev/null && diff -q <(grep -v '^supply' "$T/d1") <(grep -v '^supply' "$T/d0") >/dev/null && pass "A changed only _migrations_applied (functions, pi_* data, economic answers identical)" || fail "A changed more than the registry"
 
 echo "== 6. Sequential release 120000 → 130000 → 140000 with the real tool (migration_file, one per run)"
 REL=$T/rel; cp -a "$INT" "$REL"; rm -f "$REL/node_modules"; ln -s "$R/node_modules" "$REL/node_modules"
@@ -143,14 +147,17 @@ grep '^rls' "$T/perm.txt" | awk -F'|' '{ if ($3=="t" && $4=="f" && $5=="f") prin
 fails=$((fails + $(grep -c '^FAIL' "$T/rls.out" || true)))
 data > "$T/d3"
 diff -q <(grep '^data' "$T/d3") <(grep '^data' "$T/d0") >/dev/null && pass "the three migrations changed no existing pi_* row" || fail "existing pi_* rows changed"
-diff -q <(grep '^supply' "$T/d3") <(grep '^supply' "$T/d0") >/dev/null && pass "pi_supply_state(provider) identical before/after for every provider (studio ledger empty → no limit moved)" || { fail "supply state changed"; diff <(grep '^supply' "$T/d0") <(grep '^supply' "$T/d3"); }
+# same instant, one statement: the new wrapper (minus its two studio counters, both 0) == the pre-studio function
+same=$($LQ -d replica -At -c "select count(*) filter (where (public.pi_supply_state(provider) - 'studioActiveCalls' - 'studioTodayCalls') = public.pi_supply_state_pre_studio(provider)), count(*), count(*) filter (where coalesce((public.pi_supply_state(provider)->>'studioActiveCalls')::int, 0) = 0 and coalesce((public.pi_supply_state(provider)->>'studioTodayCalls')::int, 0) = 0) from public.pi_supply_policies")
+IFS='|' read -r eq tot zero <<< "$same"
+[ "$eq" = "$tot" ] && [ "$zero" = "$tot" ] && pass "pi_supply_state after 140000 == pre-studio state for all $tot providers at the same instant (only adds studio counters = 0; no limit, level or spend moved)" || fail "supply wrapper changes state ($eq/$tot equal, $zero/$tot zero counters)"
+chg=$(diff <(grep '^supply' "$T/d0") <(grep '^supply' "$T/d3") | grep -c '^<' || true); echo "INFO supply-state md5 before vs after (seconds apart): $chg provider(s) differ; time noise measured above: $noise"
 diff -q <(grep '^usage' "$T/d3") <(grep '^usage' "$T/d0") >/dev/null && pass "pi_spend_authorization_usage identical for every existing authorization" || fail "authorization usage changed"
 # economic limits on the migrated replica (synthetic owner/episode, inside a transaction that is rolled back)
 $LQ -d replica -v ON_ERROR_STOP=0 -At > "$T/lim.txt" 2>&1 <<'SQL'
 begin;
 select 'cap_over_50', (select count(*) from pg_constraint where conname = 'podcast_studio_episodes_authorized_max');
 select 'studio_counts_empty', public.pi_studio_call_counts('heygen', now() - interval '1 day', null)::text;
-select 'supply_wrapper_equals_pre_studio', (select bool_and(public.pi_supply_state(provider)::text = public.pi_supply_state_pre_studio(provider)::text) from public.pi_supply_policies);
 rollback;
 SQL
 grep -E '^(cap_over_50|studio_counts_empty|supply_wrapper)' "$T/lim.txt"; grep -q '^cap_over_50|1' "$T/lim.txt" && pass "studio authorization hard cap (≤ USD 50) constraint present" || fail "studio cap constraint missing"
@@ -162,7 +169,8 @@ for v in 20261024140000_podcast_v3_studio 20261024130000_spend_authorization_bas
 done
 snap > "$T/s4"; data > "$T/d4"
 diff -q <(grep -v '^reg_ma' "$T/s4") <(grep -v '^reg_ma' "$T/s0") >/dev/null && pass "after rollbacks: every touched function body and the studio tables are back to the production start state (md5)" || { fail "function bodies differ from start after rollback"; diff <(grep -v '^reg_ma' "$T/s0") <(grep -v '^reg_ma' "$T/s4"); }
-diff -q "$T/d4" "$T/d0" >/dev/null && pass "after rollbacks: pi_* data and economic answers identical to start" || fail "data differs after rollback"
+diff -q <(grep -v '^supply' "$T/d4") <(grep -v '^supply' "$T/d0") >/dev/null && pass "after rollbacks: pi_* data and authorization usage identical to start" || fail "data differs after rollback"
+[ "$($LQ -d replica -At -c "select to_regprocedure('public.pi_supply_state_pre_studio(text)') is null")" = t ] && pass "after rollbacks: pi_supply_state is the original function again (no wrapper)" || fail "wrapper still present after rollback"
 $LQ -d replica -v ON_ERROR_STOP=1 -f "$OUT/reconcile/A_register_migrations_applied.rollback.sql" >/dev/null 2>&1 && snap > "$T/s5" && diff -q "$T/s5" "$T/s0" >/dev/null && pass "rollback A: _migrations_applied identical to production's (md5)" || fail "rollback A did not restore the registry"
 $LQ -d replica -v ON_ERROR_STOP=1 -f "$OUT/reconcile/B_register_schema_migrations.sql" >/dev/null 2>"$T/b.err" && pass "B (optional, schema_migrations) applies" || fail "B: $(head -2 "$T/b.err")"
 $LQ -d replica -v ON_ERROR_STOP=1 -f "$OUT/reconcile/B_register_schema_migrations.rollback.sql" >/dev/null 2>&1 && snap > "$T/s6" && diff -q "$T/s6" "$T/s0" >/dev/null && pass "rollback B: schema_migrations identical to production's (md5)" || fail "rollback B did not restore schema_migrations"
