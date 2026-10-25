@@ -18,27 +18,102 @@
 --   * EXECUTE only for the owner (postgres): neither the app (service_role) nor clients can call it.
 begin;
 
-create table if not exists public.pi_reconciliation_log (
-  decision_id text primary key check (length(trim(decision_id)) >= 8),
-  idempotency_key text not null unique references public.pi_paid_operations (idempotency_key),
-  decision_sha256 text not null check (decision_sha256 ~ '^[0-9a-f]{64}$'),
-  outcome text not null check (outcome in ('cancelled_before_submission', 'not_charged', 'charged', 'assumed_charged')),
-  evidence text not null check (length(trim(evidence)) > 0),
-  amount_usd numeric(12,4) not null check (amount_usd >= 0),
-  before_row jsonb not null,
-  after_row jsonb not null,
-  actor text not null default current_user,
-  decided_at timestamptz not null default clock_timestamp()
-);
--- IF NOT EXISTS must never accept a different table silently: the exact column contract is checked.
-do $$ begin
-  if (select array_agg(column_name::text || ':' || data_type order by ordinal_position) from information_schema.columns
-      where table_schema = 'public' and table_name = 'pi_reconciliation_log')
-     is distinct from array['decision_id:text', 'idempotency_key:text', 'decision_sha256:text', 'outcome:text', 'evidence:text', 'amount_usd:numeric',
-                            'before_row:jsonb', 'after_row:jsonb', 'actor:text', 'decided_at:timestamp with time zone'] then
-    raise exception 'pi_reconciliation_log exists with an incompatible definition; refusing to install over it' using errcode = 'P0001';
+-- Catalog fingerprint of a relation's contract (names of auto-generated constraints are excluded: they embed the table name).
+create or replace function public.pi_reconciliation_contract_parts(t regclass) returns setof text
+language sql stable set search_path = '' as $f$
+  select 'rel:' || c.relkind::text || ':partition=' || c.relispartition || ':inherits=' || (select count(*) from pg_catalog.pg_inherits i where i.inhrelid = c.oid or i.inhparent = c.oid)
+    || ':rules=' || (select count(*) from pg_catalog.pg_rewrite r where r.ev_class = c.oid)
+    || ':foreign_triggers=' || (select count(*) from pg_catalog.pg_trigger g where g.tgrelid = c.oid and not g.tgisinternal
+         and g.tgname not in ('pi_reconciliation_log_append_only', 'pi_reconciliation_log_no_truncate'))
+  from pg_catalog.pg_class c where c.oid = t
+  union all
+  select 'col:' || lpad(row_number() over (order by a.attnum)::text, 3, '0') || ':' || a.attname || ':' || pg_catalog.format_type(a.atttypid, a.atttypmod)
+    || ':notnull=' || a.attnotnull || ':default=' || coalesce(pg_catalog.pg_get_expr(d.adbin, d.adrelid), '-')
+    || ':collation=' || coalesce(co.collname::text, '-') || ':identity=' || a.attidentity::text || ':generated=' || a.attgenerated::text
+  from pg_catalog.pg_attribute a left join pg_catalog.pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+    left join pg_catalog.pg_collation co on co.oid = a.attcollation
+  where a.attrelid = t and a.attnum > 0 and not a.attisdropped
+  union all
+  select 'con:' || k.contype::text || ':' || pg_catalog.pg_get_constraintdef(k.oid) || ':valid=' || k.convalidated || ':deferrable=' || k.condeferrable
+  from pg_catalog.pg_constraint k where k.conrelid = t
+$f$;
+-- Security state the log must have once installed: owner postgres, RLS on, no policies, no table or column privilege
+-- for anyone but the owner, and the tool's two append-only triggers present and enabled. NULL = compliant.
+create or replace function public.pi_reconciliation_security_problem() returns text
+language sql stable set search_path = '' as $f$
+  select case
+    when c.relkind <> 'r' then 'not a plain table'
+    when pg_catalog.pg_get_userbyid(c.relowner) <> 'postgres' then 'owner is ' || pg_catalog.pg_get_userbyid(c.relowner) || ', expected postgres'
+    when not c.relrowsecurity then 'row level security disabled'
+    when exists (select 1 from pg_catalog.pg_policy p where p.polrelid = c.oid) then 'row level security policies present'
+    when exists (select 1 from pg_catalog.aclexplode(coalesce(c.relacl, pg_catalog.acldefault('r', c.relowner))) x where x.grantee <> c.relowner)
+      then 'table privileges granted to roles other than the owner'
+    when exists (select 1 from pg_catalog.pg_attribute a where a.attrelid = c.oid and a.attnum > 0 and a.attacl is not null
+                   and exists (select 1 from pg_catalog.aclexplode(a.attacl) x where x.grantee <> c.relowner))
+      then 'column privileges granted to roles other than the owner'
+    when (select count(*) from pg_catalog.pg_trigger g where g.tgrelid = c.oid and not g.tgisinternal and g.tgenabled = 'O'
+            and g.tgname in ('pi_reconciliation_log_append_only', 'pi_reconciliation_log_no_truncate')
+            and g.tgfoid = pg_catalog.to_regprocedure('public.pi_reconciliation_log_immutable()')) <> 2
+      then 'append-only triggers missing, disabled or bound to another function'
+  end
+  from pg_catalog.pg_class c where c.oid = pg_catalog.to_regclass('public.pi_reconciliation_log')
+$f$;
+-- One canonical definition, instantiated twice in this transaction: as a reference in a scratch schema that is dropped
+-- before commit (an abort drops it too) and (only if absent) as the
+-- real log. IF NOT EXISTS must never accept a different table silently, so the WHOLE contract of the existing table is
+-- compared with the reference: relation kind, inheritance, columns (order, type, NOT NULL, default, identity, generated),
+-- every constraint (PK, UNIQUE, FK, CHECK — definition, validity, deferrability) and no foreign triggers or rewrite rules.
+-- Both sides are read from the catalog of this same server, so the comparison does not depend on the PostgreSQL version.
+do $$
+declare
+  ddl constant text := $ddl$create table %s (
+    decision_id text primary key check (length(trim(decision_id)) >= 8),
+    idempotency_key text not null unique references public.pi_paid_operations (idempotency_key),
+    decision_sha256 text not null check (decision_sha256 ~ '^[0-9a-f]{64}$'),
+    outcome text not null check (outcome in ('cancelled_before_submission', 'not_charged', 'charged', 'assumed_charged')),
+    evidence text not null check (length(trim(evidence)) > 0),
+    amount_usd numeric(12,4) not null check (amount_usd >= 0),
+    before_row jsonb not null,
+    after_row jsonb not null,
+    actor text not null default current_user,
+    decided_at timestamptz not null default clock_timestamp()
+  )$ddl$;
+  ref_fp text;
+  log_fp text;
+  preexisting boolean := to_regclass('public.pi_reconciliation_log') is not null;
+  bad text;
+begin
+  create schema pi_reconcile_contract_ref;  -- fails (and aborts the install) if the name is already taken
+  execute format(ddl, 'pi_reconcile_contract_ref.pi_reconciliation_log');
+  if not preexisting then execute format(ddl, 'public.pi_reconciliation_log'); end if;
+  select string_agg(part, E'\n' order by part) into ref_fp from public.pi_reconciliation_contract_parts('pi_reconcile_contract_ref.pi_reconciliation_log'::regclass) part;
+  select string_agg(part, E'\n' order by part) into log_fp from public.pi_reconciliation_contract_parts('public.pi_reconciliation_log'::regclass) part;
+  drop schema pi_reconcile_contract_ref cascade;
+  if log_fp is distinct from ref_fp then
+    raise exception 'pi_reconciliation_log exists with an incompatible definition (contract % expected %); refusing to install over it',
+      md5(coalesce(log_fp, '')), md5(ref_fp) using errcode = 'P0001';
+  end if;
+  if preexisting then
+    -- A pre-existing log must already be in the exact final security state; nothing is normalized over someone else's table.
+    bad := public.pi_reconciliation_security_problem();
+    if bad is not null then
+      raise exception 'pi_reconciliation_log exists with an incompatible definition (%); refusing to install over it', bad using errcode = 'P0001';
+    end if;
+  else
+    -- The table this install just created is normalized: canonical owner and no grant to anyone but the owner
+    -- (default privileges may have granted to other roles at creation).
+    alter table public.pi_reconciliation_log owner to postgres;
+    for bad in select distinct pg_catalog.quote_ident(r.rolname) from pg_catalog.pg_class c, pg_catalog.aclexplode(c.relacl) x
+               join pg_catalog.pg_roles r on r.oid = x.grantee
+               where c.oid = 'public.pi_reconciliation_log'::regclass and x.grantee <> c.relowner loop
+      execute format('revoke all on table public.pi_reconciliation_log from %s', bad);
+    end loop;
+    if exists (select 1 from pg_catalog.pg_class c, pg_catalog.aclexplode(c.relacl) x where c.oid = 'public.pi_reconciliation_log'::regclass and x.grantee = 0) then
+      revoke all on table public.pi_reconciliation_log from public;
+    end if;
   end if;
 end $$;
+drop function public.pi_reconciliation_contract_parts(regclass);
 alter table public.pi_reconciliation_log enable row level security;
 revoke all on table public.pi_reconciliation_log from public, anon, authenticated, service_role;
 
@@ -139,5 +214,10 @@ end $$;
 alter function public.pi_reconcile_open_operation(text, text, text, timestamptz, text, text, numeric, boolean) owner to postgres;
 revoke all on function public.pi_reconcile_open_operation(text, text, text, timestamptz, text, text, numeric, boolean) from public, anon, authenticated, service_role;
 revoke all on function public.pi_reconciliation_log_immutable() from public, anon, authenticated, service_role;
+-- Final gate: the installed log must be in the exact security state, else the whole install is rolled back.
+do $$ declare bad text := public.pi_reconciliation_security_problem(); begin
+  if bad is not null then raise exception 'pi_reconciliation_log security state after install: %; install aborted', bad using errcode = 'P0001'; end if;
+end $$;
+drop function public.pi_reconciliation_security_problem();
 
 commit;
