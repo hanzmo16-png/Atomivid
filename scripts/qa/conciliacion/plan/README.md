@@ -112,7 +112,7 @@ python3 -I plan.py verify-map --mapped M.json --plan DIR/plan.json --snapshot S.
   - las filas frescas;
   - la ausencia de SQL y de identificadores no redactados;
   - el mapeo: el hash con seudónimo difiere del hash con clave real; los mapeos incorrectos se rechazan sin escribir nada; la plantilla o el plan mapeado alterados se rechazan; nunca se escribe dentro del repositorio.
-- **`pg_check.sh`:** PostgreSQL desechable con el DDL real del ledger, las migraciones de supply y la herramienta propuesta de su propio árbol (verificada contra `docs/ops/conciliacion/SHA256SUMS`). En este árbol es `4824d8db…`, la de #209 @ `ab6a701`. El ledger tiene las claves "reales" sintéticas; la plantilla solo vio `k-md5(clave)`. Comprueba que:
+- **`pg_check.sh`:** PostgreSQL desechable con el DDL real del ledger, las migraciones de supply y la herramienta propuesta de su propio árbol (verificada contra `docs/ops/conciliacion/SHA256SUMS`). En este árbol es `b3dd1c05…`, la de #209 @ `5ee19a6` (aprobada). El ledger tiene las claves "reales" sintéticas; la plantilla solo vio `k-md5(clave)`. Comprueba que:
   - la herramienta rechaza una decisión de plantilla ("operation not found");
   - la herramienta acepta las 41 decisiones del plan **mapeado**;
   - el hash que devuelve la herramienta coincide con `decision_sha256` en 41/41 y con `template_sha256` en 0/41;
