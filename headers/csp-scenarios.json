@@ -1,0 +1,542 @@
+[
+  {
+    "target": "next-local",
+    "dev": "samsung",
+    "name": "login: Supabase Auth (fetch https)",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "TypeError: Failed to fetch",
+    "ok": true
+  },
+  {
+    "target": "next-local",
+    "dev": "samsung",
+    "name": "Supabase Realtime (WebSocket)",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "next-local",
+    "dev": "samsung",
+    "name": "Storage firmado: imagen",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "next-local",
+    "dev": "samsung",
+    "name": "Storage firmado: video <video>",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "next-local",
+    "dev": "samsung",
+    "name": "Storage firmado: subida PUT (grabación del navegador)",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "TypeError: Failed to fetch",
+    "ok": true
+  },
+  {
+    "target": "next-local",
+    "dev": "samsung",
+    "name": "vista previa local (blob: en <video> e <img>)",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "next-local",
+    "dev": "samsung",
+    "name": "Sentry: envío de evento (simulado)",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "next-local",
+    "dev": "samsung",
+    "name": "API propia (/api/m)",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": 204,
+    "ok": true
+  },
+  {
+    "target": "next-local",
+    "dev": "samsung",
+    "name": "control: conexión a origen no permitido (connect-src, informe)",
+    "expect": "report",
+    "enforced": 0,
+    "report": 2,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "next-local",
+    "dev": "samsung",
+    "name": "control: <object> (object-src 'none', aplicada)",
+    "expect": "enforce",
+    "enforced": 1,
+    "report": 1,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "next-local",
+    "dev": "samsung",
+    "name": "control: <base> ajeno (base-uri 'self', aplicada)",
+    "expect": "enforce",
+    "enforced": 1,
+    "report": 1,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "next-local",
+    "dev": "desktop",
+    "name": "login: Supabase Auth (fetch https)",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "TypeError: Failed to fetch",
+    "ok": true
+  },
+  {
+    "target": "next-local",
+    "dev": "desktop",
+    "name": "Supabase Realtime (WebSocket)",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "next-local",
+    "dev": "desktop",
+    "name": "Storage firmado: imagen",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "next-local",
+    "dev": "desktop",
+    "name": "Storage firmado: video <video>",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "next-local",
+    "dev": "desktop",
+    "name": "Storage firmado: subida PUT (grabación del navegador)",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "TypeError: Failed to fetch",
+    "ok": true
+  },
+  {
+    "target": "next-local",
+    "dev": "desktop",
+    "name": "vista previa local (blob: en <video> e <img>)",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "next-local",
+    "dev": "desktop",
+    "name": "Sentry: envío de evento (simulado)",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "next-local",
+    "dev": "desktop",
+    "name": "API propia (/api/m)",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": 204,
+    "ok": true
+  },
+  {
+    "target": "next-local",
+    "dev": "desktop",
+    "name": "control: conexión a origen no permitido (connect-src, informe)",
+    "expect": "report",
+    "enforced": 0,
+    "report": 2,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "next-local",
+    "dev": "desktop",
+    "name": "control: <object> (object-src 'none', aplicada)",
+    "expect": "enforce",
+    "enforced": 1,
+    "report": 1,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "next-local",
+    "dev": "desktop",
+    "name": "control: <base> ajeno (base-uri 'self', aplicada)",
+    "expect": "enforce",
+    "enforced": 1,
+    "report": 1,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "samsung",
+    "name": "login: Supabase Auth (fetch https)",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "samsung",
+    "name": "Supabase Realtime (WebSocket)",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "samsung",
+    "name": "Storage firmado: imagen",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "samsung",
+    "name": "Storage firmado: video <video>",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "samsung",
+    "name": "Storage firmado: subida PUT (grabación del navegador)",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "samsung",
+    "name": "vista previa local (blob: en <video> e <img>)",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "samsung",
+    "name": "Sentry: envío de evento (simulado)",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "samsung",
+    "name": "API propia (/api/m)",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": 200,
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "samsung",
+    "name": "Stripe simulado: formulario → 303 → checkout.stripe.com",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "chromewebdata",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "samsung",
+    "name": "Stripe simulado: formulario → 303 → billing.stripe.com",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "chromewebdata",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "samsung",
+    "name": "control: formulario → 303 → origen no permitido (form-action en redirección, informe)",
+    "expect": "report",
+    "enforced": 0,
+    "report": 1,
+    "after": "http://127.0.0.1:41205/",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "samsung",
+    "name": "Stripe simulado: formulario directo a checkout.stripe.com",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "checkout.stripe.com",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "samsung",
+    "name": "control: formulario directo a origen no permitido (form-action, informe)",
+    "expect": "report",
+    "enforced": 0,
+    "report": 1,
+    "after": "http://127.0.0.1:41205/",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "samsung",
+    "name": "control: conexión a origen no permitido (connect-src, informe)",
+    "expect": "report",
+    "enforced": 0,
+    "report": 2,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "samsung",
+    "name": "control: <object> (object-src 'none', aplicada)",
+    "expect": "enforce",
+    "enforced": 1,
+    "report": 1,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "samsung",
+    "name": "control: <base> ajeno (base-uri 'self', aplicada)",
+    "expect": "enforce",
+    "enforced": 1,
+    "report": 1,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "desktop",
+    "name": "login: Supabase Auth (fetch https)",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "desktop",
+    "name": "Supabase Realtime (WebSocket)",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "desktop",
+    "name": "Storage firmado: imagen",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "desktop",
+    "name": "Storage firmado: video <video>",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "desktop",
+    "name": "Storage firmado: subida PUT (grabación del navegador)",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "desktop",
+    "name": "vista previa local (blob: en <video> e <img>)",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "desktop",
+    "name": "Sentry: envío de evento (simulado)",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "desktop",
+    "name": "API propia (/api/m)",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": 200,
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "desktop",
+    "name": "Stripe simulado: formulario → 303 → checkout.stripe.com",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "chromewebdata",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "desktop",
+    "name": "Stripe simulado: formulario → 303 → billing.stripe.com",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "chromewebdata",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "desktop",
+    "name": "control: formulario → 303 → origen no permitido (form-action en redirección, informe)",
+    "expect": "report",
+    "enforced": 0,
+    "report": 1,
+    "after": "http://127.0.0.1:41205/",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "desktop",
+    "name": "Stripe simulado: formulario directo a checkout.stripe.com",
+    "expect": "clean",
+    "enforced": 0,
+    "report": 0,
+    "after": "checkout.stripe.com",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "desktop",
+    "name": "control: formulario directo a origen no permitido (form-action, informe)",
+    "expect": "report",
+    "enforced": 0,
+    "report": 1,
+    "after": "http://127.0.0.1:41205/",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "desktop",
+    "name": "control: conexión a origen no permitido (connect-src, informe)",
+    "expect": "report",
+    "enforced": 0,
+    "report": 2,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "desktop",
+    "name": "control: <object> (object-src 'none', aplicada)",
+    "expect": "enforce",
+    "enforced": 1,
+    "report": 1,
+    "after": "ok",
+    "ok": true
+  },
+  {
+    "target": "forma-produccion",
+    "dev": "desktop",
+    "name": "control: <base> ajeno (base-uri 'self', aplicada)",
+    "expect": "enforce",
+    "enforced": 1,
+    "report": 1,
+    "after": "ok",
+    "ok": true
+  }
+]

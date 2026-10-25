@@ -1,0 +1,975 @@
+{
+  "base": "http://127.0.0.1:3000",
+  "fails": 0,
+  "rows": [
+    {
+      "name": "headers / (200)",
+      "ok": true,
+      "detail": {
+        "csp": "frame-ancestors 'none'; object-src 'none'; base-uri 'self'",
+        "xfo": "DENY",
+        "nosniff": "nosniff",
+        "ref": "strict-origin-when-cross-origin"
+      }
+    },
+    {
+      "name": "headers /login (200)",
+      "ok": true,
+      "detail": {
+        "csp": "frame-ancestors 'none'; object-src 'none'; base-uri 'self'",
+        "xfo": "DENY",
+        "nosniff": "nosniff",
+        "ref": "strict-origin-when-cross-origin"
+      }
+    },
+    {
+      "name": "headers /register (200)",
+      "ok": true,
+      "detail": {
+        "csp": "frame-ancestors 'none'; object-src 'none'; base-uri 'self'",
+        "xfo": "DENY",
+        "nosniff": "nosniff",
+        "ref": "strict-origin-when-cross-origin"
+      }
+    },
+    {
+      "name": "headers /api/m (405)",
+      "ok": true,
+      "detail": {
+        "csp": "frame-ancestors 'none'; object-src 'none'; base-uri 'self'",
+        "xfo": "DENY",
+        "nosniff": "nosniff",
+        "ref": "strict-origin-when-cross-origin"
+      }
+    },
+    {
+      "name": "headers /_next/static/does-not-exist.js (404)",
+      "ok": true,
+      "detail": {
+        "csp": "frame-ancestors 'none'; object-src 'none'; base-uri 'self'",
+        "xfo": "DENY",
+        "nosniff": "nosniff",
+        "ref": "strict-origin-when-cross-origin"
+      }
+    },
+    {
+      "name": "un sitio ajeno no puede incrustar /login en un iframe (frame-ancestors 'none' + X-Frame-Options DENY)",
+      "ok": true,
+      "detail": {
+        "frameUrl": "chrome-error://chromewebdata/"
+      }
+    },
+    {
+      "name": "[samsung] 3 páginas sin violaciones de la CSP aplicada",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "[desktop] 3 páginas sin violaciones de la CSP aplicada",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "[next-local/samsung] función permitida: login: Supabase Auth (fetch https)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "TypeError: Failed to fetch"
+      }
+    },
+    {
+      "name": "[next-local/samsung] función permitida: Supabase Realtime (WebSocket)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[next-local/samsung] función permitida: Storage firmado: imagen",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[next-local/samsung] función permitida: Storage firmado: video <video>",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[next-local/samsung] función permitida: Storage firmado: subida PUT (grabación del navegador)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "TypeError: Failed to fetch"
+      }
+    },
+    {
+      "name": "[next-local/samsung] función permitida: vista previa local (blob: en <video> e <img>)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[next-local/samsung] función permitida: Sentry: envío de evento (simulado)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[next-local/samsung] función permitida: API propia (/api/m)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": 204
+      }
+    },
+    {
+      "name": "[next-local/samsung] control negativo (report): control: conexión a origen no permitido (connect-src, informe)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 2,
+        "ev": [
+          {
+            "d": "connect-src",
+            "disp": "report",
+            "uri": "https://evil.example/x"
+          },
+          {
+            "d": "connect-src",
+            "disp": "report",
+            "uri": "https://evil.example/x"
+          }
+        ],
+        "console": [
+          {
+            "report": true,
+            "text": "[Report Only] Refused to connect to 'https://evil.example/x' because it violates the following Content Security Policy directive: \"connect-src 'self' http://127.0.0.1:54321 ws://127.0.0.1:54321 https://*.ingest.sentry.io https://*.ingest.us"
+          },
+          {
+            "report": true,
+            "text": "[Report Only] Refused to connect to 'https://evil.example/x' because it violates the following Content Security Policy directive: \"connect-src 'self' http://127.0.0.1:54321 ws://127.0.0.1:54321 https://*.ingest.sentry.io https://*.ingest.us"
+          }
+        ],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[next-local/samsung] control negativo (enforce): control: <object> (object-src 'none', aplicada)",
+      "ok": true,
+      "detail": {
+        "enforced": 1,
+        "report": 1,
+        "ev": [
+          {
+            "d": "object-src",
+            "disp": "enforce",
+            "uri": "http://127.0.0.1:3000/x.pdf"
+          },
+          {
+            "d": "object-src",
+            "disp": "report",
+            "uri": "http://127.0.0.1:3000/x.pdf"
+          }
+        ],
+        "console": [
+          {
+            "report": false,
+            "text": "Refused to load plugin data from 'http://127.0.0.1:3000/x.pdf' because it violates the following Content Security Policy directive: \"object-src 'none'\".\n"
+          },
+          {
+            "report": true,
+            "text": "[Report Only] Refused to load plugin data from 'http://127.0.0.1:3000/x.pdf' because it violates the following Content Security Policy directive: \"object-src 'none'\".\n"
+          }
+        ],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[next-local/samsung] control negativo (enforce): control: <base> ajeno (base-uri 'self', aplicada)",
+      "ok": true,
+      "detail": {
+        "enforced": 1,
+        "report": 1,
+        "ev": [
+          {
+            "d": "base-uri",
+            "disp": "enforce",
+            "uri": "https://evil.example/"
+          },
+          {
+            "d": "base-uri",
+            "disp": "report",
+            "uri": "https://evil.example/"
+          }
+        ],
+        "console": [
+          {
+            "report": false,
+            "text": "Refused to set the document's base URI to 'https://evil.example/' because it violates the following Content Security Policy directive: \"base-uri 'self'\".\n"
+          },
+          {
+            "report": true,
+            "text": "[Report Only] Refused to set the document's base URI to 'https://evil.example/' because it violates the following Content Security Policy directive: \"base-uri 'self'\".\n"
+          }
+        ],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[next-local/desktop] función permitida: login: Supabase Auth (fetch https)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "TypeError: Failed to fetch"
+      }
+    },
+    {
+      "name": "[next-local/desktop] función permitida: Supabase Realtime (WebSocket)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[next-local/desktop] función permitida: Storage firmado: imagen",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[next-local/desktop] función permitida: Storage firmado: video <video>",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[next-local/desktop] función permitida: Storage firmado: subida PUT (grabación del navegador)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "TypeError: Failed to fetch"
+      }
+    },
+    {
+      "name": "[next-local/desktop] función permitida: vista previa local (blob: en <video> e <img>)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[next-local/desktop] función permitida: Sentry: envío de evento (simulado)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[next-local/desktop] función permitida: API propia (/api/m)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": 204
+      }
+    },
+    {
+      "name": "[next-local/desktop] control negativo (report): control: conexión a origen no permitido (connect-src, informe)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 2,
+        "ev": [
+          {
+            "d": "connect-src",
+            "disp": "report",
+            "uri": "https://evil.example/x"
+          },
+          {
+            "d": "connect-src",
+            "disp": "report",
+            "uri": "https://evil.example/x"
+          }
+        ],
+        "console": [
+          {
+            "report": true,
+            "text": "[Report Only] Refused to connect to 'https://evil.example/x' because it violates the following Content Security Policy directive: \"connect-src 'self' http://127.0.0.1:54321 ws://127.0.0.1:54321 https://*.ingest.sentry.io https://*.ingest.us"
+          },
+          {
+            "report": true,
+            "text": "[Report Only] Refused to connect to 'https://evil.example/x' because it violates the following Content Security Policy directive: \"connect-src 'self' http://127.0.0.1:54321 ws://127.0.0.1:54321 https://*.ingest.sentry.io https://*.ingest.us"
+          }
+        ],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[next-local/desktop] control negativo (enforce): control: <object> (object-src 'none', aplicada)",
+      "ok": true,
+      "detail": {
+        "enforced": 1,
+        "report": 1,
+        "ev": [
+          {
+            "d": "object-src",
+            "disp": "enforce",
+            "uri": "http://127.0.0.1:3000/x.pdf"
+          },
+          {
+            "d": "object-src",
+            "disp": "report",
+            "uri": "http://127.0.0.1:3000/x.pdf"
+          }
+        ],
+        "console": [
+          {
+            "report": false,
+            "text": "Refused to load plugin data from 'http://127.0.0.1:3000/x.pdf' because it violates the following Content Security Policy directive: \"object-src 'none'\".\n"
+          },
+          {
+            "report": true,
+            "text": "[Report Only] Refused to load plugin data from 'http://127.0.0.1:3000/x.pdf' because it violates the following Content Security Policy directive: \"object-src 'none'\".\n"
+          }
+        ],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[next-local/desktop] control negativo (enforce): control: <base> ajeno (base-uri 'self', aplicada)",
+      "ok": true,
+      "detail": {
+        "enforced": 1,
+        "report": 1,
+        "ev": [
+          {
+            "d": "base-uri",
+            "disp": "enforce",
+            "uri": "https://evil.example/"
+          },
+          {
+            "d": "base-uri",
+            "disp": "report",
+            "uri": "https://evil.example/"
+          }
+        ],
+        "console": [
+          {
+            "report": false,
+            "text": "Refused to set the document's base URI to 'https://evil.example/' because it violates the following Content Security Policy directive: \"base-uri 'self'\".\n"
+          },
+          {
+            "report": true,
+            "text": "[Report Only] Refused to set the document's base URI to 'https://evil.example/' because it violates the following Content Security Policy directive: \"base-uri 'self'\".\n"
+          }
+        ],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[forma-produccion/samsung] función permitida: login: Supabase Auth (fetch https)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[forma-produccion/samsung] función permitida: Supabase Realtime (WebSocket)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[forma-produccion/samsung] función permitida: Storage firmado: imagen",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[forma-produccion/samsung] función permitida: Storage firmado: video <video>",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[forma-produccion/samsung] función permitida: Storage firmado: subida PUT (grabación del navegador)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[forma-produccion/samsung] función permitida: vista previa local (blob: en <video> e <img>)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[forma-produccion/samsung] función permitida: Sentry: envío de evento (simulado)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[forma-produccion/samsung] función permitida: API propia (/api/m)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": 200
+      }
+    },
+    {
+      "name": "[forma-produccion/samsung] función permitida: Stripe simulado: formulario → 303 → checkout.stripe.com",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "chromewebdata"
+      }
+    },
+    {
+      "name": "[forma-produccion/samsung] función permitida: Stripe simulado: formulario → 303 → billing.stripe.com",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "chromewebdata"
+      }
+    },
+    {
+      "name": "[forma-produccion/samsung] control negativo (report): control: formulario → 303 → origen no permitido (form-action en redirección, informe)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 1,
+        "ev": [
+          {
+            "d": "form-action",
+            "disp": "report",
+            "uri": "http://127.0.0.1:41205/probe/evil"
+          }
+        ],
+        "console": [
+          {
+            "report": true,
+            "text": "[Report Only] Refused to send form data to 'http://127.0.0.1:41205/probe/evil' because it violates the following Content Security Policy directive: \"form-action 'self' https://checkout.stripe.com https://billing.stripe.com https://accounts."
+          }
+        ],
+        "after": "http://127.0.0.1:41205/"
+      }
+    },
+    {
+      "name": "[forma-produccion/samsung] función permitida: Stripe simulado: formulario directo a checkout.stripe.com",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "checkout.stripe.com"
+      }
+    },
+    {
+      "name": "[forma-produccion/samsung] control negativo (report): control: formulario directo a origen no permitido (form-action, informe)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 1,
+        "ev": [
+          {
+            "d": "form-action",
+            "disp": "report",
+            "uri": "https://evil.example/collect"
+          }
+        ],
+        "console": [
+          {
+            "report": true,
+            "text": "[Report Only] Refused to send form data to 'https://evil.example/collect' because it violates the following Content Security Policy directive: \"form-action 'self' https://checkout.stripe.com https://billing.stripe.com https://accounts.googl"
+          }
+        ],
+        "after": "http://127.0.0.1:41205/"
+      }
+    },
+    {
+      "name": "[forma-produccion/samsung] control negativo (report): control: conexión a origen no permitido (connect-src, informe)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 2,
+        "ev": [
+          {
+            "d": "connect-src",
+            "disp": "report",
+            "uri": "https://evil.example/x"
+          },
+          {
+            "d": "connect-src",
+            "disp": "report",
+            "uri": "https://evil.example/x"
+          }
+        ],
+        "console": [
+          {
+            "report": true,
+            "text": "[Report Only] Refused to connect to 'https://evil.example/x' because it violates the following Content Security Policy directive: \"connect-src 'self' https://abcdefghijklmnop.supabase.co wss://abcdefghijklmnop.supabase.co https://o450000000"
+          },
+          {
+            "report": true,
+            "text": "[Report Only] Refused to connect to 'https://evil.example/x' because it violates the following Content Security Policy directive: \"connect-src 'self' https://abcdefghijklmnop.supabase.co wss://abcdefghijklmnop.supabase.co https://o450000000"
+          }
+        ],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[forma-produccion/samsung] control negativo (enforce): control: <object> (object-src 'none', aplicada)",
+      "ok": true,
+      "detail": {
+        "enforced": 1,
+        "report": 1,
+        "ev": [
+          {
+            "d": "object-src",
+            "disp": "enforce",
+            "uri": "http://127.0.0.1:41205/x.pdf"
+          },
+          {
+            "d": "object-src",
+            "disp": "report",
+            "uri": "http://127.0.0.1:41205/x.pdf"
+          }
+        ],
+        "console": [
+          {
+            "report": false,
+            "text": "Refused to load plugin data from 'http://127.0.0.1:41205/x.pdf' because it violates the following Content Security Policy directive: \"object-src 'none'\".\n"
+          },
+          {
+            "report": true,
+            "text": "[Report Only] Refused to load plugin data from 'http://127.0.0.1:41205/x.pdf' because it violates the following Content Security Policy directive: \"object-src 'none'\".\n"
+          }
+        ],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[forma-produccion/samsung] control negativo (enforce): control: <base> ajeno (base-uri 'self', aplicada)",
+      "ok": true,
+      "detail": {
+        "enforced": 1,
+        "report": 1,
+        "ev": [
+          {
+            "d": "base-uri",
+            "disp": "enforce",
+            "uri": "https://evil.example/"
+          },
+          {
+            "d": "base-uri",
+            "disp": "report",
+            "uri": "https://evil.example/"
+          }
+        ],
+        "console": [
+          {
+            "report": false,
+            "text": "Refused to set the document's base URI to 'https://evil.example/' because it violates the following Content Security Policy directive: \"base-uri 'self'\".\n"
+          },
+          {
+            "report": true,
+            "text": "[Report Only] Refused to set the document's base URI to 'https://evil.example/' because it violates the following Content Security Policy directive: \"base-uri 'self'\".\n"
+          }
+        ],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[forma-produccion/desktop] función permitida: login: Supabase Auth (fetch https)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[forma-produccion/desktop] función permitida: Supabase Realtime (WebSocket)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[forma-produccion/desktop] función permitida: Storage firmado: imagen",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[forma-produccion/desktop] función permitida: Storage firmado: video <video>",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[forma-produccion/desktop] función permitida: Storage firmado: subida PUT (grabación del navegador)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[forma-produccion/desktop] función permitida: vista previa local (blob: en <video> e <img>)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[forma-produccion/desktop] función permitida: Sentry: envío de evento (simulado)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[forma-produccion/desktop] función permitida: API propia (/api/m)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": 200
+      }
+    },
+    {
+      "name": "[forma-produccion/desktop] función permitida: Stripe simulado: formulario → 303 → checkout.stripe.com",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "chromewebdata"
+      }
+    },
+    {
+      "name": "[forma-produccion/desktop] función permitida: Stripe simulado: formulario → 303 → billing.stripe.com",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "chromewebdata"
+      }
+    },
+    {
+      "name": "[forma-produccion/desktop] control negativo (report): control: formulario → 303 → origen no permitido (form-action en redirección, informe)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 1,
+        "ev": [
+          {
+            "d": "form-action",
+            "disp": "report",
+            "uri": "http://127.0.0.1:41205/probe/evil"
+          }
+        ],
+        "console": [
+          {
+            "report": true,
+            "text": "[Report Only] Refused to send form data to 'http://127.0.0.1:41205/probe/evil' because it violates the following Content Security Policy directive: \"form-action 'self' https://checkout.stripe.com https://billing.stripe.com https://accounts."
+          }
+        ],
+        "after": "http://127.0.0.1:41205/"
+      }
+    },
+    {
+      "name": "[forma-produccion/desktop] función permitida: Stripe simulado: formulario directo a checkout.stripe.com",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 0,
+        "ev": [],
+        "console": [],
+        "after": "checkout.stripe.com"
+      }
+    },
+    {
+      "name": "[forma-produccion/desktop] control negativo (report): control: formulario directo a origen no permitido (form-action, informe)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 1,
+        "ev": [
+          {
+            "d": "form-action",
+            "disp": "report",
+            "uri": "https://evil.example/collect"
+          }
+        ],
+        "console": [
+          {
+            "report": true,
+            "text": "[Report Only] Refused to send form data to 'https://evil.example/collect' because it violates the following Content Security Policy directive: \"form-action 'self' https://checkout.stripe.com https://billing.stripe.com https://accounts.googl"
+          }
+        ],
+        "after": "http://127.0.0.1:41205/"
+      }
+    },
+    {
+      "name": "[forma-produccion/desktop] control negativo (report): control: conexión a origen no permitido (connect-src, informe)",
+      "ok": true,
+      "detail": {
+        "enforced": 0,
+        "report": 2,
+        "ev": [
+          {
+            "d": "connect-src",
+            "disp": "report",
+            "uri": "https://evil.example/x"
+          },
+          {
+            "d": "connect-src",
+            "disp": "report",
+            "uri": "https://evil.example/x"
+          }
+        ],
+        "console": [
+          {
+            "report": true,
+            "text": "[Report Only] Refused to connect to 'https://evil.example/x' because it violates the following Content Security Policy directive: \"connect-src 'self' https://abcdefghijklmnop.supabase.co wss://abcdefghijklmnop.supabase.co https://o450000000"
+          },
+          {
+            "report": true,
+            "text": "[Report Only] Refused to connect to 'https://evil.example/x' because it violates the following Content Security Policy directive: \"connect-src 'self' https://abcdefghijklmnop.supabase.co wss://abcdefghijklmnop.supabase.co https://o450000000"
+          }
+        ],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[forma-produccion/desktop] control negativo (enforce): control: <object> (object-src 'none', aplicada)",
+      "ok": true,
+      "detail": {
+        "enforced": 1,
+        "report": 1,
+        "ev": [
+          {
+            "d": "object-src",
+            "disp": "enforce",
+            "uri": "http://127.0.0.1:41205/x.pdf"
+          },
+          {
+            "d": "object-src",
+            "disp": "report",
+            "uri": "http://127.0.0.1:41205/x.pdf"
+          }
+        ],
+        "console": [
+          {
+            "report": false,
+            "text": "Refused to load plugin data from 'http://127.0.0.1:41205/x.pdf' because it violates the following Content Security Policy directive: \"object-src 'none'\".\n"
+          },
+          {
+            "report": true,
+            "text": "[Report Only] Refused to load plugin data from 'http://127.0.0.1:41205/x.pdf' because it violates the following Content Security Policy directive: \"object-src 'none'\".\n"
+          }
+        ],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[forma-produccion/desktop] control negativo (enforce): control: <base> ajeno (base-uri 'self', aplicada)",
+      "ok": true,
+      "detail": {
+        "enforced": 1,
+        "report": 1,
+        "ev": [
+          {
+            "d": "base-uri",
+            "disp": "enforce",
+            "uri": "https://evil.example/"
+          },
+          {
+            "d": "base-uri",
+            "disp": "report",
+            "uri": "https://evil.example/"
+          }
+        ],
+        "console": [
+          {
+            "report": false,
+            "text": "Refused to set the document's base URI to 'https://evil.example/' because it violates the following Content Security Policy directive: \"base-uri 'self'\".\n"
+          },
+          {
+            "report": true,
+            "text": "[Report Only] Refused to set the document's base URI to 'https://evil.example/' because it violates the following Content Security Policy directive: \"base-uri 'self'\".\n"
+          }
+        ],
+        "after": "ok"
+      }
+    },
+    {
+      "name": "[vista previa producción/samsung] /, /login, /register reales con las cabeceras de #203: 0 bloqueos de la CSP aplicada",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "[vista previa producción/samsung] 0 avisos de la CSP en modo informe (la política completa no se queda corta con el frontend real)",
+      "ok": true,
+      "detail": {
+        "report": []
+      }
+    },
+    {
+      "name": "[vista previa producción/desktop] /, /login, /register reales con las cabeceras de #203: 0 bloqueos de la CSP aplicada",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "[vista previa producción/desktop] 0 avisos de la CSP en modo informe (la política completa no se queda corta con el frontend real)",
+      "ok": true,
+      "detail": {
+        "report": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+PASS  headers / (200)
+PASS  headers /login (200)
+PASS  headers /register (200)
+PASS  headers /api/m (405)
+PASS  headers /_next/static/does-not-exist.js (404)
+PASS  un sitio ajeno no puede incrustar /login en un iframe (frame-ancestors 'none' + X-Frame-Options DENY)
+PASS  [samsung] 3 páginas sin violaciones de la CSP aplicada
+INFO  [samsung] avisos de la CSP en modo informe (no bloquean): 0
+PASS  [desktop] 3 páginas sin violaciones de la CSP aplicada
+INFO  [desktop] avisos de la CSP en modo informe (no bloquean): 0
+PASS  [next-local/samsung] función permitida: login: Supabase Auth (fetch https)
+PASS  [next-local/samsung] función permitida: Supabase Realtime (WebSocket)
+PASS  [next-local/samsung] función permitida: Storage firmado: imagen
+PASS  [next-local/samsung] función permitida: Storage firmado: video <video>
+PASS  [next-local/samsung] función permitida: Storage firmado: subida PUT (grabación del navegador)
+PASS  [next-local/samsung] función permitida: vista previa local (blob: en <video> e <img>)
+PASS  [next-local/samsung] función permitida: Sentry: envío de evento (simulado)
+PASS  [next-local/samsung] función permitida: API propia (/api/m)
+PASS  [next-local/samsung] control negativo (report): control: conexión a origen no permitido (connect-src, informe)
+PASS  [next-local/samsung] control negativo (enforce): control: <object> (object-src 'none', aplicada)
+PASS  [next-local/samsung] control negativo (enforce): control: <base> ajeno (base-uri 'self', aplicada)
+PASS  [next-local/desktop] función permitida: login: Supabase Auth (fetch https)
+PASS  [next-local/desktop] función permitida: Supabase Realtime (WebSocket)
+PASS  [next-local/desktop] función permitida: Storage firmado: imagen
+PASS  [next-local/desktop] función permitida: Storage firmado: video <video>
+PASS  [next-local/desktop] función permitida: Storage firmado: subida PUT (grabación del navegador)
+PASS  [next-local/desktop] función permitida: vista previa local (blob: en <video> e <img>)
+PASS  [next-local/desktop] función permitida: Sentry: envío de evento (simulado)
+PASS  [next-local/desktop] función permitida: API propia (/api/m)
+PASS  [next-local/desktop] control negativo (report): control: conexión a origen no permitido (connect-src, informe)
+PASS  [next-local/desktop] control negativo (enforce): control: <object> (object-src 'none', aplicada)
+PASS  [next-local/desktop] control negativo (enforce): control: <base> ajeno (base-uri 'self', aplicada)
+PASS  [forma-produccion/samsung] función permitida: login: Supabase Auth (fetch https)
+PASS  [forma-produccion/samsung] función permitida: Supabase Realtime (WebSocket)
+PASS  [forma-produccion/samsung] función permitida: Storage firmado: imagen
+PASS  [forma-produccion/samsung] función permitida: Storage firmado: video <video>
+PASS  [forma-produccion/samsung] función permitida: Storage firmado: subida PUT (grabación del navegador)
+PASS  [forma-produccion/samsung] función permitida: vista previa local (blob: en <video> e <img>)
+PASS  [forma-produccion/samsung] función permitida: Sentry: envío de evento (simulado)
+PASS  [forma-produccion/samsung] función permitida: API propia (/api/m)
+PASS  [forma-produccion/samsung] función permitida: Stripe simulado: formulario → 303 → checkout.stripe.com
+PASS  [forma-produccion/samsung] función permitida: Stripe simulado: formulario → 303 → billing.stripe.com
+PASS  [forma-produccion/samsung] control negativo (report): control: formulario → 303 → origen no permitido (form-action en redirección, informe)
+PASS  [forma-produccion/samsung] función permitida: Stripe simulado: formulario directo a checkout.stripe.com
+PASS  [forma-produccion/samsung] control negativo (report): control: formulario directo a origen no permitido (form-action, informe)
+PASS  [forma-produccion/samsung] control negativo (report): control: conexión a origen no permitido (connect-src, informe)
+PASS  [forma-produccion/samsung] control negativo (enforce): control: <object> (object-src 'none', aplicada)
+PASS  [forma-produccion/samsung] control negativo (enforce): control: <base> ajeno (base-uri 'self', aplicada)
+PASS  [forma-produccion/desktop] función permitida: login: Supabase Auth (fetch https)
+PASS  [forma-produccion/desktop] función permitida: Supabase Realtime (WebSocket)
+PASS  [forma-produccion/desktop] función permitida: Storage firmado: imagen
+PASS  [forma-produccion/desktop] función permitida: Storage firmado: video <video>
+PASS  [forma-produccion/desktop] función permitida: Storage firmado: subida PUT (grabación del navegador)
+PASS  [forma-produccion/desktop] función permitida: vista previa local (blob: en <video> e <img>)
+PASS  [forma-produccion/desktop] función permitida: Sentry: envío de evento (simulado)
+PASS  [forma-produccion/desktop] función permitida: API propia (/api/m)
+PASS  [forma-produccion/desktop] función permitida: Stripe simulado: formulario → 303 → checkout.stripe.com
+PASS  [forma-produccion/desktop] función permitida: Stripe simulado: formulario → 303 → billing.stripe.com
+PASS  [forma-produccion/desktop] control negativo (report): control: formulario → 303 → origen no permitido (form-action en redirección, informe)
+PASS  [forma-produccion/desktop] función permitida: Stripe simulado: formulario directo a checkout.stripe.com
+PASS  [forma-produccion/desktop] control negativo (report): control: formulario directo a origen no permitido (form-action, informe)
+PASS  [forma-produccion/desktop] control negativo (report): control: conexión a origen no permitido (connect-src, informe)
+PASS  [forma-produccion/desktop] control negativo (enforce): control: <object> (object-src 'none', aplicada)
+PASS  [forma-produccion/desktop] control negativo (enforce): control: <base> ajeno (base-uri 'self', aplicada)
+INFO  vista previa producción: Supabase no encontrado en los bundles públicos (marcador) · Sentry o4512125492592640.ingest.us.sentry.io · 10 bundles
+PASS  [vista previa producción/samsung] /, /login, /register reales con las cabeceras de #203: 0 bloqueos de la CSP aplicada
+PASS  [vista previa producción/samsung] 0 avisos de la CSP en modo informe (la política completa no se queda corta con el frontend real)
+INFO  [vista previa producción/samsung] orígenes cargados: https://atomicvid.app https://o4512125492592640.ingest.us.sentry.io · no-GET bloqueadas: POST https://o4512125492592640.ingest.us.sentry.io/api/4512125522083840/envelope/ POST https://atomicvid.app/api/m
+PASS  [vista previa producción/desktop] /, /login, /register reales con las cabeceras de #203: 0 bloqueos de la CSP aplicada
+PASS  [vista previa producción/desktop] 0 avisos de la CSP en modo informe (la política completa no se queda corta con el frontend real)
+INFO  [vista previa producción/desktop] orígenes cargados: https://atomicvid.app https://o4512125492592640.ingest.us.sentry.io · no-GET bloqueadas: POST https://o4512125492592640.ingest.us.sentry.io/api/4512125522083840/envelope/ POST https://atomicvid.app/api/m
+RESULTADO 66 PASS / 0 FAIL

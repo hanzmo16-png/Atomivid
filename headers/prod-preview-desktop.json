@@ -1,0 +1,14 @@
+{
+  "supabase": "https://marcador-no-descubierto.supabase.co",
+  "sentryHost": "o4512125492592640.ingest.us.sentry.io",
+  "origins": [
+    "https://atomicvid.app",
+    "https://o4512125492592640.ingest.us.sentry.io"
+  ],
+  "blockedNonGet": [
+    "POST https://o4512125492592640.ingest.us.sentry.io/api/4512125522083840/envelope/",
+    "POST https://atomicvid.app/api/m"
+  ],
+  "enforced": [],
+  "report": []
+}
