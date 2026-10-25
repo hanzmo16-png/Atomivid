@@ -34,9 +34,39 @@ sha=$(sha256sum "$TOOL" | cut -d' ' -f1); echo "INFO tool sha256 $sha"
 grep -q "  docs/ops/conciliacion/pi_reconcile_open_operation.sql$" "$R/docs/ops/conciliacion/SHA256SUMS" 2>/dev/null && (cd "$R" && sha256sum -c --quiet docs/ops/conciliacion/SHA256SUMS) && pass "tool files match docs/ops/conciliacion/SHA256SUMS" || fail "tool files do not match SHA256SUMS"
 $Q -d rec -v ON_ERROR_STOP=1 -f "$TOOL" > "$W/logs/tool.log" 2>&1 && pass "tool applies" || { fail "tool does not apply: $(grep -m2 ERROR "$W/logs/tool.log")"; echo "RESULT conciliacion: $fails FAIL"; exit 1; }
 $Q -d rec -v ON_ERROR_STOP=1 -f "$TOOL" > /dev/null 2>&1 && pass "tool re-applies (idempotent definition)" || fail "tool re-apply"
-# an incompatible pre-existing log table must not be accepted silently by IF NOT EXISTS
-$Q -d postgres -c "create database inc template rec" >/dev/null 2>&1 && $Q -d inc -c "drop table public.pi_reconciliation_log cascade; create table public.pi_reconciliation_log (decision_id text primary key, note text)" >/dev/null 2>&1
-$Q -d inc -v ON_ERROR_STOP=1 -f "$TOOL" > "$W/logs/inc.log" 2>&1 && fail "tool accepted an incompatible pre-existing pi_reconciliation_log" || { grep -q 'incompatible' "$W/logs/inc.log" && pass "tool refuses an incompatible pre-existing pi_reconciliation_log (fail closed)" || fail "incompatible table: unexpected error $(grep -m1 ERROR "$W/logs/inc.log")"; }
+# an incompatible pre-existing log table must not be accepted silently by IF NOT EXISTS: the WHOLE contract is compared
+# (CORRECCION-1). Each case starts from a copy of the correctly installed database, alters only the log table, re-applies
+# the tool and must see it abort with 'incompatible' and leave the altered table exactly as it was (transaction rolled back).
+BARE="drop table public.pi_reconciliation_log cascade; create table public.pi_reconciliation_log (decision_id text, idempotency_key text,
+  decision_sha256 text, outcome text, evidence text, amount_usd numeric(12,4), before_row jsonb, after_row jsonb, actor text, decided_at timestamptz)"
+L=public.pi_reconciliation_log
+inc_case() { # name, SQL that alters the log table
+  $Q -d postgres -c "drop database if exists inc" >/dev/null 2>&1; $Q -d postgres -c "create database inc template rec" >/dev/null 2>&1
+  $Q -d inc -v ON_ERROR_STOP=1 -c "$2" > "$W/logs/inc-setup.log" 2>&1 || { fail "incompatible case '$1': setup failed $(grep -m1 ERROR "$W/logs/inc-setup.log")"; return; }
+  local before; before=$($Q -d inc -At -c "select md5(string_agg(p, ',' order by p)) from (select a.attname||format_type(a.atttypid,a.atttypmod)||a.attnotnull p from pg_attribute a where a.attrelid='$L'::regclass and a.attnum>0 and not a.attisdropped union all select contype||pg_get_constraintdef(oid) from pg_constraint where conrelid='$L'::regclass union all select tgname from pg_trigger where tgrelid='$L'::regclass and not tgisinternal) x")
+  if $Q -d inc -v ON_ERROR_STOP=1 -f "$TOOL" > "$W/logs/inc.log" 2>&1; then fail "tool accepted a pre-existing pi_reconciliation_log with $1"; return; fi
+  local after; after=$($Q -d inc -At -c "select md5(string_agg(p, ',' order by p)) from (select a.attname||format_type(a.atttypid,a.atttypmod)||a.attnotnull p from pg_attribute a where a.attrelid='$L'::regclass and a.attnum>0 and not a.attisdropped union all select contype||pg_get_constraintdef(oid) from pg_constraint where conrelid='$L'::regclass union all select tgname from pg_trigger where tgrelid='$L'::regclass and not tgisinternal) x")
+  grep -q 'incompatible' "$W/logs/inc.log" && [ "$before" = "$after" ] && pass "tool refuses a pre-existing pi_reconciliation_log with $1 (fail closed, nothing changed)" \
+    || fail "incompatible case '$1': unexpected outcome $(grep -m1 ERROR "$W/logs/inc.log") before=$before after=$after"
+}
+inc_case "different columns" "drop table $L cascade; create table $L (decision_id text primary key, note text)"
+inc_case "the same columns and types but no PK/UNIQUE/FK/CHECK/NOT NULL/defaults" "$BARE"
+inc_case "the same columns, constraints restored but no defaults" "$BARE; alter table $L add primary key (decision_id), add unique (idempotency_key), add foreign key (idempotency_key) references public.pi_paid_operations (idempotency_key)"
+inc_case "UNIQUE (idempotency_key) dropped" "alter table $L drop constraint pi_reconciliation_log_idempotency_key_key"
+inc_case "PRIMARY KEY replaced by a plain index" "alter table $L drop constraint pi_reconciliation_log_pkey; create index on $L (decision_id)"
+inc_case "the FK dropped" "alter table $L drop constraint pi_reconciliation_log_idempotency_key_fkey"
+inc_case "a mutated outcome CHECK (accepts 'refund')" "alter table $L drop constraint pi_reconciliation_log_outcome_check, add constraint pi_reconciliation_log_outcome_check check (outcome in ('cancelled_before_submission','not_charged','charged','assumed_charged','refund'))"
+inc_case "the amount CHECK marked NOT VALID" "alter table $L drop constraint pi_reconciliation_log_amount_usd_check, add constraint pi_reconciliation_log_amount_usd_check check (amount_usd >= 0) not valid"
+inc_case "a changed actor default" "alter table $L alter column actor set default 'tool'"
+inc_case "NOT NULL dropped on evidence" "alter table $L alter column evidence drop not null"
+inc_case "a deferrable UNIQUE" "alter table $L drop constraint pi_reconciliation_log_idempotency_key_key, add constraint pi_reconciliation_log_idempotency_key_key unique (idempotency_key) deferrable initially deferred"
+inc_case "an extra user trigger" "create function public.inc_t() returns trigger language plpgsql as \$\$ begin return null; end \$\$; create trigger inc_skip before insert on $L for each row execute function public.inc_t()"
+inc_case "a rewrite rule" "create rule inc_rule as on insert to $L do instead nothing"
+inc_case "a view in its place" "drop table $L cascade; create view $L as select 'x'::text decision_id, 'x'::text idempotency_key, 'x'::text decision_sha256, 'x'::text outcome, 'x'::text evidence, 0::numeric(12,4) amount_usd, '{}'::jsonb before_row, '{}'::jsonb after_row, 'x'::text actor, now() decided_at"
+# GREEN: the correct definition re-applies (idempotent) and the contract helper does not survive the install
+$Q -d postgres -c "drop database if exists inc" >/dev/null 2>&1; $Q -d postgres -c "create database inc template rec" >/dev/null 2>&1
+$Q -d inc -v ON_ERROR_STOP=1 -f "$TOOL" > "$W/logs/inc.log" 2>&1 && [ "$($Q -d inc -At -c "select to_regprocedure('public.pi_reconciliation_contract_parts(regclass)') is null and to_regnamespace('pi_reconcile_contract_ref') is null")" = t ] \
+  && pass "the correct pre-existing definition re-applies; no contract helper or reference table is left behind" || fail "correct definition re-apply: $(grep -m1 ERROR "$W/logs/inc.log")"
 $Q -d postgres -c "drop database if exists inc" >/dev/null 2>&1
 
 # ---- dry run of the default plan on the real open operations (copy) BEFORE the synthetic tests touch anything ----
