@@ -100,7 +100,9 @@ export function Onboarding() {
         ref={triggerRef}
         type="button"
         onClick={openFresh}
-        className="fixed bottom-5 right-5 z-30 flex size-11 items-center justify-center rounded-full border border-border-strong bg-surface-raised text-ink-muted shadow-lg transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
+        // En el teléfono va al final de la página (en el flujo): flotando tapaba el borde derecho de las barras de
+        // acción fijas inferiores («Generar video final», «Siguiente» del Podcast). Desde sm vuelve a flotar.
+        className="mb-6 ml-auto mr-4 flex size-11 sm:fixed sm:bottom-5 sm:right-5 sm:z-30 sm:m-0 items-center justify-center rounded-full border border-border-strong bg-surface-raised text-ink-muted shadow-lg transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
         aria-label="Ver cómo funciona Atomicvid"
         title="Ayuda: cómo funciona"
       >
