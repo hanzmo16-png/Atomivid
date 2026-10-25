@@ -40,8 +40,22 @@ const rec = (r) => { rows.push(r); if (!r.ok) fails++; console.log(`${r.ok ? "PA
     await ctx.close();
   }
   const h = await fetch(BASE + "/login", { redirect: "manual" });
-  const sec = Object.fromEntries(["strict-transport-security", "x-frame-options", "content-security-policy", "x-content-type-options", "referrer-policy"].map((k) => [k, h.headers.get(k)]));
+  const sec = Object.fromEntries(["strict-transport-security", "x-frame-options", "content-security-policy", "content-security-policy-report-only", "x-content-type-options", "referrer-policy"].map((k) => [k, h.headers.get(k)]));
   rec({ name: "cabeceras de seguridad en /login (HSTS presente)", ok: !!sec["strict-transport-security"], detail: sec });
+  // Puerta posterior al despliegue de #203 (EXPECT_SECURITY_HEADERS=1): las cabeceras deben estar en producción en varias
+  // rutas (página, API y estático) y la CSP completa debe seguir en MODO INFORME (la aplicada solo frame-ancestors/object/base).
+  const gate = process.env.EXPECT_SECURITY_HEADERS ?? "report"; // "1" = exigir · "report" = solo informar (línea base) · "0" = omitir
+  if (gate === "1" || gate === "report") {
+    for (const route of ["/", "/login", "/register", "/dashboard"]) {
+      const r = await fetch(BASE + route, { redirect: "manual" }); const g = (k) => r.headers.get(k) ?? "";
+      const enforced = g("content-security-policy");
+      const ok = /frame-ancestors 'none'/.test(enforced) && !/(default|script|connect|img|media|style)-src/.test(enforced)
+        && /default-src 'self'/.test(g("content-security-policy-report-only")) && g("x-frame-options") === "DENY"
+        && g("x-content-type-options") === "nosniff" && g("referrer-policy") === "strict-origin-when-cross-origin" && !!g("strict-transport-security");
+      const row = { name: `producción ${route} (${r.status}): 5 cabeceras de #203 + HSTS; CSP completa solo en modo informe`, ok, detail: { csp: enforced, xfo: g("x-frame-options"), nosniff: g("x-content-type-options"), ref: g("referrer-policy"), ro: g("content-security-policy-report-only").slice(0, 80) } };
+      if (gate === "1") rec(row); else console.log(`INFO  ${ok ? "PRESENTES" : "AUSENTES"}  ${row.name}  ${JSON.stringify(row.detail).slice(0, 300)}`);
+    }
+  }
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ base: BASE, at: new Date().toISOString(), fails, rows }, null, 2));
   console.log(`RESULTADO ${rows.length - fails} PASS / ${fails} FAIL`);
   await browser.close(); process.exit(fails ? 1 : 0);
