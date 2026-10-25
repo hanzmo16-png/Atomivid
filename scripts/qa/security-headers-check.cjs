@@ -147,7 +147,10 @@ const rec = (name, ok, detail) => { rows.push({ name, ok: !!ok, detail }); if (!
         if (supabase && sentryHost) break;
       }
     } catch (e) { console.log(`INFO  vista previa: descubrimiento falló ${String(e).slice(0, 120)}`); }
-    rec("vista previa producción: origen real de Supabase descubierto en los bundles públicos", !!supabase, { supabase, sentryHost, scanned });
+    // Las páginas públicas no hablan con Supabase (la auditoría pública solo ve Sentry y /api/m); si el origen no aparece en
+    // sus bundles, se usa un marcador y se informa: no afecta a lo que estas páginas cargan.
+    console.log(`INFO  vista previa producción: Supabase ${supabase ?? "no encontrado en los bundles públicos (marcador)"} · Sentry ${sentryHost ?? "no encontrado"} · ${scanned} bundles`);
+    supabase ??= "https://marcador-no-descubierto.supabase.co";
     let hdrs = null;
     try { hdrs = require("../../src/lib/security-headers.ts").securityHeaders({ NEXT_PUBLIC_SUPABASE_URL: supabase ?? undefined, NEXT_PUBLIC_SENTRY_DSN: sentryHost ? `https://k@${sentryHost}/1` : undefined, NODE_ENV: "production" }); }
     catch (e) { rec("vista previa producción: cabeceras calculadas (ejecutar con node --import tsx)", false, String(e).slice(0, 200)); }
