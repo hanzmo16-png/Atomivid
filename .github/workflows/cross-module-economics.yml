@@ -1,0 +1,20 @@
+# USD 0. Cross-module economic checks on a disposable PostgreSQL (repo migrations + pending proposals 000000→140000).
+# Synthetic rows only; no secrets, no production connection, no provider call.
+name: cross-module-economics
+on:
+  pull_request:
+    paths: ["supabase/**", "scripts/qa/cross-module-economics.sh", "scripts/qa/spend-authorization-db.sh", ".github/workflows/cross-module-economics.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  economics:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, persist-credentials: false }
+      - name: Disposable PostgreSQL 16
+        run: test -x /usr/lib/postgresql/16/bin/initdb || { sudo apt-get update -q && sudo apt-get install -yq postgresql-16; }; sudo systemctl stop postgresql || true
+      - name: Cross-module economics (Reels / Podcast 2.x / Studio V3 / Long Form / Avatar)
+        run: set -o pipefail; PG_BIN=/usr/lib/postgresql/16/bin bash scripts/qa/spend-authorization-db.sh "$RUNNER_TEMP/xm" 55990 "$PWD/scripts/qa/cross-module-economics.sh" 2>&1 | tee cross-module.log
