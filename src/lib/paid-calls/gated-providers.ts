@@ -50,12 +50,12 @@ async function storeAudio<M extends { audioPath: string; sha256: string; bytes: 
 ): Promise<string> {
   const audioPath = paidResultPath(requestId, key, audio.extension);
   const jsonPath = paidResultPath(requestId, key, "json");
-  // Sidecar FIRST, then bytes. The sidecar holds the only copy of the metadata (word timings, duration, track) and
-  // the sha256 + length of the audio, so bytes are never left durable without it: a persistent failure leaves either
-  // nothing, or a sidecar whose missing bytes fail verification. Both stay fail-closed (no reuse, no second payment).
+  // Bytes FIRST, then the sidecar: readers (productionSpend, hasStoredVoiceMeta, loadStoredResult) treat an existing
+  // sidecar as "delivered and stored", so the sidecar must never exist without its bytes. A persistent sidecar failure
+  // leaves orphan bytes that cannot be reused (no metadata) and stay fail-closed; the charge still reads as uncertain.
   try {
-    await withStorageRetry(retry, () => results.putJson(jsonPath, { ...meta, audioPath, sha256: sha256Hex(audio.audioBuffer), bytes: audio.audioBuffer.byteLength }));
     await withStorageRetry(retry, () => results.putBytes(audioPath, audio.audioBuffer, audio.mimeType));
+    await withStorageRetry(retry, () => results.putJson(jsonPath, { ...meta, audioPath, sha256: sha256Hex(audio.audioBuffer), bytes: audio.audioBuffer.byteLength }));
     return jsonPath;
   } catch (err) {
     // The provider already charged: commit with an unloadable ref rather than lose the row. A
