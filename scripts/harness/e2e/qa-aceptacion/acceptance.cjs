@@ -164,6 +164,9 @@ async function podcast(dev) {
   const r = await p.goto(`${BASE}/dashboard/podcast`); await skipTour(p); await shot(p, "01-formulario"); const o = await overflow(p);
   check(`[${dev}] Podcast: página disponible y sin scroll horizontal`, r && r.status() < 400 && o.sw <= o.iw + 1, { status: r?.status(), ...o });
   const n0 = await count("select count(*) n from public.podcast_episodes where user_id=$1", [OWNER.id]);
+  // Desde Podcast 2.1/3.0 (#207) la página abre con el asistente y el formulario clásico queda plegado en <details>.
+  const classic = p.locator("summary", { hasText: "Formulario clásico" });
+  if (await classic.count()) { await classic.first().click(); await sleep(300); }
   await p.getByRole("button", { name: /Crear episodio/ }).click().catch(() => {}); await sleep(1500);
   check(`[${dev}] Podcast vacío: no se crea episodio`, (await count("select count(*) n from public.podcast_episodes where user_id=$1", [OWNER.id])) === n0);
   const title = `QA aceptación ${dev} ${Date.now()}`;
