@@ -25,6 +25,7 @@ type Row = {
   status: PaidOpStatus;
   provider_job_id: string | null;
   result_ref: string | null;
+  supply_reconciled?: boolean | null;
   updated_at: string;
 };
 
@@ -43,6 +44,7 @@ function toRow(op: PaidOperation): Row {
     status: op.status,
     provider_job_id: op.providerJobId,
     result_ref: op.resultRef,
+    ...(op.supplyReconciled === undefined ? {} : { supply_reconciled: op.supplyReconciled }),
     updated_at: op.updatedAt,
   };
 }
@@ -62,6 +64,7 @@ function fromRow(r: Row): PaidOperation {
     status: r.status,
     providerJobId: r.provider_job_id,
     resultRef: r.result_ref,
+    ...(r.supply_reconciled == null ? {} : { supplyReconciled: r.supply_reconciled }),
     updatedAt: r.updated_at,
   };
 }
@@ -72,6 +75,7 @@ function patchRow(patch: Partial<PaidOperation>): Partial<Row> {
   if (patch.committedUsd !== undefined) out.committed_usd = patch.committedUsd;
   if (patch.providerJobId !== undefined) out.provider_job_id = patch.providerJobId;
   if (patch.resultRef !== undefined) out.result_ref = patch.resultRef;
+  if (patch.supplyReconciled !== undefined) out.supply_reconciled = patch.supplyReconciled;
   if (patch.updatedAt !== undefined) out.updated_at = patch.updatedAt;
   return out;
 }
