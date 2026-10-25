@@ -1,0 +1,62 @@
+{
+  "_nota": "Correcciones históricas LOCALIZADAS del guion de e8048599 (Attila vs. Leonidas, EN). Se aplican con applyNarrationPatches sobre el guion TERMINADO, antes de confirmar la producción. Sin llamadas de pago. Requieren aprobación de Hans.",
+  "job": "e8048599-cf92-45e8-95c8-f145cb9d3be2",
+  "patches": [
+    {
+      "beatIndex": 1,
+      "find": "writing his Histories around 440 BCE — roughly fifty years after the battle itself.",
+      "replace": "writing his Histories a few decades after the battle, most likely around 430 BCE.",
+      "reason": "Fecha habitual de las Historias: c. 430 a. C. (≈50 años después); «around 440» es temprano."
+    },
+    {
+      "beatIndex": 2,
+      "find": "Nothing here documents how the Huns' cavalry actually fought in battle. Everything that follows about the Huns is general historical understanding — the kind of picture widely repeated in popular history. It is not something we can point to a cited ancient text for.",
+      "replace": "Ancient writers did describe the Huns — the Roman historian Ammianus Marcellinus, the envoy Priscus who met Attila in person, and later Jordanes — but always from the outside, often with open hostility, and never with the tactical detail Herodotus gives Thermopylae. So everything that follows about how the Huns would have fought here is informed reconstruction, not a documented account.",
+      "reason": "Sí existen fuentes antiguas sobre los hunos (Amiano Marcelino, Prisco, Jordanes): hostiles y poco detalladas, no inexistentes. Se conserva la primera frase (acotada al material del video) porque ancla una marca de edición."
+    },
+    {
+      "beatIndex": 2,
+      "find": "we have a widely held but unverified image:",
+      "replace": "we have a picture drawn from hostile, outside sources:",
+      "reason": "Coherencia con la corrección anterior."
+    },
+    {
+      "beatIndex": 3,
+      "find": "A pass eight meters wide at its narrowest point did not care how many riders were waiting behind it.",
+      "replace": "A pass only a few meters wide at its narrowest points did not care how many riders were waiting behind it.",
+      "reason": "El ancho exacto de «ocho metros» no tiene fuente; Heródoto describe tramos del ancho de un solo carro."
+    },
+    {
+      "beatIndex": 6,
+      "find": "then the undocumented half, the Hunnic side built entirely on general assumption, has to be held even more loosely.",
+      "replace": "then the thinner half, the Hunnic side reconstructed from hostile outside sources, has to be held even more loosely.",
+      "reason": "Coherencia: la parte huna está peor documentada, no sin documentar."
+    },
+    {
+      "beatIndex": 7,
+      "find": "The 300 didn't defeat an army. They defeated open ground — and that's not a smaller story, it's a more honest one.",
+      "replace": "The 300 didn't stop an army on their own. The narrow ground fought beside them — and that's not a smaller story, it's a more honest one.",
+      "reason": "Los 300 no derrotaron a nadie (cayeron); la frase original confundía."
+    },
+    {
+      "beatIndex": 8,
+      "find": "None of that exists in what we gathered here.",
+      "replace": "Roman authors describe Hunnic horse archery only in general terms, and no source records steppe cavalry meeting a Greek phalanx in a pass like this.",
+      "reason": "Precisión sobre qué falta realmente en las fuentes."
+    },
+    {
+      "beatIndex": 8,
+      "find": "would have handled that eight-meter gap",
+      "replace": "would have handled that narrow gap",
+      "reason": "Coherencia con la corrección del ancho del paso."
+    }
+  ],
+  "claimPatches": [
+    {
+      "beatIndex": 1,
+      "claimId": "c1-1",
+      "text": "Herodotus's Histories, written a few decades after the battle (most likely around 430 BCE), is the primary and most detailed ancient source for the Battle of Thermopylae",
+      "reason": "La afirmación repetía la fecha corregida en la narración («around 440 BCE»); observado en el replay offline de las 18 respuestas pagadas (run 40091018172)."
+    }
+  ]
+}
