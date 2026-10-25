@@ -129,6 +129,54 @@ const rec = (name, ok, detail) => { rows.push({ name, ok: !!ok, detail }); if (!
     await ctx.close();
   }
   prodSrv?.close();
+  // 5. VISTA PREVIA SOBRE EL FRONTEND REAL DE PRODUCCIÓN (opcional: PROD_PREVIEW_BASE=https://atomicvid.app). Solo lectura:
+  //    toda petición que no sea GET/HEAD se aborta en el navegador (0 escrituras). Las páginas públicas reales se cargan con
+  //    las cabeceras de esta rama INYECTADAS en la respuesta del documento (calculadas con el origen real de Supabase,
+  //    descubierto en los bundles públicos). Mide violaciones reales de la política sobre el código desplegado hoy, sin
+  //    desplegar nada. No cubre páginas con sesión (no hay credenciales): eso queda para la validación posterior al despliegue.
+  if (process.env.PROD_PREVIEW_BASE) {
+    const PB = process.env.PROD_PREVIEW_BASE.replace(/\/$/, ""), host = new URL(PB).host;
+    let supabase = null, sentryHost = null, scanned = 0;
+    try {
+      const html = await (await fetch(PB + "/login")).text();
+      const chunks = [...new Set([...html.matchAll(/\/_next\/static\/[^"' ]+\.js/g)].map((m) => m[0]))].slice(0, 60);
+      for (const c of chunks) {
+        const js = await (await fetch(PB + c)).text(); scanned++;
+        supabase ??= (js.match(/https:\/\/[a-z0-9]{20}\.supabase\.co/) ?? [])[0] ?? null;
+        sentryHost ??= (js.match(/o\d+\.ingest\.(?:us\.)?sentry\.io/) ?? [])[0] ?? null;
+        if (supabase && sentryHost) break;
+      }
+    } catch (e) { console.log(`INFO  vista previa: descubrimiento falló ${String(e).slice(0, 120)}`); }
+    rec("vista previa producción: origen real de Supabase descubierto en los bundles públicos", !!supabase, { supabase, sentryHost, scanned });
+    let hdrs = null;
+    try { hdrs = require("../../src/lib/security-headers.ts").securityHeaders({ NEXT_PUBLIC_SUPABASE_URL: supabase ?? undefined, NEXT_PUBLIC_SENTRY_DSN: sentryHost ? `https://k@${sentryHost}/1` : undefined, NODE_ENV: "production" }); }
+    catch (e) { rec("vista previa producción: cabeceras calculadas (ejecutar con node --import tsx)", false, String(e).slice(0, 200)); }
+    if (hdrs && supabase) for (const [dev, opt] of Object.entries({ samsung: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, desktop: { viewport: { width: 1440, height: 900 } } })) {
+      const pb = await chromium.launch({ executablePath: process.env.E2E_CHROME || undefined }); // navegador aparte: este sí sale a internet (solo GET)
+      const ctx = await pb.newContext(opt); const p = await ctx.newPage(); const blocked = [], hostsSeen = new Set(), msgs = [];
+      await ctx.route("**/*", async (route) => {
+        const q = route.request(); hostsSeen.add(new URL(q.url()).origin);
+        if (q.method() !== "GET" && q.method() !== "HEAD") { blocked.push(`${q.method()} ${q.url().split("?")[0]}`); return route.abort(); }
+        if (q.isNavigationRequest() && new URL(q.url()).host === host) {
+          const res = await route.fetch(); const h = { ...res.headers() };
+          for (const x of hdrs) h[x.key.toLowerCase()] = x.value;
+          return route.fulfill({ response: res, headers: h });
+        }
+        return route.continue();
+      });
+      p.on("console", (m) => { const t = m.text(); if (/Content Security Policy/i.test(t)) msgs.push({ report: /report[- ]only/i.test(t), text: t.slice(0, 260) }); });
+      for (const route of ["/", "/login", "/register"]) {
+        await p.goto(PB + route, { waitUntil: "networkidle" }).catch(() => {});
+        await p.waitForTimeout(1500);
+      }
+      const enforced = msgs.filter((m) => !m.report), report = msgs.filter((m) => m.report);
+      rec(`[vista previa producción/${dev}] /, /login, /register reales con las cabeceras de #203: 0 bloqueos de la CSP aplicada`, enforced.length === 0, enforced.slice(0, 3));
+      rec(`[vista previa producción/${dev}] 0 avisos de la CSP en modo informe (la política completa no se queda corta con el frontend real)`, report.length === 0, { report: [...new Set(report.map((m) => m.text))].slice(0, 4) });
+      fs.writeFileSync(path.join(OUT, `prod-preview-${dev}.json`), JSON.stringify({ supabase, sentryHost, origins: [...hostsSeen], blockedNonGet: [...new Set(blocked)], enforced, report }, null, 2));
+      console.log(`INFO  [vista previa producción/${dev}] orígenes cargados: ${[...hostsSeen].join(" ")} · no-GET bloqueadas: ${[...new Set(blocked)].join(" ")}`);
+      await pb.close();
+    }
+  }
   fs.writeFileSync(path.join(OUT, "csp-scenarios.json"), JSON.stringify(scenarioRows, null, 2));
   await browser.close();
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ base: BASE, fails, rows }, null, 2));

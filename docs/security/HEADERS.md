@@ -51,6 +51,8 @@ Aplicarla sin datos reales podría romper el login, las subidas o la reproducci�
 
 Ningún host externo sale del runner: los stubs locales responden antes de la red y el navegador no resuelve ningún DNS externo. Resultado en `security-out/csp-scenarios.json`.
 
+**Vista previa sobre el frontend REAL de producción** (sección 5, `PROD_PREVIEW_BASE=https://atomicvid.app`): `/`, `/login` y `/register` de producción se cargan en Samsung 390×844 y escritorio 1440×900 con las cabeceras de esta rama inyectadas en el documento, calculadas con el origen real de Supabase descubierto en los bundles públicos. Solo GET: toda petición de otro método (envíos a Sentry, `/api/m`) se aborta en el navegador. Mide violaciones reales de la política con el código desplegado hoy, sin desplegar nada. No cubre páginas con sesión.
+
 **Con sesión y flujos completos:** la batería de aceptación de #202 registra las violaciones de CSP (aplicada = FAIL, informe = INFO) y se ejecuta con estas cabeceras en la rama de verificación `claude/verify-202-203` (#202 + #203).
 
 ## Siguiente paso (no incluido aquí)
