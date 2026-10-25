@@ -26,6 +26,11 @@ ROWS = ([("RESERVED", "openai", "image", "0.2300")] * 27
         + [("RECONCILIATION_REQUIRED", "bfl", "image", "0.0300"), ("SUBMITTED", "internal", "capacity_check", "0.0000")])
 
 
+def real_key(i):
+    """Synthetic stand-in for the real idempotency key of operation i (the snapshot only carries k-md5 of it)."""
+    return f"synthetic-open-op-{i:02d}"
+
+
 def iso(t):
     return t.strftime("%Y-%m-%dT%H:%M:%S.") + f"{t.microsecond:06d}Z"
 
@@ -34,7 +39,7 @@ def build(taken_at):
     taken = dt.datetime.strptime(taken_at.replace("Z", ""), "%Y-%m-%dT%H:%M:%S" + (".%f" if "." in taken_at else "")).replace(tzinfo=dt.timezone.utc)
     ops = []
     for i, (st, prov, meth, usd) in enumerate(ROWS):
-        ops.append({"op": "k-" + hashlib.md5(f"synthetic-open-op-{i:02d}".encode()).hexdigest(), "status": st,
+        ops.append({"op": "k-" + hashlib.md5(real_key(i).encode()).hexdigest(), "status": st,
                     "updated_at": iso(taken - dt.timedelta(days=3 + i % 9, minutes=17 * i, microseconds=123457 * (i + 1) % 1000000)),
                     "provider": prov, "method": meth, "reserved_usd": usd, "committed_usd": None,
                     "has_provider_job": False, "has_result_ref": False, "supply_reconciled": False})

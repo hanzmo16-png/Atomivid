@@ -2,6 +2,7 @@
 """Driver for pg_check.sh (disposable cluster only; PSQL is the psql command line built by the script)."""
 import copy
 import datetime as dt
+import hashlib
 import json
 import os
 import shlex
@@ -49,14 +50,25 @@ fx = os.path.join(W, "fx")
 subprocess.run([sys.executable, "-I", os.path.join(HERE, "make_fixture.py"), fx, "--taken-at", taken.strftime("%Y-%m-%dT%H:%M:%SZ")], check=True)
 snap_p, ev_p = os.path.join(fx, "synthetic-41.snapshot.json"), os.path.join(fx, "synthetic-41.evidence.json")
 snap = read_json(snap_p)
+sys.path.insert(0, HERE)
+import make_fixture  # noqa: E402
+real = [make_fixture.real_key(i) for i in range(len(make_fixture.ROWS))]
+key_of = {"k-" + hashlib.md5(k.encode()).hexdigest(): k for k in real}
+keys_p = os.path.join(W, "keys.txt")
+with open(keys_p, "w", encoding="utf-8") as f:
+    f.write("".join(k + "\n" for k in real))
 rc, out = plan_cli("build", "--snapshot", snap_p, "--evidence", ev_p, "--out", os.path.join(W, "a"))
-check(rc == 0, f"plan READY for the 41 synthetic operations ({out.strip()})")
-plan = read_json(os.path.join(W, "a", "plan.json"))
+check(rc == 0, f"template READY for the 41 synthetic operations ({out.strip()})")
+template = read_json(os.path.join(W, "a", "plan.json"))
+rc, out = plan_cli("map", "--plan", os.path.join(W, "a", "plan.json"), "--snapshot", snap_p, "--evidence", ev_p, "--keys", keys_p, "--out", os.path.join(W, "am"))
+check(rc == 0, f"template mapped to the real keys ({out.strip()})")
+plan = read_json(os.path.join(W, "am", "plan.mapped.json"))
 
+# the ledger holds the REAL keys (synthetic stand-ins); the snapshot only ever saw k-md5(key)
 for o in snap["operations"]:
     rc, out = sql("insert into public.pi_paid_operations(idempotency_key,project_id,shot_id,provider,model,method,attempt_kind,reserved_usd,status,updated_at)"
                   " values(:'a0','p-synthetic','s',:'a1','m',:'a2','initial',:'a3',:'a4',:'a5')",
-                  (o["op"], o["provider"], o["method"], o["reserved_usd"], o["status"], o["updated_at"]))
+                  (key_of[o["op"]], o["provider"], o["method"], o["reserved_usd"], o["status"], o["updated_at"]))
     if rc:
         check(False, f"insert synthetic row: {out[:200]}"); sys.exit(1)
 rc, out = sql("select count(*)||'|'||sum(reserved_usd) from public.pi_paid_operations where status in ('RESERVED','SUBMITTED','PROVIDER_JOB_RECORDED','RECONCILIATION_REQUIRED')")
@@ -65,21 +77,30 @@ SPEND = "select coalesce(sum(public.pi_supply_spend(p, now() - interval '30 days
 _, spend0 = sql(SPEND)
 
 
-def call(d):
+def call(d, key=None):
     q = ("select public.pi_reconcile_open_operation(:'a0', :'a1', :'a2', :'a3'::timestamptz, :'a4', :'a5', "
          f"{lit(6, d['actual_usd'])}::numeric, :'a7'::boolean)")
-    return sql(q, (d["decision_id"], d["op"], d["expected_status"], d["expected_updated_at"], d["outcome"], d["evidence"],
+    return sql(q, (d["decision_id"], key or d["key"], d["expected_status"], d["expected_updated_at"], d["outcome"], d["evidence"],
                    d["actual_usd"], "true" if d["allow_over_reserved"] else "false"))
 
 
-applied = 0
+# the pseudonymized template is not consumable: its op is not a ledger key
+rc, out = call(template["decisions"][0], key=template["decisions"][0]["op"])
+check(rc != 0 and "operation not found" in out, "a template decision (pseudonym as key) is refused by the tool: operation not found")
+applied = same = 0
+tmpl_hash = {d["op"]: d["template_sha256"] for d in template["decisions"]}
+template_matches = 0
 for d in plan["decisions"]:
     rc, out = call(d)
     if rc == 0:
         applied += 1
+        h = json.loads(out.splitlines()[-1])["decisionSha256"]
+        same += h == d["decision_sha256"]
+        template_matches += h == tmpl_hash[d["op"]]
     else:
         print("  refused:", d["op"][:10], out.splitlines()[-1][:160])
-check(applied == 41, f"the tool accepts every READY decision ({applied}/41)")
+check(applied == 41, f"the tool accepts every decision of the MAPPED plan ({applied}/41)")
+check(same == 41 and template_matches == 0, f"tool hash == mapped decision_sha256 for {same}/41 and == template_sha256 for {template_matches}/41")
 rc, out = sql("select count(*) from public.pi_reconciliation_log l join (select jsonb_array_elements(:'a0'::jsonb) d) p on l.decision_id = p.d->>'decision_id' and l.decision_sha256 = p.d->>'decision_sha256'",
               (json.dumps([{"decision_id": d["decision_id"], "decision_sha256": d["decision_sha256"]} for d in plan["decisions"]]),))
 check(out == "41", f"pi_reconciliation_log stores exactly the plan's decision_sha256 for all 41 decisions ({out})")
@@ -111,20 +132,21 @@ for it in ev["items"]:
 with open(os.path.join(W, "ev2.json"), "w", encoding="utf-8") as f:
     json.dump(ev, f)
 plan_cli("build", "--snapshot", snap_p, "--evidence", os.path.join(W, "ev2.json"), "--out", os.path.join(W, "b"))
-b = read_json(os.path.join(W, "b", "plan.json"))
+plan_cli("map", "--plan", os.path.join(W, "b", "plan.json"), "--snapshot", snap_p, "--evidence", os.path.join(W, "ev2.json"), "--keys", keys_p, "--out", os.path.join(W, "bm"))
+b = read_json(os.path.join(W, "bm", "plan.mapped.json"))
 diff = [d for d, e in zip(b["decisions"], plan["decisions"]) if d["decision_sha256"] != e["decision_sha256"]]
 ref = sum(1 for d in diff if (lambda r: r[0] != 0 and "different parameters" in r[1])(call(d)))
 check(len(diff) == 3 and ref == 3, f"contradictory plan: {ref}/{len(diff)} changed decisions refused ('replayed with different parameters')")
 
 # a plan built before a row changed is refused by the tool's CAS (status/updated_at), even with a fresh decision id
 o = copy.deepcopy(snap["operations"][0])
-o["op"] = "k-" + "0" * 32
+stale_key = "synthetic-stale-cas-row"
 sql("insert into public.pi_paid_operations(idempotency_key,project_id,shot_id,provider,model,method,attempt_kind,reserved_usd,status,updated_at)"
-    " values(:'a0','p-synthetic','s','openai','m','image','initial',0.2300,'RESERVED',:'a1')", (o["op"], o["updated_at"]))
-stale = dict(plan["decisions"][0], op=o["op"], decision_id="rp1-stale-cas-check-0000", expected_updated_at="2026-01-01T00:00:00.000000Z")
+    " values(:'a0','p-synthetic','s','openai','m','image','initial',0.2300,'RESERVED',:'a1')", (stale_key, o["updated_at"]))
+stale = dict(plan["decisions"][0], key=stale_key, decision_id="rp1-stale-cas-check-0000", expected_updated_at="2026-01-01T00:00:00.000000Z")
 rc, out = call(stale)
 check(rc != 0 and "changed since the plan" in out, "a stale expected_updated_at is refused by the tool's CAS")
-_, st = sql("select status from public.pi_paid_operations where idempotency_key=:'a0'", (o["op"],))
+_, st = sql("select status from public.pi_paid_operations where idempotency_key=:'a0'", (stale_key,))
 check(st == "RESERVED", "the stale decision left the row untouched")
 print(f"RESULT plan pg_check: {fails} FAIL")
 sys.exit(1 if fails else 0)

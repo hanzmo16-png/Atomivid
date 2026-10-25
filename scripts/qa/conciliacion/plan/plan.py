@@ -3,12 +3,19 @@
 
 Reads ONLY local files: a redacted snapshot (format atomivid.reconcile-snapshot/v1) and, optionally, a provider-evidence
 file (atomivid.reconcile-evidence/v1). Never connects to a database or provider, never writes SQL. Output: a review
-report (Markdown) and a plan fixture (JSON) whose every decision carries the canonical hash that the proposed
-operator tool pi_reconcile_open_operation computes (docs/ops/conciliacion), so any change to an operation,
-precondition, outcome, evidence, amount or override invalidates the decision and the plan.
+report (Markdown) and a plan TEMPLATE (JSON). The template is keyed by pseudonyms (k-<md5(real key)>), so its
+per-decision `template_sha256` is the tool's canonical hash computed over the PSEUDONYM: it is NOT the hash the tool
+pi_reconcile_open_operation (docs/ops/conciliacion) computes for a real operation, and the template is never
+consumable by any apply step. The only way forward is `map`: in an authorized environment, a local list of the real
+keys is checked (k-md5(real) must equal op, one-to-one, complete), every decision is re-hashed over the real key
+(`decision_sha256`, byte-identical to the tool) and a NEW mapped plan with a new plan_sha256 is emitted, which still
+needs its own A-3 review. Any change to an operation, precondition, outcome, evidence, amount or override invalidates
+the decision and the plan.
 
-  plan.py build  --snapshot S --out DIR [--evidence E] [--now ISO]   → DIR/plan.json + DIR/review.md
-  plan.py verify --plan P --snapshot S [--evidence E] [--now ISO]    → recomputes; exit 0 only if byte-identical
+  plan.py build      --snapshot S --out DIR [--evidence E] [--now ISO]   → DIR/plan.json (template) + DIR/review.md
+  plan.py verify     --plan P --snapshot S [--evidence E] [--now ISO]    → recomputes; exit 0 only if byte-identical
+  plan.py map        --plan P --snapshot S [--evidence E] --keys K --out DIR   → DIR/plan.mapped.json (outside the repo)
+  plan.py verify-map --mapped M --plan P --snapshot S [--evidence E] --keys K  → recomputes the mapped plan
 
 Exit codes: 0 plan READY (every operation has a complete decision), 3 plan NOT_READY (some operation is CANDIDATE /
 MANUAL / BLOCKED: review report written, no decision may be applied), 1 invalid input (nothing written), 2 usage.
@@ -25,7 +32,9 @@ import sys
 
 SNAP_FORMAT = "atomivid.reconcile-snapshot/v1"
 EVID_FORMAT = "atomivid.reconcile-evidence/v1"
-PLAN_FORMAT = "atomivid.reconcile-plan/v1"
+PLAN_FORMAT = "atomivid.reconcile-plan-template/v2"
+MAPPED_FORMAT = "atomivid.reconcile-plan-mapped/v1"
+REAL_KEY = re.compile(r"[ -~]{1,200}")
 OPEN = ("RESERVED", "SUBMITTED", "PROVIDER_JOB_RECORDED", "RECONCILIATION_REQUIRED")
 FINAL = ("COMMITTED", "REFUNDED")
 OUTCOMES = ("cancelled_before_submission", "not_charged", "charged", "assumed_charged", "manual")
@@ -265,8 +274,9 @@ def build(snapshot_path, evidence_path, now_s):
              "reserved_usd": usd4(decimal.Decimal(o["reserved_usd"])), "state": state, "outcome": outcome, "reasons": reasons}
         if state == "READY":
             did = "rp1-" + hashlib.sha256(f"{snap_sha}:{key}".encode()).hexdigest()[:24]
+            # over the pseudonym: a template value, never the tool's hash for the real operation
             d.update(decision_id=did, evidence=evidence, actual_usd=usd4(actual), allow_over_reserved=allow,
-                     decision_sha256=decision_sha256(did, key, o["status"], upd, outcome, evidence, actual, allow))
+                     template_sha256=decision_sha256(did, key, o["status"], upd, outcome, evidence, actual, allow))
         decisions.append(d)
     counts = {}
     for d in decisions:
@@ -274,14 +284,79 @@ def build(snapshot_path, evidence_path, now_s):
     verdict = "READY" if counts.get("READY", 0) == len(decisions) else "NOT_READY"
     body = {"format": PLAN_FORMAT, "snapshot_sha256": snap_sha, "evidence_sha256": ev_sha, "snapshot_taken_at": snap["taken_at"],
             "checked_at": now_s, "verdict": verdict, "counts": dict(sorted(counts.items())), "decisions": decisions,
+            "key_space": "pseudonym", "executable": False, "consumable_by_apply": False,
+            "next_step": "map (authorized environment, real keys) -> mapped plan with new hashes -> A-3 review of the mapped plan",
             "apply_mode": "absent: this plan is a review artifact; no SQL is generated"}
     body["plan_sha256"] = hashlib.sha256(canonical(body).encode()).hexdigest()
     return snap, body
 
 
+def load_keys(path):
+    """Real keys, one per line (local file in an authorized environment; never committed or uploaded)."""
+    raw = read_bytes(path)
+    try:
+        lines = raw.decode("utf-8").split("\n")
+    except UnicodeDecodeError:
+        bad("keys: not UTF-8")
+    if lines and lines[-1] == "":
+        lines.pop()
+    if not lines:
+        bad("keys: empty")
+    for i, k in enumerate(lines):
+        if not REAL_KEY.fullmatch(k) or k != k.strip():
+            bad(f"keys[{i}]: a key is a printable single-line value without surrounding blanks")
+    if len(set(lines)) != len(lines):
+        bad("keys: duplicate key")
+    return raw, lines
+
+
+def map_plan(template_path, snapshot_path, evidence_path, keys_path):
+    old = load_json(template_path, "plan")
+    _, tmpl = build(snapshot_path, evidence_path, old.get("checked_at") if isinstance(old, dict) else None)
+    if not isinstance(old, dict) or canonical(old) != canonical(tmpl):
+        bad("plan: the template does not match its snapshot/evidence (changed operation, evidence or plan)")
+    raw, keys = load_keys(keys_path)
+    by_op = {}
+    for k in keys:
+        op = "k-" + hashlib.md5(k.encode("utf-8")).hexdigest()
+        if op in by_op:
+            bad("keys: two keys map to the same pseudonym")
+        by_op[op] = k
+    ops = {d["op"] for d in tmpl["decisions"]}
+    if set(by_op) - ops:
+        bad(f"keys: {len(set(by_op) - ops)} key(s) whose k-md5 matches no operation of the plan")
+    if ops - set(by_op):
+        bad(f"keys: {len(ops - set(by_op))} operation(s) of the plan without a matching key (k-md5(key) must equal op)")
+    decisions = []
+    for d in tmpl["decisions"]:
+        m = {k: v for k, v in d.items() if k != "template_sha256"}
+        m["key"] = by_op[d["op"]]
+        if d["state"] == "READY":
+            m["decision_sha256"] = decision_sha256(d["decision_id"], m["key"], d["expected_status"], d["expected_updated_at"], d["outcome"],
+                                                   d["evidence"], None if d["actual_usd"] is None else decimal.Decimal(d["actual_usd"]),
+                                                   d["allow_over_reserved"])
+            if m["decision_sha256"] == d["template_sha256"]:
+                bad("internal: real-key hash equals the template hash")
+        decisions.append(m)
+    body = {"format": MAPPED_FORMAT, "template_plan_sha256": tmpl["plan_sha256"], "snapshot_sha256": tmpl["snapshot_sha256"],
+            "evidence_sha256": tmpl["evidence_sha256"], "keys_sha256": hashlib.sha256(raw).hexdigest(), "key_space": "real",
+            "contains_real_keys": True, "executable": False, "a3_review_required": True,
+            "verdict": "PENDING_A3_REVIEW" if tmpl["verdict"] == "READY" else "NOT_READY", "counts": tmpl["counts"], "decisions": decisions,
+            "apply_mode": "absent: a separate, explicitly authorized step must consume this plan after its own A-3 review"}
+    body["plan_sha256"] = hashlib.sha256(canonical(body).encode()).hexdigest()
+    return body
+
+
+def outside_repo(out):
+    """The mapped plan carries real keys: refuse to write it inside this repository."""
+    root = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", ".."))
+    target = os.path.realpath(out)
+    return not (target == root or target.startswith(root + os.sep))
+
+
 def review_md(snap, plan):
     L = [f"# Plan de conciliación offline — revisión ({plan['verdict']})", "",
-         "Artefacto de revisión; **no** es ejecutable y no contiene SQL. Claves redactadas (seudónimo `k-` + md5).", "",
+         "**Plantilla de revisión**: no ejecutable, no consumible por ningún apply, sin SQL. Claves redactadas (seudónimo `k-` + md5).", "",
          f"- snapshot: `{plan['snapshot_sha256']}` ({snap['source']}, tomado {snap['taken_at']})",
          f"- evidencia: `{plan['evidence_sha256'] or 'ninguna'}`",
          f"- plan_sha256: `{plan['plan_sha256']}`",
@@ -298,9 +373,10 @@ def review_md(snap, plan):
     L += ["", "## Operaciones no listas", ""]
     pend = [d for d in plan["decisions"] if d["state"] != "READY"]
     L += [f"- `{d['op'][:10]}…` {d['expected_status']} {d['provider']} {d['reserved_usd']}: {d['state']} — {'; '.join(d['reasons'])}" for d in pend] or ["- ninguna"]
-    L += ["", "Cada decisión READY lleva `decision_sha256`, idéntico al que calcula `pi_reconcile_open_operation`; cualquier",
-          "cambio de operación, estado/`updated_at` esperados, resultado, evidencia, importe u override lo invalida.",
-          "Aplicar algo requiere autorización explícita del propietario, evidencia autorizada y una lectura nueva (CAS)."]
+    L += ["", "Cada decisión READY lleva `template_sha256`: la fórmula de `pi_reconcile_open_operation` calculada sobre el SEUDÓNIMO.",
+          "No es el hash de la operación real. El único paso siguiente es `map` en un entorno autorizado (claves reales locales,",
+          "k-md5(clave) = op uno a uno), que emite un plan mapeado con `decision_sha256` nuevos y un plan_sha256 nuevo, que a su",
+          "vez requiere su propia revisión A-3. Aplicar algo requiere además autorización explícita, evidencia autorizada y CAS."]
     return "\n".join(L) + "\n"
 
 
@@ -314,6 +390,10 @@ def main(argv):
     b.add_argument("--snapshot", required=True); b.add_argument("--evidence"); b.add_argument("--now"); b.add_argument("--out", required=True)
     v = sub.add_parser("verify")
     v.add_argument("--plan", required=True); v.add_argument("--snapshot", required=True); v.add_argument("--evidence"); v.add_argument("--now")
+    m = sub.add_parser("map")
+    m.add_argument("--plan", required=True); m.add_argument("--snapshot", required=True); m.add_argument("--evidence"); m.add_argument("--keys", required=True); m.add_argument("--out", required=True)
+    vm = sub.add_parser("verify-map")
+    vm.add_argument("--mapped", required=True); vm.add_argument("--plan", required=True); vm.add_argument("--snapshot", required=True); vm.add_argument("--evidence"); vm.add_argument("--keys", required=True)
     a = ap.parse_args(argv)
     try:
         if a.cmd == "build":
@@ -325,6 +405,21 @@ def main(argv):
                 f.write(review_md(snap, plan))
             print(f"{plan['verdict']} {canonical(plan['counts'])} plan_sha256={plan['plan_sha256']}")
             return 0 if plan["verdict"] == "READY" else 3
+        if a.cmd == "map":
+            if not outside_repo(a.out):
+                bad("--out is inside the repository; the mapped plan carries real keys and must stay outside it")
+            mp = map_plan(a.plan, a.snapshot, a.evidence, a.keys)
+            os.makedirs(a.out, exist_ok=True)
+            with open(os.path.join(a.out, "plan.mapped.json"), "w", encoding="utf-8") as f:
+                f.write(json.dumps(mp, ensure_ascii=True, indent=1, sort_keys=True) + "\n")
+            print(f"{mp['verdict']} mapped plan_sha256={mp['plan_sha256']} (contains real keys: keep local, never commit or upload)")
+            return 0 if mp["verdict"] == "PENDING_A3_REVIEW" else 3
+        if a.cmd == "verify-map":
+            old = load_json(a.mapped, "mapped plan")
+            mp = map_plan(a.plan, a.snapshot, a.evidence, a.keys)
+            same = isinstance(old, dict) and canonical(old) == canonical(mp)
+            print(("VALID " if same else "INVALID mapped plan does not match template/keys ") + f"plan_sha256={mp['plan_sha256']}")
+            return (0 if mp["verdict"] == "PENDING_A3_REVIEW" else 3) if same else 1
         old = load_json(a.plan, "plan")
         _, plan = build(a.snapshot, a.evidence, a.now if a.now else (old.get("checked_at") if isinstance(old, dict) else None))
         same = isinstance(old, dict) and canonical(old) == canonical(plan)

@@ -96,10 +96,10 @@ class Plans(Base):
                 self.assertEqual((d["state"], d["outcome"]), ("READY", "cancelled_before_submission"))
             elif d["expected_status"] == "SUBMITTED":
                 self.assertEqual((d["state"], d["outcome"]), ("CANDIDATE", "not_charged"))
-                self.assertNotIn("decision_sha256", d)
+                self.assertNotIn("template_sha256", d)
             else:
                 self.assertEqual((d["state"], d["outcome"]), ("MANUAL", "manual"))
-                self.assertNotIn("decision_sha256", d)
+                self.assertNotIn("template_sha256", d)
 
     def test_with_complete_evidence_every_outcome_class_is_separated(self):
         rc, _, plan = self.build(ev=self.ev)
@@ -107,7 +107,8 @@ class Plans(Base):
         got = {}
         for d in plan["decisions"]:
             got[d["outcome"]] = got.get(d["outcome"], 0) + 1
-            self.assertRegex(d["decision_sha256"], r"^[0-9a-f]{64}$")
+            self.assertRegex(d["template_sha256"], r"^[0-9a-f]{64}$")
+            self.assertNotIn("decision_sha256", d, "a template never carries an executable hash")
             self.assertRegex(d["decision_id"], r"^rp1-[0-9a-f]{24}$")
         self.assertEqual(got, {"cancelled_before_submission": 32, "charged": 3, "not_charged": 3, "assumed_charged": 3})
 
@@ -159,15 +160,15 @@ class Plans(Base):
         _, _, b = self.build(ev=e2, out="b")
         da, db = self.state_of(a, it["op"]), self.state_of(b, it["op"])
         self.assertEqual(da["decision_id"], db["decision_id"])
-        self.assertNotEqual(da["decision_sha256"], db["decision_sha256"])
+        self.assertNotEqual(da["template_sha256"], db["template_sha256"])
         log, per_op = {}, {}
 
         def tool(d):
             if d["decision_id"] in log:
-                return "replayed" if log[d["decision_id"]] == d["decision_sha256"] else "refused: different parameters"
+                return "replayed" if log[d["decision_id"]] == d["template_sha256"] else "refused: different parameters"
             if d["op"] in per_op:
                 return "refused: already reconciled"
-            log[d["decision_id"]] = d["decision_sha256"]; per_op[d["op"]] = d["decision_id"]
+            log[d["decision_id"]] = d["template_sha256"]; per_op[d["op"]] = d["decision_id"]
             return "applied"
         self.assertEqual([tool(da), tool(db), tool(da)], ["applied", "refused: different parameters", "replayed"])
         self.assertNotEqual(a["plan_sha256"], b["plan_sha256"])
@@ -227,7 +228,7 @@ class FailClosed(Base):
             d = self.state_of(plan, o["op"])
             self.assertEqual((rc, d["state"]), (3, state), item)
             self.assertIn(why, " ".join(d["reasons"]), item)
-            self.assertNotIn("decision_sha256", d)
+            self.assertNotIn("template_sha256", d)
         e = {"format": self.ev["format"], "items": [{"op": rr1["op"], "outcome": "charged", "evidence": "synthetic:ref", "actual_usd": "0.0500", "allow_over_reserved": True}]}
         _, _, plan = self.build(ev=e)
         d = self.state_of(plan, rr1["op"])
@@ -246,6 +247,86 @@ class FailClosed(Base):
         self.assertEqual(rc, 0)
         rc, txt, _ = self.build(ev=self.ev, now="2026-10-24T00:00:00Z")
         self.assertEqual(rc, 1); self.assertIn("before the snapshot", txt)
+
+
+class Mapping(Base):
+    """CORRECCION-1: the pseudonymized template is not executable; only a verified mapping to the real keys yields the
+    tool's hashes, in a NEW plan that needs its own A-3 review."""
+
+    def keys(self, keys, name="keys.txt"):
+        return self.write(name, "".join(k + "\n" for k in keys))
+
+    def real_keys(self):
+        return [make_fixture.real_key(i) for i in range(len(make_fixture.ROWS))]
+
+    def template(self):
+        rc, _, plan = self.build(ev=self.ev, out="t")
+        self.assertEqual(rc, 0)
+        return os.path.join(self.tmp, "t", "plan.json"), plan
+
+    def map(self, keys_path, out="m"):
+        tp, _ = self.template()
+        return run("map", "--plan", tp, "--snapshot", SNAP, "--evidence", EVID, "--keys", keys_path, "--out", os.path.join(self.tmp, out))
+
+    def test_template_is_labeled_non_executable(self):
+        _, t = self.template()
+        self.assertEqual((t["key_space"], t["executable"], t["consumable_by_apply"]), ("pseudonym", False, False))
+        self.assertTrue(all("decision_sha256" not in d for d in t["decisions"]))
+
+    def test_correct_mapping_rehashes_over_the_real_key_and_needs_a3(self):
+        rc, txt = self.map(self.keys(self.real_keys()))
+        self.assertEqual(rc, 0, txt)
+        m = read_json(os.path.join(self.tmp, "m", "plan.mapped.json"))
+        _, t = self.template()
+        self.assertEqual((m["key_space"], m["executable"], m["a3_review_required"], m["verdict"]), ("real", False, True, "PENDING_A3_REVIEW"))
+        self.assertEqual(m["template_plan_sha256"], t["plan_sha256"])
+        self.assertNotEqual(m["plan_sha256"], t["plan_sha256"])
+        for d, td in zip(m["decisions"], t["decisions"]):
+            self.assertEqual("k-" + P.hashlib.md5(d["key"].encode()).hexdigest(), d["op"])
+            self.assertNotEqual(d["decision_sha256"], td["template_sha256"], "pseudonym hash differs from the real-key hash")
+            self.assertEqual(d["decision_sha256"], P.decision_sha256(d["decision_id"], d["key"], d["expected_status"], d["expected_updated_at"],
+                             d["outcome"], d["evidence"], None if d["actual_usd"] is None else P.decimal.Decimal(d["actual_usd"]), d["allow_over_reserved"]))
+            self.assertEqual(td["template_sha256"], P.decision_sha256(td["decision_id"], td["op"], td["expected_status"], td["expected_updated_at"],
+                             td["outcome"], td["evidence"], None if td["actual_usd"] is None else P.decimal.Decimal(td["actual_usd"]), td["allow_over_reserved"]))
+        rc, txt = run("verify-map", "--mapped", os.path.join(self.tmp, "m", "plan.mapped.json"), "--plan", os.path.join(self.tmp, "t", "plan.json"),
+                      "--snapshot", SNAP, "--evidence", EVID, "--keys", self.keys(self.real_keys(), "k2.txt"))
+        self.assertEqual(rc, 0, txt)
+
+    def test_wrong_mappings_fail_closed_and_write_nothing(self):
+        good = self.real_keys()
+        cases = {
+            "wrong key": good[:-1] + ["synthetic-open-op-99"],
+            "missing key": good[:-1],
+            "extra key": good + ["synthetic-open-op-99"],
+            "duplicate key": good + [good[0]],
+            "pseudonym given as key": [("k-" + P.hashlib.md5(k.encode()).hexdigest()) for k in good],
+            "blank-padded key": [" " + good[0]] + good[1:],
+        }
+        for name, keys in cases.items():
+            out = "bad-" + name.replace(" ", "-")
+            rc, txt = self.map(self.keys(keys, out + ".txt"), out=out)
+            self.assertEqual(rc, 1, name + ": " + txt)
+            self.assertIn("INVALID INPUT", txt, name)
+            self.assertFalse(os.path.exists(os.path.join(self.tmp, out, "plan.mapped.json")), name)
+
+    def test_tampered_template_or_mapped_plan_is_refused(self):
+        tp, t = self.template()
+        t["decisions"][0]["evidence"] = "synthetic:tampered"
+        rc, txt = run("map", "--plan", self.write("t2.json", t), "--snapshot", SNAP, "--evidence", EVID, "--keys", self.keys(self.real_keys()),
+                      "--out", os.path.join(self.tmp, "m2"))
+        self.assertEqual(rc, 1, txt); self.assertIn("does not match", txt)
+        self.assertEqual(self.map(self.keys(self.real_keys()))[0], 0)
+        mp = read_json(os.path.join(self.tmp, "m", "plan.mapped.json")); mp["decisions"][0]["key"] = "synthetic-open-op-98"
+        rc, txt = run("verify-map", "--mapped", self.write("m3.json", mp), "--plan", tp, "--snapshot", SNAP, "--evidence", EVID,
+                      "--keys", self.keys(self.real_keys(), "k3.txt"))
+        self.assertEqual(rc, 1, txt)
+
+    def test_mapped_plan_is_never_written_inside_the_repository(self):
+        tp, _ = self.template()
+        inside = os.path.join(HERE, "should-not-exist")
+        rc, txt = run("map", "--plan", tp, "--snapshot", SNAP, "--evidence", EVID, "--keys", self.keys(self.real_keys()), "--out", inside)
+        self.assertEqual(rc, 1, txt); self.assertIn("inside the repository", txt)
+        self.assertFalse(os.path.exists(inside))
 
 
 class NoExecution(Base):
