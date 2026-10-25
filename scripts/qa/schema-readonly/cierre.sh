@@ -34,7 +34,7 @@ echo "INFO dumps kept on the runner only: schema $(wc -l < "$T/public.sql") line
 unset PGOPTIONS
 
 # --- tree to be released: #205 (integration of #201 → #199 → #200) has the same supabase/ as the sequential merge ---
-INT_REF=${INT_REF:-claude/integracion-201-199-200}
+INT_REF=${INT_REF:-claude/pr200-sobre-201-199}   # PR #207 (replaces #200); frozen at EXPECT_SHA
 git -C "$R" fetch -q --depth=1 origin "$INT_REF" && git -C "$R" worktree add -q --detach "$T/int" FETCH_HEAD && INT="$T/int" || { echo "FAIL cannot check out $INT_REF"; exit 1; }
 ln -s "$R/node_modules" "$INT/node_modules"
 echo "INFO tree to be released: $INT_REF @ $(git -C "$INT" rev-parse HEAD)"
@@ -190,5 +190,19 @@ ok=1; for v in 20261024120000_resume_authorization_ref_match 20261024130000_spen
 
 echo "== reconciliation files (to be applied in production only with the owner's authorization):"
 for f in "$OUT"/reconcile/*.sql; do echo "--- $(basename "$f") sha256 $(sha256sum "$f" | cut -c1-16)"; cat "$f"; done
+
+echo "== GATE (pre-integration, fail closed): the exact tree, production state and reconciliation files still match what was rehearsed"
+EXPECT_SHA=${EXPECT_SHA:-d8b203d665e62602cec5cb72620f03b5630edd12}
+[ "$(git -C "$INT" rev-parse HEAD)" = "$EXPECT_SHA" ] && pass "GATE tree under test = #207 @ $EXPECT_SHA" || fail "GATE tree under test is $(git -C "$INT" rev-parse HEAD), expected $EXPECT_SHA"
+for m in "20261024120000 trigger joins authorization_ref" "20261024130000 baseline excludes RESERVED" "20261024140000 pi_supply_state wrapped"; do
+  grep -q "^marker $m | f$" "$OUT/catalog.txt" && pass "GATE production marker still f: $m (not applied outside the plan)" || fail "GATE production marker changed: $m"; done
+grep -q "^marker 20261024000000 submit refuses podcast without authorization | t$" "$OUT/catalog.txt" && pass "GATE 20261024000000 still applied in production" || fail "GATE 20261024000000 marker not t"
+grep -q '^impact140000 studio_tables_present | f | f$' "$OUT/impact.txt" && pass "GATE studio tables absent in production" || fail "GATE studio tables present in production"
+for f in A_register_migrations_applied.sql A_register_migrations_applied.rollback.sql B_register_schema_migrations.sql B_register_schema_migrations.rollback.sql; do
+  cmp -s "$OUT/reconcile/$f" "$R/docs/ops/cierre/$f" && pass "GATE regenerated $f == committed docs/ops/cierre/$f (sha256 $(sha256sum "$R/docs/ops/cierre/$f" | cut -c1-16))" || fail "GATE $f regenerated today differs from the committed file: registry or schema changed — do not run O1"; done
+due=$(grep '^inflight podcast_episodes scheduled_due_now' "$OUT/impact.txt" | awk -F' [|] ' '{print $2}')
+busy=$(grep -E '^inflight podcast_episodes video_status \| (queued|running|scheduled) ' "$OUT/impact.txt" | awk -F' [|] ' '{s+=$3} END {print s+0}')
+dq=$(grep -E '^inflight documentary_script_jobs status \| (queued|running) ' "$OUT/impact.txt" | awk -F' [|] ' '{s+=$3} END {print s+0}')
+echo "INFO GATE in-flight now: podcast scheduled_due=$due queued/running/scheduled=$busy; documentary queued/running=$dq (O4/O5/O7 need 0 at the moment of merging; re-run right before)"
 echo "RESULT cierre: $fails FAIL"
 [ $fails = 0 ]
