@@ -1,0 +1,15 @@
+{
+  "owner": "hans-channel",
+  "bucket": "channel-library-private",
+  "maxObjectBytes": 52428800,
+  "maxTransferBytes": 1073741824,
+  "maxLibraryBytes": 1073741824,
+  "sources": [
+    {
+      "bucket": "videos",
+      "prefix": "long-form/ocean-deep-001/",
+      "description": "Ocean documentary: source media retained for supervised reuse",
+      "tags": ["ocean", "documentary", "ocean-deep-001"]
+    }
+  ]
+}
