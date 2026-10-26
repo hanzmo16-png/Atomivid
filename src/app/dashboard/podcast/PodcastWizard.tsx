@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { safeParseJsonResponse } from "@/lib/http/safe-json";
 import { classifyClientFetchError } from "@/lib/http/client-error";
 import { MODE_LABEL, MOODS, MOOD_LABEL, SETS, SET_LABEL } from "@/lib/podcast/v3/spec";
-import { CONSENT_TEXT, INTENSITY_DB, MODALITIES, MODALITY_LABEL, STEP, STEPS, WIZARD_STORAGE_KEY, defaultDraft, draftToSpec, draftToV2, estimateMinutes, loadDraft, modalityToMode, stepErrors, type Modality, type WizardDraft } from "@/lib/podcast/v3/wizard";
+import { CONSENT_TEXT, INTENSITY_DB, MODALITIES, MODALITY_LABEL, STEP, STEPS, STUDIO_BUDGET_MAX_USD, WIZARD_STORAGE_KEY, defaultDraft, draftToSpec, draftToV2, estimateMinutes, loadDraft, modalityToMode, stepErrors, type Modality, type WizardDraft } from "@/lib/podcast/v3/wizard";
 import type { VisualProvider } from "@/lib/podcast/v3/studio";
 
 export type WizardVoice = { voiceId: string; name: string; available: boolean; note: string | null };
@@ -267,7 +267,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
               <p className="text-xs text-ink-muted">{estimate.turns} turnos · música: {estimate.mood}. Supuestos: {estimate.assumptions.join(" ")}</p>
             </>
           )}
-          <label>Presupuesto máximo del episodio (USD)<input aria-label="Presupuesto máximo" type="number" min={0.5} max={500} step={0.5} value={d.budgetUsd} onChange={(e) => set({ budgetUsd: Number(e.target.value) })} className={input} /></label>
+          <label>Presupuesto máximo del episodio (USD)<input aria-label="Presupuesto máximo" type="number" min={0.5} max={STUDIO_BUDGET_MAX_USD} step={0.5} value={d.budgetUsd} onChange={(e) => set({ budgetUsd: Number(e.target.value) })} className={input} /></label>
           {estimate && estimate.totalUsd > d.budgetUsd && <p className="text-danger">El costo estimado supera tu presupuesto: súbelo o reduce las apariciones del avatar.</p>}
           <p className="text-xs text-ink-muted">Nada se cobra en este paso. La autorización del cargo se pide al final, en «Generación».</p>
         </div>

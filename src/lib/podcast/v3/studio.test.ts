@@ -124,3 +124,12 @@ test("costos: estimación por modo para un episodio de 10 minutos (desglose por 
   assert.ok(one.avatarSeconds > 0 && one.avatarSeconds <= 600 * 0.5 + 30, "avatar en segmentos cortos (≈50% de turnos, tope 20 s)");
   assert.equal(syntheticTurns(10, true).length, 20);
 });
+
+test("asistente: el presupuesto por encima del tope del servidor se rechaza en «Presupuesto», no con un 402 al final", async () => {
+  const { STUDIO_BUDGET_MAX_USD } = await import("./wizard");
+  const { STUDIO_MAX_AUTHORIZED_USD } = await import("./api");
+  assert.equal(STUDIO_BUDGET_MAX_USD, STUDIO_MAX_AUTHORIZED_USD, "el tope del asistente es el mismo que hace cumplir el servidor");
+  const d = { ...defaultDraft(), budgetUsd: STUDIO_MAX_AUTHORIZED_USD + 10 };
+  assert.ok(stepErrors(d, STEP.presupuesto, { unavailableVoices: [] }).some((e) => /no puede autorizar más de USD 50/.test(e)));
+  assert.deepEqual(stepErrors({ ...d, budgetUsd: STUDIO_MAX_AUTHORIZED_USD }, STEP.presupuesto, { unavailableVoices: [] }), []);
+});
