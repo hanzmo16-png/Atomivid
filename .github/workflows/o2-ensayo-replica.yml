@@ -1,0 +1,42 @@
+# USD 0 · PRODUCCIÓN SOLO SE LEE. Ensayo de O2 (migración 20261024120000) en PostgreSQL 17 desechable con los MISMOS
+# comandos del workflow de ejecución (scripts/qa/schema-readonly/o2.sh): precondiciones leídas en producción, réplica del
+# estado actual, aplicación con la herramienta real, verificación, puerta O3, contingencia, inyección de fallos.
+name: o2-ensayo-replica
+on:
+  push:
+    branches: [claude/o2-ejecucion-unica]
+    paths: [".github/workflows/o2-ensayo-replica.yml", "scripts/qa/schema-readonly/o2*.sh", "docs/ops/o2/**", "supabase/migrations/20261024120000_resume_authorization_ref_match.sql"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: o2-ensayo-replica
+  cancel-in-progress: false
+jobs:
+  ensayo:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || 'aws-0-us-west-2.pooler.supabase.com' }}
+      SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false, fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Hashes y pruebas offline
+        run: |
+          sha256sum -c docs/ops/o2/SHA256SUMS && sha256sum -c docs/ops/cierre/SHA256SUMS
+          python3 -I scripts/qa/schema-readonly/gate_test.py && python3 -I scripts/qa/schema-readonly/reconcile_test.py
+      - name: PostgreSQL 17
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -yq postgresql-17
+          sudo systemctl stop postgresql || true
+      - name: Ensayo O2 en réplica desechable (escrituras solo locales)
+        run: bash scripts/qa/schema-readonly/o2-replica.sh

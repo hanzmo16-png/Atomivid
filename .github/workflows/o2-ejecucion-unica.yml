@@ -1,0 +1,113 @@
+# O2 — EJECUCIÓN ÚNICA, solo con autorización concreta de Hans: aplica en producción la migración
+# supabase/migrations/20261024120000_resume_authorization_ref_match.sql (sha256 13dffaa6…9fbf, idéntica a la propuesta
+# auditada) con la herramienta del plan, scripts/apply-supabase-migration.ts, un único archivo; la herramienta la registra
+# en public._migrations_applied. NO ejecuta O3 ni operaciones posteriores, merges, despliegues, flags, secretos,
+# conciliación económica ni llamadas pagadas.
+# Solo con workflow_dispatch desde esta rama; el push solo registra el workflow (job omitido). Una segunda ejecución no
+# escribe: `o2.sh pre` exige 63 registradas y la 120000 ausente, y la herramienta omite una migración ya registrada.
+# Contingencia SOLO si la ejecución dejó algún cambio y la verificación posterior falla: rollback auditado 89d82016… y
+# docs/ops/o2/O2_contingencia_registro.sql (2c1eaee8…), y después se exige el estado previo exacto y la puerta O2.
+name: o2-ejecucion-unica
+on:
+  workflow_dispatch:
+  # Solo para que GitHub registre el workflow (vive fuera de la rama por defecto): en push el job se OMITE.
+  push:
+    branches: [claude/o2-ejecucion-unica]
+    paths: [".github/workflows/o2-ejecucion-unica.yml"]
+permissions:
+  contents: read
+concurrency:
+  group: o2-ejecucion-unica
+  cancel-in-progress: false
+jobs:
+  o2:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/claude/o2-ejecucion-unica'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || 'aws-0-us-west-2.pooler.supabase.com' }}
+      SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
+      O2: scripts/qa/schema-readonly/o2.sh
+      OUT: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false, fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: "1. Commit y SHA-256 exactos (migración == propuesta auditada, rollback, contingencia)"
+        run: |
+          set -euo pipefail
+          echo "commit: $(git rev-parse HEAD)"
+          sha256sum -c docs/ops/o2/SHA256SUMS && sha256sum -c docs/ops/cierre/SHA256SUMS
+          cmp supabase/migrations/20261024120000_resume_authorization_ref_match.sql supabase/proposals/20261024120000_resume_authorization_ref_match.sql
+          for c in 9944360b5a32130d46811ea9d57f569b1e9031f5 d8b203d665e62602cec5cb72620f03b5630edd12; do
+            git fetch -q --depth=1 origin $c
+            git show $c:supabase/proposals/20261024120000_resume_authorization_ref_match.sql | cmp - supabase/migrations/20261024120000_resume_authorization_ref_match.sql
+            git show $c:supabase/proposals/20261024120000_resume_authorization_ref_match.rollback.sql | cmp - supabase/proposals/20261024120000_resume_authorization_ref_match.rollback.sql
+          done
+          echo "OK: migración y rollback idénticos a los de #201 (9944360) y #207 (d8b203d)"
+      - name: Pruebas offline de la puerta y del reconciliador
+        run: python3 -I scripts/qa/schema-readonly/gate_test.py && python3 -I scripts/qa/schema-readonly/reconcile_test.py && bash -n "$O2"
+      - name: PostgreSQL 17 (solo cliente)
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -yq postgresql-17
+          sudo systemctl stop postgresql || true
+      - name: Conexión (enmascarada)
+        run: |
+          set -euo pipefail
+          URL=$(npx tsx -e 'import { resolveConnection } from "./scripts/lib/supabase-db"; const c = resolveConnection(); if (!c) { process.exit(3) } process.stdout.write(c.connectionString)')
+          echo "::add-mask::$URL"; PW=$(node -e 'const u=new URL(process.argv[1]); process.stdout.write(decodeURIComponent(u.password))' "$URL"); echo "::add-mask::$PW"
+          echo "DB_URL=$URL" >> "$GITHUB_ENV"
+      - name: "2. Puerta O2 inmediatamente antes (16/16 GATE[O2] y 0 FAIL)"
+        env: { OUT: "${{ github.workspace }}/cierre-pre" }
+        run: |
+          set +e -o pipefail
+          GATE_ONLY=1 GATE_NEXT=O2 bash scripts/qa/schema-readonly/cierre.sh 2>&1 | tee puerta-o2.log; rc=${PIPESTATUS[0]}
+          n=$(grep -c '^PASS GATE\[O2\]' puerta-o2.log); f=$(grep -c '^FAIL' puerta-o2.log)
+          echo "puerta O2: rc=$rc PASS=$n FAIL=$f"
+          [ "$rc" -eq 0 ] && [ "$n" -eq 16 ] && [ "$f" -eq 0 ] && grep -q '^RESULT cierre: 0 FAIL' puerta-o2.log || { echo "::error::puerta O2 no está 16/16 en verde: no se ejecuta O2"; exit 1; }
+      - name: "3. Estado previo (solo lectura): 63 registradas, 120000 ausente, 548/41, marcadores t f f f, ACL, 0 jobs en curso, 0 bloqueos"
+        run: |
+          set -euo pipefail
+          bash "$O2" snap "$DB_URL" pre.snap
+          bash "$O2" pre pre.snap
+          bash "$O2" probe
+      - name: "4. Ejecutar O2 (herramienta real, un solo archivo; lock_timeout 5 s)"
+        id: exec
+        run: bash "$O2" apply
+      - name: "5. Verificación posterior: 64 registradas, marcador 120000 t, SECURITY DEFINER, ACL, 548/41, sin otros cambios, GATE_NEXT=O3 pasa"
+        id: verify
+        env: { OUT: "${{ github.workspace }}/cierre-post" }
+        run: |
+          set +e -uo pipefail
+          ok=1
+          bash "$O2" snap "$DB_URL" post.snap || ok=0
+          bash "$O2" post pre.snap post.snap || ok=0
+          g=0; GATE_ONLY=1 GATE_NEXT=O3 bash scripts/qa/schema-readonly/cierre.sh > puerta-o3.log 2>&1 || g=$?
+          grep -E '^(PASS|FAIL) GATE|^RESULT' puerta-o3.log
+          n=$(grep -c '^PASS GATE\[O3\]' puerta-o3.log)
+          [ "$g" -eq 0 ] && [ "$n" -eq 16 ] && ! grep -q '^FAIL' puerta-o3.log || ok=0
+          [ $ok = 1 ] && echo "VERIFICACION POSTERIOR: OK" || { echo "::error::verificación posterior fallida"; exit 1; }
+      - name: "6. Contingencia (solo si la ejecución dejó cambios y la verificación falla)"
+        if: failure() && (steps.exec.outcome == 'success' || steps.exec.outcome == 'failure') && steps.verify.outcome != 'success'
+        run: |
+          set +e -uo pipefail
+          bash "$O2" snap "$DB_URL" now.snap || { echo "::error::no se pudo leer el estado: NO se aplica nada; detener y avisar a Hans"; exit 1; }
+          if bash "$O2" same pre.snap now.snap > same0.log; then
+            echo "::error::O2 no dejó ningún cambio (estado previo exacto): nada que revertir. BLOQUEADO, avisar a Hans"; exit 1; fi
+          grep FAIL same0.log
+          has=$(grep '^ma_has_o2|' now.snap | cut -d'|' -f2); m=$(grep '^m120|' now.snap | cut -d'|' -f2)
+          echo "precondición contingencia: 120000 registrada=$has marcador=$m (se exige al menos uno de los dos)"
+          [ "$has" = 1 ] || [ "$m" = t ] || { echo "::error::el cambio no es de O2: NO se aplica la contingencia; detener y avisar a Hans"; exit 1; }
+          bash "$O2" contingency "$DB_URL" || { echo "::error::contingencia fallida; detener y avisar a Hans"; exit 1; }
+          bash "$O2" snap "$DB_URL" after.snap && bash "$O2" same pre.snap after.snap || { echo "::error::la contingencia no dejó el estado previo exacto"; exit 1; }
+          g=0; GATE_ONLY=1 OUT="$PWD/cierre-rb" GATE_NEXT=O2 bash scripts/qa/schema-readonly/cierre.sh > puerta-o2-rb.log 2>&1 || g=$?
+          grep -E '^(PASS|FAIL) GATE|^RESULT' puerta-o2-rb.log
+          [ "$g" -eq 0 ] || { echo "::error::tras la contingencia la puerta O2 no pasa"; exit 1; }
+          echo "::error::O2 REVERTIDO por fallo de la verificación posterior (estado previo exacto restaurado)"; exit 1
