@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { FootageCandidate, FootageProvider } from "@/lib/providers/types";
 import { DocumentAssetRegistry } from "./asset-identity";
-import { selectStockForShot, selectionQueries, type StockGap, type StockSelection } from "./stock-selection";
+import { assessRelevance, selectStockForShot, selectionQueries, type StockGap, type StockSelection } from "./stock-selection";
 import { executeShot, type ShotExecutionDeps } from "./shot-executor";
 import { memoryShotAssetStore } from "./durable-shot-assets";
 import { ProductionBudget, memoryBudgetStore } from "./production-budget";
@@ -444,4 +444,14 @@ test("[CONTROL] 6 sin revisor: ni el selector ni este arnés importan un modelo 
     const imports = source.split("\n").filter((l) => /^import\b/.test(l));
     for (const line of imports) assert.doesNotMatch(line, /review|openai|anthropic|gemini|vision|embedding/i, `${file}: ${line}`);
   }
+});
+
+test("[REGRESIÓN ensayo Marco Aurelio] una tablilla de cera romana no es una «tablet» moderna; una tablet sí sigue contradiciendo la época", () => {
+  const visual = { description: "wax tablet with fresh stylus marks beside a dim oil lamp", motion: false, subject: "wax tablet", era: "2nd century" };
+  // Before: every candidate was rejected with «contradicción época: "tablet"» and the preflight stopped the video.
+  for (const text of ["wax tablet with fresh stylus marks beside a dim oil lamp", "Roman wax tablets and a stylus", "clay tablet with cuneiform script"])
+    assert.deepEqual(assessRelevance(visual, text).conflicts, [], text);
+  assert.equal(assessRelevance(visual, "wax tablet with fresh stylus marks beside a dim oil lamp").relevance, "keyword_match");
+  for (const text of ["woman reading on a tablet beside a lamp", "digital tablet showing a wax seal", "wax tablet next to a laptop"])
+    assert.ok(assessRelevance(visual, text).conflicts.some(c => c.startsWith("época")), text);
 });
