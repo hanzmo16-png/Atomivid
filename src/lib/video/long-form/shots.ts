@@ -2,7 +2,6 @@ import type { WordTiming } from "@/lib/providers/types";
 import type { BeatType, Shot, ShotMotion, ShotType } from "./types";
 import type { BeatVisual } from "./visual-intents";
 import { anchorIntents, fragmentForRange, narrationWords, salientFact, wordRangesForShots } from "./scene-anchoring";
-import { calendarDatesIn } from "./calendar-dates";
 
 export const MIN_HOLD = 3;
 export const MAX_HOLD = 8;
@@ -130,11 +129,6 @@ export function shotsForSpan(input: {
    * reparto se estima por posición). Ausente = comportamiento histórico.
    */
   anchoring?: { words?: WordTiming[] };
-  /**
-   * Planes v3 (anclados, sin identidad ni pruebas verificadas): toda escena cuyo pasaje narrado contiene una fecha de
-   * calendario se muestra como tarjeta de texto de ese pasaje, nunca como imagen ilustrativa (dated-event-preflight.ts).
-   */
-  datedPassageCards?: boolean;
 }): Shot[] {
   const span = input.endSec - input.startSec;
   if (!(span > 0)) throw new Error(`Beat ${input.beatId} has non-positive span`);
@@ -235,7 +229,7 @@ function anchoredShots(
     let shotType = cycleShotType(i + (input.typeOffset ?? 0), input.strategy);
     if ((shotType === "text" || shotType === "diagram" || shotType === "map") && !salientFact(fragment)) shotType = "ken_burns_image";
     // Pasaje con fecha de calendario sin material verificado (v3): tarjeta de texto del propio pasaje, nunca imagen.
-    if (intent.visual.datedPassage || (input.datedPassageCards && calendarDatesIn(fragment).length > 0)) shotType = "text";
+    if (intent.visual.datedPassage) shotType = "text";
     return {
       id: `${input.beatId}-shot-${i + 1}`,
       beatId: input.beatId,
