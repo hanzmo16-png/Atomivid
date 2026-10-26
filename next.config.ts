@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs/config";
+import { securityHeaders } from "./src/lib/security-headers";
 
 const nextConfig: NextConfig = {
   // RC mission Avatar (2026-09-25): el límite anterior de 4mb forzaba el
@@ -15,6 +16,11 @@ const nextConfig: NextConfig = {
   // a upload directo a Storage (con policies RLS por usuario) es el
   // siguiente paso correcto — no adivinar un número mayor aquí.
   experimental: { serverActions: { bodySizeLimit: "30mb" } },
+  // CSP (frame-ancestors/object-src/base-uri aplicadas + política completa en modo informe), anti-iframe, nosniff y
+  // Referrer-Policy en todas las rutas. Ver src/lib/security-headers.ts.
+  async headers() {
+    return [{ source: "/:path*", headers: securityHeaders() }];
+  },
   // Remotion (y su webpack/esbuild internos) usan requires dinámicos por
   // plataforma que el bundler de Next no puede resolver estáticamente.
   serverExternalPackages: ["remotion", "@remotion/renderer", "@remotion/bundler", "@ffmpeg-installer/ffmpeg", "@ffprobe-installer/ffprobe"],
