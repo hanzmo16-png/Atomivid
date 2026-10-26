@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type { AvatarJobStatus, AvatarVideoProvider } from "@/lib/providers/avatar";
 
 /**
@@ -9,9 +9,13 @@ import type { AvatarJobStatus, AvatarVideoProvider } from "@/lib/providers/avata
  * separada del I/O real).
  */
 
-/** Comparación de secreto compartido — nunca autentica si falta cualquiera de los dos lados. */
+/** Comparación de secreto compartido — nunca autentica si falta cualquiera de los dos lados.
+ *  El digest iguala la longitud para que `timingSafeEqual` no filtre el prefijo ni la longitud del secreto. */
 export function verifyWebhookSecret(expectedSecret: string | undefined, providedSecret: string | null): boolean {
-  return Boolean(expectedSecret) && Boolean(providedSecret) && expectedSecret === providedSecret;
+  if (!expectedSecret || !providedSecret) return false;
+  const expected = createHash("sha256").update(expectedSecret).digest();
+  const provided = createHash("sha256").update(providedSecret).digest();
+  return timingSafeEqual(expected, provided);
 }
 
 /**

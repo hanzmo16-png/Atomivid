@@ -125,8 +125,8 @@ export async function avatarReadinessProbe(): Promise<AvatarReadinessProbe> {
  * Reconciliation evidence for an uncertain HeyGen generate_video (status RECONCILIATION_REQUIRED):
  * read-only GET /v3/videos (cursor pagination). GET /v1/video.list is legacy and retires 2026-11-01
  * (https://developers.heygen.com/endpoint-version-comparison). Ids are hashed; only counts, statuses
- * and times leave the runtime. Nothing is created or charged. A legacy envelope or a truncated page
- * is a failure, never an empty account.
+ * and times leave the runtime. Nothing is created or charged. A legacy envelope, a missing
+ * `has_more`, a video without `created_at`, or a truncated page is a failure, never an empty account.
  */
 export type HeygenListFailure = "unauthorized" | "rate_limited" | "legacy_envelope" | "incomplete" | "transport";
 
@@ -167,9 +167,17 @@ export function parseHeygenVideoListBody(body: unknown):
     videos.push({ id: row.id, status: row.status, createdAtSec: typeof row.created_at === "number" ? row.created_at : null });
   }
   if (root.next_token != null && typeof root.next_token !== "string") return { ok: false, failure: "incomplete" };
-  if (root.has_more != null && typeof root.has_more !== "boolean") return { ok: false, failure: "incomplete" };
+  // Omitted has_more is not "the list ended". An empty page without it must not look like an empty account.
+  if (typeof root.has_more !== "boolean") return { ok: false, failure: "incomplete" };
   const nextToken = typeof root.next_token === "string" && root.next_token ? root.next_token : null;
-  return { ok: true, videos, nextToken, hasMore: root.has_more === true };
+  return { ok: true, videos, nextToken, hasMore: root.has_more };
+}
+
+/** True only when the list finished and every row has a finite created_at.
+ *  VideoDetail allows created_at null; those rows would disappear from a time window and
+ *  must not be read as "no video in the window". */
+export function heygenAbsenceClaimAllowed(listed: { failure: HeygenListFailure | null; videos: { createdAtSec: number | null }[] }): boolean {
+  return listed.failure == null && listed.videos.every((v) => typeof v.createdAtSec === "number" && Number.isFinite(v.createdAtSec));
 }
 
 export async function readHeygenVideoList(fetchImpl: typeof fetch, key: string): Promise<{
@@ -214,6 +222,7 @@ export async function readHeygenVideoList(fetchImpl: typeof fetch, key: string):
     token = parsed.nextToken;
     if (page >= 20) failure = "incomplete";
   }
+  if (!failure && !heygenAbsenceClaimAllowed({ failure, videos })) failure = "incomplete";
   const oldest = Math.min(...videos.map((v) => (v.createdAtSec ?? Infinity) * 1000));
   return { http, pages, videos, failure, oldestListedAt: Number.isFinite(oldest) ? new Date(oldest).toISOString() : null };
 }
@@ -235,15 +244,18 @@ export async function heygenReconcileProbe(fetchImpl: typeof fetch = fetch): Pro
   out.oldestListedAt = listed.oldestListedAt;
   out.failure = listed.failure;
   out.contract = listed.failure === "legacy_envelope" || listed.pages === 0 ? "unreached" : "v3";
-  if (listed.failure) return out;
+  if (!heygenAbsenceClaimAllowed(listed)) {
+    if (!out.failure) out.failure = "incomplete";
+    return out;
+  }
   for (const o of ops) {
     const t = Date.parse(o.created_at);
     // Same project's committed job (the later successful retry), to tell it apart from an extra video.
     const { data: sib } = await service.from("pi_paid_operations").select("provider_job_id").eq("project_id", o.project_id).eq("provider", "heygen").eq("status", "COMMITTED").maybeSingle();
     const committed = sib?.provider_job_id ? String(sib.provider_job_id) : null;
-    const win = listed.videos.filter((v) => v.createdAtSec && v.createdAtSec * 1000 >= t - 120_000 && v.createdAtSec * 1000 <= t + 3_600_000);
+    const win = listed.videos.filter((v) => v.createdAtSec != null && v.createdAtSec * 1000 >= t - 120_000 && v.createdAtSec * 1000 <= t + 3_600_000);
     out.uncertain.push({ opCreatedAt: o.created_at, committedJob: committed ? h10(committed) : null, committedJobInWindow: !!committed && win.some((v) => v.id === committed), committedJobInList: !!committed && listed.videos.some((v) => v.id === committed),
-      windowVideos: win.map((v) => ({ id: h10(v.id), status: v.status, createdAt: v.createdAtSec ? new Date(v.createdAtSec * 1000).toISOString() : null })) });
+      windowVideos: win.map((v) => ({ id: h10(v.id), status: v.status, createdAt: v.createdAtSec != null ? new Date(v.createdAtSec * 1000).toISOString() : null })) });
   }
   return out;
 }

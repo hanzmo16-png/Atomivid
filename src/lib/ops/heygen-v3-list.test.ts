@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseHeygenVideoListBody, readHeygenVideoList } from "./provider-config";
+import { heygenAbsenceClaimAllowed, parseHeygenVideoListBody, readHeygenVideoList } from "./provider-config";
 
 const video = (id: string, created_at: number) => ({ id, status: "completed", created_at, video_url: "https://files.heygen.ai/video/private.mp4" });
 
@@ -51,4 +51,55 @@ test("SIMULATED auth failure and bounded 429 do not invent a complete list", asy
 test("SIMULATED incomplete v3 page is not treated as coverage", () => {
   assert.equal(parseHeygenVideoListBody({ data: [{ video_id: "wrong-field", status: "completed" }], has_more: false }).ok, false);
   assert.equal(parseHeygenVideoListBody({ data: [{ id: "v_ok", status: "pending", created_at: null }], has_more: false, next_token: null }).ok, true);
+});
+
+test("SIMULATED omitted has_more is not an empty account; an explicit empty page is", async () => {
+  assert.equal(parseHeygenVideoListBody({ data: [] }).ok, false);
+  const omitted = await readHeygenVideoList((async () => Response.json({ data: [] })) as typeof fetch, "fixture-key");
+  assert.equal(omitted.failure, "incomplete");
+  assert.equal(omitted.pages, 0);
+  assert.equal(omitted.videos.length, 0);
+  assert.equal(heygenAbsenceClaimAllowed(omitted), false);
+  const empty = await readHeygenVideoList((async () => Response.json({ data: [], has_more: false, next_token: null })) as typeof fetch, "fixture-key");
+  assert.equal(empty.failure, null);
+  assert.equal(empty.pages, 1);
+  assert.equal(empty.videos.length, 0);
+  assert.equal(heygenAbsenceClaimAllowed(empty), true);
+});
+
+test("SIMULATED a video with null created_at blocks an absence claim", async () => {
+  const body = { data: [{ id: "v_undated", status: "completed", created_at: null }], has_more: false, next_token: null };
+  const listed = await readHeygenVideoList((async () => Response.json(body)) as typeof fetch, "fixture-key");
+  assert.equal(listed.videos.length, 1);
+  assert.equal(listed.failure, "incomplete");
+  assert.equal(heygenAbsenceClaimAllowed(listed), false);
+});
+
+test("SIMULATED HTTP error, truncated page, repeated cursor and the 20-page cap are not coverage", async () => {
+  const denied = await readHeygenVideoList((async () => new Response("{}", { status: 403 })) as typeof fetch, "fixture-key");
+  assert.equal(denied.failure, "unauthorized");
+  assert.equal(heygenAbsenceClaimAllowed(denied), false);
+  let step = 0;
+  const partial = await readHeygenVideoList((async () => {
+    step += 1;
+    if (step === 1) return Response.json({ data: [video("v_kept", 1_700_000_000)], has_more: true, next_token: "cursor-2" });
+    return new Response("{}", { status: 500 });
+  }) as typeof fetch, "fixture-key");
+  assert.equal(partial.failure, "incomplete");
+  assert.equal(partial.videos.length, 1);
+  assert.equal(heygenAbsenceClaimAllowed(partial), false);
+  const repeated = await readHeygenVideoList((async () => Response.json({ data: [video("v_loop", 1_700_000_000)], has_more: true, next_token: "same" })) as typeof fetch, "fixture-key");
+  assert.equal(repeated.failure, "incomplete");
+  assert.equal(repeated.pages, 2);
+  let n = 0;
+  const capped = await readHeygenVideoList((async () => {
+    n += 1;
+    return Response.json({ data: [video(`v_${n}`, 1_700_000_000 + n)], has_more: true, next_token: `cursor-${n}` });
+  }) as typeof fetch, "fixture-key");
+  assert.equal(capped.pages, 20);
+  assert.equal(capped.failure, "incomplete");
+  assert.equal(heygenAbsenceClaimAllowed(capped), false);
+  const dropped = await readHeygenVideoList((async () => { throw new Error("simulated reset"); }) as typeof fetch, "fixture-key");
+  assert.equal(dropped.failure, "transport");
+  assert.equal(dropped.videos.length, 0);
 });

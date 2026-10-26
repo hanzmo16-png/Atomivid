@@ -12,13 +12,15 @@ import { avatarStatusesThatMayAdvanceTo, handleAvatarWebhook, verifyHeygenWebhoo
  * es la única vía — checkVideoStatus() (sondeo) sigue funcionando si el
  * webhook nunca llega, así que perderse uno no cuelga ninguna solicitud.
  *
- * Autenticación, cualquiera de las dos, antes de interpretar el cuerpo:
- * 1. Secreto propio `X-Atomivid-Webhook-Secret` (AVATAR_WEBHOOK_SECRET).
- * 2. Firma oficial HeyGen v3 (`signature` = HMAC-SHA256 hex del cuerpo
- *    crudo) solo para el proveedor heygen y solo si HEYGEN_WEBHOOK_SECRET
- *    está configurado. Sin ese secreto la firma no autentica: no se inventa
- *    una clave y no se rota ningún secreto desde este proceso.
- * Un fallo de ambas responde 401. La lógica de negocio vive en
+ * Autenticación, antes de interpretar el cuerpo:
+ * 1. Si el proveedor es heygen y HEYGEN_WEBHOOK_SECRET está configurado,
+ *    solo vale la firma oficial (`signature` = HMAC-SHA256 hex del cuerpo
+ *    crudo). El header propio no la sustituye: un secreto más amplio no
+ *    debe saltarse la firma del endpoint.
+ * 2. En cualquier otro caso, secreto propio `X-Atomivid-Webhook-Secret`
+ *    (AVATAR_WEBHOOK_SECRET). Sin HEYGEN_WEBHOOK_SECRET la firma oficial
+ *    no autentica: no se inventa una clave y no se rota ningún secreto.
+ * Un fallo responde 401. La lógica de negocio vive en
  * video/avatar/webhook.ts (probada sin Supabase/Next.js reales).
  */
 
@@ -35,13 +37,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
   }
 
   const { provider: providerName } = await params;
+  const heygenSecret = process.env.HEYGEN_WEBHOOK_SECRET?.trim();
   const headerOk = verifyWebhookSecret(process.env.AVATAR_WEBHOOK_SECRET?.trim(), request.headers.get("x-atomivid-webhook-secret"));
   let raw: string | null = null;
-  if (!headerOk) {
-    if (providerName !== "heygen") return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (providerName === "heygen" && heygenSecret) {
     raw = await request.text();
-    const signed = verifyHeygenWebhookSignature(process.env.HEYGEN_WEBHOOK_SECRET?.trim(), raw, request.headers.get("signature"));
+    const signed = verifyHeygenWebhookSignature(heygenSecret, raw, request.headers.get("signature"));
     if (!signed) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  } else if (!headerOk) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
   const provider = PROVIDERS[providerName];
