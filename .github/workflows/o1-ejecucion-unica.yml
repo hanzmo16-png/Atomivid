@@ -49,6 +49,8 @@ jobs:
           [ "$(wc -l < names.txt)" -eq 18 ] || { echo "::error::el SQL no contiene exactamente 18 nombres"; exit 1; }
           cmp <(grep -oE "'2026[0-9]{10}_[a-z0-9_]+\.sql'" "$SQL_RB" | tr -d "'" | sort -u) names.txt
           echo "OK SHA-256 y 18 nombres (A y rollback coinciden)"
+      - name: Pruebas offline de la puerta y del reconciliador
+        run: python3 -I scripts/qa/schema-readonly/gate_test.py && python3 -I scripts/qa/schema-readonly/reconcile_test.py
       - name: PostgreSQL 17 (solo cliente)
         run: |
           sudo apt-get update -q && sudo apt-get install -yq postgresql-common

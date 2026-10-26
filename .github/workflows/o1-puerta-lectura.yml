@@ -30,7 +30,7 @@ jobs:
       - name: Integridad SHA-256 de los scripts de conciliación (sin red)
         run: sha256sum -c docs/ops/cierre/SHA256SUMS && sha256sum -c docs/ops/conciliacion/SHA256SUMS
       - name: Pruebas unitarias de la puerta (todas las etapas y estados inesperados)
-        run: python3 -I scripts/qa/schema-readonly/gate_test.py
+        run: python3 -I scripts/qa/schema-readonly/gate_test.py && python3 -I scripts/qa/schema-readonly/reconcile_test.py
       - name: PostgreSQL 17 (solo cliente psql/pg_dump)
         run: |
           sudo apt-get update -q && sudo apt-get install -yq postgresql-common

@@ -42,7 +42,8 @@ for f in files:
 # 20261024000000 (#198) lives in supabase/proposals but is applied in production (function marker): register it too,
 # so moving it into supabase/migrations later can never re-run it.
 marker000 = re.search(r"^marker 20261024000000 submit refuses podcast without authorization \| t$", catalog, re.M) is not None
-if marker000:
+# Only while it is still unregistered: once registered (e.g. right after O1) it is not something left to register.
+if marker000 and not rows.get(("proposal", "20261024000000_spend_authorizations.sql"), {}).get("ma", False):
     a.append("20261024000000_spend_authorizations.sql")
 
 
