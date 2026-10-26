@@ -353,7 +353,6 @@ export function planShotsFromScript(
         strategy,
         visuals: visualsForBeat(beat, topic, { identity, personActions }),
         anchoring: anchored ? {} : undefined,
-        datedPassageCards: anchored && !identity,
       }),
     );
   });
