@@ -185,7 +185,7 @@ function reviewScript(script) {
   const pb = JSON.parse(fs.readFileSync(path.join(STORAGE, R, "state/production-budget.json"), "utf8"));
   fs.writeFileSync(path.join(OUT, "budgets.json"), JSON.stringify({ request: rb, production: pb, uiLimitUsd: uiLimit, planEstimateUsd: plan.estimatedProviderCostUsd }, null, 1));
   check("presupuesto: gasto del libro ≤ techo autorizado del pedido", spent <= rb.ceilingUsd + 1e-9, { spent: +spent.toFixed(4), techo: rb.ceilingUsd });
-  check("presupuesto: generativo dentro de su asignación y del tope duro de producción", pb.used.generativeUsd <= pb.allocation.maxGenerativeUsd + 1e-9 && pb.used.spentUsd <= pb.hardCap.capUsd + 1e-9 && pb.deviations.length === 0, pb.used);
+  check("presupuesto: generativo dentro de su asignación y del tope duro de producción", pb.used.generativeUsd <= pb.allocation.maxGenerativeUsd + 1e-9 && pb.used.spentUsd <= pb.hardCap.capUsd + 1e-9 && pb.deviations.length === 0, { used: pb.used, max: pb.allocation.maxGenerativeUsd, hardCap: pb.hardCap.capUsd, deviations: pb.deviations });
   check("presupuesto: el gasto real no supera la estimación mostrada al confirmar", spent <= plan.estimatedProviderCostUsd + 1e-9, { spent: +spent.toFixed(4), estimacion: plan.estimatedProviderCostUsd });
   if (Number.isFinite(uiLimit)) check("presupuesto: gasto ≤ «Límite autorizado por producción» mostrado en la UI", spent <= uiLimit, { spent: +spent.toFixed(4), limite: uiLimit });
   // ── F. Resultado: reproducción y descarga en escritorio y Android ────────────────────────────────────────────
