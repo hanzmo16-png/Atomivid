@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import type { AvatarJobStatus, AvatarVideoProvider } from "@/lib/providers/avatar";
 
 /**
@@ -11,6 +12,19 @@ import type { AvatarJobStatus, AvatarVideoProvider } from "@/lib/providers/avata
 /** Comparación de secreto compartido — nunca autentica si falta cualquiera de los dos lados. */
 export function verifyWebhookSecret(expectedSecret: string | undefined, providedSecret: string | null): boolean {
   return Boolean(expectedSecret) && Boolean(providedSecret) && expectedSecret === providedSecret;
+}
+
+/**
+ * Firma oficial de HeyGen v3: HMAC-SHA256 hex del cuerpo crudo, header `signature`.
+ * https://developers.heygen.com/docs/webhooks
+ * El secreto es el que devuelve POST /v3/webhooks/endpoints (HEYGEN_WEBHOOK_SECRET).
+ * No sustituye al header propio de Atomivid y no autentica si el secreto no está configurado.
+ */
+export function verifyHeygenWebhookSignature(secret: string | undefined, rawBody: string, signature: string | null): boolean {
+  if (!secret || !signature || !/^[0-9a-f]{64}$/i.test(signature)) return false;
+  const expected = createHmac("sha256", secret).update(rawBody).digest();
+  const given = Buffer.from(signature, "hex");
+  return given.length === expected.length && timingSafeEqual(given, expected);
 }
 
 const STATUS_RANK: Record<AvatarJobStatus, number> = { queued: 0, processing: 1, completed: 2, failed: 2, cancelled: 2 };

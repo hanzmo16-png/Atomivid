@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 // La ruta vive en "[provider]/route.ts" (segmento dinámico de Next.js) —
@@ -11,7 +12,7 @@ import assert from "node:assert/strict";
 // archivos por CLI de node:test lo tiene.
 import { POST } from "./[provider]/route";
 
-const KEYS = ["AVATAR_MODE_ENABLED", "AVATAR_WEBHOOK_SECRET"];
+const KEYS = ["AVATAR_MODE_ENABLED", "AVATAR_WEBHOOK_SECRET", "HEYGEN_WEBHOOK_SECRET"];
 
 async function withEnv(vars: Record<string, string | undefined>, fn: () => void | Promise<void>) {
   const originals = KEYS.map((k) => [k, process.env[k]] as const);
@@ -81,6 +82,18 @@ test("responde 404 para un proveedor desconocido, ya autenticado", async () => {
       params: Promise.resolve({ provider: "not-a-real-provider" }),
     });
     assert.equal(response.status, 404);
+  });
+});
+
+test("SIMULATED firma HeyGen v3: una firma mala no entra y un evento que no es el video responde 400 sin crear nada", async () => {
+  const secret = "whsec_simulated_only";
+  const body = JSON.stringify({ event_type: "avatar_video_gif.success", event_data: { video_id: "vid_gif" } });
+  const signature = createHmac("sha256", secret).update(body).digest("hex");
+  await withEnv({ AVATAR_MODE_ENABLED: "true", HEYGEN_WEBHOOK_SECRET: secret }, async () => {
+    const bad = await POST(new Request("https://atomivid.test/api/webhooks/avatar/heygen", { method: "POST", headers: { "content-type": "application/json", signature: "ab".repeat(32) }, body }), { params: Promise.resolve({ provider: "heygen" }) });
+    assert.equal(bad.status, 401);
+    const ok = await POST(new Request("https://atomivid.test/api/webhooks/avatar/heygen", { method: "POST", headers: { "content-type": "application/json", signature }, body }), { params: Promise.resolve({ provider: "heygen" }) });
+    assert.equal(ok.status, 400);
   });
 });
 
