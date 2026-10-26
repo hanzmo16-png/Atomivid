@@ -136,7 +136,7 @@ const plan3 = (b: ProductionPlanBeatInput[]) => planOf(b, 3);
 const SCRIPT_SCOPE = "documentary:user-1:script-hash";
 const authStore = () => {
   const rows = new Map<string, unknown>();
-  return { rows, async read(id: string) { return (rows.get(id) as never) ?? null; }, async create(a: { requestId: string }) { if (rows.has(a.requestId)) return false; rows.set(a.requestId, a); return true; } };
+  return { rows, async read(id: string) { return (rows.get(id) as never) ?? null; }, async create(a: { requestId: string } & Record<string, unknown>) { if (rows.has(a.requestId)) return false; rows.set(a.requestId, a); return true; } };
 };
 const voiceOps = (sh: Shared) => [...sh.ledger.ops.values()].filter((o) => o.projectId === "req-total-budget");
 const exposure = (sh: Shared, scopes: string[]) =>
@@ -154,6 +154,14 @@ test("A2-P1 gasto previo del guion casi agota el techo → produce() no llama a 
   assert.ok(exposure(sh, ["req-total-budget", SCRIPT_SCOPE]) <= 12 + 1e-9);
 });
 
+test("A2-P2b una autorización NUEVA cuyas etapas no caben en el techo de producto se rechaza ANTES de cualquier gasto", async () => {
+  const b = beats();
+  const sh = newShared();
+  const r = await run(b, plan3(b), { footage: plentiful(), shared: sh, requestBudget: { scriptScopes: [], store: authStore(), hardMaxUsd: Math.round((RENDER_USD + 0.01) * 10000) / 10000 } });
+  assert.ok(r.error); assert.equal(r.error!.name, "RequestBudgetNotAuthorizedError", r.error!.message.slice(0, 200));
+  assert.equal(r.voice, 0, "nothing narrated"); assert.equal(voiceOps(sh).length, 0, "no ledger row");
+});
+
 test("A2-P2 interrupción por techo + reintento con un techo de entorno mayor → NO se amplía, no se repaga lo hecho", async () => {
   const b = beats();
   // Medición: reservas de voz por beat con el mismo plan (sin techo efectivo).
@@ -165,7 +173,12 @@ test("A2-P2 interrupción por techo + reintento con un techo de entorno mayor �
 
   const sh = newShared();
   const store = authStore();
-  const first = await run(b, plan3(b), { footage: plentiful(), shared: sh, requestBudget: { scriptScopes: [], store, hardMaxUsd: Math.round((ceiling + RENDER_USD) * 10000) / 10000 } });
+  // An authorization saved earlier with a smaller ceiling (e.g. a stricter product ceiling at the time): the run is
+  // interrupted at that ceiling mid-way. (A NEW authorization whose stages do not fit is refused before any spend: A2-10.)
+  await store.create({ version: 1, requestId: "req-total-budget", ceilingUsd: Math.round((ceiling + RENDER_USD) * 10000) / 10000,
+    stageCeilings: { research: 0, script: 0, style: 0, voice: null, images: 0, video: 0, music: 0, render: RENDER_USD }, contingencyPct: 20,
+    ledgerScopes: ["req-total-budget"], authorizedAt: "2026-10-21T00:00:00.000Z" });
+  const first = await run(b, plan3(b), { footage: plentiful(), shared: sh, requestBudget: { scriptScopes: [], store, hardMaxUsd: 1000 } });
   assert.ok(first.error, "el primer intento debe detenerse en el techo");
   assert.equal(first.error!.name, "RequestBudgetExceededError", first.error!.message.slice(0, 200));
   assert.equal(first.voice, 1, "solo la voz que cabía");

@@ -11,6 +11,7 @@
  * clave de la narración — sin red, sin costo, nunca contenido inventado.
  */
 import type { TextCardSpec } from "./diagram-map";
+import { anchoredToDatedPassage } from "./calendar-dates";
 
 /**
  * Qué AFIRMA la escena (Visual Excellence V1, planes v4). La declara la misma
@@ -68,6 +69,8 @@ export type BeatVisual = {
   alternates?: string[];
   /** true si NO la declaró el guionista (derivada de palabras de la narración): su pertinencia no se puede comprobar contra el texto del proveedor. */
   derived?: boolean;
+  /** v3: su cita cae en una oración con fecha de calendario. Sin material verificado del hecho, se muestra como tarjeta de texto del pasaje, nunca como imagen ilustrativa (dated-event-preflight.ts). */
+  datedPassage?: boolean;
   /** v4: qué afirma la escena. Ausente en guiones y planes anteriores. */
   beatClass?: VisualBeatClass;
   /** Persona que la escena exige representar; ver VisualIdentity. Nunca se copia a otras escenas del beat. */
@@ -284,7 +287,9 @@ export function visualsForBeat(
   opts: { identity?: boolean; personActions?: Map<string, string[]> } = {},
 ): BeatVisual[] {
   const declared = normalizeDeclaredVisuals(beat.visuals, opts);
-  return declared.length > 0 ? declared : deriveVisualsFromNarration(topic, beat.narration);
+  if (declared.length === 0) return deriveVisualsFromNarration(topic, beat.narration);
+  // v3 (sin identidad ni pruebas verificadas): una escena anclada a un pasaje fechado sería tomada por imagen del hecho.
+  return opts.identity ? declared : declared.map(v => anchoredToDatedPassage(beat.narration, v.quote) ? { ...v, datedPassage: true } : v);
 }
 
 /** Prompt de imagen fija documental (OpenAI Images) a partir de una intención real. */

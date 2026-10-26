@@ -160,7 +160,9 @@ export async function synthesizeVoice(
       : { ...base, speed: Math.min(MAX_SPEED, Math.max(MIN_SPEED, speed)) };
 
   const request = buildTtsRequest({ text, voiceId, modelId: MODEL_ID, voiceSettings, apiKey: ELEVENLABS_API_KEY });
-  const res = await fetch(request.url, request.init);
+  // Sin límite, un socket colgado bloquea el worker hasta el tope del paso (300 min). Tras el límite el resultado
+  // queda «incierto» (nunca se reintenta solo: ver el comentario de abajo).
+  const res = await fetch(request.url, { ...request.init, signal: AbortSignal.timeout(TTS_REQUEST_TIMEOUT_MS) });
 
   if (!res.ok) {
     // The provider answered and refused: nothing was generated or charged. Typed so the
@@ -177,6 +179,9 @@ export async function synthesizeVoice(
 
   return { audioBuffer, durationSeconds, words };
 }
+
+/** Una locución de ≤ 9 000 caracteres tarda decenas de segundos; 3 min es holgura amplia, no una espera infinita. */
+export const TTS_REQUEST_TIMEOUT_MS = 180_000;
 
 function buildWordTimings(alignment: ElevenLabsAlignment): WordTiming[] {
   const words: WordTiming[] = [];

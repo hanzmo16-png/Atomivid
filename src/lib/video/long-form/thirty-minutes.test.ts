@@ -73,3 +73,18 @@ test("form, server action and workflow allow 30-minute documentaries with enough
   assert.match(wf, /'long_form'\) && 300 \|\| 12/);
   assert.match(readFileSync("src/lib/video/long-form/durable-shot-assets.ts", "utf8"), /SIGNED_URL_TTL_SECONDS = 8 \* 60 \* 60/);
 });
+
+test("Pexels: cada petición lleva límite de espera y un tiempo agotado se reintenta acotado (no cuelga la producción)", async () => {
+  const signals: (AbortSignal | null | undefined)[] = [];
+  let n = 0;
+  const hangsOnce = (async (_u: string, init?: RequestInit) => {
+    signals.push(init?.signal);
+    if (++n === 1) throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
+    return new Response("{}", { status: 200 });
+  }) as unknown as typeof fetch;
+  assert.equal((await pexelsFetch("u-timeout", "k", { fetchImpl: hangsOnce, sleep: async () => {} })).ok, true);
+  assert.equal(n, 2);
+  assert.ok(signals.every((s) => s instanceof AbortSignal), "toda petición a Pexels lleva AbortSignal");
+  const alwaysHangs = (async () => { throw new DOMException("timeout", "TimeoutError"); }) as unknown as typeof fetch;
+  await assert.rejects(() => pexelsFetch("u-dead", "k", { fetchImpl: alwaysHangs, sleep: async () => {} }), /timeout/);
+});

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { evaluateRenderStart, type RenderStartRow } from "./render-guard";
-import { MAX_RENDER_ATTEMPTS, RENDER_TIMEOUT_MS } from "./limits";
+import { evaluateRenderStart, isExhaustedStaleAttempt, type RenderStartRow } from "./render-guard";
+import { LONG_FORM_HEARTBEAT_STALE_MS, MAX_RENDER_ATTEMPTS, RENDER_TIMEOUT_MS } from "./limits";
 
 const NOW = new Date("2026-09-16T20:00:00.000Z").getTime();
 
@@ -86,4 +86,16 @@ test("legacy processing without a start date can recover from creation date", ()
 });
 test("invalid timestamps never authorize an automatic overlapping attempt", () => {
   assert.equal(evaluateRenderStart(row({status:"processing",render_started_at:"invalid"}),NOW).allowed,false);
+});
+
+test("intento colgado SIN intentos restantes: se reconoce para cerrarlo (antes quedaba en processing para siempre)", () => {
+  const started = new Date(NOW - LONG_FORM_HEARTBEAT_STALE_MS - 60_000).toISOString();
+  const stuck = row({ status: "processing", mode: "long_form", render_attempts: MAX_RENDER_ATTEMPTS, render_started_at: started, long_form_progress: { updatedAt: started } } as Partial<RenderStartRow>);
+  assert.equal(evaluateRenderStart(stuck, NOW).allowed, false, "no se permite un 4.º intento");
+  assert.equal(isExhaustedStaleAttempt(stuck, NOW), true, "pero sí se cierra como fallo terminal");
+  // Con latido reciente sigue trabajando: no se cierra.
+  const alive = { ...stuck, long_form_progress: { updatedAt: new Date(NOW - 60_000).toISOString() } } as RenderStartRow;
+  assert.equal(isExhaustedStaleAttempt(alive, NOW), false);
+  // Con intentos restantes lo gestiona el reintento normal, no este cierre.
+  assert.equal(isExhaustedStaleAttempt({ ...stuck, render_attempts: MAX_RENDER_ATTEMPTS - 1 }, NOW), false);
 });

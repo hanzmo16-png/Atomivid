@@ -1,4 +1,13 @@
 import type { LongFormCostEstimate, NarrativeBeat } from "./types";
+import { getPricingConfig } from "@/lib/billing/pricing";
+import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
+
+/** Minutos máximos del job de render long_form (timeout-minutes de .github/workflows/render.yml). */
+export const LONG_FORM_RENDER_JOB_TIMEOUT_MIN = 330;
+/** Peor caso del render (fuera del ledger): intentos máximos × timeout del job × tarifa. Cuenta dentro del techo total. */
+export function longFormRenderCeilingUsd(): number {
+  return MAX_RENDER_ATTEMPTS * LONG_FORM_RENDER_JOB_TIMEOUT_MIN * getPricingConfig().renderUsdPerMinute;
+}
 
 export type LongFormBudget = {
   maxTotalUsd: number;

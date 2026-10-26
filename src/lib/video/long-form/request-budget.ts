@@ -155,10 +155,18 @@ export async function authorizeRequestBudget(input: {
     return { ...existing, ceilingUsd, ledgerScopes: [...new Set([...existing.ledgerScopes, ...input.ledgerScopes])] };
   }
   if (!envelope.ready || envelope.proposedAuthorizationCeilingUsd === null) throw new RequestBudgetNotAuthorizedError(envelope);
+  // The stages alone (before contingency) must fit the product/environment ceiling. Otherwise clipping to hardMax
+  // would authorize less than the plan itself needs and the production could stop half-way, after paying voice and
+  // images. Only the contingency may be clipped.
+  const hardMaxUsd = Number.isFinite(input.hardMaxUsd) ? Math.max(0, input.hardMaxUsd) : 0;
+  if ((envelope.subtotalUsd ?? Infinity) > hardMaxUsd) {
+    throw new RequestBudgetNotAuthorizedError({ ...envelope, ready: false,
+      blockers: [...envelope.blockers, `subtotal_exceeds_ceiling:${(envelope.subtotalUsd ?? 0).toFixed(2)}>${hardMaxUsd.toFixed(2)}`] });
+  }
   const auth: RequestBudgetAuthorization = {
     version: 1,
     requestId: input.requestId,
-    ceilingUsd: Math.min(envelope.proposedAuthorizationCeilingUsd, input.hardMaxUsd),
+    ceilingUsd: Math.min(envelope.proposedAuthorizationCeilingUsd, hardMaxUsd),
     stageCeilings: envelope.stageCeilings,
     contingencyPct: envelope.contingencyPct,
     ledgerScopes: [...new Set(input.ledgerScopes)],

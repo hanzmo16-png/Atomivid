@@ -123,6 +123,9 @@ export async function renderLongFormDoc(input: RenderLongFormDocInput): Promise<
     composition,
     serveUrl,
     codec: "h264",
+    // BT.709 with TV (limited) range, the standard YouTube expects. Remotion v4's "default" leaves the range untagged
+    // and the H.264 stream came out as full-range yuvj420p (local rehearsal 2026-10-21, AV-QC warning).
+    colorSpace: "bt709",
     outputLocation,
     inputProps,
     browserExecutable,

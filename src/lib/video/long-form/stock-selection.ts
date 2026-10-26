@@ -37,6 +37,9 @@ const MODERN_MARKERS = [
   "headphones", "wifi", "instagram",
 ];
 
+/** Ancient objects whose name contains a modern marker ("wax tablet" is a Roman writing tablet, not a device). */
+const HISTORICAL_COMPOUNDS = /\b(?:wax|clay|stone|cuneiform|marble|bronze|lead|wooden|writing|votive|curse) tablets?\b/g;
+
 /** Lugares nombrados que, si el candidato los menciona y la intención nombra OTRO, delatan un contexto geográfico ajeno. */
 const KNOWN_PLACES = [
   "panama", "egypt", "suez", "paris", "france", "london", "england", "new york", "usa", "america", "china", "japan", "india", "dubai",
@@ -128,7 +131,8 @@ export function assessRelevance(visual: BeatVisual, candidateText: string | unde
   const candidate = new Set(englishTerms(candidateText));
   const conflicts: string[] = [];
   if (isHistoricalEra(visual.era)) {
-    for (const marker of MODERN_MARKERS) if (new RegExp(`\\b${marker}\\b`).test(text)) conflicts.push(`época: "${marker}"`);
+    const eraText = text.replace(HISTORICAL_COMPOUNDS, " ");
+    for (const marker of MODERN_MARKERS) if (new RegExp(`\\b${marker}\\b`).test(eraText)) conflicts.push(`época: "${marker}"`);
   }
   if (isCelestialScene(visual)) {
     for (const marker of EARTHBOUND_CONTEXT) if (new RegExp(`\\b${marker}\\b`).test(text)) conflicts.push(`contexto terrestre: "${marker}"`);
