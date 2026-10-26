@@ -1,3 +1,5 @@
+// Included here so the established test:unit entrypoint runs the behavioral route suite.
+import "./recording-route.test";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -53,4 +55,24 @@ test("grabación propia: tipo real por bytes, rutas emitidas por el servidor, re
   assert.deepEqual(await masterRecording(Buffer.from("%PDF-1.7 not audio at all"), async () => 1), { error: "no es un audio MP3, M4A, WAV, WebM u Ogg" });
   assert.deepEqual(await masterRecording(wav, async () => { throw new Error("video stream"); }), { error: "el audio no se pudo leer completo (o contiene video)" });
   assert.deepEqual(await masterRecording(wav, async () => 3 * 3600), { error: "la grabación supera 2 horas" });
+});
+
+test("podcast own recording: no false ready after lost or rejected DB write; terminal writes fenced by owner and token", () => {
+  const route = readFileSync(path.join(__dirname, "../../app/api/podcast/[id]/recording/route.ts"), "utf8");
+  const claim = route.indexOf('const runToken = randomUUID()');
+  const ready = route.indexOf('.update({ status: "ready"');
+  const cleanup = route.indexOf('await storage.remove([body.path])');
+  const success = route.lastIndexOf('return NextResponse.json({ status: "ready" })');
+  assert.ok(claim > 0 && ready > claim && cleanup > ready && success > cleanup,
+    "claim → terminal CAS → staged-source cleanup → report ready");
+  assert.match(route, /if \(claimError\) return NextResponse\.json/, "claim DB failure cannot look like a 409 conflict");
+  assert.match(route, /if \(claimed\?\.length !== 1\)/, "one exclusive claim required");
+  assert.match(route, /\.eq\("id", episode\.id\)\.eq\("user_id", user\.id\)\.eq\("status", "generating"\)\.eq\("run_token", runToken\)\.select\("id"\)/g,
+    "ready and failed CAS both fenced by authenticated owner and current run token");
+  assert.equal((route.match(/\.eq\("run_token", runToken\)\.select\("id"\)/g) ?? []).length, 2,
+    "both terminal writes prove they own the run");
+  assert.match(route, /if \(saveError \|\| saved\?\.length !== 1\) return NextResponse\.json/, "failure to confirm DB write is never 200");
+  assert.match(route, /if \(saveError \|\| persisted\?\.length !== 1\)/, "failed state must also be durably confirmed");
+  assert.ok(!route.slice(0, ready).includes('await storage.remove([body.path])'),
+    "staged source is preserved if final DB write fails");
 });
