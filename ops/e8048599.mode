@@ -1,4 +1,4 @@
 MODE=replay-all
 REPLAY_REF=4ba95e2a26c38888ca8b83cd3e2437e60edf8758
 REPLAY_LIMIT=20
-NOTE=read-only replay of saved script jobs against the candidate train #221 (USD 0)
+NOTE=both cinematic variants, best reuse

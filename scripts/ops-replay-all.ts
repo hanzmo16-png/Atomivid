@@ -11,11 +11,18 @@ async function main() {
   if (error) throw Error("read");
   console.log("REPLAY_SET", JSON.stringify({ jobs: data!.length, byStatus: data!.reduce((a: Record<string, number>, j) => ((a[j.status] = (a[j.status] ?? 0) + 1), a), {}) }));
   const env = { ...process.env }; delete env.ANTHROPIC_API_KEY; delete env.SUPPLY_GUARD_ENFORCED; delete env.VERCEL_ENV;
+  // Cinematic V6 is decided per account server-side (env-dependent); the runner cannot know it, so both are replayed and
+  // the variant that reuses MORE saved responses is the one production used (fingerprints include the flag).
   for (const j of data!) {
-    const r = spawnSync("npx", ["tsx", "scripts/replay-documentary-job.ts"], { env: { ...env, REPLAY_JOB: j.id }, encoding: "utf8", timeout: 600000 });
-    const lines = `${r.stdout}`.split("\n").filter((l) => /^(REPLAY|BOUNDARY) /.test(l));
-    for (const l of lines) console.log(l.replace(/^REPLAY /, `REPLAY [${j.status} ${j.created_at.slice(0, 10)}] `));
-    if (!lines.length) console.log(`REPLAY [${j.status}] ${j.id.slice(0, 8)} sin salida (exit ${r.status}) ${(r.stderr ?? "").slice(-200).replace(/\n/g, " ")}`);
+    const runs = ["true", "false"].map((cin) => {
+      const r = spawnSync("npx", ["tsx", "scripts/replay-documentary-job.ts"], { env: { ...env, REPLAY_JOB: j.id, REPLAY_CINEMATIC: cin }, encoding: "utf8", timeout: 600000 });
+      const lines = `${r.stdout}`.split("\n").filter((l) => /^(REPLAY|BOUNDARY) /.test(l));
+      const rep = lines.find((l) => l.startsWith("REPLAY ")); let hits = -1; try { hits = JSON.parse(rep!.slice(7)).hits ?? -1; } catch { /* sin salida */ }
+      return { cin, lines, hits, err: (r.stderr ?? "").slice(-160).replace(/\n/g, " "), status: r.status };
+    }).sort((a, b) => b.hits - a.hits);
+    const best = runs[0];
+    for (const l of best.lines) console.log(l.replace(/^REPLAY /, `REPLAY [${j.status} ${j.created_at.slice(0, 10)} cinematic=${best.cin}] `));
+    if (!best.lines.length) console.log(`REPLAY [${j.status}] ${j.id.slice(0, 8)} sin salida (exit ${best.status}) ${best.err}`);
   }
 }
 main().catch((e) => { console.log("FAILED", String(e).slice(0, 300)); process.exitCode = 1; });
