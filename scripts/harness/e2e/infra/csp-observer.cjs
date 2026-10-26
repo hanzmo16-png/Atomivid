@@ -13,7 +13,10 @@ if (LOG) {
     let url = ""; try { url = page.url(); } catch { /* página cerrada */ }
     try { fs.appendFileSync(LOG, JSON.stringify({ at: new Date().toISOString(), script, report: /report[- ]only/i.test(text), url: url.slice(0, 200), text: text.slice(0, 400) }) + "\n"); } catch { /* sin disco: no interfiere */ }
   };
-  const listen = (page) => { if (page.__csp) return; page.__csp = true; page.on("console", (m) => { const t = m.text(); if (/Content Security Policy/i.test(t)) record(page, t); }); };
+  const listen = (page) => { if (page.__csp) return; page.__csp = true;
+    // Registro de cobertura: cada página observada deja una línea, para que «0 mensajes» nunca sea un falso negativo.
+    try { fs.appendFileSync(LOG, JSON.stringify({ at: new Date().toISOString(), script, kind: "page" }) + "\n"); } catch { /* sin disco */ }
+    page.on("console", (m) => { const t = m.text(); if (/Content Security Policy/i.test(t)) record(page, t); }); };
   const attach = (ctx) => { if (!ctx || ctx.__csp) return; ctx.__csp = true; ctx.on("page", listen); for (const p of ctx.pages()) listen(p); };
   const wrapBrowser = (b) => {
     if (!b || b.__csp) return b; b.__csp = true;
