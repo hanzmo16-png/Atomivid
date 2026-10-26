@@ -56,7 +56,19 @@ function fakeService(initial: RowState) {
   }
 
   const client = {
-    from() {
+    from(table?: string) {
+      if (table === "documentary_script_jobs") {
+        return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }) };
+      }
+      if (table === "pi_paid_operations") {
+        const chain = {
+          eq() { return chain; },
+          order() { return chain; },
+          limit: async () => ({ data: [], error: null }),
+          in: async () => ({ data: [], error: null }),
+        };
+        return { select: () => chain };
+      }
       return {
         select: () => builder("select"),
         update: (values: RowState) => builder("update", values),
@@ -169,6 +181,29 @@ test("solicitud anterior al plan (p. ej. Panamá: failed, sin confirmación) no 
   const result = await confirmLongFormProduction(fake.client, { requestId: "req-1", userId: "user-1", strategy: "balanced" });
   assert.equal(result.ok, false);
   assert.equal(fake.appliedUpdates(), 0);
+});
+
+test("el estimado de proveedores cabe y el worker no: guion ya gastado + render se rechazan antes de fijar el plan", async () => {
+  const previous = process.env.LONG_FORM_MAX_TOTAL_USD;
+  delete process.env.LONG_FORM_MAX_TOTAL_USD;
+  try {
+    const fake = fakeService(baseRow());
+    const result = await confirmLongFormProduction(fake.client, {
+      requestId: "req-1", userId: "user-1", strategy: "economical",
+      budgetFacts: { scriptSpentUsd: 11, observed: {} },
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.status, 409);
+      assert.match(result.error, /supera el tope/);
+      assert.match(result.error, /guion ya gastado \$11\.00/);
+      assert.match(result.error, /No se confirmó ni se cobró nada/);
+    }
+    assert.equal(fake.appliedUpdates(), 0);
+  } finally {
+    if (previous === undefined) delete process.env.LONG_FORM_MAX_TOTAL_USD;
+    else process.env.LONG_FORM_MAX_TOTAL_USD = previous;
+  }
 });
 
 test("un plan que supera LONG_FORM_MAX_TOTAL_USD no se puede confirmar", async () => {

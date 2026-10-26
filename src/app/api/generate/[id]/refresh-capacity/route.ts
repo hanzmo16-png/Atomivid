@@ -7,6 +7,7 @@ import { lookupConfigurableRequest } from "@/lib/video/long-form/configure-looku
 import { configurePlans } from "@/lib/video/long-form/product-plan";
 import { VISUAL_STRATEGIES, type VisualStrategy } from "@/lib/video/long-form/production-plan";
 import { strategyPreflight, type StrategyPreflight } from "@/lib/video/long-form/production-preflight";
+import { budgetsForPlans, loadScriptSpentUsd } from "@/lib/video/long-form/worker-budget-preview";
 import { refreshDemandedCapacity } from "@/lib/video/long-form/refresh-capacity";
 import { jobSupplyDemands } from "@/lib/supply/job";
 import { recraftAllowedFor } from "@/lib/video/recraft-access";
@@ -32,8 +33,17 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const all = [results, ...(recraftResults ? [recraftResults] : [])];
   const providers = [...new Set(all.flatMap((r) => VISUAL_STRATEGIES.flatMap((s) => jobSupplyDemands({ mode: "long_form", script_json: script, recorded_audio_path: null, long_form_production_plan: r[s].plan }, r[s].plan.providers.voice).map((d) => d.provider))))];
   const outcome = await refreshDemandedCapacity(service, providers);
-  const check = async (r: typeof results) => Object.fromEntries(await Promise.all(VISUAL_STRATEGIES.map(async (strategy) =>
-    [strategy, await strategyPreflight(service, { strategy, plan: r[strategy].plan, scriptJson: script, refreshErrors: outcome.errors })]))) as Record<VisualStrategy, StrategyPreflight>;
+  let scriptSpent: number | { error: string };
+  try {
+    scriptSpent = await loadScriptSpentUsd(service, id);
+  } catch (error) {
+    scriptSpent = { error: error instanceof Error ? error.message : "gasto del guion" };
+  }
+  const check = async (r: typeof results) => {
+    const budgets = await budgetsForPlans(service, Object.fromEntries(VISUAL_STRATEGIES.map((strategy) => [strategy, r[strategy].plan])), scriptSpent);
+    return Object.fromEntries(await Promise.all(VISUAL_STRATEGIES.map(async (strategy) =>
+      [strategy, await strategyPreflight(service, { strategy, plan: r[strategy].plan, scriptJson: script, refreshErrors: outcome.errors, workerBudget: budgets[strategy] })]))) as Record<VisualStrategy, StrategyPreflight>;
+  };
   const [preflight, recraftPreflight] = await Promise.all([check(results), recraftResults ? check(recraftResults) : Promise.resolve(undefined)]);
   return NextResponse.json({ preflight, ...(recraftPreflight ? { recraftPreflight } : {}), checkedAt: new Date().toISOString(), refreshed: outcome.refreshed, reused: outcome.reused, manual: outcome.manual });
 }
