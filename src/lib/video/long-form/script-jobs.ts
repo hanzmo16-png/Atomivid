@@ -38,6 +38,7 @@ export async function enqueueScriptJob(session: SupabaseClient, user: {id:string
 /** A worker invocation replays cached stages but admits at most ONE new paid
  * request. A lost HTTP response cannot resubmit: SQL CAS and the ledger both fence it. */
 export async function runScriptJobStep(id:string, service=createServiceClient()) {
+ await recoverStaleRunningJob(id,service);
  const token=randomUUID();
  const {data:claim,error:claimError}=await service.rpc("claim_documentary_script_job",{p_id:id,p_token:token});
  if(claimError) throw new Error("Could not claim script job");
@@ -105,6 +106,25 @@ export async function reconcileStaleScriptJobs(userId:string,service:SupabaseCli
 }
 
 export const MAX_SCRIPT_RETRIES=3, MAX_EDITORIAL_ROUNDS=2, MAX_RESUBMITS=2;
+
+/** Same step, automatic: a job left «running» by an invocation Vercel stopped (maxDuration) is requeued with the
+ * SAME budget as the owner's «Reanudar» (retryPatch: interrupted resubmits ≤ MAX_RESUBMITS), compare-and-set on
+ * the stale row version. A live step can never look stale (it refreshes updated_at and stops at 300 s < 10 min).
+ * Saved paid responses replay free (ledger); with no budget left it ends failed/interrupted, as before. */
+export async function recoverStaleRunningJob(id:string,service:SupabaseClient=createServiceClient(),now=Date.now()):Promise<"requeued"|"interrupted"|"none"> {
+ const {data,error}=await service.from("documentary_script_jobs").select("id,status,failure_kind,retry_count,editorial_rounds,resubmit_allowance,updated_at").eq("id",id).maybeSingle();
+ if(error||!data) return "none";
+ const job=data as RetryRow;
+ if(job.status!=="running" || Date.parse(job.updated_at)>now-STALE_RUNNING_MS) return "none";
+ const patch=retryPatch({...job,status:"failed",failure_kind:"interrupted"});
+ const at=new Date(now).toISOString();
+ const change=patch
+  ? {...patch,status:"queued",run_token:null,failure_kind:null,error_code:null,error_message:null,stage:"Reanudando tras una interrupción",updated_at:at}
+  : {status:"failed",run_token:null,failure_kind:"interrupted",updated_at:at,
+     error_message:"La preparación se interrumpió sin confirmar su última etapa. Los avances pagados están guardados; puedes reanudarla."};
+ const {data:updated}=await service.from("documentary_script_jobs").update(change).eq("id",id).eq("status","running").eq("updated_at",job.updated_at).select("id");
+ return updated?.length===1 ? (patch?"requeued":"interrupted") : "none";
+}
 type RetryRow={id:string;status:string;failure_kind:string|null;retry_count:number;editorial_rounds:number;resubmit_allowance:number;updated_at:string};
 /** Owner action on a failed job. Compare-and-swap on the exact row version, so a
  * double click or two tabs requeue it once. Saved paid responses replay free;

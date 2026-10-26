@@ -20,7 +20,7 @@ import {
   type ProductionPlan,
   type VisualStrategy,
 } from "./production-plan";
-import { getLongFormBudget } from "./cost";
+import { getLongFormBudget, longFormRenderCeilingUsd } from "./cost";
 import { validatePackagingInput } from "./packaging";
 import { productPlan } from "./product-plan";
 import { usesAnchoredVisuals, usesVisualIdentity } from "./production-plan-types";
@@ -120,11 +120,14 @@ export async function confirmLongFormProduction(
   });
   if (packagingCheck.packaging) plan.packaging = packagingCheck.packaging;
   const budget = getLongFormBudget();
-  if (plan.estimatedProviderCostUsd > budget.maxTotalUsd) {
+  // The worker authorizes providers + the render's worst case under the same ceiling (request-budget.ts): a plan whose
+  // stages do not fit is refused here, before confirming, instead of at the worker.
+  const renderUsd = longFormRenderCeilingUsd();
+  if (plan.estimatedProviderCostUsd + renderUsd > budget.maxTotalUsd) {
     return {
       ok: false,
       status: 409,
-      error: `El costo estimado ($${plan.estimatedProviderCostUsd.toFixed(2)}) supera el tope de producción configurado ($${budget.maxTotalUsd.toFixed(2)}). Elige una estrategia más económica.`,
+      error: `El costo estimado ($${plan.estimatedProviderCostUsd.toFixed(2)} de proveedores + $${renderUsd.toFixed(2)} de render en el peor caso) supera el tope de producción configurado ($${budget.maxTotalUsd.toFixed(2)}). Elige una estrategia más económica.`,
     };
   }
 

@@ -195,3 +195,15 @@ test("render/route.ts pasa a assertCanGenerate el `user` server-side (supabase.a
   const assertCanGenerateIndex = source.indexOf("assertCanGenerate(service, user.id, videoRequest.mode, user)");
   assert.ok(getUserIndex !== -1 && getUserIndex < assertCanGenerateIndex, "`user` debe originarse en supabase.auth.getUser(), antes de usarse en el bypass");
 });
+
+test("render/route.ts cierra como fallo terminal un intento colgado sin intentos restantes ANTES de responder el rechazo", () => {
+  const source = fs.readFileSync(ROUTE_PATH, "utf-8");
+  const refusal = source.indexOf("if (!decision.allowed) {");
+  const close = source.indexOf("isExhaustedStaleAttempt(videoRequest)", refusal);
+  const plainReturn = source.indexOf("return NextResponse.json({ error: decision.error }", refusal);
+  assert.ok(refusal > 0 && close > refusal && close < plainReturn, "el cierre ocurre dentro del rechazo y antes del return genérico");
+  const block = source.slice(close, plainReturn);
+  // El compare-and-set y la liberación de la reserva viven en exhausted-attempt.ts (probado en exhausted-attempt.test.ts).
+  assert.match(block, /closeExhaustedStaleAttempt\(service, \{ \.\.\.videoRequest, id \}\)/);
+  assert.match(block, /EXHAUSTED_ATTEMPT_CLOSED/);
+});

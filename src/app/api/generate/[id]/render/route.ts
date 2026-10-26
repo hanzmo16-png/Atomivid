@@ -13,7 +13,7 @@ import { ensureJobSupplyReady, START_SUPPLY_UNAVAILABLE } from "@/lib/supply/rea
 import { supplyGuardRequired } from "@/lib/supply/server";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { NextResponse } from "next/server";
-import { STALE_ATTEMPT_CLOSED, type StartOutcome } from "@/lib/video/start-outcome";
+import { EXHAUSTED_ATTEMPT_CLOSED, STALE_ATTEMPT_CLOSED, type StartOutcome } from "@/lib/video/start-outcome";
 import { preReservationFailure } from "@/lib/video/start-failure";
 import { encodeStoredFailure } from "@/lib/video/failure-action";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
@@ -26,7 +26,8 @@ import { isInternalProductionOwner } from "@/lib/billing/internal-production";
 import { checkHttpStatus, checkProductionForRequest, checkResponseBody, costIncrease } from "@/lib/supply/production-check";
 import { loadAvatarRecovery } from "@/lib/video/avatar/recovery";
 import { avatarRenderDurationError } from "@/lib/video/avatar/duration";
-import { evaluateRenderStart } from "@/lib/video/render-guard";
+import { evaluateRenderStart, isExhaustedStaleAttempt } from "@/lib/video/render-guard";
+import { closeExhaustedStaleAttempt } from "@/lib/video/exhausted-attempt";
 import {
   classifyRenderError,
   classifyRenderFailure,
@@ -173,6 +174,11 @@ export async function POST(
     // el UPDATE condicional más abajo, que Postgres serializa por fila.
     const decision = evaluateRenderStart(videoRequest);
     if (!decision.allowed) {
+      if (isExhaustedStaleAttempt(videoRequest)) {
+        // Sin intentos y colgado: estado final en lugar de «processing» para siempre (exhausted-attempt.ts).
+        await closeExhaustedStaleAttempt(service, { ...videoRequest, id }).catch((error) => { throw new RenderStageError("mark_processing", error); });
+        return NextResponse.json({ error: EXHAUSTED_ATTEMPT_CLOSED }, { status: 409 });
+      }
       return NextResponse.json({ error: decision.error }, { status: decision.status });
     }
     // «Usar mi propio guion»: the draft has the narration but not yet the visuals of each scene (a paid step

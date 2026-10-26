@@ -54,6 +54,15 @@ export function evaluateRenderStart(
   return { allowed: true };
 }
 
+/**
+ * Intento colgado (sin latido) cuando ya no quedan intentos: evaluateRenderStart lo rechaza por «máximo de
+ * intentos», y el cierre de intentos colgados de la ruta nunca se alcanzaba, así que la solicitud quedaba en
+ * «processing» para siempre, sin estado final ni botón. La ruta lo cierra como fallo terminal antes de responder.
+ */
+export function isExhaustedStaleAttempt(row: RenderStartRow, nowMs: number = Date.now()): boolean {
+  return row.render_attempts >= MAX_RENDER_ATTEMPTS && isRenderStale(row, nowMs);
+}
+
 function heartbeatOf(progress: unknown): number | null {
   if (!progress || typeof progress !== "object") return null;
   const updatedAt = (progress as { updatedAt?: unknown }).updatedAt;

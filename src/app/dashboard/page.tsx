@@ -11,7 +11,9 @@ import { resolveHistoryViewState } from "@/lib/video/history-view";
 import { AutoRefresh } from "./AutoRefresh";
 import { RequestCard } from "@/components/video/RequestCard";
 import { createServiceClient } from "@/lib/supabase/service";
-import { isRenderStale } from "@/lib/video/render-guard";
+import { isExhaustedStaleAttempt, isRenderStale } from "@/lib/video/render-guard";
+import { closeExhaustedStaleAttempt } from "@/lib/video/exhausted-attempt";
+import { EXHAUSTED_ATTEMPT_CLOSED } from "@/lib/video/start-outcome";
 import { loadAvatarRecoveries } from "@/lib/video/avatar/recovery";
 import { Alert } from "@/components/ui/Alert";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -41,6 +43,12 @@ export default async function DashboardPage({
     .returns<VideoRequestSummary[]>();
 
   if (user) await reconcileStaleScriptJobs(user.id).catch(() => {});
+  // Intentos colgados sin intentos restantes: estado final aquí mismo (antes quedaban «processing» para siempre).
+  for (const r of requests ?? []) {
+    if (!isExhaustedStaleAttempt(r)) continue;
+    const outcome = await closeExhaustedStaleAttempt(createServiceClient(), r).catch(() => "changed" as const);
+    if (outcome === "closed") Object.assign(r, { status: "failed", progress_stage: null, error_message: EXHAUSTED_ATTEMPT_CLOSED });
+  }
   const { data: scriptJobs, error: scriptJobsError } = await supabase.from("documentary_script_jobs")
     .select(SCRIPT_JOB_COLUMNS)
     .eq("user_id", user?.id ?? "").neq("status","completed").order("created_at",{ascending:false}).limit(30)
