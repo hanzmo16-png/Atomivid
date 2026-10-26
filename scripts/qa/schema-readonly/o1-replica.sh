@@ -28,6 +28,7 @@ echo "== 2. Disposable replica (pre-O1 state of production)"
 L=$T/local; "$PGBIN/initdb" -D "$L" -U postgres --auth=trust >/dev/null; "$PGBIN/pg_ctl" -D "$L" -o "-p 55991 -k $T -c listen_addresses=''" -l "$T/pg.log" -w start >/dev/null
 trap '"$PGBIN/pg_ctl" -D "$L" -m fast stop >/dev/null 2>&1 || true; rm -rf "$T/public.sql" "$T/data.sql" "$T/sm.sql"' EXIT
 LW(){ "$PGBIN/psql" -h "$T" -p 55991 -U postgres -X -q "$@"; }   # the ONLY write path: local socket
+LWV(){ "$PGBIN/psql" -h "$T" -p 55991 -U postgres -X "$@"; }    # same target, keeps psql's command tags (INSERT/DELETE/COMMIT)
 LW -d postgres -c "create database replica" >/dev/null
 LW -d replica -f "$R/scripts/harness/e2e/infra/stubs.sql" >/dev/null 2>&1
 LW -d replica -c "create schema if not exists extensions; create extension if not exists pgcrypto with schema extensions; create extension if not exists \"uuid-ossp\" with schema extensions" >/dev/null 2>&1
@@ -54,7 +55,7 @@ gate O1 g1; g=$?; grep -E '^(PASS|FAIL) GATE|^RESULT' "$T/g1.log"
 gate O2 g2pre; [ $? != 0 ] && grep -q 'FAIL GATE\[O2\] O1 done' "$T/g2pre.log" && pass "gate O2 refuses the pre-O1 state (fails closed)" || fail "gate O2 did not refuse the pre-O1 state"
 
 echo "== 4. Execute the audited A on the replica"
-out=$(LW -d replica -v ON_ERROR_STOP=1 -f "$SQL_A" 2>&1); echo "$out" | grep -E 'INSERT|COMMIT|ERROR'
+out=$(LWV -d replica -v ON_ERROR_STOP=1 -f "$SQL_A" 2>&1); echo "$out" | grep -E 'INSERT|COMMIT|ERROR'
 echo "$out" | grep -q '^INSERT 0 18$' && echo "$out" | grep -q '^COMMIT$' && pass "A: one transaction, INSERT 0 18, COMMIT" || fail "A did not commit 18"
 [ "$(q 'select count(*) from public._migrations_applied')" = 63 ] && pass "_migrations_applied = 63" || fail "_migrations_applied = $(q 'select count(*) from public._migrations_applied')"
 [ "$(q "select count(*) from public._migrations_applied where name in ($IN)")" = 18 ] && pass "18/18 names registered" || fail "names registered: $(q "select count(*) from public._migrations_applied where name in ($IN)")"
@@ -92,7 +93,7 @@ x=$(q "select count(*) from public._migrations_applied where name in ($IN)" u2);
 echo "== 7. Audited rollback on the post-O1 replica"
 x=$(q "select count(*) from public._migrations_applied where name in ($IN)"); a=$(q 'select count(*) from public._migrations_applied')
 [ "$x" = 18 ] && [ "$a" = 63 ] && pass "rollback precondition holds (18 present, 63 total)" || fail "rollback precondition"
-out=$(LW -d replica -v ON_ERROR_STOP=1 -f "$SQL_RB" 2>&1); echo "$out" | grep -E 'DELETE|COMMIT|ERROR'
+out=$(LWV -d replica -v ON_ERROR_STOP=1 -f "$SQL_RB" 2>&1); echo "$out" | grep -E 'DELETE|COMMIT|ERROR'
 echo "$out" | grep -q '^DELETE 18$' && pass "rollback: DELETE 18, COMMIT" || fail "rollback did not delete 18"
 [ "$(md5ma)" = "$MA0" ] && [ "$(q 'select count(*) from public._migrations_applied')" = 45 ] && pass "rollback restores _migrations_applied byte-for-byte (45 rows, same md5 as before A)" || fail "registry not restored exactly"
 [ "$(md5pi)" = "$PI0" ] && [ "$(md5mk)" = "$MK0" ] && pass "rollback leaves pi_paid_operations (548) and markers identical to the original" || fail "pi_* or markers differ after rollback"
