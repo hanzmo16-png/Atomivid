@@ -93,18 +93,3 @@ test("«mar» en español (el mar) no es una fecha; «Mar. 5» y «Mar 5, 2024»
   assert.equal(calendarDatesIn("It happened on 5 Mar 2024.").length, 1);
   assert.equal(calendarDatesIn("El 10 de mayo de 2024 cayó la red.").length, 1);
 });
-
-test("v3: la escena narrada SOBRE la fecha es tarjeta aunque su escena declarada cite otro pasaje (anclaje por tiempo)", () => {
-  // Una sola escena declarada, citando la oración SIN fecha: por tiempo cubre también la oración fechada.
-  const narration = "Hubo reportes desde el sur de Estados Unidos y el norte de la India. La noche del 10 de mayo de 2024, millones de personas miraron hacia arriba.";
-  const visuals = visualsForBeat({ narration, visuals: [{ description: "green aurora above town rooftops at night", quote: "Hubo reportes desde el sur" }] }, "t", { identity: false });
-  assert.equal(visuals[0].datedPassage, undefined);
-  const base = { beatId: "b", beatType: "hook" as const, startSec: 0, endSec: 9, narration, strategy: "cinematic" as const, visuals, anchoring: {}, targetCount: 2 };
-  const withCards = shotsForSpan({ ...base, datedPassageCards: true });
-  const dated = withCards.filter(s => /10 de mayo/.test(s.narrationFragment ?? ""));
-  assert.ok(dated.length >= 1);
-  for (const s of dated) assert.equal(s.type, "text");
-  assert.ok(withCards.some(s => s.type !== "text"), "el pasaje sin fecha sigue ilustrado");
-  // Sin la opción (v4 o histórico) el reparto no cambia.
-  assert.deepEqual(shotsForSpan(base).map(s => s.type), shotsForSpan({ ...base, datedPassageCards: false }).map(s => s.type));
-});

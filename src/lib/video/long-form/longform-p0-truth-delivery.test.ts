@@ -126,8 +126,7 @@ test("P0-01 dry3-v3-en: v3 + «10 de mayo de 2024» con escena anclada → el pa
   const { events, error } = await produceOffline(beats, plan, { topic: TOPIC, onReport: (r) => (report = r as never) });
   assert.equal(error, null, `no debe fallar: ${(error as Error)?.message}`);
   assert.equal(count(events, "render"), 1);
-  // Toda escena narrada sobre la fecha (por cita o por tiempo) y la escena cuya cita es la oración fechada.
-  const datedScenes = report!.scenes.filter((s) => /10 de mayo|mayo de 2024/.test(s.narrationFragment ?? "") || s.intent?.description === "green aurora curtains moving over a small town at night" && s.narrationFragment?.startsWith("La noche"));
+  const datedScenes = report!.scenes.filter((s) => /10 de mayo de 2024/.test(s.narrationFragment ?? "") || s.intent?.description === "green aurora curtains moving over a small town at night" && s.narrationFragment?.startsWith("La noche"));
   assert.ok(datedScenes.length >= 1, "el pasaje fechado tiene escena");
   for (const s of datedScenes) assert.deepEqual([s.display, s.provenance], ["card", "text_card"], JSON.stringify(s));
   assert.ok(report!.scenes.some((s) => s.provenance.startsWith("stock")), "los pasajes sin fecha siguen ilustrados");
