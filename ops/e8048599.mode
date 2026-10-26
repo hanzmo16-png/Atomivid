@@ -1,4 +1,4 @@
 MODE=owner-readiness
 REPLAY_REF=
-OWNER_EMAIL_SHA256=8dcc0bfc5e69efb6c156c7972579693e10c2ff3c72ca363fc6d1fb79d58fdaac,1f921d8ffedacf9696015b7d945ff2ae15784ce34d9657d34c5afad3316ad283
-NOTE=rerun with full annotations (REFUNDED is terminal)
+OWNER_EMAIL_HASHES=8dcc0bfc5e69efb6c156c7972579693e10c2ff3c72ca363fc6d1fb79d58fdaac,1f921d8ffedacf9696015b7d945ff2ae15784ce34d9657d34c5afad3316ad283
+NOTE=rerun: env name without digits

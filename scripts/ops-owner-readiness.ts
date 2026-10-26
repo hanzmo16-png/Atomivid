@@ -13,7 +13,7 @@ async function main() {
   const db = createClient(process.env.SUPABASE_URL!.trim(), process.env.SUPABASE_SERVICE_ROLE_KEY!.trim(), { auth: { persistSession: false } });
   // Owner e-mails are given only as sha256 of the lowercased address (no PII in the repository or the logs).
   const { createHash } = await import("node:crypto"); const hashOf = (e: string) => createHash("sha256").update(e.trim().toLowerCase()).digest("hex");
-  const emails = (process.env.OWNER_EMAIL_SHA256 ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const emails = (process.env.OWNER_EMAIL_HASHES ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   const users: { id: string; email?: string; email_confirmed_at?: string | null; last_sign_in_at?: string | null }[] = [];
   for (let page = 1; page <= 20; page++) { const r = await db.auth.admin.listUsers({ page, perPage: 200 }); if (r.error) throw Error("users"); users.push(...r.data.users); if (r.data.users.length < 200) break; }
   const owners = emails.map((e, i) => { const u = users.find((x) => !!x.email && hashOf(x.email) === e); return { owner: `owner#${i + 1}`, exists: !!u, confirmed: !!u?.email_confirmed_at, lastSignIn: u?.last_sign_in_at?.slice(0, 10) ?? null, id: u?.id }; });
