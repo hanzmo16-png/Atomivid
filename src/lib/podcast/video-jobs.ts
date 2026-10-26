@@ -66,6 +66,15 @@ export async function requestPodcastVideo(service: SupabaseClient, episode: Podc
     ? { ...common, video_status: "scheduled", video_stage: null, scheduled_at: schedule.at, video_requested_at: at }
     : { ...common, video_status: "queued", video_stage: "En cola", scheduled_at: null, video_requested_at: at, video_heartbeat_at: at, video_run_token: randomUUID(), video_attempts: (episode.video_attempts ?? 0) + 1 },
   ).eq("id", episode.id).eq("user_id", episode.user_id);
+  if (state === "queued" || state === "running") {
+    // Staleness was checked on a snapshot. The worker may have renewed its lease since
+    // that read without changing status/attempts. Reclaim only the exact lease observed;
+    // nullable legacy fields need IS NULL (eq(null) never matches in Postgres).
+    for (const column of ["video_run_token", "video_heartbeat_at", "video_requested_at"] as const) {
+      const value = episode[column];
+      q = value == null ? q.is(column, null) : q.eq(column, value);
+    }
+  }
   q = state === "queued" || state === "running" ? q.eq("video_status", state).eq("video_attempts", episode.video_attempts ?? 0) : q.in("video_status", ["none", "failed", "ready", "blocked", "scheduled"]);
   const { data } = await q.select("id");
   if (!data || data.length !== 1) return { error: "Otra solicitud tomó este episodio. Recarga la página.", status: 409 };
