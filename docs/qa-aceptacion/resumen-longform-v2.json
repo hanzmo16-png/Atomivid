@@ -1,0 +1,85 @@
+{
+  "pass": 10,
+  "fail": 0,
+  "untestedCount": 3,
+  "anthropicMockCalls": 0,
+  "checks": [
+    {
+      "name": "[samsung] Long Form: formulario sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "sw": 390,
+        "iw": 390
+      }
+    },
+    {
+      "name": "[samsung] Long Form sin tema: no se crea nada",
+      "ok": true
+    },
+    {
+      "name": "[samsung] Long Form: tras crear, su tarjeta muestra un estado en curso y ningún «listo» falso",
+      "ok": true,
+      "detail": "QA aceptación samsung el canal de Panamá 1792855859725\nEn cola\n\nEn cola · 24/10/2026, 3:30:59 p.m.\n\nTu trabajo está guardado. Puedes salir y volver a consultar el progreso aq"
+    },
+    {
+      "name": "[samsung] Long Form: página siguiente sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "sw": 390,
+        "iw": 390
+      }
+    },
+    {
+      "name": "[desktop] Long Form: formulario sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "sw": 1440,
+        "iw": 1440
+      }
+    },
+    {
+      "name": "[desktop] Long Form sin tema: no se crea nada",
+      "ok": true
+    },
+    {
+      "name": "[desktop] Long Form: tras crear, su tarjeta muestra un estado en curso y ningún «listo» falso",
+      "ok": true,
+      "detail": "QA aceptación desktop el canal de Panamá 1792855867141\nEn cola\n\nEn cola · 24/10/2026, 3:31:07 p.m.\n\nTu trabajo está guardado. Puedes salir y volver a consultar el progreso aq"
+    },
+    {
+      "name": "[desktop] Long Form: página siguiente sin scroll horizontal",
+      "ok": true,
+      "detail": {
+        "sw": 1440,
+        "iw": 1440
+      }
+    },
+    {
+      "name": "0 peticiones a proveedores pagos (ninguna salió; las salidas externas se bloquean y registran)",
+      "ok": true,
+      "detail": {
+        "refused": [],
+        "other": []
+      }
+    },
+    {
+      "name": "render: solo despachos al worker LOCAL de prueba (0 renders pagados)",
+      "ok": true,
+      "detail": 2
+    }
+  ],
+  "untested": [
+    {
+      "name": "[samsung] Long Form: confirmación de presupuesto → render → descarga",
+      "why": "el guion documental real requiere el modelo (mock-anthropic no lo cubre); el ensayo completo con guion inyectado existe en scripts/harness/e2e/longform-rehearsal (e-run.cjs)"
+    },
+    {
+      "name": "[desktop] Long Form: confirmación de presupuesto → render → descarga",
+      "why": "el guion documental real requiere el modelo (mock-anthropic no lo cubre); el ensayo completo con guion inyectado existe en scripts/harness/e2e/longform-rehearsal (e-run.cjs)"
+    },
+    {
+      "name": "producción atomicvid.app con sesión",
+      "why": "sin credenciales autorizadas; ver la auditoría pública de solo lectura (workflow qa-aceptacion-publica)"
+    }
+  ]
+}
