@@ -13,7 +13,8 @@ PROD=$(cd "$R" && npx tsx -e 'import { resolveConnection } from "./scripts/lib/s
 PW=$(node -e 'const u=new URL(process.argv[1]); process.stdout.write(decodeURIComponent(u.password))' "$PROD"); echo "::add-mask::$PW"; echo "::add-mask::$PROD"
 bash "$O2" snap "$PROD" "$T/prod.snap" && bash "$O2" pre "$T/prod.snap" && pass "production meets every O2 precondition right now" || fail "production does not meet the O2 preconditions"
 echo "INFO production trigger fn ACL $(grep '^trg_acl|' "$T/prod.snap" | cut -d'|' -f2), RPC ACL $(grep '^rpc_acl|' "$T/prod.snap" | cut -d'|' -f2)"
-bash "$O2" probe && pass "production: the tool's own connection (pooler) gets lock_timeout=5s, statement_timeout=2min" || fail "PGOPTIONS not honoured through the production pooler"
+bash "$O2" probe && pass "production: the tool's own connection (pooler) has statement_timeout=2min (role default), read-only probe" || fail "production statement_timeout differs from 2min"
+grep -E '^(jobs_active|jobs_exhausted|other_locks_on_jobs|long_xacts)\|' "$T/prod.snap" | tr '\n' ' ' | sed 's/^/INFO production now: /'; echo
 export PGOPTIONS="-c default_transaction_read_only=on"
 "$PGBIN/pg_dump" "$PROD" --schema-only --no-owner --no-comments -n public -f "$T/public.sql" 2>/dev/null || { echo "FAIL pg_dump schema"; exit 1; }
 "$PGBIN/pg_dump" "$PROD" --data-only --disable-triggers --no-owner -t 'public.pi_*' -t public._migrations_applied -f "$T/data.sql" 2>/dev/null || { echo "FAIL pg_dump data"; exit 1; }
@@ -37,19 +38,27 @@ o2(){ "${TOOLENV[@]}" bash "$O2" "$@"; }
 snap(){ bash "$O2" snap "$(U "${2:-replica}")" "$T/$1.snap" >/dev/null; }
 gate(){ local g=0; "${TOOLENV[@]}" GATE_ONLY=1 GATE_NEXT=$1 OUT="$T/gate-$1-$2" bash "$R/scripts/qa/schema-readonly/cierre.sh" > "$T/gate-$1-$2.log" 2>&1 || g=$?
   local n; n=$(grep -c "^PASS GATE\[$1\]" "$T/gate-$1-$2.log"); [ $g = 0 ] && ! grep -q '^FAIL' "$T/gate-$1-$2.log" && [ "$n" = 16 ] && pass "gate $1 on the replica ($2): 16 PASS, 0 FAIL" || { fail "gate $1 on the replica ($2): rc=$g PASS=$n"; grep '^FAIL' "$T/gate-$1-$2.log"; }; }
+# the local stubs grant EXECUTE on new functions to anon/authenticated by default; set the two touched functions to the
+# ACL production has (read above), so pre/post/same compare against production's real ACL
+LW -d replica -c "revoke all on function public.pi_documentary_resume_requires_budget() from public, anon, authenticated; grant execute on function public.pi_documentary_resume_requires_budget() to service_role; revoke all on function public.pi_recovery_resume_authorization(text,text) from public, anon, authenticated; grant execute on function public.pi_recovery_resume_authorization(text,text) to service_role"
+LW -d replica -c "alter role postgres set statement_timeout = '2min'"   # production's role default (probe above)
+# same for the durable-authorization table the PR198 trigger reads (production: closed to every client role)
+LW -d replica -c "revoke all on public.pi_recovery_resume_authorizations from public, anon, authenticated, service_role"
+for k in acl_pi_recovery_resume_authorizations acl_pi_recovery_budgets acl_documentary_script_jobs; do echo "INFO $k production=$(grep "^$k|" "$T/prod.snap" | cut -d'|' -f2) replica=$(bash "$O2" snap "$(U)" "$T/acl.snap" >/dev/null; grep "^$k|" "$T/acl.snap" | cut -d'|' -f2)"; done
 snap r0; o2 pre "$T/r0.snap" > "$T/r0.pre" && pass "replica meets the O2 preconditions (63 registered, 548 / 41, markers t f f f, ACLs)" || { fail "replica pre"; grep FAIL "$T/r0.pre"; }
-for k in ma_count ma_md5_without_o2 sm_md5 pi_paid_operations open_operations m000 m120 m130 m140 trg_def_md5 trg_acl rpc_def_md5 rpc_acl trigger; do
-  [ "$(grep "^$k|" "$T/r0.snap")" = "$(grep "^$k|" "$T/prod.snap")" ] || { fail "replica differs from production in $k"; }; done; pass "replica == production in registries, pi_* counts, markers, both function bodies (md5), ACLs and trigger"
+same=1; for k in ma_count ma_md5_without_o2 sm_md5 pi_paid_operations open_operations pi_data_md5 m000 m120 m130 m140 trg_def_md5 trg_secdef trg_config trg_owner trg_acl rpc_def_md5 rpc_acl trigger acl_pi_recovery_resume_authorizations; do
+  [ "$(grep "^$k|" "$T/r0.snap")" = "$(grep "^$k|" "$T/prod.snap")" ] || { same=0; fail "replica differs from production in $k"; }; done
+[ $same = 1 ] && pass "replica == production in registries, pi_* data (md5), markers, both function bodies (md5), owner/config, ACLs and trigger"
 gate O2 before
 
 # behaviour probe as the app (service_role): synthetic exhausted job with an ACTIVE budget (ref A) — always rolled back
 probe(){ # $1 durable ref ("" = none) -> prints the outcome of the app's requeue UPDATE
-  LW -d replica -At 2>&1 <<SQL | grep -E 'UPDATED|ERROR' | sed 's/^.*ERROR: *//' | head -1
+  LW -d replica -At 2>&1 <<SQL | grep -E 'BUDGET|UPDATED|ERROR' | grep -v '^BUDGET true$' | sed 's/^.*ERROR: *//' | head -1
 begin;
 insert into auth.users(id, email) values ('cccccccc-0000-4000-8000-0000000000c2', 'o2@x') on conflict do nothing;
 insert into public.documentary_script_jobs(id, user_id, input_hash, topic, status, retry_count) values ('d0000000-0000-4000-8000-0000000002a0', 'cccccccc-0000-4000-8000-0000000000c2', 'h-o2', 'o2', 'failed', 3);
-select public.pi_open_recovery_budget('d0000000-0000-4000-8000-0000000002a0', 'documentary:o2', 0.60, 'ref-A') is not null;
-$( [ -n "$1" ] && echo "insert into public.pi_recovery_resume_authorizations(project_id, authorization_ref) values ('documentary:o2', '$1');" )
+select 'BUDGET ' || (public.pi_open_recovery_budget('d0000000-0000-4000-8000-0000000002a0', 'documentary:cccccccc-0000-4000-8000-0000000000c2:o2', 0.60, 'ref-A')->>'opened');
+$( [ -n "$1" ] && echo "insert into public.pi_recovery_resume_authorizations(project_id, authorization_ref) values ('documentary:cccccccc-0000-4000-8000-0000000000c2:o2', '$1');" )
 set local role service_role;
 with u as (update public.documentary_script_jobs set status = 'queued' where id = 'd0000000-0000-4000-8000-0000000002a0' and status = 'failed' returning 1) select 'UPDATED ' || count(*) from u;
 rollback;
@@ -86,11 +95,18 @@ behave "after contingency" old
 o2 contingency "$(U)" > "$T/ct2.log" 2>&1 && snap r2b && o2 same "$T/r0.snap" "$T/r2b.snap" > /dev/null && pass "contingency is re-runnable (second run: still exactly pre-O2)" || fail "contingency second run"
 
 echo "== 5. Fault injection"
-# (a) another session holds a lock on documentary_script_jobs: the tool must give up in 5 s and change nothing
-( LW -d replica -c "begin; lock table public.documentary_script_jobs in access share mode; select pg_sleep(25); commit;" >/dev/null 2>&1 ) & H=$!; sleep 2
-t0=$(date +%s); o2 apply > "$T/apply3.log" 2>&1; rc=$?; t1=$(date +%s); kill $H 2>/dev/null; wait $H 2>/dev/null
-grep -q 'lock timeout' "$T/apply3.log" && [ $rc != 0 ] && [ $((t1 - t0)) -lt 20 ] && pass "lock held elsewhere: tool aborts with 'lock timeout' after $((t1 - t0)) s (exit $rc), no queueing" || { fail "lock contention: rc=$rc $((t1 - t0)) s"; tail -3 "$T/apply3.log"; }
-snap r3; o2 same "$T/r0.snap" "$T/r3.snap" > /dev/null && pass "after the aborted attempt the replica is exactly pre-O2 (tool rolled back)" || fail "aborted attempt changed state"
+# (a) production gives the tool no lock_timeout (the pooler drops it): another session holding a lock makes the tool WAIT.
+#     a1: a short holder (8 s): the tool waits, then completes normally.  a2: a holder longer than statement_timeout
+#     (set to 6 s on this replica only, to keep the run short): the server cancels the tool, which rolls back cleanly.
+hold(){ ( PGOPTIONS="-c statement_timeout=0" LW -d replica -c "begin; lock table public.documentary_script_jobs in access share mode; select pg_sleep($1); commit;" >/dev/null 2>&1 ) & H=$!; sleep 1; }
+hold 8; t0=$(date +%s); o2 apply > "$T/apply3.log" 2>&1; rc=$?; t1=$(date +%s); wait $H 2>/dev/null
+snap r3; [ $rc = 0 ] && [ $((t1 - t0)) -ge 5 ] && o2 post "$T/r0.snap" "$T/r3.snap" > /dev/null && pass "a1 lock held 8 s: tool waited $((t1 - t0)) s, then applied; post passes" || { fail "a1: rc=$rc $((t1 - t0)) s"; tail -3 "$T/apply3.log"; }
+o2 contingency "$(U)" >/dev/null 2>&1; snap r3b; o2 same "$T/r0.snap" "$T/r3b.snap" > /dev/null || fail "a1 cleanup"
+LW -d replica -c "alter role postgres set statement_timeout = '6s'"; hold 20
+t0=$(date +%s); o2 apply > "$T/apply3b.log" 2>&1; rc=$?; t1=$(date +%s); kill $H 2>/dev/null; wait $H 2>/dev/null
+LW -d replica -c "alter role postgres set statement_timeout = '2min'"
+grep -q 'statement timeout' "$T/apply3b.log" && [ $rc != 0 ] && pass "a2 lock held longer than statement_timeout: server cancelled the tool after $((t1 - t0)) s (exit $rc)" || { fail "a2: rc=$rc"; tail -3 "$T/apply3b.log"; }
+snap r3c; o2 same "$T/r0.snap" "$T/r3c.snap" > /dev/null && pass "a2 after the cancelled attempt the replica is exactly pre-O2 (tool rolled back)" || fail "a2 cancelled attempt changed state"
 # (b) the migration's own COMMIT ends the tool's transaction, so the registry insert is separate: simulate 'SQL committed,
 #     row missing' and prove post fails and the contingency still restores the exact pre-O2 state
 "$PGBIN/psql" "$(U)" -X -q -v ON_ERROR_STOP=1 -f "$R/supabase/migrations/$NAME" >/dev/null 2>&1; snap r4

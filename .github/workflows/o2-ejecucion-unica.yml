@@ -72,13 +72,13 @@ jobs:
           n=$(grep -c '^PASS GATE\[O2\]' puerta-o2.log); f=$(grep -c '^FAIL' puerta-o2.log)
           echo "puerta O2: rc=$rc PASS=$n FAIL=$f"
           [ "$rc" -eq 0 ] && [ "$n" -eq 16 ] && [ "$f" -eq 0 ] && grep -q '^RESULT cierre: 0 FAIL' puerta-o2.log || { echo "::error::puerta O2 no está 16/16 en verde: no se ejecuta O2"; exit 1; }
-      - name: "3. Estado previo (solo lectura): 63 registradas, 120000 ausente, 548/41, marcadores t f f f, ACL, 0 jobs en curso, 0 bloqueos"
+      - name: "3. Estado previo (solo lectura): 63 registradas, 120000 ausente, 548/41, marcadores t f f f, ACL, 0 jobs en curso, 0 bloqueos, statement_timeout 2 min"
         run: |
           set -euo pipefail
           bash "$O2" snap "$DB_URL" pre.snap
           bash "$O2" pre pre.snap
           bash "$O2" probe
-      - name: "4. Ejecutar O2 (herramienta real, un solo archivo; lock_timeout 5 s)"
+      - name: "4. Ejecutar O2 (herramienta real, un solo archivo; límite: statement_timeout 2 min del rol)"
         id: exec
         run: bash "$O2" apply
       - name: "5. Verificación posterior: 64 registradas, marcador 120000 t, SECURITY DEFINER, ACL, 548/41, sin otros cambios, GATE_NEXT=O3 pasa"

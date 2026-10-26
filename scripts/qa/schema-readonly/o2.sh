@@ -6,7 +6,8 @@
 #   o2.sh pre   <snap>                the audited pre-O2 state (fails closed)
 #   o2.sh post  <pre-snap> <snap>     the expected post-O2 state
 #   o2.sh same  <pre-snap> <snap>     exactly the pre-O2 state again (after the contingency)
-#   o2.sh probe                       read-only: the session the tool opens really gets lock_timeout/statement_timeout
+#   o2.sh probe                       read-only: timeouts of the session the tool opens. The Supabase pooler drops startup
+#                                     options (PGOPTIONS), so lock_timeout stays 0; the bound is the role's statement_timeout.
 # The two commands that WRITE (target = the connection resolveConnection() / the URL given; the workflow points them at
 # production only after the gate and `pre` pass, the rehearsal only ever at its local replica):
 #   o2.sh apply                       the plan's real tool, one file: apply-supabase-migration.ts <NAME>
@@ -49,10 +50,12 @@ select 'trigger', count(*) || ':' || coalesce(string_agg(tgenabled::text || ':' 
 select 'other_functions_md5', md5(string_agg(p.oid::regprocedure::text || '=' || md5(pg_get_functiondef(p.oid)) || coalesce(p.proacl::text, ''), ',' order by p.oid::regprocedure::text))
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.prokind in ('f','p')
   and p.oid not in ('$TRG'::regprocedure, '$RPC'::regprocedure);
-select 'other_triggers_md5', md5(coalesce(string_agg(tgrelid::regclass::text || '.' || tgname || ':' || tgenabled || ':' || md5(pg_get_triggerdef(oid)), ',' order by 1), ''))
+select 'other_triggers_md5', md5(coalesce(string_agg(tgrelid::regclass::text || '.' || tgname || ':' || tgenabled::text || ':' || md5(pg_get_triggerdef(oid)), ',' order by 1), ''))
   from pg_trigger where not tgisinternal and tgname <> 'pi_documentary_resume_requires_budget';
 select 'tables_md5', md5(string_agg(c.relname || ':' || c.relkind || ':' || coalesce(c.relacl::text, '') || ':' || c.relrowsecurity, ',' order by c.relname))
   from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind in ('r','v','m','p');
+select 'acl_' || t, coalesce(c.relacl::text, 'NULL') from unnest(array['pi_recovery_resume_authorizations','pi_recovery_budgets','documentary_script_jobs']) t
+  join pg_class c on c.oid = to_regclass('public.' || t) order by 1;
 select 'jobs_active', count(*) from public.documentary_script_jobs where status in ('queued','running');
 select 'jobs_exhausted', count(*) from public.documentary_script_jobs where status = 'failed' and retry_count >= 3;
 select 'jobs_md5', md5(coalesce(string_agg(id::text || ':' || status || ':' || retry_count, ',' order by id), '')) from public.documentary_script_jobs;
@@ -70,7 +73,6 @@ R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
 MIG=$R/supabase/migrations/$NAME; RB=$R/supabase/proposals/${NAME%.sql}.rollback.sql; CT=$R/docs/ops/o2/O2_contingencia_registro.sql
 SHA_MIG=13dffaa6ec3639a4348f6005d8f590549af3b24a930b967e452894a3f44e9fbf; SHA_RB=89d82016f005de253d76e27bdcb0a176fdf3ea759316cb538f2789a024fa7d41
 SHA_CT=2c1eaee82303d62d3faafcfcb1dd14033fa848f40600f1ab5697d0548e3b7dbe
-export PGOPTIONS="-c lock_timeout=5s -c statement_timeout=120s"   # a lock wait on documentary_script_jobs aborts in 5 s instead of queueing traffic
 hashes() { [ "$(sha256sum < "$MIG" | cut -d' ' -f1)" = $SHA_MIG ] && cmp -s "$MIG" "$R/supabase/proposals/$NAME" && [ "$(sha256sum < "$RB" | cut -d' ' -f1)" = $SHA_RB ] \
   && [ "$(sha256sum < "$CT" | cut -d' ' -f1)" = $SHA_CT ] || { echo "FAIL O2 sha256 of the migration / rollback / contingency differs from the audited one"; exit 1; }; }
 TRG_ACL_PRE='{postgres=X/postgres,service_role=X/postgres}'
@@ -115,9 +117,10 @@ case "${1:-}" in
     for r in anon authenticated service_role; do for f in "$TRG" "$RPC"; do same_as restored $p $s "exec_${r}_$f"; done; done;;
   probe)
     out=$(cd "$R" && npx tsx -e 'import { connectResolved } from "./scripts/lib/supabase-db"; (async () => { const { client } = await connectResolved(); const r = await client.query("begin transaction read only; show lock_timeout; show statement_timeout; show transaction_read_only; rollback;"); console.log((r as any).filter((x: any) => x.rows?.length).map((x: any) => Object.values(x.rows[0])[0]).join(",")); await client.end(); })().catch((e) => { console.error(e.message); process.exit(1); })' 2>&1 | tail -1)
-    chk probe "$out" 5s,2min,on "lock_timeout,statement_timeout,transaction_read_only seen by the tool's own connection";;
+    echo "INFO probe: lock_timeout,statement_timeout,transaction_read_only on the tool's own connection = $out"
+    chk probe "$(echo "$out" | cut -d, -f2-)" "${EXPECT_STATEMENT_TIMEOUT:-2min},on" "statement_timeout (bounds any lock wait of the migration),read-only probe";;
   apply)
-    hashes; echo "apply: sha256 migration $SHA_MIG (== proposal), rollback $SHA_RB, contingency $SHA_CT"
+    hashes; echo "apply (no lock_timeout through the pooler; bound = statement_timeout): sha256 migration $SHA_MIG (== proposal), rollback $SHA_RB, contingency $SHA_CT"
     (cd "$R" && timeout 300 npx tsx scripts/apply-supabase-migration.ts "$NAME") 2>&1 | tee "${OUT:-.}/o2-apply.log"; rc=${PIPESTATUS[0]}
     chk apply "$rc" 0 "apply-supabase-migration.ts exit code"
     chk apply "$(grep -c "Resumen: 1 aplicada(s) \[$NAME\], 0 reconciliada(s)" "${OUT:-.}/o2-apply.log")" 1 "tool summary: exactly 1 applied ($NAME), 0 reconciled";;
