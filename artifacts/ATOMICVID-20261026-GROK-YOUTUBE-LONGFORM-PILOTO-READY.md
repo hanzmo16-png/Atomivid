@@ -65,7 +65,7 @@ In-repo protocol: `src/lib/orchestrator/protocol.ts` is Drive protocol v2. `docs
 
 | PR | Role | SHA | Base |
 | --- | --- | --- | --- |
-| This draft | Confirm/configure formula + Recraft phone CSS | branch `cursor/longform-confirm-budget-0fc3` (SHA after push) | `claude/atomivid-mvp-setup-0079jv` @ `762714e2` |
+| This draft | Confirm/configure formula + Recraft phone CSS | `0170dc4a5ccdf067a081aa3995091fac45a7becf` on `cursor/longform-confirm-budget-0fc3` | `claude/atomivid-mvp-setup-0079jv` @ `762714e2` |
 | [#223](https://github.com/hanzmo16-png/Atomivid/pull/223) | Claude Long Form technical close. Do not redo. | `23c25962ff0ea4457d051e1c53e446481ea987c4` | #207 @ `d8b203d665e62602cec5cb72620f03b5630edd12` |
 | [#224](https://github.com/hanzmo16-png/Atomivid/pull/224) | Integrated verification train. Do not merge. | `91da24bed1a536a6592bbae5fe59f4561d5fb9fd` | — |
 | [#225](https://github.com/hanzmo16-png/Atomivid/pull/225) | HeyGen. No further work. | Security `09891f0aad262b19a69f9c810d0a393fded104f5`. Docs HEAD `44a34680283d3638fa3666d2b68eaf733a1878b5` | production tip |
