@@ -169,3 +169,31 @@ Residual risks after both drafts merge and Hans deploys them:
 ---
 
 Coordinator one-liner: **NO-GO on atomicvid.app until Hans merges #223 and this draft; first paid doc 10–15 min, Proveedor actual, only if the on-screen worker subtotal is under USD 12.**
+
+## CI follow-up (2026-10-26)
+
+### Root cause of the red run on `032a8732`
+
+Evidence run [40393672741](https://github.com/hanzmo16-png/Atomivid/actions/runs/40393672741) and rescate [40393672725](https://github.com/hanzmo16-png/Atomivid/actions/runs/40393672725) failed the same unit: 2241 pass / 1 fail. Regression on [40393672667](https://github.com/hanzmo16-png/Atomivid/actions/runs/40393672667) failed the same class. Typecheck and e2e on that run passed.
+
+`confirm-production: v6 solo con cinematicV6 del servidor…` in `cinematic-v6-production.test.ts` calls `confirmLongFormProduction` with a Supabase fake that implemented `select` / `eq` / `is` / `maybeSingle` only. The new total-budget check calls `loadObservedMax`, whose real query is `pi_paid_operations` → `.eq` ×3 → `.order` → `.limit(1)`. The fake had no `.order`, so confirm fail-closed:
+
+`No se pudo comprobar el presupuesto total antes de confirmar (supabase.from(...).select(...).eq(...).eq(...).eq(...).order is not a function). No se confirmó ni se cobró nada.`
+
+That refusal is correct when the ledger cannot be read. It is the wrong result for this fixture, which has no script job and no billed calls. The visual-gate assertion (`/no puede iniciar todavía.*no se confirmó, reservó ni cobró nada/`) never ran. The v6 version lock was not loosened.
+
+Fix: the cinematic-v6 fake now answers `documentary_script_jobs` with no row and `pi_paid_operations` with the real `.order` / `.limit` chain and an empty bill list. Production still uses `loadObservedMax` unchanged. A query error or a subtotal over the ceiling still refuses confirm and writes nothing.
+
+### Checks on `032a8732` (before the fix)
+
+| Check | Result | Run |
+| --- | --- | --- |
+| typecheck | pass | https://github.com/hanzmo16-png/Atomivid/actions/runs/40393672667 |
+| e2e | pass | https://github.com/hanzmo16-png/Atomivid/actions/runs/40393672667 |
+| regression | fail | https://github.com/hanzmo16-png/Atomivid/actions/runs/40393672667 |
+| rescate | fail | https://github.com/hanzmo16-png/Atomivid/actions/runs/40393672725 |
+| evidence | fail | https://github.com/hanzmo16-png/Atomivid/actions/runs/40393672741 |
+| reel-budget | pass | https://github.com/hanzmo16-png/Atomivid/actions/runs/40393672680 |
+| director-output | pass | https://github.com/hanzmo16-png/Atomivid/actions/runs/40393672680 |
+
+The table for the fix SHA is appended when that commit’s checks finish. Pilot verdict stays **NO-GO** until #223 and #226 are merged and Hans does the first-run steps.
