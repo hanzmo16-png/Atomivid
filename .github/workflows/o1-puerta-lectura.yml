@@ -1,0 +1,52 @@
+# USD 0 · PRODUCCIÓN SOLO SE LEE. Puerta previa a O1 (conciliación A) con evidencia vigente, sin ejecutar O1:
+# cierre.sh en modo GATE_ONLY (cada sentencia en BEGIN TRANSACTION READ ONLY … ROLLBACK, sondeo de escritura rechazado,
+# pg_dump solo de esquema; no lee filas de datos), la puerta de la etapa siguiente (O2) debe fallar cerrada, y se
+# imprimen solo agregados (trabajos en curso, operaciones abiertas por estado, filas de pi_*, ACL de funciones).
+name: o1-puerta-lectura
+on:
+  push:
+    branches: [claude/o1-preparacion-lectura]
+    paths: [".github/workflows/o1-puerta-lectura.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  puerta-o1:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || 'aws-0-us-west-2.pooler.supabase.com' }}
+      SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Integridad SHA-256 de los scripts de conciliación (sin red)
+        run: sha256sum -c docs/ops/cierre/SHA256SUMS && sha256sum -c docs/ops/conciliacion/SHA256SUMS
+      - name: Pruebas unitarias de la puerta (todas las etapas y estados inesperados)
+        run: python3 -I scripts/qa/schema-readonly/gate_test.py
+      - name: PostgreSQL 17 (solo cliente psql/pg_dump)
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -yq postgresql-17
+          sudo systemctl stop postgresql || true
+      - name: Puerta O1 en vivo (GATE_ONLY, sin leer filas; producción solo lectura)
+        env: { OUT: "${{ github.workspace }}/cierre-out" }
+        run: set -o pipefail; GATE_ONLY=1 GATE_NEXT=O1 bash scripts/qa/schema-readonly/cierre.sh 2>&1 | tee puerta-o1.log
+      - name: Agregados vigentes (trabajos en curso, operaciones abiertas, filas pi_*, ACL)
+        if: always()
+        run: |
+          f=cierre-out/impact.txt; [ -f "$f" ] || exit 0
+          grep -E '^(session_read_only|inflight|prod_rows|prod_acl|impact130000|impact120000|impact140000)' "$f"
+      - name: La puerta de la etapa siguiente (O2) debe fallar cerrada hoy (O1 no hecho)
+        run: |
+          set -o pipefail
+          if GATE_ONLY=1 GATE_NEXT=O2 OUT="$PWD/cierre-out-o2" bash scripts/qa/schema-readonly/cierre.sh > puerta-o2.log 2>&1; then echo "::error::la puerta O2 pasó aunque O1 no se ejecutó"; exit 1; fi
+          grep -E '^(PASS|FAIL) GATE' puerta-o2.log
+          grep -q 'FAIL GATE\[O2\] O1 done' puerta-o2.log && echo "PASS la puerta O2 rechaza el estado de producción de hoy (O1 no hecho), como se espera"
