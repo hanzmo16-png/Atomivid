@@ -1,0 +1,112 @@
+# O1 — EJECUCIÓN ÚNICA autorizada por Hans (2026-10-26): registra en public._migrations_applied las 18 migraciones que
+# producción ya tiene. Solo docs/ops/cierre/A_register_migrations_applied.sql (sha256 577cd97b…e238e), una transacción.
+# NO ejecuta O2/O3, migraciones, merges, despliegues, flags, secretos, conciliación económica ni llamadas pagadas.
+# Solo workflow_dispatch (sin disparo por push). Una segunda ejecución no puede escribir: la puerta O1 exige que ningún
+# nombre esté registrado y el propio SQL aborta si alguno ya existe.
+# Rollback auditado (sha256 d171b00c…a088aa) SOLO si la verificación posterior falla y sus precondiciones se cumplen.
+name: o1-ejecucion-unica
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: o1-ejecucion-unica
+  cancel-in-progress: false
+jobs:
+  o1:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || 'aws-0-us-west-2.pooler.supabase.com' }}
+      SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
+      SQL_A: docs/ops/cierre/A_register_migrations_applied.sql
+      SQL_RB: docs/ops/cierre/A_register_migrations_applied.rollback.sql
+      SHA_A: 577cd97bb715bf145b6b283564ea7bf1889b45dc7c3c5bbf699fd603164e238e
+      SHA_RB: d171b00ce4992abc90cf2da250e5cbea57a9d38a46485270fe408052a4b088aa
+      PSQL: /usr/lib/postgresql/17/bin/psql
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: "1. SHA-256 exacto del SQL autorizado y del rollback (sin red)"
+        run: |
+          set -euo pipefail
+          echo "$SHA_A  $SQL_A" | sha256sum -c
+          echo "$SHA_RB  $SQL_RB" | sha256sum -c
+          sha256sum -c docs/ops/cierre/SHA256SUMS && sha256sum -c docs/ops/conciliacion/SHA256SUMS
+          grep -oE "'2026[0-9]{10}_[a-z0-9_]+\.sql'" "$SQL_A" | tr -d "'" | sort -u > names.txt
+          [ "$(wc -l < names.txt)" -eq 18 ] || { echo "::error::el SQL no contiene exactamente 18 nombres"; exit 1; }
+          cmp <(grep -oE "'2026[0-9]{10}_[a-z0-9_]+\.sql'" "$SQL_RB" | tr -d "'" | sort -u) names.txt
+          echo "OK SHA-256 y 18 nombres (A y rollback coinciden)"
+      - name: PostgreSQL 17 (solo cliente)
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -yq postgresql-17
+          sudo systemctl stop postgresql || true
+      - name: Conexión (enmascarada)
+        run: |
+          set -euo pipefail
+          URL=$(npx tsx -e 'import { resolveConnection } from "./scripts/lib/supabase-db"; const c = resolveConnection(); if (!c) { process.exit(3) } process.stdout.write(c.connectionString)')
+          echo "::add-mask::$URL"; PW=$(node -e 'const u=new URL(process.argv[1]); process.stdout.write(decodeURIComponent(u.password))' "$URL"); echo "::add-mask::$PW"
+          echo "DB_URL=$URL" >> "$GITHUB_ENV"
+      - name: "2. Puerta O1 inmediatamente antes (exige 17/17 verdes y 0 FAIL)"
+        env: { OUT: "${{ github.workspace }}/cierre-pre" }
+        run: |
+          set +e -o pipefail
+          GATE_ONLY=1 GATE_NEXT=O1 bash scripts/qa/schema-readonly/cierre.sh 2>&1 | tee puerta-o1.log; rc=${PIPESTATUS[0]}
+          n=$(grep -c '^PASS GATE\[O1\]' puerta-o1.log); f=$(grep -c '^FAIL' puerta-o1.log)
+          echo "puerta O1: rc=$rc PASS=$n FAIL=$f"
+          [ "$rc" -eq 0 ] && [ "$n" -eq 17 ] && [ "$f" -eq 0 ] && grep -q '^RESULT cierre: 0 FAIL' puerta-o1.log || { echo "::error::puerta O1 no está 17/17 en verde: no se ejecuta O1"; exit 1; }
+      - name: "Estado previo (solo lectura): 45 registradas, 548 pi_paid_operations, 41 abiertas, ninguno de los 18"
+        run: |
+          set -euo pipefail
+          q(){ printf 'begin transaction read only;\n%s\nrollback;\n' "$1" | "$PSQL" "$DB_URL" -X -qAt -v ON_ERROR_STOP=1; }
+          inlist="'$(paste -sd, names.txt | sed "s/,/','/g")'"
+          a=$(q "select count(*) from public._migrations_applied;"); p=$(q "select count(*) from public.pi_paid_operations;")
+          o=$(q "select count(*) from public.pi_paid_operations where status in ('RESERVED','SUBMITTED','PROVIDER_JOB_RECORDED','RECONCILIATION_REQUIRED');")
+          x=$(q "select count(*) from public._migrations_applied where name in ($inlist);")
+          echo "pre: _migrations_applied=$a pi_paid_operations=$p abiertas=$o de_los_18=$x"
+          [ "$a" = 45 ] && [ "$p" = 548 ] && [ "$o" = 41 ] && [ "$x" = 0 ] || { echo "::error::el estado previo no coincide con el auditado: no se ejecuta O1"; exit 1; }
+          echo "PRE_OPEN=$o" >> "$GITHUB_ENV"
+      - name: "3. Ejecutar O1 (una sola transacción: begin … commit del propio archivo, ON_ERROR_STOP)"
+        id: exec
+        run: |
+          set -euo pipefail
+          "$PSQL" "$DB_URL" -X -v ON_ERROR_STOP=1 -f "$SQL_A"
+          echo "O1 ejecutado (commit)"
+      - name: "4-5. Verificación posterior: 18/18 registradas, total 63, pi_paid_operations 548, 41 abiertas, GATE_NEXT=O2 pasa"
+        id: verify
+        env: { OUT: "${{ github.workspace }}/cierre-post" }
+        run: |
+          set +e -uo pipefail
+          q(){ printf 'begin transaction read only;\n%s\nrollback;\n' "$1" | "$PSQL" "$DB_URL" -X -qAt -v ON_ERROR_STOP=1; }
+          inlist="'$(paste -sd, names.txt | sed "s/,/','/g")'"
+          a=$(q "select count(*) from public._migrations_applied;"); p=$(q "select count(*) from public.pi_paid_operations;")
+          o=$(q "select count(*) from public.pi_paid_operations where status in ('RESERVED','SUBMITTED','PROVIDER_JOB_RECORDED','RECONCILIATION_REQUIRED');")
+          x=$(q "select count(*) from public._migrations_applied where name in ($inlist);")
+          echo "post: _migrations_applied=$a pi_paid_operations=$p abiertas=$o de_los_18=$x"
+          ok=1; [ "$x" = 18 ] || ok=0; [ "$a" = 63 ] || ok=0; [ "$p" = 548 ] || ok=0; [ "$o" = "$PRE_OPEN" ] || ok=0
+          g=0; GATE_ONLY=1 GATE_NEXT=O2 bash scripts/qa/schema-readonly/cierre.sh > puerta-o2.log 2>&1 || g=$?
+          grep -E '^(PASS|FAIL) GATE|^RESULT' puerta-o2.log
+          [ "$g" -eq 0 ] && ! grep -q '^FAIL' puerta-o2.log || ok=0
+          [ $ok = 1 ] && echo "VERIFICACION POSTERIOR: OK" || { echo "::error::verificación posterior fallida"; exit 1; }
+      - name: "6. Rollback auditado (solo si la verificación posterior falló y se cumplen sus precondiciones)"
+        if: failure() && steps.exec.outcome == 'success' && steps.verify.outcome == 'failure'
+        run: |
+          set -euo pipefail
+          echo "$SHA_RB  $SQL_RB" | sha256sum -c
+          q(){ printf 'begin transaction read only;\n%s\nrollback;\n' "$1" | "$PSQL" "$DB_URL" -X -qAt -v ON_ERROR_STOP=1; }
+          inlist="'$(paste -sd, names.txt | sed "s/,/','/g")'"
+          x=$(q "select count(*) from public._migrations_applied where name in ($inlist);"); a=$(q "select count(*) from public._migrations_applied;")
+          echo "precondición rollback: de_los_18=$x total=$a (se exige 18 y 63)"
+          [ "$x" = 18 ] && [ "$a" = 63 ] || { echo "::error::precondiciones del rollback NO se cumplen: no se aplica; detener y avisar a Hans"; exit 1; }
+          "$PSQL" "$DB_URL" -X -v ON_ERROR_STOP=1 -f "$SQL_RB"
+          x=$(q "select count(*) from public._migrations_applied where name in ($inlist);"); a=$(q "select count(*) from public._migrations_applied;")
+          echo "tras rollback: de_los_18=$x total=$a"; [ "$x" = 0 ] && [ "$a" = 45 ] || { echo "::error::rollback no dejó el estado inicial"; exit 1; }
+          echo "::error::O1 revertido por fallo de la verificación posterior"; exit 1
