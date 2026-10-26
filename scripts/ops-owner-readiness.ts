@@ -35,8 +35,8 @@ async function main() {
   }
   const pol = await db.from("pi_supply_policies").select("provider,enabled,unit,daily_cap_usd,monthly_cap_usd,max_concurrent,max_daily_calls").order("provider");
   log("POLICY", pol.data ?? pol.error?.code);
-  const open = await db.from("pi_paid_operations").select("provider,status,reserved_usd").not("status", "in", "(COMMITTED,RELEASED)").limit(1000);
-  const byP: Record<string, { n: number; usd: number; statuses: Record<string, number> }> = {};
+  const open = await db.from("pi_paid_operations").select("provider,status,reserved_usd").not("status", "in", "(COMMITTED,RELEASED,REFUNDED)").limit(1000);
+  const byP: Record<string, { n: number; usd: number; statuses: Record<string, number> }> = {}; // REFUNDED is terminal (money back): excluded below
   for (const o of open.data ?? []) { const k = o.provider ?? "?"; byP[k] ??= { n: 0, usd: 0, statuses: {} }; byP[k].n++; byP[k].usd = Math.round((byP[k].usd + Number(o.reserved_usd ?? 0)) * 1e4) / 1e4; byP[k].statuses[o.status] = (byP[k].statuses[o.status] ?? 0) + 1; }
   log("LEDGER", { openOrUncertain: open.data?.length ?? null, byProvider: byP, error: open.error?.code ?? null });
   const rb = await db.from("pi_recovery_budgets").select("status,cap_usd,created_at").order("created_at", { ascending: false }).limit(10);
