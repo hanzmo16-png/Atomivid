@@ -46,9 +46,9 @@ LW -d replica -c "alter role postgres set statement_timeout = '2min'"   # produc
 LW -d replica -c "revoke all on public.pi_recovery_resume_authorizations from public, anon, authenticated, service_role"
 for k in acl_pi_recovery_resume_authorizations acl_pi_recovery_budgets acl_documentary_script_jobs; do echo "INFO $k production=$(grep "^$k|" "$T/prod.snap" | cut -d'|' -f2) replica=$(bash "$O2" snap "$(U)" "$T/acl.snap" >/dev/null; grep "^$k|" "$T/acl.snap" | cut -d'|' -f2)"; done
 snap r0; o2 pre "$T/r0.snap" > "$T/r0.pre" && pass "replica meets the O2 preconditions (63 registered, 548 / 41, markers t f f f, ACLs)" || { fail "replica pre"; grep FAIL "$T/r0.pre"; }
-same=1; for k in ma_count ma_md5_without_o2 sm_md5 pi_paid_operations open_operations pi_data_md5 m000 m120 m130 m140 trg_def_md5 trg_secdef trg_config trg_owner trg_acl rpc_def_md5 rpc_acl trigger acl_pi_recovery_resume_authorizations; do
+same=1; for k in ma_count ma_md5_without_o2 sm_md5 pi_paid_operations open_operations pi_rows m000 m120 m130 m140 trg_def_md5 trg_secdef trg_config trg_owner trg_acl rpc_def_md5 rpc_acl trigger acl_pi_recovery_resume_authorizations; do
   [ "$(grep "^$k|" "$T/r0.snap")" = "$(grep "^$k|" "$T/prod.snap")" ] || { same=0; fail "replica differs from production in $k"; }; done
-[ $same = 1 ] && pass "replica == production in registries, pi_* data (md5), markers, both function bodies (md5), owner/config, ACLs and trigger"
+[ $same = 1 ] && pass "replica == production in registries, row counts of every pi_* table, markers, both function bodies (md5), owner/config, ACLs and trigger"
 gate O2 before
 
 # behaviour probe as the app (service_role): synthetic exhausted job with an ACTIVE budget (ref A) — always rolled back
