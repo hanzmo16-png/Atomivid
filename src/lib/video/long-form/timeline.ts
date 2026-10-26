@@ -11,7 +11,6 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import ffprobe from "@ffprobe-installer/ffprobe";
 import type { ScriptLanguage, VoiceProvider, WordTiming } from "@/lib/providers/types";
 import { shotsForSpan, type VisualStrategy } from "./shots";
 import type { BeatVisual } from "./visual-intents";
@@ -88,39 +87,6 @@ export function stitchNarrationParts(parts: NarrationPart[]): NarrationPart {
   return { audioBuffer: buffer, mimeType, extension, durationSeconds: offset, words };
 }
 
-/**
- * Duración REAL del audio (no la que declara el proveedor). ElevenLabs informa el final del último carácter
- * (voice.ts), pero su MP3 dura más: silencio final y relleno del codificador. Como las partes se concatenan con
- * `-c copy`, usar la cifra declarada desplazaba cada beat siguiente y la voz acababa segundos por detrás de escenas
- * y subtítulos (y el render cortaba el final). WAV: exacto desde la cabecera; otros formatos: ffprobe.
- * null si no se puede medir (se conserva entonces la cifra del proveedor).
- */
-export function measureAudioSeconds(buffer: Buffer, extension: string): number | null {
-  if (extension.toLowerCase() === "wav") {
-    try {
-      const w = parseWav(buffer);
-      const bytesPerSecond = w.sampleRate * w.numChannels * (w.bitsPerSample / 8);
-      return bytesPerSecond > 0 ? w.pcm.length / bytesPerSecond : null;
-    } catch { return null; }
-  }
-  const dir = mkdtempSync(join(tmpdir(), "atomivid-longform-probe-"));
-  try {
-    const file = join(dir, `a.${extension}`);
-    writeFileSync(file, buffer);
-    const r = spawnSync(process.env.FFPROBE_BIN || ffprobe.path, ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", file], { encoding: "utf8", timeout: 15000 });
-    const seconds = r.status === 0 ? Number(String(r.stdout).trim()) : NaN;
-    return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
-  } catch { return null; } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-}
-
-/** La parte con su duración real medida (los tiempos por palabra son relativos a su propio inicio y no cambian). */
-export function withMeasuredDuration<T extends NarrationPart>(part: T): T {
-  const measured = measureAudioSeconds(part.audioBuffer, part.extension);
-  return measured === null ? part : { ...part, durationSeconds: measured };
-}
-
 export type BeatNarrationResult = NarrationPart & { beatId: string };
 
 /** Sintetiza la narración de UN beat (partiéndola de forma segura si hiciera falta) con el VoiceProvider ya existente — real o fixture, sin distinción aquí. */
@@ -133,13 +99,13 @@ export async function synthesizeBeatNarration(
   const parts: NarrationPart[] = [];
   for (const chunk of chunks) {
     const result = await voiceProvider.synthesize(chunk, language);
-    parts.push(withMeasuredDuration({
+    parts.push({
       audioBuffer: result.audioBuffer,
       mimeType: result.mimeType,
       extension: result.extension,
       durationSeconds: result.durationSeconds,
       words: result.words,
-    }));
+    });
   }
   const stitched = stitchNarrationParts(parts);
   return { beatId: beat.id, ...stitched };
@@ -209,8 +175,7 @@ export async function buildLongFormTimeline(
 
   const perBeat: BeatNarrationResult[] = [];
   for (const beat of beats) {
-    // También lo que llega del caché de voz (guardado con la duración declarada por el proveedor).
-    perBeat.push(withMeasuredDuration(await synthesizeBeat(voiceProvider, beat, language)));
+    perBeat.push(await synthesizeBeat(voiceProvider, beat, language));
   }
 
   const finalBeats: NarrativeBeat[] = [];
