@@ -110,8 +110,10 @@ test("A2-7 autorización: precio no verificado bloquea; un reintento NUNCA ampl�
   const retry = await authorizeRequestBudget({ requestId: REQ, stages: stages({ voice: 5, images: 5 }), contingencyPct: 20, hardMaxUsd: 100, ledgerScopes: [REQ], store });
   assert.equal(retry.ceilingUsd, 2.4, "el reintento no amplía");
   assert.equal(store.rows.get(REQ)!.ceilingUsd, 2.4, "la autorización guardada no se sobrescribe");
-  const capped = await authorizeRequestBudget({ requestId: "r2", stages: stages({ voice: 30 }), hardMaxUsd: 12, ledgerScopes: ["r2"], store });
-  assert.equal(capped.ceilingUsd, 12, "nunca por encima del techo de producto");
+  // Etapas que no caben en el techo de producto: se rechaza antes de pagar (antes se recortaba a 12 en silencio).
+  await assert.rejects(authorizeRequestBudget({ requestId: "r2", stages: stages({ voice: 30 }), hardMaxUsd: 12, ledgerScopes: ["r2"], store }), RequestBudgetNotAuthorizedError);
+  const capped = await authorizeRequestBudget({ requestId: "r3", stages: stages({ voice: 11 }), hardMaxUsd: 12, ledgerScopes: ["r3"], store });
+  assert.equal(capped.ceilingUsd, 12, "nunca por encima del techo de producto (solo se recorta la contingencia)");
 });
 
 test("A2-8 fail-closed: un ledger que no permite sumar el gasto del pedido no paga; operaciones de otro pedido se rechazan", async () => {
@@ -134,4 +136,15 @@ test("A2-9 reintento con autorización previa: un hardMax reducido siempre se ap
   const raised = await authorizeRequestBudget({ requestId: REQ, stages: stages({ music: null }), hardMaxUsd: 100, ledgerScopes: [REQ], store });
   assert.equal(raised.ceilingUsd, 2.4, "subir el techo del entorno no amplía la autorización guardada");
   assert.equal(store.rows.get(REQ)!.ceilingUsd, 2.4, "la autorización guardada no se reescribe");
+});
+
+test("A2-10 las etapas sin contingencia no caben en el techo de producto: se rechaza ANTES de pagar (no se recorta en silencio)", async () => {
+  const store = memoryAuthorizationStore();
+  // 12.14 de etapas frente a un techo de 12: recortar autorizaría menos de lo que el plan necesita.
+  await assert.rejects(authorizeRequestBudget({ requestId: REQ, stages: stages({ voice: 6.14, images: 6 }), contingencyPct: 20, hardMaxUsd: 12, ledgerScopes: [REQ], store }),
+    (e: unknown) => e instanceof RequestBudgetNotAuthorizedError && /subtotal_exceeds_ceiling:12\.14>12\.00/.test(e.message));
+  assert.equal(store.rows.size, 0, "nothing authorized");
+  // Etapas 11 (caben); solo la contingencia se recorta: 13.2 → 12.
+  const ok = await authorizeRequestBudget({ requestId: REQ, stages: stages({ voice: 5, images: 6 }), contingencyPct: 20, hardMaxUsd: 12, ledgerScopes: [REQ], store });
+  assert.equal(ok.ceilingUsd, 12);
 });

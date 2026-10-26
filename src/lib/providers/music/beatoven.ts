@@ -108,8 +108,10 @@ async function waitForTrack(taskId: string): Promise<string> {
     if (Date.now() > deadline) {
       throw new MusicProviderError(`Tiempo de espera agotado sondeando la composición de Beatoven (${POLL_TIMEOUT_MS}ms)`);
     }
+    // El sondeo es gratuito: con límite por petición, el plazo global se cumple aunque una consulta se cuelgue.
     const response = await fetch(`${BEATOVEN_API_BASE}/api/v1/tasks/${taskId}`, {
       headers: { Authorization: `Bearer ${getApiKey()}` },
+      signal: AbortSignal.timeout(30_000),
     });
     if (!response.ok) {
       throw new MusicProviderError(`Beatoven respondió HTTP ${response.status} al consultar la tarea`);
@@ -141,7 +143,7 @@ export const beatovenMusicProvider: MusicProvider = {
 
     let res: Response;
     try {
-      res = await fetch(trackUrl);
+      res = await fetch(trackUrl, { signal: AbortSignal.timeout(120_000) });
     } catch (err) {
       const message = err instanceof Error ? err.message : "error de red desconocido";
       throw new MusicDownloadError(`No se pudo descargar la pista de Beatoven: ${message}`);
