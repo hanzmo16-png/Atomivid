@@ -196,4 +196,18 @@ Fix: the cinematic-v6 fake now answers `documentary_script_jobs` with no row and
 | reel-budget | pass | https://github.com/hanzmo16-png/Atomivid/actions/runs/40393672680 |
 | director-output | pass | https://github.com/hanzmo16-png/Atomivid/actions/runs/40393672680 |
 
-The table for the fix SHA is appended when that commit’s checks finish. Pilot verdict stays **NO-GO** until #223 and #226 are merged and Hans does the first-run steps.
+### Checks on the fix `17fa2ee1d41a98aa969f6cb8c818b3326842e9bf`
+
+All required checks passed on code SHA `17fa2ee1d41a98aa969f6cb8c818b3326842e9bf`. `director-worker-e2e` skipped, same as on the red run. PR #226 stayed a draft. A later docs-only commit only records this table; it does not replace the result on that SHA.
+
+| Check | Result | Run |
+| --- | --- | --- |
+| typecheck | pass | https://github.com/hanzmo16-png/Atomivid/actions/runs/40396321110 |
+| regression | pass | https://github.com/hanzmo16-png/Atomivid/actions/runs/40396321110 |
+| e2e | pass | https://github.com/hanzmo16-png/Atomivid/actions/runs/40396321110 |
+| rescate | pass | https://github.com/hanzmo16-png/Atomivid/actions/runs/40396321172 |
+| evidence | pass | https://github.com/hanzmo16-png/Atomivid/actions/runs/40396321196 |
+| reel-budget | pass | https://github.com/hanzmo16-png/Atomivid/actions/runs/40396321124 |
+| director-output | pass | https://github.com/hanzmo16-png/Atomivid/actions/runs/40396321124 |
+
+Pilot verdict stays **NO-GO** until #223 and #226 are merged and Hans does the first-run steps. This green CI is the unit and fixture suite on the draft, not a paid production run.
