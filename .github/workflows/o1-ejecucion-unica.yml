@@ -1,12 +1,16 @@
 # O1 — EJECUCIÓN ÚNICA autorizada por Hans (2026-10-26): registra en public._migrations_applied las 18 migraciones que
 # producción ya tiene. Solo docs/ops/cierre/A_register_migrations_applied.sql (sha256 577cd97b…e238e), una transacción.
 # NO ejecuta O2/O3, migraciones, merges, despliegues, flags, secretos, conciliación económica ni llamadas pagadas.
-# Solo workflow_dispatch (sin disparo por push). Una segunda ejecución no puede escribir: la puerta O1 exige que ningún
+# Solo se ejecuta con workflow_dispatch; el push solo registra el workflow (job omitido). Una segunda ejecución no puede escribir: la puerta O1 exige que ningún
 # nombre esté registrado y el propio SQL aborta si alguno ya existe.
 # Rollback auditado (sha256 d171b00c…a088aa) SOLO si la verificación posterior falla y sus precondiciones se cumplen.
 name: o1-ejecucion-unica
 on:
   workflow_dispatch:
+  # Solo para que GitHub registre el workflow (vive fuera de la rama por defecto): en push el job se OMITE.
+  push:
+    branches: [claude/o1-ejecucion-unica]
+    paths: [".github/workflows/o1-ejecucion-unica.yml"]
 permissions:
   contents: read
 concurrency:
@@ -14,6 +18,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   o1:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
