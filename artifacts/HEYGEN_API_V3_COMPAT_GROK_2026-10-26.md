@@ -144,3 +144,77 @@ Revertir el commit de esta rama. No hay migración, flag ni secreto que deshacer
 **GO para revisión humana de este borrador. NO-GO para fusión, despliegue, registro de webhooks o cualquier generación real.**
 
 La revisión puede leer el diff y las pruebas simuladas. No puede dar por compatible la cuenta de HeyGen en producción.
+
+El apartado siguiente es la auditoría de seguridad del 2026-10-26. El código que mide es `09891f0aad262b19a69f9c810d0a393fded104f5`. El veredicto de este apartado queda sustituido por el de esa auditoría.
+
+## Auditoría de seguridad — 2026-10-26
+
+Autor: Grok Bot / Grok. Pase independiente sobre el borrador #225. No repite el inventario de compatibilidad que ya estaba en GO para `74ea629bd5835ed1689a47fd345bd3e98d375a02`. Hans (t321u) autorizó el pase. Sigue en USD 0: sin llamadas de pago, sin alta de webhooks, sin fusionar, sin desplegar, sin tocar secretos, ledger ni las ramas #199, #221, #222 y #223.
+
+El párrafo del webhook de más arriba describe `74ea629`. En `09891f0` el header `X-Atomivid-Webhook-Secret` ya no sustituye la firma cuando `HEYGEN_WEBHOOK_SECRET` está configurado.
+
+### Qué se corrigió
+
+1. **La firma oficial ya no se puede saltar.** Si el proveedor es `heygen` y `HEYGEN_WEBHOOK_SECRET` existe, la ruta exige HMAC-SHA256 del cuerpo crudo. Un header propio correcto, sin firma, responde 401 (`src/app/api/webhooks/avatar/[provider]/route.ts:40-48`). Sin ese secreto, el header propio sigue siendo la única autenticación: es el comportamiento anterior, no una clave inventada.
+2. **La comparación del secreto propio es de tiempo constante.** `verifyWebhookSecret` compara digests SHA-256 con `timingSafeEqual` (`src/lib/video/avatar/webhook.ts:14-18`). Antes usaba `===`.
+3. **Un listado inconcluso no prueba ausencia.** `has_more` tiene que ser booleano (`src/lib/ops/provider-config.ts:170-173`). Un video con `created_at` nulo —válido en el esquema VideoDetail— deja `failure: "incomplete"` y `heygenAbsenceClaimAllowed` impide rellenar la ventana (`:176-181`, aplicado en `:225` y `:247-250`). El probe no escribe reembolsos.
+
+### Webhook
+
+| Control | Resultado | Evidencia |
+|---|---|---|
+| HMAC-SHA256 del cuerpo crudo, no del JSON re-serializado | Pasa | `verifyHeygenWebhookSignature` firma `rawBody` (`src/lib/video/avatar/webhook.ts:27-31`). La ruta hace `request.text()` y después `JSON.parse` de esa cadena (`route.ts:44` y `:58`). Prueba: cuerpo con espacios cuya firma re-serializada no coincide. |
+| Firma inválida, ausente o de otro cuerpo | Pasa, 401 | `route.ts:45-46`. La convención del código es 401 también si falta el header `signature`. El ejemplo oficial usa 400 para la firma ausente; aquí se mantiene 401. |
+| Ruta alterna de autenticación | Pasa tras el arreglo | Con `HEYGEN_WEBHOOK_SECRET`, el header propio no autentica. Sin ese secreto, el header propio sigue valiendo solo para no dejar mudo el receptor. No se registra ni se rota ningún secreto. |
+| Duplicado | Pasa, con hueco | La idempotencia es el rango de estado sobre `avatar_provider_video_job_id` (`webhook.ts:45`, UPDATE en `route.ts:70-73`). No hay clave única de `event_id`. El handler solo escribe `avatar_render_status`. No toca el ledger. Repetir `completed` o mandar `fail` después no retrocede. |
+| Evento tardío / ventana de reloj | Residual, bajo | El payload oficial `avatar_video.success` no trae marca de tiempo firmada (https://developers.heygen.com/docs/webhook-events y https://developers.heygen.com/docs/webhooks, leídas el 2026-10-26). No se inventó una ventana. Una firma capturada sigue siendo válida. Un segundo estado terminal no sustituye al primero: `completed` y `failed` comparten rango 2. El sondeo `GET /v3/videos/{id}` sigue siendo quien completa el video en el pipeline. |
+| Fuga de secreto | Pasa | Las respuestas son `unauthorized`, `unrecognized payload` o `internal error`. El log es el id del job y `error.message` de Supabase (`route.ts:76`). Los fixtures usan `whsec_simulated_only` y `s3cret`. |
+
+### Conciliación y bigfoot
+
+| Caso | Resultado | Evidencia |
+|---|---|---|
+| HTTP 401/403/500, transporte, cursor repetido, página a medias, tope de 20 | Pasa | `failure` queda puesto y el probe sale antes de `uncertain` (`provider-config.ts:212-223` y `:247-250`). |
+| `has_more` ausente, incluida una página vacía | Corregido | No es una cuenta vacía (`:170-173`). |
+| `created_at` nulo | Corregido | No desaparece de la ventana como si el video no existiera (`:176-181`). |
+| `{ data: [], has_more: false }` | Permitido | Es una lista terminada y vacía. El probe puede mostrar una ventana vacía. No escribe `REFUNDED`. |
+| `scripts/bigfoot-recovery-ops.ts` `heygenReconcile` | Residual, fuera de alcance | Líneas 641-650 marcan una operación histórica fija (`9d3aab346a`, `2026-10-02T15:49:51`) como `REFUNDED` con `committed_usd: 0` y `result_ref: reconciled:heygen-video-list-no-video-in-window`. No lee `failure` ni `listed`. No se ejecutó y no se modificó. **NO-GO para lanzar el modo `heygen-reconcile`.** El modo `provider-config` solo imprime el probe (`:675`). |
+
+### Conflictos con #199, #221, #222 y #223
+
+Nadie cambia `package-lock.json`. El blob en la base y en los cuatro borradores es `bda44ea31f581f677f287550445aa68c6d115fdc`. Las dependencias no cambian. El choque es la cadena única `test:unit`.
+
+| PR | Base del PR | Qué añade a `test:unit` | Resolución |
+|---|---|---|---|
+| #199 `claude/documental-cinematografico` | `claude/atomivid-mvp-setup-0079jv` | 4 pruebas de Long Form / música, y cambia `test:editorial` | Conservar sus scripts. Unir las rutas de test. |
+| #221 `claude/ensayo-tren-202-203` | la misma base | Esas 4, más podcast y onboarding, más `test:podcast3` y `podcast3:demo` | Igual. Su lista ya cubre las rutas de #199. |
+| #222 `claude/podcast-estudio-tope-ui` | `claude/pr200-sobre-201-199` | Nada en el diff propio | No hay resolución de `package.json` contra #225. |
+| #223 `claude/longform-arreglos-pendientes` | `claude/pr200-sobre-201-199` | `voice-timeout` y `exhausted-attempt` | Unir esas dos rutas con las de #225. |
+| #225 | `claude/atomivid-mvp-setup-0079jv` | `heygen-v3-list.test.ts` y `heygen-v3-compat.test.ts` | Conservar las dos. |
+
+Ningún lado debe ganar la línea entera. #225 no se rebasó sobre esas ramas. Cuando el tren entre, hay que quedarse con la unión de todas las rutas.
+
+### CI del código `09891f0aad262b19a69f9c810d0a393fded104f5`
+
+Ocho comprobaciones, ninguna en fallo. `director-worker-e2e` quedó skipping. La vista previa de Vercel la disparó la integración Git; no se promovió a producción. Este apartado es documentación y no cambia ese código.
+
+| Comprobación | Resultado | URL |
+|---|---|---|
+| typecheck | pass (54s) | https://github.com/hanzmo16-png/Atomivid/actions/runs/40378503074/job/121768024136 |
+| regression | pass (5m48s) | https://github.com/hanzmo16-png/Atomivid/actions/runs/40378503074/job/121768024273 |
+| e2e | pass (1h7m26s) | https://github.com/hanzmo16-png/Atomivid/actions/runs/40378503074/job/121768023748 |
+| rescate | pass (3m0s) | https://github.com/hanzmo16-png/Atomivid/actions/runs/40378503105/job/121768023379 |
+| evidence | pass (6m33s) | https://github.com/hanzmo16-png/Atomivid/actions/runs/40378503056/job/121768023387 |
+| director-worker-e2e | skipping | https://github.com/hanzmo16-png/Atomivid/actions/runs/40378503056/job/121768025713 |
+| Vercel preview | pass | https://vercel.com/atomivid/atomivid/FAkX1AUhCjZoNpCZVerzQSww8SCJ |
+| Vercel Preview Comments | pass | https://github.com/hanzmo16-png/Atomivid/runs/121769048037 |
+
+Corridas: [podcast-2-1-e2e](https://github.com/hanzmo16-png/Atomivid/actions/runs/40378503074), [E2E fixture evidence](https://github.com/hanzmo16-png/Atomivid/actions/runs/40378503056), [rescate](https://github.com/hanzmo16-png/Atomivid/actions/runs/40378503105).
+
+Pruebas locales de este SHA, antes del push: `npx tsc --noEmit` 0, eslint de los archivos tocados 0, 37/37 en webhook y listado. No se relanzó `npm run test:unit` entero.
+
+### Veredicto de la auditoría
+
+**GO para revisión humana del borrador. NO-GO para fusión, despliegue, alta de webhooks y para ejecutar `heygen-reconcile`.**
+
+Queda abierto, a propósito: sin `HEYGEN_WEBHOOK_SECRET` el header propio sigue autenticando; no hay ventana de reloj porque HeyGen no firma una marca de tiempo; no hay unicidad de `event_id`; el reembolso histórico de bigfoot no consulta este probe. Ninguno de esos puntos marca una operación como impaga desde el código de #225.
