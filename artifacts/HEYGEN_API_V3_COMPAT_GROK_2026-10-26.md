@@ -75,9 +75,11 @@ No se tocaron las ramas de los PR #199, #221, #222 ni #223. No hay migraciones, 
 
 Base: `762714e2ff3d19a62d2c705b7487ff9a364677e7`.
 
-Código medido por CI: `74ea629bd5835ed1689a47fd345bd3e98d375a02`.
+Código de la compatibilidad, CI ya terminal: `74ea629bd5835ed1689a47fd345bd3e98d375a02`.
 
-Este anexo no cambia código. El HEAD posterior, si existe, es solo esta tabla de CI; su SHA exacto está en el cuerpo de la PR #225.
+Código de la auditoría de seguridad, CI ya terminal: `09891f0aad262b19a69f9c810d0a393fded104f5`.
+
+El apartado de seguridad de este archivo es documentación. No cambia `09891f0`. El HEAD del informe está en el cuerpo de la PR #225.
 
 ## Pruebas
 
