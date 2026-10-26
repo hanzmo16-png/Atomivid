@@ -75,7 +75,9 @@ No se tocaron las ramas de los PR #199, #221, #222 ni #223. No hay migraciones, 
 
 Base: `762714e2ff3d19a62d2c705b7487ff9a364677e7`.
 
-El SHA del HEAD de esta rama no puede imprimirse dentro del commit que contiene esta frase y seguir siendo verdadero. El cuerpo del PR copia `git rev-parse HEAD` después del push. Esa es la cifra de entrega.
+Código medido por CI: `74ea629bd5835ed1689a47fd345bd3e98d375a02`.
+
+Este anexo no cambia código. El HEAD posterior, si existe, es solo esta tabla de CI; su SHA exacto está en el cuerpo de la PR #225.
 
 ## Pruebas
 
@@ -96,7 +98,24 @@ Todas simuladas. Ninguna afirma que HeyGen en vivo aceptó el contrato.
 
 Controles negativos: presupuesto o audio ausente siguen fallando antes de la red (`heygen.test.ts`); un POST ambiguo no se repite; la firma HMAC incorrecta responde 401; un evento GIF firmado no actualiza el job.
 
-Comandos locales (USD 0): `npm run lint` (0), `npx next typegen && npx tsc --noEmit` (0 tras generar tipos), y la batería focal HeyGen/webhook/provider-config (43 pruebas, 0 fallos). `npm run test:unit` y el CI se anotan en el PR cuando terminan. Si el CI queda rojo, la causa se escribe allí; no se declara verde por anticipado.
+Comandos locales (USD 0): `npm run lint` (0), `npx next typegen && npx tsc --noEmit` (0 tras generar tipos), batería focal HeyGen/webhook/provider-config (43/43) y `npm run test:unit` (2256/2256). Una corrida previa dentro de tmux falló solo `scripts/av-qc.test.ts` por `libncurses` de ese entorno; fuera de tmux pasa. No es un cambio de HeyGen.
+
+### CI final en `74ea629bd5835ed1689a47fd345bd3e98d375a02`
+
+Todas las comprobaciones que corrieron terminaron en pass. `director-worker-e2e` quedó skipping (no se ejecutó). La vista previa de Vercel la disparó la integración Git del repositorio; no se promovió a producción.
+
+| Comprobación | Resultado | URL |
+|---|---|---|
+| typecheck | pass (45s) | https://github.com/hanzmo16-png/Atomivid/actions/runs/40367244000/job/121728148912 |
+| regression | pass (5m48s) | https://github.com/hanzmo16-png/Atomivid/actions/runs/40367244000/job/121728147983 |
+| e2e | pass (18m29s) | https://github.com/hanzmo16-png/Atomivid/actions/runs/40367244000/job/121728148396 |
+| rescate | pass (2m55s) | https://github.com/hanzmo16-png/Atomivid/actions/runs/40367244200/job/121728148904 |
+| evidence | pass (9m58s) | https://github.com/hanzmo16-png/Atomivid/actions/runs/40367244016/job/121728147570 |
+| director-worker-e2e | skipping | https://github.com/hanzmo16-png/Atomivid/actions/runs/40367244016/job/121728150189 |
+| Vercel preview | pass | https://vercel.com/atomivid/atomivid/HmwCwm3eUs6JaSdFiouJGJqY7GA8 |
+| Vercel Preview Comments | pass | https://vercel.com/github |
+
+Corridas: [podcast-2-1-e2e](https://github.com/hanzmo16-png/Atomivid/actions/runs/40367244000), [E2E fixture evidence](https://github.com/hanzmo16-png/Atomivid/actions/runs/40367244016), [rescate](https://github.com/hanzmo16-png/Atomivid/actions/runs/40367244200).
 
 ## Riesgos que quedan
 
