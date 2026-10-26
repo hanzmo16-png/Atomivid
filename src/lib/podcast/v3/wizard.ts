@@ -3,6 +3,9 @@
 import type { Mood, StudioMode, StudioSet } from "./spec";
 
 export const WIZARD_STORAGE_KEY = "atomivid.podcast.asistente.v2";
+/** Tope por episodio que el servidor y la BD hacen cumplir (STUDIO_MAX_AUTHORIZED_USD en api.ts; CHECK ≤ 50 en 140000).
+ * El asistente lo aplica ya en «Presupuesto» para no dejar avanzar hasta un 402 al final del recorrido. */
+export const STUDIO_BUDGET_MAX_USD = 50;
 export const STEPS = ["Modalidad", "Tema", "Participantes", "Voces", "Avatares", "Música", "Visuales", "Presupuesto", "Vista previa", "Generación"] as const;
 export const STEP = { modalidad: 0, tema: 1, participantes: 2, voces: 3, avatares: 4, musica: 5, visuales: 6, presupuesto: 7, vista: 8, generacion: 9 } as const;
 /**
@@ -65,6 +68,7 @@ export function stepErrors(d: WizardDraft, step: number, ctx: { unavailableVoice
     if (pr && !pr.available) e.push(`${pr.reason ?? "Proveedor no disponible."} Elige otro proveedor (no se cambia automáticamente).`);
   }
   if (step === STEP.presupuesto && !(d.budgetUsd > 0)) e.push("Define un presupuesto máximo mayor que cero.");
+  if (step === STEP.presupuesto && d.budgetUsd > STUDIO_BUDGET_MAX_USD) e.push(`Por seguridad, un episodio no puede autorizar más de USD ${STUDIO_BUDGET_MAX_USD}. Baja el presupuesto o divide el episodio.`);
   if (step === STEP.generacion && !d.authorized) e.push("Marca la casilla para autorizar el cargo.");
   return e;
 }
