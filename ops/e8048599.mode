@@ -1,3 +1,4 @@
-MODE=leonidas-close
-REPLAY_REF=5ad561ab9e48d6f7990f51d36062789ccccf0055
-NOTE=read-only closing analysis v5 (music loudness/sha logged; state lines trimmed under the 50-annotation cap)
+MODE=replay-all
+REPLAY_REF=4ba95e2a26c38888ca8b83cd3e2437e60edf8758
+REPLAY_LIMIT=20
+NOTE=read-only replay of saved script jobs against the candidate train #221 (USD 0)
