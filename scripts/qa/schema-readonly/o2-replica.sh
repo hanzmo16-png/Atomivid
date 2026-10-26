@@ -66,7 +66,7 @@ SQL
 }
 behave(){ local ab aa none; ab=$(probe ref-B); aa=$(probe ref-A); none=$(probe ""); echo "INFO $1: A/B -> [$ab]  A/A -> [$aa]  no durable row -> [$none]"
   case "$2" in
-    old) echo "$ab$aa$none" | grep -c 'permission denied' | grep -q '^3$' && pass "$1: PR198 trigger refuses every requeue from service_role (permission denied, fail-closed)" || fail "$1: unexpected PR198 behaviour";;
+    old) [ "$(printf '%s\n' "$ab" "$aa" "$none" | grep -c 'permission denied for table pi_recovery_resume_authorizations')" = 3 ] && pass "$1: PR198 trigger refuses every requeue from service_role (permission denied, fail-closed)" || fail "$1: unexpected PR198 behaviour";;
     new) [ "$aa" = "UPDATED 1" ] && echo "$ab" | grep -q 'same project_id and authorization_ref' && echo "$none" | grep -q 'spend authorization required' && pass "$1: A/A requeues (1 row), A/B and no-durable-row refused by the trigger (P0001)" || fail "$1: unexpected 120000 behaviour";;
   esac; }
 behave "before O2" old

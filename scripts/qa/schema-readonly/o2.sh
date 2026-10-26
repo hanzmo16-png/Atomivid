@@ -52,12 +52,16 @@ select 'other_functions_md5', md5(string_agg(p.oid::regprocedure::text || '=' ||
   and p.oid not in ('$TRG'::regprocedure, '$RPC'::regprocedure);
 select 'other_triggers_md5', md5(coalesce(string_agg(tgrelid::regclass::text || '.' || tgname || ':' || tgenabled::text || ':' || md5(pg_get_triggerdef(oid)), ',' order by 1), ''))
   from pg_trigger where not tgisinternal and tgname <> 'pi_documentary_resume_requires_budget';
-select 'tables_md5', md5(string_agg(c.relname || ':' || c.relkind || ':' || coalesce(c.relacl::text, '') || ':' || c.relrowsecurity, ',' order by c.relname))
+select 'tables_md5', md5(string_agg(c.relname || ':' || c.relkind::text || ':' || coalesce(c.relacl::text, '') || ':' || c.relrowsecurity, ',' order by c.relname))
   from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind in ('r','v','m','p');
 select 'acl_' || t, coalesce(c.relacl::text, 'NULL') from unnest(array['pi_recovery_resume_authorizations','pi_recovery_budgets','documentary_script_jobs']) t
   join pg_class c on c.oid = to_regclass('public.' || t) order by 1;
 select 'jobs_active', count(*) from public.documentary_script_jobs where status in ('queued','running');
 select 'jobs_exhausted', count(*) from public.documentary_script_jobs where status = 'failed' and retry_count >= 3;
+select 'jobs_requeueable_new_rule', count(*) from public.documentary_script_jobs j where j.status = 'failed' and j.retry_count >= 3 and exists (
+  select 1 from public.pi_recovery_budgets b join public.pi_recovery_resume_authorizations r on r.project_id = b.project_id and r.authorization_ref = b.authorization_ref
+  where b.job_id = j.id and b.owner_id = j.user_id and b.status = 'ACTIVE' and length(trim(coalesce(b.authorization_ref, ''))) > 0 and r.transaction_id is not null);
+select 'active_recovery_budgets', count(*) from public.pi_recovery_budgets where status = 'ACTIVE';
 select 'jobs_md5', md5(coalesce(string_agg(id::text || ':' || status || ':' || retry_count, ',' order by id), '')) from public.documentary_script_jobs;
 select 'other_locks_on_jobs', count(*) from pg_locks l where l.relation = 'public.documentary_script_jobs'::regclass and l.pid <> pg_backend_pid();
 select 'long_xacts', count(*) from pg_stat_activity where pid <> pg_backend_pid() and xact_start < now() - interval '60 seconds' and state <> 'idle';
@@ -94,7 +98,8 @@ case "${1:-}" in
     chk pre "$(get $s jobs_active)" 0 "documentary jobs queued/running (nothing in flight while the trigger is replaced)"
     chk pre "$(get $s other_locks_on_jobs)" 0 "other sessions holding locks on documentary_script_jobs"
     chk pre "$(get $s long_xacts)" 0 "non-idle transactions open for more than 60 s"
-    echo "INFO pre: exhausted documentary jobs=$(get $s jobs_exhausted)";;
+    chk pre "$(get $s jobs_requeueable_new_rule)" 0 "exhausted jobs the 120000 rule would let requeue (O2 must not unlock spend)"
+    echo "INFO pre: exhausted documentary jobs=$(get $s jobs_exhausted), ACTIVE recovery budgets=$(get $s active_recovery_budgets)";;
   post)
     p=$2; s=$3
     chk post "$(get $s ma_count)" 64 "_migrations_applied rows (63 + 1)"; chk post "$(get $s ma_has_o2)" 1 "$NAME registered"
