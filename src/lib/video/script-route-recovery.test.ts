@@ -90,3 +90,46 @@ test("script/route.ts envuelve toda la ruta en un try/catch que siempre devuelve
     "cualquier fallo inesperado (no solo del proveedor de guion) debe seguir devolviendo JSON clasificado con su código de diagnóstico, nunca una excepción sin manejar",
   );
 });
+
+
+const REGENERATE_ROUTE_PATH = path.join(
+  __dirname,
+  "..",
+  "..",
+  "app",
+  "api",
+  "generate",
+  "[id]",
+  "script",
+  "regenerate-scene",
+  "route.ts",
+);
+
+test("las rutas de guion filtran por owner en la consulta y no revelan si existe una solicitud ajena", () => {
+  const main = fs.readFileSync(ROUTE_PATH, "utf-8");
+  const regenerate = fs.readFileSync(REGENERATE_ROUTE_PATH, "utf-8");
+
+  assert.match(
+    main,
+    /\.eq\("id", id\)\s*\.eq\("user_id", userId\)\s*\.maybeSingle<VideoRequestRow>\(\)/,
+    "la lectura con service role debe estar acotada al owner antes de devolver datos",
+  );
+  assert.match(
+    regenerate,
+    /\.eq\("id", id\)\s*\.eq\("user_id", user\.id\)\s*\.maybeSingle<VideoRequestRow>\(\)/,
+    "la regeneración también debe filtrar owner dentro de la consulta",
+  );
+
+  for (const source of [main, regenerate]) {
+    assert.doesNotMatch(
+      source,
+      /videoRequest\.user_id\s*!==/,
+      "no debe distinguir una solicitud ajena de una inexistente después de cargarla con service role",
+    );
+    assert.doesNotMatch(
+      source,
+      /\{ error: "No autorizado" \}, \{ status: 403 \}/,
+      "un UUID ajeno no debe funcionar como oráculo de existencia",
+    );
+  }
+});
