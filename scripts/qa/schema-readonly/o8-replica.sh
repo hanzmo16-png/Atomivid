@@ -24,7 +24,7 @@ bash "$O8" o3run 40427566003 > "$T/o3run-neg.out" 2>&1; grep -q '^FAIL O8\[o3run
 expect_ok "production: tool connection statement_timeout=2min, read-only probe" "$T/probe.out" -- bash "$O8" probe
 export PGOPTIONS="-c default_transaction_read_only=on"
 "$PGBIN/pg_dump" "$PROD" --schema-only --no-owner --no-comments -n public -f "$T/public.sql" 2>/dev/null || { echo "FAIL pg_dump schema"; exit 1; }
-"$PGBIN/pg_dump" "$PROD" --data-only --disable-triggers --no-owner -t 'public.pi_*' -t public._migrations_applied -f "$T/data.sql" 2>/dev/null || { echo "FAIL pg_dump data"; exit 1; }
+"$PGBIN/pg_dump" "$PROD" --data-only --disable-triggers --no-owner -t 'public.pi_*' -t public._migrations_applied -t public.video_requests -t public.podcast_episodes -f "$T/data.sql" 2>/dev/null || { echo "FAIL pg_dump data"; exit 1; }
 "$PGBIN/pg_dump" "$PROD" --no-owner --no-privileges -n supabase_migrations -f "$T/sm.sql" 2>/dev/null || { echo "FAIL pg_dump registry"; exit 1; }
 unset PGOPTIONS PROD PW
 

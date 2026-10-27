@@ -183,8 +183,10 @@ case "${1:-}" in
     head=$(git -C "$R" rev-parse HEAD); dirty=$(git -C "$R" status --porcelain | wc -l)
     chk bind "$head|${GITHUB_SHA:-$head}|$dirty" "$2|$2|0" "checked-out commit | GITHUB_SHA | uncommitted changes";;
   probe)
-    p=$(cd "$R" && npx tsx -e 'import { connectResolved } from "./scripts/lib/supabase-db"; (async () => { const c = await connectResolved(); try { await c.query("begin transaction read only"); const r = await c.query("select current_setting(\x27statement_timeout\x27) s, current_setting(\x27transaction_read_only\x27) ro"); process.stdout.write(r.rows[0].s + "," + r.rows[0].ro); await c.query("rollback"); } finally { await c.end(); } })().catch((e) => { console.error(String(e)); process.exit(1); })') || { echo "FAIL O8[probe] read-only probe failed"; exit 1; }
-    chk probe "$p" "2min,on" "statement_timeout,read-only probe";;
+    # same probe as o3.sh: connectResolved() returns { client } (calling .query on the wrapper was the 40453138784 FAIL)
+    out=$(cd "$R" && npx tsx -e 'import { connectResolved } from "./scripts/lib/supabase-db"; (async () => { const { client } = await connectResolved(); const r = await client.query("begin transaction read only; show lock_timeout; show statement_timeout; show transaction_read_only; rollback;"); console.log((r as any).filter((x: any) => x.rows?.length).map((x: any) => Object.values(x.rows[0])[0]).join(",")); await client.end(); })().catch((e) => { console.error(e.message); process.exit(1); })' 2>&1 | tail -1)
+    echo "INFO probe: lock_timeout,statement_timeout,transaction_read_only on the tool's own connection = $out"
+    chk probe "$(echo "$out" | cut -d, -f2-)" "${EXPECT_STATEMENT_TIMEOUT:-2min},on" "statement_timeout,read-only probe";;
   apply)
     out=$(cd "$R" && npx tsx scripts/apply-supabase-migration.ts "$NAME" 2>&1); rc=$?; printf '%s\n' "$out" | tail -n 6
     chk apply "$rc|$(printf '%s\n' "$out" | grep -c "Resumen: 1 aplicada(s) \[$NAME\], 0 reconciliada(s)")" "0|1" "tool exit | exactly 1 applied, 0 reconciled";;
