@@ -10,6 +10,7 @@
 #   o2.sh classify <snap>             PRE | COMPLETADO | PARCIAL_SIN_REGISTRO | PARCIAL_SOLO_REGISTRO | INDETERMINADO
 #   o2.sh verdict  <pre> <snap>       after the contingency: REVERTIDO (exit 0, exact pre state) | BLOQUEADO (exit 3: O2 fully
 #                                     undone but documentary jobs / pi_* data changed concurrently; never overwritten) | FALLIDO (1)
+#   o2.sh pre-objects|post-objects <snap>   identity of both functions and the trigger only (used by the mutant tests)
 #   o2.sh bind     <sha>              the checked-out commit (and GITHUB_SHA, if set) is exactly the authorized one
 #   o2.sh probe                       read-only: timeouts of the session the tool opens. The Supabase pooler drops startup
 #                                     options (PGOPTIONS), so lock_timeout stays 0; the bound is the role's statement_timeout.
@@ -98,9 +99,10 @@ fails=0
 chk() { if [ "$2" = "$3" ]; then echo "PASS O2[$1] $4 = $2"; else echo "FAIL O2[$1] $4 = $2 (expected $3)"; fails=$((fails+1)); fi; }
 same_as() { chk "$1" "$(get "$3" "$4")" "$(get "$2" "$4")" "$4 unchanged"; }
 # a snapshot is usable only if it is complete: every fact present, non-empty, read-only, terminator reached
-complete() { local miss=""; for k in $KEYS; do [ -n "$(get "$2" "$k")" ] || miss="$miss $k"; done
-  [ -s "$2" ] && [ -z "$miss" ] && [ "$(get "$2" read_only)" = on ] && [ "$(get "$2" end)" = ok ] && echo "PASS O2[$1] snapshot complete ($(wc -l < "$2") facts)" \
-    || { echo "FAIL O2[$1] snapshot $2 incomplete or not read-only (missing:${miss:- none})"; fails=$((fails+1)); }; }
+complete() { local miss="" dup; for k in $KEYS; do [ -n "$(get "$2" "$k")" ] || miss="$miss $k"; done
+  dup=$(cut -d'|' -f1 "$2" 2>/dev/null | sort | uniq -d | paste -sd' ')
+  [ -s "$2" ] && [ -z "$miss" ] && [ -z "$dup" ] && [ "$(get "$2" read_only)" = on ] && [ "$(get "$2" end)" = ok ] && echo "PASS O2[$1] snapshot complete ($(wc -l < "$2") facts, no duplicate key)" \
+    || { echo "FAIL O2[$1] snapshot $2 incomplete, duplicated or not read-only (missing:${miss:- none}; duplicated:${dup:- none})"; fails=$((fails+1)); }; }
 hashes() { [ "$(sha256sum < "$MIG" | cut -d' ' -f1)" = $SHA_MIG ] && cmp -s "$MIG" "$R/supabase/proposals/$NAME" && [ "$(sha256sum < "$RB" | cut -d' ' -f1)" = $SHA_RB ] \
   && [ "$(sha256sum < "$CT" | cut -d' ' -f1)" = $SHA_CT ] && [ "$(sha256sum < "$PR198" | cut -d' ' -f1)" = $SHA_PR198 ] \
   || { echo "FAIL O2 sha256 of the migration / rollback / contingency / PR198 differs from the audited one"; exit 1; }; }
@@ -147,13 +149,13 @@ case "${1:-}" in
   post)
     refs; p=$2; s=$3; complete post-pre $p; complete post $s; done_state post $s
     for k in ma_md5_without_o2 sm_md5 pi_paid_operations open_operations pi_data_md5 other_functions_md5 other_triggers_md5 tables_md5 \
-             acl_documentary_script_jobs acl_pi_recovery_budgets acl_pi_recovery_resume_authorizations jobs_active jobs_md5; do same_as post $p $s $k; done;;
+             acl_documentary_script_jobs acl_pi_recovery_budgets acl_pi_recovery_resume_authorizations jobs_active jobs_exhausted jobs_requeueable_new_rule jobs_md5; do same_as post $p $s $k; done;;
   same)
     refs; p=$2; s=$3; complete restored-pre $p; complete restored $s; pre_objects restored $s
     for k in ma_count ma_has_o2 ma_md5_without_o2 sm_md5 pi_paid_operations open_operations pi_data_md5 m000 m120 m130 m140 studio_tables \
              trg_src_md5 trg_def_md5 trg_attr trg_acl rpc_src_md5 rpc_def_md5 rpc_attr rpc_acl exec_trg exec_rpc trigger_def \
              other_functions_md5 other_triggers_md5 tables_md5 acl_documentary_script_jobs acl_pi_recovery_budgets acl_pi_recovery_resume_authorizations \
-             jobs_active jobs_md5; do same_as restored $p $s $k; done;;
+             jobs_active jobs_exhausted jobs_requeueable_new_rule jobs_md5; do same_as restored $p $s $k; done;;
   classify)
     refs; s=$2; c=INDETERMINADO
     if bash "$0" complete-only "$s" >/dev/null; then
@@ -167,11 +169,13 @@ case "${1:-}" in
     fi
     echo "O2 STATE: $c"; [ "$c" != INDETERMINADO ]; exit $?;;
   complete-only) complete check "$2";;
+  pre-objects) refs; complete pre-objects "$2"; pre_objects pre-objects "$2";;     # identity subset of pre (mutant tests)
+  post-objects) refs; complete post-objects "$2"; post_objects post-objects "$2";; # identity subset of done (mutant tests)
   verdict)
     out=$(bash "$0" same "$2" "$3"); f=$(printf '%s\n' "$out" | grep '^FAIL' || true)
     if [ -z "$f" ]; then echo "O2 VERDICT: REVERTIDO (exact pre-O2 state)"; exit 0; fi
     printf '%s\n' "$f"
-    other=$(printf '%s\n' "$f" | grep -vE '^FAIL O2\[restored\] (jobs_md5|jobs_active|pi_data_md5|pi_paid_operations|open_operations) unchanged' || true)
+    other=$(printf '%s\n' "$f" | grep -vE '^FAIL O2\[restored\] (jobs_md5|jobs_active|jobs_exhausted|jobs_requeueable_new_rule|pi_data_md5|pi_paid_operations|open_operations) unchanged' || true)
     if [ -z "$other" ]; then echo "O2 VERDICT: BLOQUEADO (O2 undone exactly; concurrent changes in jobs / pi_* data left as they are)"; exit 3; fi
     echo "O2 VERDICT: FALLIDO (state is not the pre-O2 state)"; exit 1;;
   bind)
