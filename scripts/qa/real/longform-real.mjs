@@ -65,15 +65,18 @@ ok("nothing is generated or charged before confirming (stated)", /Nada se genera
 await p.getByLabel(/Proveedor actual/).check().catch(() => {}); await sleep(1500);
 const isBlocked = (t) => /IMPEDIMENTO DE ENTREGA|No se puede iniciar todavía|no puede iniciar todavía/.test(t);
 let blocked = true; facts.strategies = {};
-for (const st of ["Equilibrado", "Económico / archivo", "Cinemático / IA"]) {
+const usdOf = (re) => Number(((txt.match(re) || [])[1] || "NaN").replace(",", "."));
+const money = () => ({ script: usdOf(/Guion ya gastado\s*USD\s*([0-9]+[.,][0-9]+)/), ceiling: usdOf(/Techo que se autorizaría\s*USD\s*([0-9]+[.,][0-9]+)/), limit: usdOf(/Límite autorizado por producción\s*USD\s*([0-9]+[.,][0-9]+)/) });
+// La primera estrategia que pasa la comprobación previa Y cuyo techo cabe en lo que queda del tope del caso.
+for (const st of ["Económico / archivo", "Equilibrado", "Cinemático / IA"]) {
   await p.getByText(st, { exact: true }).first().click().catch(() => {}); await sleep(2000);
-  txt = await main(); blocked = isBlocked(txt);
-  facts.strategies[st] = blocked ? (txt.match(/(Esta producción no puede iniciar[^\n]*)/) || [""])[0] : "OK";
-  if (!blocked) { facts.strategy = st; break; }
+  txt = await main(); const b = isBlocked(txt), m = money(), fits = PRIOR + m.script + m.ceiling <= CAP + 1e-6;
+  facts.strategies[st] = b ? (txt.match(/(Esta producción no puede iniciar[^\n]*)/) || [""])[0] : `OK ceiling ${m.ceiling}${fits ? "" : " (does not fit the case cap)"}`;
+  if (!b) blocked = false;
+  if (!b && fits) { facts.strategy = st; break; }
 }
 await shot(p, "C01b-estrategia");
 ok("no delivery impediment before confirming (some strategy, current image provider)", !blocked, JSON.stringify(facts.strategies));
-const usdOf = (re) => Number(((txt.match(re) || [])[1] || "NaN").replace(",", "."));
 const scriptUsd = usdOf(/Guion ya gastado\s*USD\s*([0-9]+[.,][0-9]+)/), ceiling = usdOf(/Techo que se autorizaría\s*USD\s*([0-9]+[.,][0-9]+)/), limit = usdOf(/Límite autorizado por producción\s*USD\s*([0-9]+[.,][0-9]+)/);
 Object.assign(facts, { priorAttemptsUsd: PRIOR, scriptSpendUsdPage: scriptUsd, ceilingUsd: ceiling, productionLimitUsd: limit });
 ok("budget: script spend and authorization ceiling visible before confirming", Number.isFinite(scriptUsd) && Number.isFinite(ceiling) && ceiling > 0, `script ${scriptUsd} / ceiling ${ceiling} / limit ${limit}`);
