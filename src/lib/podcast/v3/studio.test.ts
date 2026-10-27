@@ -104,6 +104,7 @@ test("música: ducking desactivable, intro y outro controlables; −16 LUFS es e
 test("asistente: 10 pasos en el orden pedido, persistencia y modalidades visibles", () => {
   assert.deepEqual([...STEPS], ["Modalidad", "Tema", "Participantes", "Voces", "Avatares", "Música", "Visuales", "Presupuesto", "Vista previa", "Generación"]);
   assert.equal(modalityToMode("audio"), "narracion");
+  assert.equal(defaultDraft().provider, "pexels", "Recraft no se preselecciona: el default es Pexels, disponible sin FAL");
   const d = { ...defaultDraft(), step: STEP.musica, modality: "dialogo" as const, mode: "dialogo" as const, count: 2 as const, intensity: "alta" as const, ducking: false, provider: "pexels" as const };
   const back = loadDraft(JSON.stringify(d));
   assert.equal(back.step, STEP.musica); assert.equal(back.intensity, "alta"); assert.equal(back.ducking, false);

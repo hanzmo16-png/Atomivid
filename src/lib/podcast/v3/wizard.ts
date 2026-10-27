@@ -30,6 +30,18 @@ export type WizardDraft = {
   format: "16:9" | "9:16"; audioExport: "mp3" | "wav"; budgetUsd: number; authorized: boolean; episodeId: string | null; draftId?: string | null;
 };
 const P = (name: string): WizardParticipant => ({ name, role: "", gender: "neutro", style: "", personality: "", voice_id: "", voice_kind: "sintetica", avatar: { kind: "ninguno" } });
+
+/** Clon privado concedido → «clonada»; catálogo o id vacío → «sintetica». La UI y el envío usan la misma regla. */
+export function voiceKindFor(voiceId: string, catalog: readonly { voiceId: string; kind?: "sintetica" | "clonada" }[]): "sintetica" | "clonada" {
+  if (!voiceId) return "sintetica";
+  return catalog.find((v) => v.voiceId === voiceId)?.kind === "clonada" ? "clonada" : "sintetica";
+}
+
+export function withVoiceKinds(d: WizardDraft, catalog: readonly { voiceId: string; kind?: "sintetica" | "clonada" }[]): WizardDraft {
+  const participants = d.participants.map((p) => ({ ...p, voice_kind: voiceKindFor(p.voice_id, catalog) })) as WizardDraft["participants"];
+  if (participants.every((p, i) => p.voice_kind === d.participants[i].voice_kind)) return d;
+  return { ...d, participants };
+}
 export const defaultDraft = (): WizardDraft => ({ step: 0, modality: null, mode: null, language: "es", provider: "pexels", intensity: "media", intro: true, outro: true, ducking: true, title: "", topic: "", script: "", minutes: 5, count: 1, participants: [P("Anfitrión"), P("Invitado")],
   set: "estudio_oscuro", swap: false, subtitles: true, avatarFrequency: 0.5, avatarMaxSeconds: 20, recreations: true,
   musicEnabled: true, mood: "auto", volumeDb: -22, stings: true, ambient: "ninguno", format: "16:9", audioExport: "mp3", budgetUsd: 10, authorized: false, episodeId: null });

@@ -46,7 +46,7 @@ export default async function PodcastPage() {
   const wizardVoices = voicesError ? [] : voiceAvailability(voices, user);
 
   return (
-    <div className="mx-auto w-full max-w-2xl">
+    <div className="mx-auto w-full min-w-0 max-w-2xl">
       <h1 className="text-2xl font-bold text-ink">Podcast</h1>
       <p className="mt-1 text-sm text-ink-muted">Crea tu episodio paso a paso: narración, un avatar presentador o una conversación entre dos. En cada episodio fijas el presupuesto, produces el video (ahora o programado) y lo revisas. Nada se publica sin tu aprobación.</p>
       <p className="mt-2 text-sm"><Link href="/dashboard/podcast/editor" className="text-accent underline">Ver entregas del editor externo</Link></p>

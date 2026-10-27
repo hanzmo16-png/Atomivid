@@ -185,6 +185,12 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     ok("c5: El Duro no aparece para otra cuenta", !html.includes(DURO) && !/duro hans/i.test(html));
     const forced = await o.p.evaluate(async (v) => { const r = await fetch("/api/podcast", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: "x", script: "A: hola que tal estás hoy\n\nB: muy bien gracias por preguntar", language: "es", voiceId: v, production: { mode: "conversation", style: "standard", dialogue: "A: hola que tal estás hoy\n\nB: muy bien gracias por preguntar", participants: [{ id: "A", voiceId: v }, { id: "B", voiceId: "VozCatalogoAna01" }] } }) }); return [r.status, await r.text()]; }, DURO);
     ok("c5: forzar El Duro por API → rechazado", forced[0] === 400, forced.join(" "));
+    const studioForced = await o.p.evaluate(async (v) => {
+      const spec = { mode: "narracion", output: "audio", title: "Intruso estudio", language: "es", script: "Texto de prueba suficientemente largo para el esquema del estudio.", target_minutes: 1, participants: [{ id: "A", name: "X", voice_id: v, voice_kind: "clonada" }], visual: { provider: "solo_set" }, music: {}, budget_usd: 5 };
+      const r = await fetch("/api/podcast/v3", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "create", spec }) });
+      return [r.status, await r.text()];
+    }, DURO);
+    ok("c5: estudio — otra cuenta fuerza El Duro simulado → rechazado", studioForced[0] === 400 && !/clonada"\s*:\s*"ok/.test(studioForced[1]), String(studioForced[1]).slice(0, 180));
     const anyOwner = (await db.query("select id, audio_path from podcast_episodes where user_id=$1 and audio_path is not null limit 1", [OWNER.id])).rows[0];
     if (anyOwner) {
       const r = await o.p.goto(`${BASE}/dashboard/podcast/${anyOwner.id}`); const body = await o.p.content();
@@ -406,7 +412,29 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     await W().getByLabel("Voz A").selectOption(m.voices[0]); if (m.count === 2) await W().getByLabel("Voz B").selectOption(m.voices[1]);
     const duroOpts = await W().locator('option[value="CeFSZuaHs4SxcBxb9nCr"]').evaluateAll((os) => os.map((o) => ({ disabled: o.disabled, text: o.textContent })));
     ok(`${tag}: El Duro real sin concesión aparece «No disponible» y no se puede elegir`, duroOpts.length > 0 && duroOpts.every((o) => o.disabled && /No disponible/.test(o.text)), JSON.stringify(duroOpts));
-    await snap("paso04-voces"); await next();
+    const vw = S.p.viewportSize()?.width ?? 0;
+    const voiceOverflow = await S.p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    ok(`${tag}: el paso voces no desborda el ancho (${vw}px)`, voiceOverflow <= 1, `${voiceOverflow}px`);
+    if (m.voices.includes(DURO)) {
+      let kind = "";
+      try {
+        await S.p.waitForFunction((id) => {
+          const d = JSON.parse(localStorage.getItem("atomivid.podcast.asistente.v2") || "null");
+          return (d?.participants || []).some((p) => p.voice_id === id && p.voice_kind === "clonada");
+        }, DURO, { timeout: 5000 });
+        kind = "clonada";
+      } catch { kind = await S.p.evaluate(() => localStorage.getItem("atomivid.podcast.asistente.v2") || ""); }
+      ok(`${tag}: con concesión, El Duro simulado se elige como voice_kind clonada`, kind === "clonada", String(kind).slice(0, 240));
+    }
+    await snap("paso04-voces");
+    await W().getByRole("button", { name: "Atrás" }).click(); await S.p.reload(); await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
+    const keptVoice = await S.p.evaluate(() => { const d = JSON.parse(localStorage.getItem("atomivid.podcast.asistente.v2") || "null"); return d?.participants?.[0]?.voice_id ?? ""; });
+    ok(`${tag}: atrás + recarga conserva la voz elegida`, keptVoice === m.voices[0], keptVoice);
+    if (m.voices.includes(DURO)) {
+      const kept = await S.p.evaluate((id) => { const d = JSON.parse(localStorage.getItem("atomivid.podcast.asistente.v2") || "null"); return (d?.participants || []).find((p) => p.voice_id === id)?.voice_kind; }, DURO);
+      ok(`${tag}: atrás + recarga conserva voice_kind clonada`, kept === "clonada", String(kept));
+    }
+    await next(); await next();
     if (m.avatars) { await W().getByLabel("Avatar A").selectOption(m.avatars[0]); if (m.avatars[1]) await W().getByLabel("Avatar B").selectOption(m.avatars[1]); }
     await snap("paso05-avatares"); await next();
     await W().getByLabel("Ambiente musical").selectOption(m.mood ?? "auto"); if (m.intensity) await W().getByLabel("Intensidad de la música").selectOption(m.intensity);
@@ -414,13 +442,17 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     if (m.mode !== "Solo audio") {
       const rc = await W().getByTestId("proveedor-recraft").textContent();
       ok(`${tag}: Recraft visible como no disponible con motivo`, /No disponible/.test(rc), rc.slice(0, 120));
+      ok(`${tag}: Recraft no está preseleccionado si no hay FAL ni adaptador`, !(await W().getByLabel("Ilustraciones Recraft (fal.ai)").isChecked()));
       await W().getByLabel("Ilustraciones Recraft (fal.ai)").check(); await next();
       ok(`${tag}: elegir un proveedor no disponible bloquea el avance (no se sustituye)`, /Paso 7/.test(await stepTitle()) && /no se cambia automáticamente/.test(await W().getByRole("alert").textContent()));
       await W().getByLabel("Fotos de archivo (Pexels)").check();
     }
     if (m.swap) await W().getByLabel(/Invertir posiciones/).check();
     if (m.format) await W().getByLabel(m.format).check();
-    await snap("paso07-visuales"); await next();
+    await snap("paso07-visuales");
+    const visualOverflow = await S.p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    ok(`${tag}: el paso visuales no desborda el ancho (${vw}px)`, visualOverflow <= 1, `${visualOverflow}px`);
+    await next();
     await W().getByTestId("wizard-estimate").locator("table").waitFor();
     const est = await W().getByTestId("wizard-estimate").textContent();
     ok(`${tag}: costo estimado por proveedor ANTES de autorizar`, ["ElevenLabs", "HeyGen", "GitHub Actions", "Total estimado"].every((k) => est.includes(k)) && await W().getByTestId("costo-por-proveedor").isVisible(), est.slice(0, 160));
@@ -442,6 +474,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     const w = await worker(row0.id, "studio");
     const row = (await db.query("select * from podcast_studio_episodes where id=$1", [row0.id])).rows[0];
     ok(`${tag}: worker del estudio entrega el episodio (proveedores SIMULADOS)`, w.code === 0 && row.status === "ready" && /STUDIO_PROVIDERS mock/.test(w.out), `${row.status} ${row.error ?? ""}`);
+    if ((row.spec?.participants || []).some((p) => p.voice_id === DURO)) ok(`${tag}: el episodio guardado conserva voice_kind clonada (simulado)`, row.spec.participants.every((p) => p.voice_id !== DURO || p.voice_kind === "clonada"), JSON.stringify(row.spec.participants.map((p) => [p.voice_id, p.voice_kind])));
     if (m.avatars) {
       const lips = row.result?.lips ?? [], viol = row.result?.lip_violations ?? ["sin datos"];
       ok(`${tag}: lip-sync — ningún avatar mueve los labios fuera de su turno (segmentos del render)`, lips.length > 0 && viol.length === 0 && !lips.some((x) => x.A === "habla" && x.B === "habla"), `${lips.length} segmentos, ${viol.length} violaciones`);
@@ -523,6 +556,31 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     }
     const D = await session(OWNER, "c11-escritorio");
     ok("c11-escritorio: menú de escritorio muestra «Podcast»", await D.p.locator('nav a[href="/dashboard/podcast"]').isVisible()); await shot(D.p, "c11-escritorio-menu"); await D.ctx.close();
+    // Samsung 390×844: el mismo flujo del estudio (voz concedida, visuales, reproducción y descarga) en el alto real del teléfono.
+    const SAMSUNG = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2.75, isMobile: true, hasTouch: true, userAgent: "Mozilla/5.0 (Linux; Android 14; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36" };
+    const Sm = await session(OWNER, "c11-samsung", SAMSUNG);
+    await Sm.p.goto(`${BASE}/dashboard/podcast`);
+    const smOverflow = await Sm.p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    ok("c11-samsung: portada 390×844 sin desbordamiento horizontal", smOverflow <= 1, `${smOverflow}px`);
+    await studioFlow(Sm, "c11-samsung", { ...MODES.find((x) => x.tag === "c10d"), title: "E2E samsung 390x844", voices: [DURO, LEO] });
+    await Sm.ctx.close();
+    const So = await session(OTHER, "c11-samsung-otra", SAMSUNG);
+    await So.p.goto(`${BASE}/dashboard/podcast`); await So.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
+    await So.p.evaluate(() => localStorage.setItem("atomivid.podcast.asistente.v2", JSON.stringify({ step: 3, modality: "audio", mode: "narracion", count: 1 })));
+    await So.p.reload(); await So.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
+    const otherVoices = await So.p.locator('select[aria-label="Voz A"] option').evaluateAll((os) => os.map((o) => ({ value: o.value, disabled: o.disabled, text: o.textContent })));
+    ok("c11-samsung: otra cuenta no ve el clon concedido al dueño", !otherVoices.some((o) => o.value === DURO || /duro hans/i.test(o.text || "")), JSON.stringify(otherVoices.map((o) => o.value)));
+    const otherDuro = otherVoices.filter((o) => o.value === "CeFSZuaHs4SxcBxb9nCr");
+    ok("c11-samsung: sin concesión, El Duro real sigue «No disponible» para otra cuenta", otherDuro.length > 0 && otherDuro.every((o) => o.disabled && /No disponible/.test(o.text || "")), JSON.stringify(otherDuro));
+    const otherApi = await So.p.evaluate(async (v) => {
+      const spec = { mode: "narracion", output: "audio", title: "Intruso 390", language: "es", script: "Texto de prueba suficientemente largo para el esquema del estudio.", target_minutes: 1, participants: [{ id: "A", name: "X", voice_id: v, voice_kind: "clonada" }], visual: { provider: "solo_set" }, music: {}, budget_usd: 5 };
+      const r = await fetch("/api/podcast/v3", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "create", spec }) });
+      return r.status;
+    }, DURO);
+    ok("c11-samsung: otra cuenta — la API del estudio rechaza El Duro simulado", otherApi === 400, String(otherApi));
+    const otherWidth = await So.p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    ok("c11-samsung: paso voces de otra cuenta en 390×844 sin desbordamiento", otherWidth <= 1, `${otherWidth}px`);
+    await So.ctx.close();
   }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
