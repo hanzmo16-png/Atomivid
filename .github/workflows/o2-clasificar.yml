@@ -1,0 +1,49 @@
+# O2 — CLASIFICACIÓN DE SOLO LECTURA tras una cancelación o un resultado indeterminado (docs/ops/o2/RECUPERACION.md).
+# Lee producción dentro de BEGIN TRANSACTION READ ONLY … ROLLBACK (o2.sh snap) y dice PRE | COMPLETADO |
+# PARCIAL_SIN_REGISTRO | PARCIAL_SOLO_REGISTRO | INDETERMINADO. No escribe nada; no aplica ni revierte O2.
+name: o2-clasificar
+on:
+  workflow_dispatch:
+    inputs:
+      sha_autorizado:
+        description: "Commit del run de O2 a clasificar (40 caracteres)"
+        required: true
+        type: string
+  # Solo para que GitHub registre el workflow (vive fuera de la rama por defecto): en push el job se OMITE.
+  push:
+    branches: [claude/o2-ejecucion-unica]
+    paths: [".github/workflows/o2-clasificar.yml"]
+permissions:
+  contents: read
+jobs:
+  clasificar:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/claude/o2-ejecucion-unica'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || 'aws-0-us-west-2.pooler.supabase.com' }}
+      SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
+      O2: scripts/qa/schema-readonly/o2.sh
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - run: bash "$O2" bind "${{ inputs.sha_autorizado }}"
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: PostgreSQL 17 (solo cliente)
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -yq postgresql-17
+      - name: Clasificar (solo lectura)
+        run: |
+          set -uo pipefail
+          URL=$(npx tsx -e 'import { resolveConnection } from "./scripts/lib/supabase-db"; const c = resolveConnection(); if (!c) { process.exit(3) } process.stdout.write(c.connectionString)')
+          echo "::add-mask::$URL"; PW=$(node -e 'const u=new URL(process.argv[1]); process.stdout.write(decodeURIComponent(u.password))' "$URL"); echo "::add-mask::$PW"
+          bash "$O2" snap "$URL" now.snap; bash "$O2" classify now.snap; c=$?
+          bash "$O2" done now.snap | grep -E '^(FAIL|RESULT)' || true
+          exit $c

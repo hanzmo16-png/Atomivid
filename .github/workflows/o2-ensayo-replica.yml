@@ -5,7 +5,7 @@ name: o2-ensayo-replica
 on:
   push:
     branches: [claude/o2-ejecucion-unica]
-    paths: [".github/workflows/o2-ensayo-replica.yml", "scripts/qa/schema-readonly/o2*.sh", "docs/ops/o2/**", "supabase/migrations/20261024120000_resume_authorization_ref_match.sql"]
+    paths: [".github/workflows/o2-*.yml", "scripts/qa/schema-readonly/o2*.sh", "docs/ops/o2/**", "supabase/migrations/20261024120000_resume_authorization_ref_match.sql"]
   workflow_dispatch:
 permissions:
   contents: read
