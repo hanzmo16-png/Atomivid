@@ -37,6 +37,7 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       CASO: ${{ inputs.caso }}
+      PW_CHANNEL: chrome
       BUDGET_USD: ${{ inputs.presupuesto_usd }}
     steps:
       - uses: actions/checkout@v4
@@ -50,13 +51,13 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci --no-audit --no-fund
-      - name: Navegador y ffmpeg
-        timeout-minutes: 15
+      - name: "Navegador y ffmpeg (sin apt; Chrome del runner, ffmpeg/ffprobe de node_modules como render.yml)"
+        timeout-minutes: 10
         run: |
-          sudo rm -f /var/lib/man-db/auto-update
-          sudo apt-get update -q >/dev/null && sudo DEBIAN_FRONTEND=noninteractive apt-get install -yq --no-install-recommends ffmpeg >/dev/null
           npm i --no-save --no-audit --no-fund playwright@1.55.0 >/dev/null
-          npx playwright install --with-deps chromium >/dev/null
+          chmod +x node_modules/@ffprobe-installer/linux-x64/ffprobe 2>/dev/null || true
+          echo "$PWD/node_modules/@ffmpeg-installer/linux-x64" >> "$GITHUB_PATH"; echo "$PWD/node_modules/@ffprobe-installer/linux-x64" >> "$GITHUB_PATH"
+          google-chrome --version
       - name: Sesiones de la cuenta del dueño (sin correo; nada sensible en el registro)
         run: |
           node scripts/qa/real/session.mjs "$RUNNER_TEMP/state1.json"

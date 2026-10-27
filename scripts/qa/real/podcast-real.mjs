@@ -21,7 +21,7 @@ function finish() { fs.writeFileSync(path.join(EVID, "facts.json"), JSON.stringi
 fs.mkdirSync(EVID, { recursive: true });
 const shot = async (p, n) => { await p.screenshot({ path: path.join(EVID, `${CASO}-${n}.png`), fullPage: true }).catch(() => {}); };
 
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, channel: process.env.PW_CHANNEL || undefined });
 const desktop = await browser.newContext({ storageState: STATE, viewport: { width: 1440, height: 900 }, acceptDownloads: true });
 const p = await desktop.newPage();
 const W = () => p.getByTestId("podcast-wizard");

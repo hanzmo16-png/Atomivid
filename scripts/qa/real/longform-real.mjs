@@ -29,7 +29,7 @@ const spent = async (R) => {
   return { ops, usd: Math.round(usd * 10000) / 10000 };
 };
 
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, channel: process.env.PW_CHANNEL || undefined });
 const ctx = await browser.newContext({ storageState: STATE, viewport: { width: 1440, height: 900 }, acceptDownloads: true });
 const p = await ctx.newPage(); const main = () => p.locator("main").innerText();
 let R = REUSE;
