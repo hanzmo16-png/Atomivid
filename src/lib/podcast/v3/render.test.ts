@@ -282,3 +282,36 @@ test("P2 real reproducido: guion de 8 turnos, mismo avatar existente para A y B;
   assert.equal(out.body.video_url, `signed:u1/podcast-studio/${id}/episodio.mp4`);
   assert.equal(out.body.audio_url, `signed:u1/podcast-studio/${id}/episodio.mp3`);
 });
+
+test("foto fija comprobada ANTES del primer cargo: sin foto de quien escucha → «FOTO» con cero voces, cero clips y libro vacío; con foto, el episodio sigue igual", { timeout: 900_000 }, async () => {
+  const P2 = StudioSpec.parse({ ...base, mode: "dialogo", title: "Prueba real P2", script: "Ana: ¿De verdad un cometa puede venir de otra estrella?\nLuis: Sí, y lo sabemos por su velocidad: ningún objeto ligado al Sol va tan rápido.\nAna: ¿Y no podría ser un error de medición?\nLuis: Lo midieron varios observatorios durante semanas. Los datos coinciden.",
+    participants: [{ id: "A", name: "Ana", voice_id: "CeFSZuaHs4SxcBxb9nCr", avatar: { kind: "existente", avatar_id: "av-hans" } }, { id: "B", name: "Luis", voice_id: "vozLuisInv", avatar: { kind: "existente", avatar_id: "av-hans" } }],
+    visual: { avatar_frequency: 0.5, avatar_max_seconds: 20, recreations: false }, music: { enabled: true, mood: "auto" } });
+  // Sin foto: se detiene antes de pagar nada (P2 real pagó 8 voces y un clip antes de «FOTO»).
+  const missing = mockProviders({ tonesOnly: true }), checked: string[] = [];
+  missing.avatar.checkStill = async (ref) => { checked.push(ref); return false; };
+  const ledger = new MemoryLedger();
+  await assert.rejects(render(P2, { ledger, providers: missing }), (e: Error) => e.name === "StillUnavailableError" && /FOTO/.test(e.message) && /No se hizo ningún cargo/.test(e.message));
+  assert.ok(checked.length >= 1 && checked.every((r) => r === "av-hans"), "se comprueba la foto del avatar que escucha");
+  assert.equal(missing.calls.tts.length, 0, "cero voces pagadas");
+  assert.equal(missing.calls.avatar.length, 0, "cero clips pagados");
+  assert.equal(ledger.rows.size, 0, "ninguna operación en el libro");
+  // Un error al comprobar cuenta como «sin foto» (falla cerrado, sin cargo).
+  const throwing = mockProviders({ tonesOnly: true });
+  throwing.avatar.checkStill = async () => { throw new Error("storage caído"); };
+  await assert.rejects(render(P2, { providers: throwing }), /FOTO/);
+  assert.equal(throwing.calls.tts.length + throwing.calls.avatar.length, 0);
+  // Con foto: mismo resultado que sin comprobación.
+  const present = mockProviders({ tonesOnly: true });
+  present.avatar.checkStill = async () => true;
+  const ok = await render(P2, { providers: present });
+  assert.ok(ok.r.ok && ok.r.mp4 && present.calls.tts.length === 4 && present.calls.avatar.length >= 1);
+});
+
+test("foto fija: un avatar que nunca escucha (sin planos de conversación) no se comprueba ni bloquea", { timeout: 900_000 }, async () => {
+  const providers = mockProviders({ tonesOnly: true }), checked: string[] = [];
+  providers.avatar.checkStill = async (ref) => { checked.push(ref); return false; };
+  const { r } = await render(B, { providers });
+  assert.ok(r.ok && r.mp4, "modo avatar sin planos de conversación sigue funcionando aunque el avatar no tenga foto fija");
+  assert.equal(checked.length, 0);
+});

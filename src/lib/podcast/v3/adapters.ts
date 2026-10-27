@@ -25,9 +25,9 @@ export function realTts(language: "es" | "en", rate = getPricingConfig().elevenL
 }
 
 /** `publishAudio` sube el audio del turno y devuelve una URL HTTPS firmada de corta duración; `fetchStill` trae la foto del avatar. */
-export function realAvatar(deps: { publishAudio: (file: string) => Promise<string>; fetchStill: (avatarRef: string, dest: string) => Promise<void> }): AvatarProvider {
+export function realAvatar(deps: { publishAudio: (file: string) => Promise<string>; fetchStill: (avatarRef: string, dest: string) => Promise<void>; checkStill?: (avatarRef: string) => Promise<boolean> }): AvatarProvider {
   return { name: "heygen", label: "real adapter (untested live)", usdFor: (s) => estimateHeygenCost(Math.max(1, s)),
-    still: (ref, dest) => deps.fetchStill(ref, dest),
+    still: (ref, dest) => deps.fetchStill(ref, dest), checkStill: deps.checkStill,
     async render(ref, audioFile, seconds, dest, maxUsd) {
       if (!heygenAvatarProvider.isAvailable()) throw new StudioRejected("HeyGen no está configurado (HEYGEN_API_KEY); no se generó ni cobró nada.");
       const audioUrl = await deps.publishAudio(audioFile);

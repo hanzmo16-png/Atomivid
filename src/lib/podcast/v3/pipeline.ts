@@ -28,6 +28,8 @@ export type AvatarProvider = { name: string; label: ProviderLabel;
   render(avatarRef: string, audioFile: string, seconds: number, dest: string, maxUsd: number): Promise<{ actualUsd: number }>;
   /** Fotograma fijo del avatar (sin costo): foto/preview del avatar. */
   still(avatarRef: string, dest: string): Promise<void>; usdFor(seconds: number): number;
+  /** Comprueba (sin costo) que la foto fija del avatar se puede leer. Se usa ANTES del primer cargo. */
+  checkStill?: (avatarRef: string) => Promise<boolean>;
   /**
    * Prepara un avatar desde foto (HeyGen: sube la foto como asset) y devuelve la referencia del proveedor. Pasa por el
    * libro de operaciones con su propia clave: un reintento reutiliza la referencia y no vuelve a subir/cobrar.
@@ -42,6 +44,7 @@ export type Providers = { tts: TtsProvider; avatar: AvatarProvider; images: Imag
   /** Verificación GRATUITA previa (credenciales y saldo). Devuelve el motivo del bloqueo o null. Sin ella no se verifica saldo. */
   readiness?: (needs: ProviderNeeds) => Promise<string | null> };
 export class ProviderNotReadyError extends Error { constructor(why: string) { super(`Proveedor no listo: ${why} No se hizo ningún cargo.`); this.name = "ProviderNotReadyError"; } }
+export class StillUnavailableError extends Error { constructor() { super("FOTO: la foto fija del avatar no está disponible. No se hizo ningún cargo."); this.name = "StillUnavailableError"; } }
 
 /**
  * Almacén de lo ya PAGADO (voz, clips de avatar, recreaciones). El libro guarda la referencia del almacén, no una ruta
@@ -139,6 +142,12 @@ export async function runEpisode(spec: StudioSpec, ctx: { owner: string; episode
     if (ctx.providers.readiness) {
       const why = await ctx.providers.readiness({ ttsChars: pf.ttsChars, ttsUsd: line("voz"), avatarUsd: line("avatar"), imagesUsd: line("imagenes") });
       if (why) throw new ProviderNotReadyError(why);
+    }
+    // Foto fija de quien escucha en los planos de conversación: se comprueba ANTES del primer cargo (P2 real: se leía
+    // después de pagar voz y un clip). Solo los avatares que la necesitan: un avatar sin foto que no escucha no bloquea.
+    if (spec.output !== "audio" && ctx.providers.avatar.checkStill) {
+      const listeners = new Set(pf.plan.shots.filter((s) => (s.kind === "two_shot" || s.kind === "over_shoulder") && s.speaker).map((s) => (s.speaker === "A" ? "B" : "A") as "A" | "B"));
+      for (const s of listeners) if (!(await ctx.providers.avatar.checkStill(avatarRef(spec, s)).catch(() => false))) throw new StillUnavailableError();
     }
     let reused = 0, paid = 0;
     const keyOf = (provider: string, op: string, payload: unknown) => opKey({ owner: ctx.owner, episode: ctx.episode, provider, op, payload });
