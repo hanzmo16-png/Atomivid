@@ -7,14 +7,18 @@ on:
   workflow_dispatch:
     inputs:
       caso:
-        description: "preflight (USD 0) | p1 (≤ 1) | p2 (≤ 3)"
+        description: "preflight (USD 0) | p1 (≤ 1) | p2 (≤ 3) | lf (≤ 12, todo el caso)"
         required: true
         type: choice
-        options: [preflight, p1, p2]
+        options: [preflight, p1, p2, lf]
       presupuesto_usd:
         description: "Autorización por episodio (no supera el tope del caso)"
         required: true
         default: "0"
+      lf_request_id:
+        description: "Long Form: retomar una solicitud ya creada (no crear otra ni volver a pagar el guion)"
+        required: false
+        default: ""
   # Solo registra el workflow (vive fuera de la rama por defecto): en push el job se OMITE.
   push:
     branches: [claude/puertas-merge]
@@ -28,7 +32,7 @@ jobs:
   real:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 240
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -40,7 +44,7 @@ jobs:
         with: { persist-credentials: false }
       - name: Tope del caso (antes de instalar nada)
         run: |
-          case "$CASO" in preflight) MAX=0;; p1) MAX=1;; p2) MAX=3;; *) echo "::error::caso desconocido"; exit 1;; esac
+          case "$CASO" in preflight) MAX=0;; p1) MAX=1;; p2) MAX=3;; lf) MAX=12;; *) echo "::error::caso desconocido"; exit 1;; esac
           python3 -c "import sys; b=float(sys.argv[1]); m=float(sys.argv[2]); sys.exit(0 if 0 <= b <= m and (m == 0 or b > 0) else 1)" "$BUDGET_USD" "$MAX" \
             || { echo "::error::presupuesto $BUDGET_USD fuera del tope del caso $CASO (USD $MAX)"; exit 1; }
           echo "caso=$CASO presupuesto=USD $BUDGET_USD (tope del caso USD $MAX)"
@@ -56,12 +60,13 @@ jobs:
         run: |
           node scripts/qa/real/session.mjs "$RUNNER_TEMP/state1.json"
           node scripts/qa/real/session.mjs "$RUNNER_TEMP/state2.json"
-      - name: Prueba real Podcast Studio
+      - name: Prueba real (Podcast Studio o Long Form)
         env:
           STATE_FILE: ${{ runner.temp }}/state1.json
           STATE_FILE_2: ${{ runner.temp }}/state2.json
           EVID: ${{ runner.temp }}/evid/shots
-        run: node scripts/qa/real/podcast-real.mjs
+          LF_REQUEST_ID: ${{ inputs.lf_request_id }}
+        run: if [ "$CASO" = lf ]; then node scripts/qa/real/longform-real.mjs; else node scripts/qa/real/podcast-real.mjs; fi
       - name: Evidencia cifrada (capturas, hechos y descarga) a la rama de evidencias
         if: always()
         env: { GH_TOKEN: "${{ github.token }}" }
