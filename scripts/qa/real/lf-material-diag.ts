@@ -9,6 +9,20 @@ import { screenCandidate, searchCandidatesStrict, selectionQueries } from "@/lib
 import { getFootageProvider } from "@/lib/providers/footage";
 
 async function main() {
+if (process.env.DIAG_SUPPLY) {
+  // Read-only: supply state per provider (no amounts beyond units/levels) and the request's script job state.
+  const sdb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
+  for (const pr of ["anthropic", "elevenlabs", "openai", "pexels", "recraft"]) {
+    const { data, error } = await sdb.rpc("pi_supply_state", { p_provider: pr });
+    const d = (data ?? {}) as Record<string, unknown>;
+    console.log("supply", pr, error ? `error ${error.message.slice(0, 80)}` : JSON.stringify({ level: d.level, reason: d.reason, free: d.free, remainingRatio: d.remainingRatio, coverageHours: d.coverageHours, checkedAt: d.checkedAt, reliability: d.reliability }));
+  }
+  const { data: jobs } = await sdb.from("documentary_script_jobs").select("status,error_message,created_at,updated_at").eq("request_id", process.env.LF_REQUEST_ID!).order("created_at", { ascending: false }).limit(2);
+  console.log("script jobs", JSON.stringify(jobs));
+  const { data: unc } = await sdb.from("pi_paid_operations").select("provider,status,method,created_at").in("status", ["SUBMITTED", "RECONCILIATION_REQUIRED", "RESERVED"]).gte("created_at", "2026-10-27T00:00:00Z");
+  console.log("open paid ops today", JSON.stringify(unc));
+  return;
+}
 const id = process.env.LF_REQUEST_ID!, max = Number(process.env.DIAG_SHOTS || 6);
 const db = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
 const { data: row } = await db.from("video_requests").select("script_json,long_form_production_plan,language").eq("id", id).single();

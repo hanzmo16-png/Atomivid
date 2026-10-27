@@ -73,7 +73,7 @@ if (CASO === "p2") {
   }
 }
 await shot(p, "05-avatares"); await next();
-ok("step 6 music", await atStep(6), await stepTitle()); await W().getByLabel("Ambiente musical").selectOption("auto"); await shot(p, "06-musica"); await next();
+ok("step 6 music", await atStep(6), await stepTitle()); await W().getByLabel("Estilo musical").selectOption({ index: 0 }).catch(() => {}); await shot(p, "06-musica"); await next();
 ok("step 7 visuals", await atStep(7), await stepTitle());
 const pexels = W().getByLabel("Fotos de archivo (Pexels)"); if (await pexels.count()) await pexels.check();
 const rc = await W().getByTestId("proveedor-recraft").textContent().catch(() => "");

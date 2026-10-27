@@ -5,6 +5,7 @@ on:
     inputs:
       request_id: { description: "Solicitud Long Form", required: true }
       shots: { description: "Máximo de escenas a mostrar", required: false, default: "6" }
+      supply: { description: "Estado de suministro (1)", required: false, default: "" }
       compact: { description: "Una línea por escena (1) o detalle (vacío)", required: false, default: "" }
   push:
     branches: [claude/puertas-merge]
@@ -30,4 +31,5 @@ jobs:
           LF_REQUEST_ID: ${{ inputs.request_id }}
           DIAG_SHOTS: ${{ inputs.shots }}
           DIAG_COMPACT: ${{ inputs.compact }}
+          DIAG_SUPPLY: ${{ inputs.supply }}
         run: npx tsx scripts/qa/real/lf-material-diag.ts
