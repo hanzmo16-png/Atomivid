@@ -26,6 +26,10 @@ export function studioOwnerPilot(user: StudioUser, env: Env = process.env): bool
 export function studioGenerationEnabled(user: StudioUser, env: Env = process.env): boolean {
   return env.PODCAST_V3_ENABLED === "1" || studioOwnerPilot(user, env);
 }
+/** Visibilidad del estudio para una cuenta concreta (navegación y página): mismo criterio que `studioFlag`. */
+export function studioFlagFor(user: StudioUser, env: Env = process.env): StudioFlag {
+  return studioFlag(env, user);
+}
 /** El estudio se ve si PODCAST_V3_ENABLED=1, para el dueño (piloto) o si es un despliegue Preview de Vercel (salvo PODCAST_STUDIO_PREVIEW=0). */
 export function studioFlag(env: Env = process.env, user?: StudioUser): StudioFlag {
   if (env.PODCAST_V3_ENABLED === "1") return { enabled: true, source: "env", reason: "PODCAST_V3_ENABLED=1" };

@@ -13,7 +13,7 @@ import { PodcastWizard, type WizardAvatar } from "./PodcastWizard";
 import { StudioEpisodeList } from "./StudioEpisodeList";
 import { voiceAvailability } from "@/lib/podcast/v3/spec";
 import { listStudioEpisodes } from "@/lib/podcast/v3/store";
-import { studioFlag, studioGenerationEnabled, visualProviders } from "@/lib/podcast/v3/studio";
+import { studioFlagFor, studioGenerationEnabled, visualProviders } from "@/lib/podcast/v3/studio";
 
 const STATUS: Record<PodcastEpisode["status"], string> = { draft: "Borrador", generating: "Generando", ready: "Listo", failed: "Con error" };
 const VIDEO: Record<string, string> = { scheduled: "programado", queued: "en cola", running: "en producción", ready: "entregado", failed: "con error", blocked: "detenido" };
@@ -34,11 +34,12 @@ export default async function PodcastPage() {
 
   // Estudio visible: PODCAST_V3_ENABLED=1, piloto del dueño o Vercel Preview (por defecto). La GENERACIÓN solo con
   // PODCAST_V3_ENABLED=1 o el piloto del dueño (exige la migración 140000): en Preview el flujo se recorre y estima, sin despachar.
-  const flag = studioFlag(process.env, user);
+  const flag = studioFlagFor(user);
   const v3Enabled = flag.enabled;
   const generationEnabled = studioGenerationEnabled(user);
   const previewNotice = flag.source === "preview" ? "Vista previa (Vercel Preview): el estudio se muestra activado solo aquí. Puedes recorrer los 10 pasos y ver costos; la generación real está desactivada hasta aplicar la migración y PODCAST_V3_ENABLED=1." : null;
-  const studioEpisodes = generationEnabled ? (await listStudioEpisodes(service, user.id)) ?? [] : [];
+  // Los episodios ya hechos se listan siempre (escuchar y descargar no genera ni cobra), aunque la generación esté apagada.
+  const studioEpisodes = (await listStudioEpisodes(service, user.id)) ?? [];
   const { data: avatarRows } = await service.from("avatars").select("id,name").eq("user_id", user.id).eq("status", "ready").order("created_at", { ascending: false }).limit(20);
   const avatars = (avatarRows ?? []) as WizardAvatar[];
   const wizardVoices = voicesError ? [] : voiceAvailability(voices, user);

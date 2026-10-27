@@ -9,7 +9,7 @@ import { NavLink } from "./NavLink";
 import { isLongFormEnabled, isLongFormAllowlisted } from "@/lib/video/long-form/access";
 import { isCommandCenterAdmin } from "@/lib/command-center/access";
 import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
-import { studioFlag } from "@/lib/podcast/v3/studio";
+import { studioFlagFor } from "@/lib/podcast/v3/studio";
 
 export default async function DashboardLayout({
   children,
@@ -33,7 +33,7 @@ export default async function DashboardLayout({
   const showCommandCenter = isCommandCenterAdmin(user);
   // Podcast (estudio audiovisual): mismo gate que la página /dashboard/podcast + interruptor del estudio
   // (PODCAST_V3_ENABLED=1, piloto del dueño, o activado por defecto solo en Vercel Preview). Solo navegación.
-  const showPodcast = canAccessLongFormBeta(user) && studioFlag(process.env, user).enabled;
+  const showPodcast = canAccessLongFormBeta(user) && studioFlagFor(user).enabled;
 
   return (
     <div className="min-h-screen">

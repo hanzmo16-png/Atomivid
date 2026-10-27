@@ -310,7 +310,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
               <div className="mt-2 h-2 w-full rounded bg-surface"><div className="h-2 rounded bg-accent" style={{ width: `${status?.episode.status === "ready" ? 100 : status?.episode.progress?.pct ?? 2}%` }} /></div>
               {status?.episode.error && <p className="mt-2 text-danger">{status.episode.error}</p>}
               {status?.episode.status === "failed" && <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={() => { set({ draftId: d.episodeId, episodeId: null, authorized: false }); }}>Reintentar (no se cobra dos veces lo ya generado)</Button>}
-              {status?.episode.status === "authorized" && <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={() => void run(async () => { const again = await api(`/api/podcast/v3/${d.episodeId}`, { confirm: true, authorizedUsd: d.budgetUsd }); if (again.note) setNote(String(again.note)); })}>Volver a pedir el inicio (no se cobra otra vez)</Button>}
+              {status?.episode.status === "authorized" && <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={() => void run(async () => { const again = await api(`/api/podcast/v3/${d.episodeId}`, { confirm: true }); if (again.note) setNote(String(again.note)); })}>Volver a pedir el inicio (no se cobra otra vez)</Button>}
               <p className="mt-2 text-xs text-ink-muted">Puedes cerrar esta página: el episodio sigue generándose y aparecerá en «Tus episodios».</p>
             </div>
           )}
