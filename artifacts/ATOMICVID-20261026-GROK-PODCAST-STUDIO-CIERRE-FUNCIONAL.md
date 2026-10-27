@@ -103,7 +103,7 @@ Capturas de esa corrida (también en el árbol, para la revisión):
 
 El arnés de estudio **no** compara sha del MP4 con una columna (el episodio de estudio no guarda `audio_sha256`). El sha del flujo clásico sigue en los casos 2 y 9 del mismo archivo; no se ejecutaron en esta pasada porque no eran el defecto. Donde el arnés de estudio sí mide el archivo, se comprobó códec, duración de reproducción y loudness.
 
-CI de GitHub: el workflow `podcast-3-0-e2e` solo disparaba contra `claude/atomivid-mvp-setup-0079jv` y `main`. Este PR apunta a la rama de #222, así que se añadió esa base (y `claude/pr200-sobre-201-199`) al `pull_request` del workflow. Al abrir #227 Actions encoló la corrida: https://github.com/hanzmo16-png/Atomivid/actions/runs/40430419331 (`podcast-3-0-e2e`, casos 1–11, incluidos el 10 de escritorio y el 11 con Samsung 390×844). Esa corrida de GitHub puede seguir en curso; la evidencia de arriba es la corrida local del mismo arnés y ya está en verde. No se espera a que Actions termine para no tratar un check pendiente como un GO.
+CI de GitHub: el workflow `podcast-3-0-e2e` solo disparaba contra `claude/atomivid-mvp-setup-0079jv` y `main`. Este PR apunta a la rama de #222, así que se añadió esa base (y `claude/pr200-sobre-201-199`) al `pull_request` del workflow. La corrida encolada al abrir #227 (https://github.com/hanzmo16-png/Atomivid/actions/runs/40430419331) quedó cancelada al llegar el arreglo de tipos. La corrida que vale es la de la tabla de abajo.
 
 ## Simulado vs real
 
@@ -114,6 +114,22 @@ CI de GitHub: el workflow `podcast-3-0-e2e` solo disparaba contra `claude/atomiv
 | HeyGen / Pexels / ElevenLabs | Mocks locales. El libro anota `elevenlabs-mock`. | Cero llamadas a proveedores de pago en esta pasada (el arnés registra egress y el diseño rechaza salidas no locales). |
 | Base de datos | Postgres desechable del arnés, propuestas aplicadas solo ahí. | Ningún proyecto Supabase de producción tocado. |
 | Layout 390×844 y escritorio | Chromium headless con el viewport indicado, contra `next dev` en `127.0.0.1:3300`. | No es un teléfono Samsung físico ni un navegador de Hans. |
+
+## CI en verde (SHA del arreglo de tipos)
+
+SHA completo: `797b8b0ef940d8decc07a60f41377f5ba904631b` (`797b8b0e`). Borrador #227, sin merge y sin deploy de producción. El verde de estos checks no cambia el NO-GO.
+
+| Check | Resultado | Corrida |
+| --- | --- | --- |
+| typecheck (`podcast-3-0-e2e`) | pass | https://github.com/hanzmo16-png/Atomivid/actions/runs/40431076417/job/121948793230 |
+| regression (`podcast-3-0-e2e`) | pass | https://github.com/hanzmo16-png/Atomivid/actions/runs/40431076417/job/121948792944 |
+| render (`podcast-3-0-e2e`) | pass | https://github.com/hanzmo16-png/Atomivid/actions/runs/40431076417/job/121948793448 |
+| e2e (`podcast-3-0-e2e`) | pass | https://github.com/hanzmo16-png/Atomivid/actions/runs/40431076417/job/121948793146 |
+| verify (`spend-authorization-postgres`) | pass | https://github.com/hanzmo16-png/Atomivid/actions/runs/40431076439/job/121948598412 |
+| Vercel (preview) | pass | https://vercel.com/atomivid/atomivid/GEcm83BDghZVAULs8KzBAWaNF5nG |
+| Vercel Preview Comments | pass | https://github.com/hanzmo16-png/Atomivid/runs/121949463095 |
+
+Corrida `podcast-3-0-e2e`: https://github.com/hanzmo16-png/Atomivid/actions/runs/40431076417 — conclusión **success** (typecheck, regression, render, e2e). Corrida `spend-authorization-postgres`: https://github.com/hanzmo16-png/Atomivid/actions/runs/40431076439 — conclusión **success** (verify). La corrida anterior `40430419331` quedó superseded; la de `0bfb50b6` (`40430475066`) falló el typecheck y este SHA la sustituye.
 
 ## GO / NO-GO producción
 
