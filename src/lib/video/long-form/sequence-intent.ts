@@ -46,6 +46,8 @@ export type RoleSlot = {
   impactReason?: string;
   /** Solo diseño (v6): un futuro material de ambiente que mejoraría el plano. Nunca se ejecuta aquí. */
   futureAtmosphere?: { description: string };
+  /** Plan cinematográfico: candidato a clip generativo (el reparto decide con elegibilidad y topes). Ausente = imagen. */
+  aiVideoCandidate?: boolean;
 };
 
 export const IMPACT_LEVELS = [1, 2, 3] as const;
@@ -189,6 +191,8 @@ export type ResolvedSlot = {
   visual: BeatVisual;
   detail?: { of: number; region: DetailRegion };
   reason?: string;
+  /** Plan cinematográfico: candidato a clip generativo (copiado de la intención). */
+  aiVideoCandidate?: boolean;
   /** v6: peso del momento (copiado de la intención; no cambia el estado de verdad del rol). */
   impact?: ImpactLevel;
   impactReason?: string;
@@ -250,7 +254,7 @@ export function resolveSequences(sequences: SequenceIntent[], availability: Slot
     const out: ResolvedSlot[] = [];
     seq.slots.forEach((slot, index) => {
       // El impacto viaja con el rol pero NUNCA interviene en si el rol se ocupa: la verdad decide antes.
-      const base = { sequenceId: seq.id, index, role: slot.role, scale: slot.scale, scaleReason: slot.scaleReason, beatId: slot.beatId, ...(slot.impact ? { impact: slot.impact, impactReason: slot.impactReason } : {}) };
+      const base = { sequenceId: seq.id, index, role: slot.role, scale: slot.scale, scaleReason: slot.scaleReason, beatId: slot.beatId, ...(slot.impact ? { impact: slot.impact, impactReason: slot.impactReason } : {}), ...(slot.aiVideoCandidate ? { aiVideoCandidate: true } : {}) };
       const v = visuals[index];
       const recomposeFromSequence = (why: string): ResolvedSlot => {
         // Escalera verdadera: otra prueba VERIFICADA de esta misma secuencia (el documento, en plano general); si no, tarjeta de año/texto.

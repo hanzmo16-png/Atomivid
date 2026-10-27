@@ -58,6 +58,11 @@ export async function storedAuthorizationRefusal(service: SupabaseClient, jobId:
   if (b.error) return "authorization could not be read";
   const row = b.data as { project_id: string; owner_id: string; cap_usd: number | string; authorization_ref: string; status: string } | null;
   const auth: SpendAuthorization | null = row ? { projectId: row.project_id, ownerId: row.owner_id, capUsd: Number(row.cap_usd), authorizationRef: row.authorization_ref, status: row.status === "ACTIVE" ? "ACTIVE" : "CLOSED" } : null;
+  // Audit of PR #199 (bypass A/B): the durable authorization must be the one bound to THIS budget. A durable row for
+  // ref B must never unlock a budget opened under ref A. Checked before any other read, so a mismatch does nothing.
+  const ref = (authorizationRef ?? "").trim();
+  if (auth && ref && ref !== auth.authorizationRef.trim())
+    return "durable resume authorization does not match the recovery budget's authorization_ref";
   let usage: { pendingUsd: number; remainingUsd: number } | null = null;
   if (auth) {
     const u = await service.rpc("pi_recovery_budget_usage", { p_project_id: auth.projectId, p_exclude_key: null });
@@ -67,8 +72,7 @@ export async function storedAuthorizationRefusal(service: SupabaseClient, jobId:
   const refusal = resumeAuthorizationRefusal(auth, (job.data as { user_id: string }).user_id, usage);
   if (refusal) return refusal;
   // Audit P0-1: an ACTIVE, funded budget is not enough. A durable resume authorization must exist for
-  // (project_id, authorization_ref) with a transaction id. Production had 0 such rows for e8048599.
-  const ref = (authorizationRef ?? "").trim();
+  // (project_id, authorization_ref) with a transaction id, for the budget's own ref. Production had 0 such rows for e8048599.
   if (!ref) return "durable resume authorization missing: no authorization_ref given";
   const r = await service.rpc("pi_recovery_resume_authorization", { p_project_id: auth!.projectId, p_authorization_ref: ref });
   if (r.error) return "durable resume authorization could not be read";

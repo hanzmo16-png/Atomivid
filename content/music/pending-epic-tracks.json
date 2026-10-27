@@ -1,0 +1,48 @@
+{
+  "_doc": "Pistas épicas orquestales CC BY 4.0 (Silverman Sound / Shane Ivers) para Atila vs. Leónidas (e8048599). Se publican en el catálogo SOLO cuando el objeto existe en el bucket music-library con el tamaño fijado aquí (src/lib/providers/music/pending.ts) y, al descargarlo, su sha256 coincide; antes de eso nunca se eligen. Solo pistas instrumentales. CC BY 4.0: uso comercial permitido con crédito; la línea `attribution` va en la descripción de YouTube.",
+  "tracks": [
+    {
+      "id": "silverman-passage-of-arms",
+      "title": "Passage Of Arms",
+      "author": "Shane Ivers (Silverman Sound Studios)",
+      "sourceUrl": "https://www.silvermansound.com/free-music/passage-of-arms",
+      "downloadUrl": "https://www.silvermansound.com/wp-content/uploads/passage-of-arms.mp3",
+      "license": "CC BY 4.0 — https://creativecommons.org/licenses/by/4.0/",
+      "attribution": "Music: Passage Of Arms by Shane Ivers - https://www.silvermansound.com — licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)",
+      "provider": "silverman",
+      "instrumental": true,
+      "tones": [
+        "epic",
+        "cinematic",
+        "tension"
+      ],
+      "storagePath": "silverman-passage-of-arms.mp3",
+      "use": "Bloques de choque y carga (beats 3-6): metales, cuerdas y tambores agresivos; 2:08 en bucle bajo la narración.",
+      "sha256": "edb3ae718e4be6fed678cfc55b0ae5c5f17b5c693e01a2eb09f4fc44e0f6aabd",
+      "bytes": 5126186,
+      "durationSec": 128.05
+    },
+    {
+      "id": "silverman-the-fall-of-heroes",
+      "title": "The Fall Of Heroes",
+      "author": "Shane Ivers (Silverman Sound Studios)",
+      "sourceUrl": "https://www.silvermansound.com/free-music/the-fall-of-heroes",
+      "downloadUrl": "https://www.silvermansound.com/wp-content/uploads/the-fall-of-heroes.mp3",
+      "license": "CC BY 4.0 — https://creativecommons.org/licenses/by/4.0/",
+      "attribution": "Music: The Fall Of Heroes by Shane Ivers - https://www.silvermansound.com — licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)",
+      "provider": "silverman",
+      "instrumental": false,
+      "tones": [
+        "epic",
+        "cinematic"
+      ],
+      "storagePath": "silverman-the-fall-of-heroes.mp3",
+      "use": "Apertura y cierre (beats 0-1 y 7-9): coro, metales y cuerdas a 160 BPM; el coro es vocalización sin letra — validar en la mezcla que no compita con la voz.",
+      "sha256": "6cd27614b31ffd4a7516f875a2e80359e5aabfecf7e450e4b26d82fdcafe97f7",
+      "bytes": 5586986,
+      "durationSec": 139.57,
+      "excludedReason": "Tiene coro (vocalización): el banco exige pistas instrumentales (MusicTrackEntry.instrumental: true, condición obligatoria). No se publica aunque se ingeste."
+    }
+  ],
+  "validatedDry": "2026-10-23 ops music-ingest DRY=1 run 40060790977: HTTP 200, MP3, duraciones y sha256 verificados; nada escrito en Storage."
+}
