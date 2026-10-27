@@ -96,7 +96,9 @@ export async function runStudioJob(episodeId: string) {
       const { writeFile } = await import("node:fs/promises"); await writeFile(dest, Buffer.from(await data.arrayBuffer()));
     },
   };
-  const providers = simulated ? mockProviders() : { tts: realTts(spec.language, rates?.voiceUsdPer1kChars), avatar: wrapped, readiness,
+  // Arnés: inyección de un rechazo (sin cargo) en la N-ésima voz; solo con proveedores simulados, nunca en producción.
+  const rejectTtsCall = Number(process.env.PODCAST_V3_MOCK_TTS_REJECT_CALL || 0);
+  const providers = simulated ? mockProviders(Number.isInteger(rejectTtsCall) && rejectTtsCall > 0 ? { rejectTtsCall } : {}) : { tts: realTts(spec.language, rates?.voiceUsdPer1kChars), avatar: wrapped, readiness,
     images: realImages({ searchPhotos: async (q) => (await searchScenePhotos(q, spec.format === "9:16" ? "portrait" : "landscape", spec.language)).map((c) => ({ id: c.sourceId, url: c.url, credit: c.photographer })), download: downloadToFile }) };
   console.log("STUDIO_PROVIDERS", simulated ? "mock" : "real adapter (untested live)");
   const progress = (stage: string, pct: number) => { void service.from(STUDIO_TABLE).update({ progress: { stage, pct }, updated_at: new Date().toISOString() }).eq("id", episodeId); };

@@ -23,8 +23,8 @@ async function session(user, tag, device = null) {
   return { ctx, p };
 }
 const shot = (p, n) => p.screenshot({ path: path.join(OUT, `${n}.png`), fullPage: true });
-function worker(id, kind) {
-  const env = { ...process.env, ...Object.fromEntries(fs.readFileSync(path.join(E2E, "secrets/podcast-worker.env"), "utf8").trim().split("\n").map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)])), EPISODE_ID: id, JOB_KIND: kind, NPM_CONFIG_UPDATE_NOTIFIER: "false" };
+function worker(id, kind, extra = {}) {
+  const env = { ...process.env, ...extra, ...Object.fromEntries(fs.readFileSync(path.join(E2E, "secrets/podcast-worker.env"), "utf8").trim().split("\n").map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)])), EPISODE_ID: id, JOB_KIND: kind, NPM_CONFIG_UPDATE_NOTIFIER: "false", ...extra };
   return new Promise((res) => { const w = spawn("npx", ["tsx", "scripts/podcast-video-worker.ts"], { cwd: REPO, env }); let o = ""; w.stdout.on("data", (d) => (o += d)); w.stderr.on("data", (d) => (o += d)); w.on("close", (c) => { fs.appendFileSync(path.join(OUT, `worker-${id}-${kind}.log`), o); res({ code: c, out: o, proc: w }); }); });
 }
 async function createEpisode(p, o) {
@@ -456,6 +456,13 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     await W().getByTestId("wizard-estimate").locator("table").waitFor();
     const est = await W().getByTestId("wizard-estimate").textContent();
     ok(`${tag}: costo estimado por proveedor ANTES de autorizar`, ["ElevenLabs", "HeyGen", "GitHub Actions", "Total estimado"].every((k) => est.includes(k)) && await W().getByTestId("costo-por-proveedor").isVisible(), est.slice(0, 160));
+    if (opts.budgetCheck) {
+      // Presupuesto: el tope de USD 50 por episodio se respeta en el asistente (no al final con un 402).
+      await W().getByLabel("Presupuesto máximo").fill("60"); await next();
+      const alert = await W().getByRole("alert").textContent().catch(() => "");
+      ok(`${tag}: presupuesto de USD 60 bloquea el avance con el motivo (tope USD 50)`, /Paso 8/.test(await stepTitle()) && /no puede autorizar más de USD 50/.test(alert ?? ""), String(alert).slice(0, 120));
+      await W().getByLabel("Presupuesto máximo").fill("10");
+    }
     await snap("paso08-presupuesto"); await next();
     await W().getByTestId("wizard-preview").waitFor(); await W().getByTestId("preview-turnos").waitFor();
     if (m.count === 2 && m.avatars) {
@@ -471,8 +478,31 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     ok(`${tag}: episodio autorizado y trabajo despachado`, row0?.status === "authorized" && fs.readFileSync(path.join(E2E, "logs/dispatch.jsonl"), "utf8").slice(disp0).includes(row0.id), row0?.status);
     // Recuperación: recargar a mitad de la generación vuelve al paso Generación con el mismo episodio.
     await S.p.reload(); await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor(); await W().getByTestId("wizard-progress").waitFor({ timeout: 20000 }).catch(() => {}); ok(`${tag}: recarga durante la generación conserva el episodio y el paso`, /Paso 10/.test(await stepTitle()) && await W().getByTestId("wizard-progress").isVisible());
+    if (opts.failTtsCall) {
+      // Fallo a mitad (ElevenLabs simulado rechaza la voz N, sin cargo) → episodio fallido; «Reintentar» en la interfaz;
+      // el reintento reutiliza lo ya pagado y no cobra dos veces (cada clave del libro liquidada una sola vez).
+      const w1 = await worker(row0.id, "studio", { PODCAST_V3_MOCK_TTS_REJECT_CALL: String(opts.failTtsCall) });
+      const f = (await db.query("select status, error from podcast_studio_episodes where id=$1", [row0.id])).rows[0];
+      ok(`${tag}: rechazo del proveedor a mitad → episodio «failed» con el motivo`, w1.code !== 0 && f.status === "failed" && /429/.test(f.error ?? ""), `${f.status} ${String(f.error).slice(0, 80)}`);
+      const o1 = (await db.query("select op, state, count(*)::int n, coalesce(sum(actual_usd),0)::float usd from podcast_studio_operations where episode_id=$1 group by 1,2 order by 1,2", [row0.id])).rows;
+      const settled1 = o1.filter((o) => o.op === "tts" && o.state === "settled").reduce((a, o) => a + o.n, 0), released1 = o1.filter((o) => o.state === "released");
+      ok(`${tag}: lo pagado antes del fallo queda liquidado (${opts.failTtsCall - 1}) y el rechazo liberado sin cargo`, settled1 === opts.failTtsCall - 1 && released1.length === 1 && released1[0].usd === 0 && !o1.some((o) => o.state === "uncertain" || o.state === "reserved"), JSON.stringify(o1));
+      await S.p.reload(); await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
+      const retry = W().getByRole("button", { name: /Reintentar/ }); await retry.waitFor({ timeout: 30000 }); await snap("paso10f-fallo");
+      ok(`${tag}: la interfaz muestra el fallo y ofrece «Reintentar» sin cobrar dos veces`, await retry.isVisible() && /no se cobra dos veces/.test(await retry.textContent()));
+      await retry.click();
+      await W().getByLabel("Autorizo el cargo").check(); await W().getByRole("button", { name: "Generar episodio" }).click(); await W().getByTestId("wizard-progress").waitFor();
+      let r2; for (let i = 0; i < 40; i++) { r2 = (await db.query("select id, status from podcast_studio_episodes where id=$1", [row0.id])).rows[0]; if (r2?.status === "authorized") break; await S.p.waitForTimeout(250); }
+      ok(`${tag}: el reintento vuelve a autorizar el MISMO episodio (no crea otro)`, r2?.status === "authorized" && (await db.query("select count(*)::int n from podcast_studio_episodes where user_id=$1 and title=$2", [OWNER.id, m.title])).rows[0].n === 1, r2?.status);
+    }
     const w = await worker(row0.id, "studio");
     const row = (await db.query("select * from podcast_studio_episodes where id=$1", [row0.id])).rows[0];
+    ok(`${tag}: el costo liquidado no supera lo autorizado`, Number(row.cost_usd) <= Number(row.authorized_usd) + 1e-6, `${row.cost_usd} / ${row.authorized_usd}`);
+    if (opts.failTtsCall) {
+      const dup = (await db.query("select key from podcast_studio_operations where episode_id=$1 group by key having count(*) > 1", [row0.id])).rows;
+      const ready = /STUDIO_READY (\{.*\})/.exec(w.out); const reused = ready ? Number(JSON.parse(ready[1]).reused) : -1;
+      ok(`${tag}: tras el reintento cada clave del libro existe una vez y lo pagado antes se reutilizó (${reused} reutilizadas)`, dup.length === 0 && reused >= opts.failTtsCall - 1, `dup=${dup.length} reused=${reused}`);
+    }
     ok(`${tag}: worker del estudio entrega el episodio (proveedores SIMULADOS)`, w.code === 0 && row.status === "ready" && /STUDIO_PROVIDERS mock/.test(w.out), `${row.status} ${row.error ?? ""}`);
     if ((row.spec?.participants || []).some((p) => p.voice_id === DURO)) ok(`${tag}: el episodio guardado conserva voice_kind clonada (simulado)`, row.spec.participants.every((p) => p.voice_id !== DURO || p.voice_kind === "clonada"), JSON.stringify(row.spec.participants.map((p) => [p.voice_id, p.voice_kind])));
     if (m.avatars) {
@@ -582,10 +612,18 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     ok("c11-samsung: paso voces de otra cuenta en 390×844 sin desbordamiento", otherWidth <= 1, `${otherWidth}px`);
     await So.ctx.close();
   }
+  if (cases.includes("12")) {
+    // Presupuesto respetado y fallo + reintento desde la interfaz, en escritorio y en Samsung 390×844.
+    await studioFlow(s, "c12", { ...MODES.find((x) => x.tag === "c10d"), title: "E2E reintento escritorio" }, { budgetCheck: true, failTtsCall: 2 });
+    const SAMSUNG12 = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2.75, isMobile: true, hasTouch: true, userAgent: "Mozilla/5.0 (Linux; Android 14; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36" };
+    const S12 = await session(OWNER, "c12-samsung", SAMSUNG12);
+    await studioFlow(S12, "c12-samsung", { ...MODES.find((x) => x.tag === "c10d"), title: "E2E reintento samsung" }, { budgetCheck: true, failTtsCall: 2 });
+    await S12.ctx.close();
+  }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
-  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40 };
-  const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[a-d]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name))).length]));
+  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40 };
+  const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[a-d]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name)) || (c === "12" && /^c12-/.test(r.name))).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));
   for (const r of results.filter((x) => !x.pass)) console.log(`FALLO_DETALLE FAIL ${r.name} ${String(r.detail).slice(0, 200)}`);
