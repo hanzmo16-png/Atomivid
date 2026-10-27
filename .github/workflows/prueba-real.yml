@@ -26,7 +26,7 @@ on:
 permissions:
   contents: write
 concurrency:
-  group: prueba-real
+  group: prueba-real-${{ inputs.caso == 'lf' && 'lf' || 'podcast' }}
   cancel-in-progress: false
 jobs:
   real:
