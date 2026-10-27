@@ -134,3 +134,37 @@ test("asistente: el presupuesto por encima del tope del servidor se rechaza en �
   assert.ok(stepErrors(d, STEP.presupuesto, { unavailableVoices: [] }).some((e) => /no puede autorizar más de USD 50/.test(e)));
   assert.deepEqual(stepErrors({ ...d, budgetUsd: STUDIO_MAX_AUTHORIZED_USD }, STEP.presupuesto, { unavailableVoices: [] }), []);
 });
+
+// Piloto del dueño (cierre 2026-10-27): sin PODCAST_V3_ENABLED, el estudio genera SOLO para INTERNAL_PRODUCTION_OWNER_USER_ID.
+test("owner pilot: only the internal owner (email confirmed) gets the studio; PODCAST_V3_OWNER_PILOT=0 turns it off", async () => {
+  const { studioOwnerPilot, studioGenerationEnabled, studioFlag } = await import("./studio");
+  const OWNER = "11111111-2222-4333-8444-555555555555";
+  const env = { INTERNAL_PRODUCTION_OWNER_USER_ID: OWNER };
+  const owner = { id: OWNER, email_confirmed_at: "2026-01-01T00:00:00Z" };
+  assert.equal(studioGenerationEnabled(owner, env), true);
+  assert.equal(studioFlag(env, owner).source, "owner");
+  assert.equal(studioGenerationEnabled({ id: "99999999-2222-4333-8444-555555555555", email_confirmed_at: "2026-01-01T00:00:00Z" }, env), false, "another account");
+  assert.equal(studioGenerationEnabled({ id: OWNER, email_confirmed_at: null }, env), false, "unconfirmed email");
+  assert.equal(studioGenerationEnabled(null, env), false);
+  assert.equal(studioGenerationEnabled(owner, {}), false, "no owner configured");
+  assert.equal(studioOwnerPilot(owner, { ...env, PODCAST_V3_OWNER_PILOT: "0" }), false, "kill switch");
+  assert.equal(studioFlag({ ...env, PODCAST_V3_OWNER_PILOT: "0" }, owner).enabled, false);
+  assert.equal(studioGenerationEnabled({ id: "99999999-2222-4333-8444-555555555555" }, { PODCAST_V3_ENABLED: "1" }), true, "global switch unchanged");
+});
+
+test("owner pilot in the worker: only the owner's episodes run with the switch off; nothing is read for malformed ids", async () => {
+  const { studioWorkerEnabled } = await import("../../../../scripts/podcast-3-0/studio-worker");
+  const OWNER = "11111111-2222-4333-8444-555555555555", EP = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+  let reads = 0;
+  const of = (u: string | null) => async () => { reads++; return u; };
+  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: OWNER }, of(OWNER)), true);
+  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: OWNER.toUpperCase() }, of(OWNER)), true, "case-insensitive");
+  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: OWNER }, of("99999999-2222-4333-8444-555555555555")), false, "another account's episode");
+  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: OWNER }, of(null)), false, "episode not found");
+  reads = 0;
+  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: OWNER, PODCAST_V3_OWNER_PILOT: "0" }, of(OWNER)), false, "kill switch");
+  assert.equal(await studioWorkerEnabled(EP, {}, of(OWNER)), false, "no owner configured");
+  assert.equal(await studioWorkerEnabled("not-an-id", { PODCAST_V3_OWNER_USER_ID: OWNER }, of(OWNER)), false);
+  assert.equal(reads, 0, "no lookup when the pilot cannot apply");
+  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_ENABLED: "1" }, of(null)), true, "global switch unchanged");
+});

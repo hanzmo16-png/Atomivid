@@ -32,8 +32,8 @@ export default async function DashboardLayout({
   // Command Center: owner/admin only (same gate as its page and API); plain navigation.
   const showCommandCenter = isCommandCenterAdmin(user);
   // Podcast (estudio audiovisual): mismo gate que la página /dashboard/podcast + interruptor del estudio
-  // (PODCAST_V3_ENABLED=1, o activado por defecto solo en Vercel Preview). Solo navegación.
-  const showPodcast = canAccessLongFormBeta(user) && studioFlag().enabled;
+  // (PODCAST_V3_ENABLED=1, piloto del dueño, o activado por defecto solo en Vercel Preview). Solo navegación.
+  const showPodcast = canAccessLongFormBeta(user) && studioFlag(process.env, user).enabled;
 
   return (
     <div className="min-h-screen">

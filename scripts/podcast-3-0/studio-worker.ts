@@ -7,8 +7,23 @@ import { mkdir, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+/** Mismo interruptor que la app: PODCAST_V3_ENABLED=1, o el piloto del dueño (episodio de la cuenta PODCAST_V3_OWNER_USER_ID,
+ *  que el workflow toma del secreto INTERNAL_PRODUCTION_OWNER_USER_ID; PODCAST_V3_OWNER_PILOT=0 lo apaga). */
+export async function studioWorkerEnabled(episodeId: string, env: Record<string, string | undefined> = process.env, ownerOf?: (id: string) => Promise<string | null>): Promise<boolean> {
+  if (env.PODCAST_V3_ENABLED === "1") return true;
+  const owner = env.PODCAST_V3_OWNER_USER_ID?.trim().toLowerCase();
+  if (env.PODCAST_V3_OWNER_PILOT === "0" || !owner || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(owner) || !/^[0-9a-f-]{36}$/i.test(episodeId)) return false;
+  const read = ownerOf ?? (async (id: string) => {
+    if (!env.SUPABASE_SERVICE_ROLE_KEY) return null;
+    const { createServiceClient } = await import("../../src/lib/supabase/service");
+    const { data } = await createServiceClient().from("podcast_studio_episodes").select("user_id").eq("id", id).maybeSingle();
+    return (data as { user_id?: string } | null)?.user_id ?? null;
+  });
+  return (await read(episodeId))?.toLowerCase() === owner;
+}
+
 export async function runStudioJob(episodeId: string) {
-  if (process.env.PODCAST_V3_ENABLED !== "1") {
+  if (!(await studioWorkerEnabled(episodeId))) {
     // App y worker desalineados (la app autorizó, el worker no tiene el interruptor): no se genera NI se cobra, y el
     // episodio no queda «autorizado» para siempre: pasa a «failed» con el motivo (se puede reintentar al alinear).
     console.log("STUDIO_DISABLED");

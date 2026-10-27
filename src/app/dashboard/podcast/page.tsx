@@ -13,7 +13,7 @@ import { PodcastWizard, type WizardAvatar } from "./PodcastWizard";
 import { StudioEpisodeList } from "./StudioEpisodeList";
 import { voiceAvailability } from "@/lib/podcast/v3/spec";
 import { listStudioEpisodes } from "@/lib/podcast/v3/store";
-import { studioFlag, visualProviders } from "@/lib/podcast/v3/studio";
+import { studioFlag, studioGenerationEnabled, visualProviders } from "@/lib/podcast/v3/studio";
 
 const STATUS: Record<PodcastEpisode["status"], string> = { draft: "Borrador", generating: "Generando", ready: "Listo", failed: "Con error" };
 const VIDEO: Record<string, string> = { scheduled: "programado", queued: "en cola", running: "en producción", ready: "entregado", failed: "con error", blocked: "detenido" };
@@ -32,11 +32,11 @@ export default async function PodcastPage() {
   let voices: AccountVoice[] = [], voicesError: string | null = null;
   try { voices = visibleVoices(await listAccountVoices(), user); } catch (e) { voicesError = e instanceof VoicesUnavailableError ? e.customerMessage : "No se pudieron consultar las voces."; }
 
-  // Estudio visible: PODCAST_V3_ENABLED=1 o Vercel Preview (por defecto). La GENERACIÓN solo con PODCAST_V3_ENABLED=1
-  // (exige la migración propuesta): en Preview el flujo completo se recorre y estima, pero no despacha trabajos.
-  const flag = studioFlag();
+  // Estudio visible: PODCAST_V3_ENABLED=1, piloto del dueño o Vercel Preview (por defecto). La GENERACIÓN solo con
+  // PODCAST_V3_ENABLED=1 o el piloto del dueño (exige la migración 140000): en Preview el flujo se recorre y estima, sin despachar.
+  const flag = studioFlag(process.env, user);
   const v3Enabled = flag.enabled;
-  const generationEnabled = process.env.PODCAST_V3_ENABLED === "1";
+  const generationEnabled = studioGenerationEnabled(user);
   const previewNotice = flag.source === "preview" ? "Vista previa (Vercel Preview): el estudio se muestra activado solo aquí. Puedes recorrer los 10 pasos y ver costos; la generación real está desactivada hasta aplicar la migración y PODCAST_V3_ENABLED=1." : null;
   const studioEpisodes = generationEnabled ? (await listStudioEpisodes(service, user.id)) ?? [] : [];
   const { data: avatarRows } = await service.from("avatars").select("id,name").eq("user_id", user.id).eq("status", "ready").order("created_at", { ascending: false }).limit(20);
