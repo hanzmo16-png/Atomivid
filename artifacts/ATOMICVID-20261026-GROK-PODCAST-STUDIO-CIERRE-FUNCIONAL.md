@@ -1,6 +1,8 @@
 # Podcast Studio — cierre funcional (Grok)
 
-**Estado: borrador. NO FUSIONAR sin Hans. NO-GO de producción.**
+**Estado: borrador #227. NO FUSIONAR sin Hans. NO-GO de producción.**
+
+Rama `cursor/podcast-studio-cierre-5d3a`, encima de #222 @ `98848a63`. https://github.com/hanzmo16-png/Atomivid/pull/227
 
 Base de este trabajo: cabeza de #222 `98848a633b92206fd41fe332d0886887e7395b76` (`claude/podcast-estudio-tope-ui`, tope USD 50 apilado sobre #207 @ `d8b203d`). No se partió de `762714e`: esa punta no tiene Podcast Studio.
 
@@ -101,7 +103,7 @@ Capturas de esa corrida (también en el árbol, para la revisión):
 
 El arnés de estudio **no** compara sha del MP4 con una columna (el episodio de estudio no guarda `audio_sha256`). El sha del flujo clásico sigue en los casos 2 y 9 del mismo archivo; no se ejecutaron en esta pasada porque no eran el defecto. Donde el arnés de estudio sí mide el archivo, se comprobó códec, duración de reproducción y loudness.
 
-CI de GitHub: el workflow `podcast-3-0-e2e` solo disparaba contra `claude/atomivid-mvp-setup-0079jv` y `main`. Este PR apunta a la rama de #222, así que se añadió esa base (y `claude/pr200-sobre-201-199`) al `pull_request` del workflow para que el mismo arnés pueda correr en la revisión. El enlace de la corrida de GitHub queda en el PR cuando Actions la recoja. La evidencia de arriba es local y ya está en verde.
+CI de GitHub: el workflow `podcast-3-0-e2e` solo disparaba contra `claude/atomivid-mvp-setup-0079jv` y `main`. Este PR apunta a la rama de #222, así que se añadió esa base (y `claude/pr200-sobre-201-199`) al `pull_request` del workflow. Al abrir #227 Actions encoló la corrida: https://github.com/hanzmo16-png/Atomivid/actions/runs/40430419331 (`podcast-3-0-e2e`, casos 1–11, incluidos el 10 de escritorio y el 11 con Samsung 390×844). Esa corrida de GitHub puede seguir en curso; la evidencia de arriba es la corrida local del mismo arnés y ya está en verde. No se espera a que Actions termine para no tratar un check pendiente como un GO.
 
 ## Simulado vs real
 
