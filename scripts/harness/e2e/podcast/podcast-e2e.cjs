@@ -13,8 +13,9 @@ const ttsCalls = () => fs.existsSync(ELLOG) ? fs.readFileSync(ELLOG, "utf8").tri
 const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
 let db, browser;
 const ep = async (id) => (await db.query("select * from public.podcast_episodes where id=$1", [id])).rows[0];
-async function session(user, tag) {
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 1000 }, recordVideo: { dir: path.join(OUT, `video-${tag}`), size: { width: 1280, height: 1000 } }, acceptDownloads: true });
+async function session(user, tag, device = null) {
+  const vp = device?.viewport ?? { width: 1280, height: 1000 };
+  const ctx = await browser.newContext({ viewport: vp, ...(device ?? {}), recordVideo: { dir: path.join(OUT, `video-${tag}`), size: vp }, acceptDownloads: true });
   await ctx.addInitScript(() => { try { localStorage.setItem("atomivid_onboarding_completed_v1", "1"); } catch {} });
   const p = await ctx.newPage(); p.setDefaultTimeout(60000);
   await p.goto(`${BASE}/login`); await p.fill("input[name=email]", user.email); await p.fill("input[name=password]", user.password);
@@ -28,7 +29,10 @@ function worker(id, kind) {
 }
 async function createEpisode(p, o) {
   await p.goto(`${BASE}/dashboard/podcast`);
-  await p.getByLabel("Título").fill(o.title);
+  // Podcast 3.0: el formulario clásico vive dentro de «Formulario clásico» (el asistente es la vista principal).
+  const classic = p.getByText("Formulario clásico (grabación propia, guion A/B)");
+  if (await classic.count()) await classic.click();
+  await p.getByLabel("Título", { exact: true }).fill(o.title);
   if (o.conversation) await p.getByLabel("Conversación (2 participantes)").check();
   if (o.emotional) await p.getByLabel("Emocional (director de voz)").check();
   if (o.music) await p.getByLabel(/Música de fondo/).check();
@@ -43,7 +47,11 @@ async function createEpisode(p, o) {
 }
 async function generate(p, id, tag) {
   const DLOG = path.join(E2E, "logs/dispatch.jsonl"), dlen = () => (fs.existsSync(DLOG) ? fs.statSync(DLOG).size : 0), d0 = dlen();
+  // Espera la respuesta del POST antes de leer el estado: reanudar desde «failed» ya es terminal y, si el servidor
+  // tarda en despachar (p. ej. al calcular lo pendiente), el bucle salía antes de ver el despacho (carrera, c4).
+  const resp = p.waitForResponse((r) => r.request().method() === "POST" && /\/api\/podcast\/[^/]+\/generate$/.test(new URL(r.url()).pathname), { timeout: 60000 }).catch(() => null);
   await p.getByRole("button", { name: /Generar narración|Continuar \/ reintentar/ }).click();
+  await resp;
   // Corto (≤6000 car.): narra dentro de la petición. Largo: despacha al worker (aquí, al registrador local) → se ejecuta el worker real.
   let row; for (let i = 0; i < 600; i++) { await p.waitForTimeout(500); row = await ep(id); if (row.status !== "generating" && row.status !== "draft") break; if (dlen() > d0) { await p.waitForTimeout(500); break; } }
   row = await ep(id);
@@ -87,7 +95,10 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       const n0 = ttsCalls().length;
       await s.p.reload(); await s.p.goto(`${BASE}/dashboard`); await s.p.goto(`${BASE}/dashboard/podcast/${id}`);
       await db.query("update podcast_episodes set status='failed', run_token=null where id=$1", [id]);
+      const DLOG4 = path.join(E2E, "logs/dispatch.jsonl"), dispatches = () => (fs.existsSync(DLOG4) ? fs.readFileSync(DLOG4, "utf8").trim().split("\n").filter(Boolean) : []);
+      const d4 = dispatches().length;
       await s.p.reload(); await generate(s.p, id, "c4-reanudar");
+      ok("c4: reanudar despacha el worker real (sin nada pendiente que pagar)", dispatches().length > d4 && (await ep(id)).status === "ready", `despachos=${dispatches().length - d4}`);
       ok("c4: refresh/volver/reanudar no repite síntesis pagada", ttsCalls().length === n0, `${ttsCalls().length - n0} llamadas nuevas`);
       // matar el worker a mitad: episodio nuevo largo, se mata tras ~N llamadas, se reanuda
       const id2 = await createEpisode(s.p, { tag: "c4", title: "E2E caso 4 interrupción", conversation: true, script: convScript, voiceA: LEO, voiceB: ANA, nameA: "A", nameB: "B" });
@@ -139,6 +150,9 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     }
     await s.p.reload();
     const before = ttsCalls().length;
+    // PR #198 (en prod): la autorización por episodio es inmutable; sin presupuesto total queda fijada al estimado de la
+    // primera narración y una edición posterior se rechaza (fail-closed, correcto). El dueño fija un presupuesto total.
+    await db.query("update public.podcast_episodes set budget_usd=1 where id=$1", [id]);
     const row = await generate(s.p, id, "c3");
     const calls = ttsCalls().slice(before);
     ok("c3: ninguna llamada TTS para los turnos con grabación propia", calls.every((c) => c.voiceId === ANA) && calls.length === row.production.turns.length - aTurns.length, `${calls.length} llamadas (solo B)`);
@@ -149,6 +163,19 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     const st = await s.p.evaluate(async ([id, turnId]) => (await fetch(`/api/podcast/${id}/turns`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "edit", turnId, text: "Reemplazo editorial de un turno de B, sin regenerar el resto." }) })).status, [id, bT.id]);
     await s.p.reload(); await generate(s.p, id, "c3-reemplazo");
     ok("c3: reemplazar un turno = exactamente 1 síntesis nueva", st === 200 && ttsCalls().length - n0 === 1, `${ttsCalls().length - n0}`);
+    // c3-sin-margen: conversación SIN presupuesto total → la autorización inmutable = estimado inicial, ya consumido.
+    // Editar un turno debe rechazarse YA (409 visible, 0 TTS, sin timeout) y fijar un presupuesto después NO la amplía.
+    const id2 = await createEpisode(s.p, { tag: "c3b", title: "E2E caso 3 sin margen", conversation: true, script: "A: Primer turno corto del caso sin margen.\n\nB: Segundo turno corto, también sin margen.", voiceA: LEO, voiceB: ANA, nameA: "A", nameB: "B" });
+    const row2 = await generate(s.p, id2, "c3b");
+    const b2 = row2.production.turns.find((t) => t.speaker === "B");
+    await s.p.evaluate(async ([id, turnId]) => (await fetch(`/api/podcast/${id}/turns`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "edit", turnId, text: "Edición posterior sin saldo autorizado." }) })).status, [id2, b2.id]);
+    const post = () => s.p.evaluate(async (id) => { const r = await fetch(`/api/podcast/${id}/generate`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }); return { st: r.status, body: await r.json().catch(() => ({})) }; }, id2);
+    let n1 = ttsCalls().length, t1 = Date.now(), r1 = await post();
+    ok("c3-sin-margen: editar sin saldo ⇒ 409 inmediato con mensaje, 0 TTS", r1.st === 409 && typeof r1.body.error === "string" && r1.body.error.length > 0 && ttsCalls().length === n1 && Date.now() - t1 < 5000, `${r1.st} «${r1.body.error ?? ""}» ${Date.now() - t1}ms`);
+    await db.query("update public.podcast_episodes set budget_usd=5 where id=$1", [id2]);
+    n1 = ttsCalls().length; const r2 = await post();
+    const cap2 = (await db.query("select cap_usd from public.pi_spend_authorizations where project_id=$1", ["podcast-" + id2])).rows[0];
+    ok("c3-sin-margen: presupuesto fijado después NO amplía la autorización abierta (409, 0 TTS, tope intacto)", r2.st === 409 && ttsCalls().length === n1 && cap2 && Number(cap2.cap_usd) < 1, `${r2.st} cap=${cap2 && cap2.cap_usd}`);
     const f = await download(s.p, "c3"); summary.c3 = { id, calls: calls.length, ownTurns: aTurns.length, sha: sha(fs.readFileSync(f)) };
   }
   if (cases.includes("5")) {
@@ -269,6 +296,8 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     // operación incierta visible y reintento bloqueado (UI y servidor).
     const script8 = "A: Bienvenidos a una prueba breve de edición por turnos.\n\nB: Gracias, hoy vamos a cambiar solo una parte.\n\nA: La primera idea es que nada se vuelva a cobrar.\n\nB: Y la segunda, que mi voz siga siendo la mía.\n\nA: Perfecto, cerramos aquí la prueba.\n\nB: Hasta la próxima, gracias por escuchar.";
     const id = await createEpisode(s.p, { tag: "c8", title: "E2E caso 8 turnos", conversation: true, script: script8, voiceA: LEO, voiceB: ANA, nameA: "Hans", nameB: "Invitada" });
+    // PR #198: autorización inmutable por episodio → el dueño fija un presupuesto total que cubra ediciones (ver c3-sin-margen).
+    await db.query("update public.podcast_episodes set budget_usd=1 where id=$1", [id]);
     await generate(s.p, id, "c8-inicial"); const r0 = await ep(id);
     ok("c8: episodio inicial listo (6 turnos, 6 llamadas)", r0.status === "ready" && r0.production.turns.length === 6);
     const panel = s.p.locator("section, div").filter({ has: s.p.getByRole("heading", { name: "Turnos" }) }).last();
@@ -349,11 +378,158 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     const keys = (await db.query("select idempotency_key k from pi_paid_operations where provider = 'elevenlabs' and (project_id like '%'||$1||'%' or shot_id like '%'||$1||'%')", [id])).rows.map((x) => x.k);
     ok("c9: cada llamada de voz queda registrada una sola vez en el libro de costos (simulado)", keys.length === calls.length && new Set(keys).size === keys.length, `${keys.length} operaciones, ${new Set(keys).size} claves, ${calls.length} llamadas ${JSON.stringify(led)}`);
   }
+
+  // Flujo del estudio (10 pasos). `S` = sesión, `tag` = prefijo de capturas/comprobaciones, `m` = modalidad.
+  async function studioFlow(S, tag, m, opts = {}) {
+    const W = () => S.p.getByTestId("podcast-wizard");
+    const next = async () => W().getByRole("button", { name: "Siguiente" }).click();
+    const stepTitle = async () => (await W().getByTestId("wizard-step-title").textContent()) ?? "";
+    const snap = (n) => shot(S.p, `${tag}-${n}`);
+    const disp0 = fs.existsSync(path.join(E2E, "logs/dispatch.jsonl")) ? fs.readFileSync(path.join(E2E, "logs/dispatch.jsonl"), "utf8").length : 0;
+    await S.p.goto(`${BASE}/dashboard/podcast`); await S.p.evaluate(() => localStorage.removeItem("atomivid.podcast.asistente.v2")); await S.p.reload(); await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
+    await W().getByRole("radio", { name: new RegExp(m.mode) }).click(); await snap("paso01-modalidad"); await next();
+    await W().getByLabel("Título del episodio").fill(m.title);
+    if (m.topic) {
+      await W().getByLabel("Tema").fill(m.topic);
+      await W().getByRole("button", { name: "Generar conversación desde el tema" }).click();
+      await S.p.waitForFunction(() => (document.querySelector('[aria-label="Guion"]')?.value ?? "").length > 50, null, { timeout: 30000 });
+      const sc = await W().getByLabel("Guion").inputValue();
+      ok(`${tag}: conversación generada por turnos con identidad (plantilla sin costo)`, /^\S[^:]{0,40}: /m.test(sc) && new Set(sc.split("\n").filter(Boolean).map((l) => l.split(":")[0])).size === 2 && /\?/.test(sc), `${sc.split("\n").length} turnos`);
+    } else await W().getByLabel("Guion").fill(m.script);
+    await snap("paso02-tema");
+    await next(); await W().getByRole("button", { name: "Atrás" }).click(); await S.p.reload(); await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
+    ok(`${tag}: atrás + recarga conserva el borrador`, (await W().getByLabel("Título del episodio").inputValue()) === m.title && /Paso 2/.test(await stepTitle()));
+    await next();
+    if (m.count === 2 && (m.mode === "Solo audio" || m.mode === "Narración con imágenes")) await W().getByLabel("Dos voces que se alternan").check();
+    if (m.count === 2) { await W().getByLabel("Personalidad A").fill("Curioso, hace preguntas"); await W().getByLabel("Personalidad B").fill("Escéptica, discrepa con datos"); await W().getByLabel("Género B").selectOption("femenino"); }
+    await snap("paso03-participantes"); await next();
+    await W().getByLabel("Voz A").selectOption(m.voices[0]); if (m.count === 2) await W().getByLabel("Voz B").selectOption(m.voices[1]);
+    const duroOpts = await W().locator('option[value="CeFSZuaHs4SxcBxb9nCr"]').evaluateAll((os) => os.map((o) => ({ disabled: o.disabled, text: o.textContent })));
+    ok(`${tag}: El Duro real sin concesión aparece «No disponible» y no se puede elegir`, duroOpts.length > 0 && duroOpts.every((o) => o.disabled && /No disponible/.test(o.text)), JSON.stringify(duroOpts));
+    await snap("paso04-voces"); await next();
+    if (m.avatars) { await W().getByLabel("Avatar A").selectOption(m.avatars[0]); if (m.avatars[1]) await W().getByLabel("Avatar B").selectOption(m.avatars[1]); }
+    await snap("paso05-avatares"); await next();
+    await W().getByLabel("Ambiente musical").selectOption(m.mood ?? "auto"); if (m.intensity) await W().getByLabel("Intensidad de la música").selectOption(m.intensity);
+    await snap("paso06-musica"); await next();
+    if (m.mode !== "Solo audio") {
+      const rc = await W().getByTestId("proveedor-recraft").textContent();
+      ok(`${tag}: Recraft visible como no disponible con motivo`, /No disponible/.test(rc), rc.slice(0, 120));
+      await W().getByLabel("Ilustraciones Recraft (fal.ai)").check(); await next();
+      ok(`${tag}: elegir un proveedor no disponible bloquea el avance (no se sustituye)`, /Paso 7/.test(await stepTitle()) && /no se cambia automáticamente/.test(await W().getByRole("alert").textContent()));
+      await W().getByLabel("Fotos de archivo (Pexels)").check();
+    }
+    if (m.swap) await W().getByLabel(/Invertir posiciones/).check();
+    if (m.format) await W().getByLabel(m.format).check();
+    await snap("paso07-visuales"); await next();
+    await W().getByTestId("wizard-estimate").locator("table").waitFor();
+    const est = await W().getByTestId("wizard-estimate").textContent();
+    ok(`${tag}: costo estimado por proveedor ANTES de autorizar`, ["ElevenLabs", "HeyGen", "GitHub Actions", "Total estimado"].every((k) => est.includes(k)) && await W().getByTestId("costo-por-proveedor").isVisible(), est.slice(0, 160));
+    await snap("paso08-presupuesto"); await next();
+    await W().getByTestId("wizard-preview").waitFor(); await W().getByTestId("preview-turnos").waitFor();
+    if (m.count === 2 && m.avatars) {
+      const tl = await W().getByTestId("preview-timeline").textContent(), cov = await W().getByTestId("cobertura-planos").textContent();
+      ok(`${tag}: vista previa con plano general y primeros planos, labios solo de quien habla`, /✔ plano general/.test(cov) && /labios A: habla · B: reposo|labios A: reposo · B: habla/.test(tl) && !/labios A: habla · B: habla/.test(tl), cov);
+    }
+    await snap("paso09-vista-previa"); await next();
+    await W().getByRole("button", { name: "Generar episodio" }).isDisabled().then((d) => ok(`${tag}: sin autorización explícita no se puede generar`, d));
+    await W().getByLabel("Autorizo el cargo").check(); await snap("paso10a-autorizar");
+    await W().getByRole("button", { name: "Generar episodio" }).click();
+    await W().getByTestId("wizard-progress").waitFor(); await snap("paso10b-progreso");
+    let row0; for (let i = 0; i < 40; i++) { row0 = (await db.query("select * from podcast_studio_episodes where user_id=$1 and title=$2 order by created_at desc limit 1", [OWNER.id, m.title])).rows[0]; if (row0?.status === "authorized") break; await S.p.waitForTimeout(500); }
+    ok(`${tag}: episodio autorizado y trabajo despachado`, row0?.status === "authorized" && fs.readFileSync(path.join(E2E, "logs/dispatch.jsonl"), "utf8").slice(disp0).includes(row0.id), row0?.status);
+    // Recuperación: recargar a mitad de la generación vuelve al paso Generación con el mismo episodio.
+    await S.p.reload(); await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor(); await W().getByTestId("wizard-progress").waitFor({ timeout: 20000 }).catch(() => {}); ok(`${tag}: recarga durante la generación conserva el episodio y el paso`, /Paso 10/.test(await stepTitle()) && await W().getByTestId("wizard-progress").isVisible());
+    const w = await worker(row0.id, "studio");
+    const row = (await db.query("select * from podcast_studio_episodes where id=$1", [row0.id])).rows[0];
+    ok(`${tag}: worker del estudio entrega el episodio (proveedores SIMULADOS)`, w.code === 0 && row.status === "ready" && /STUDIO_PROVIDERS mock/.test(w.out), `${row.status} ${row.error ?? ""}`);
+    if (m.avatars) {
+      const lips = row.result?.lips ?? [], viol = row.result?.lip_violations ?? ["sin datos"];
+      ok(`${tag}: lip-sync — ningún avatar mueve los labios fuera de su turno (segmentos del render)`, lips.length > 0 && viol.length === 0 && !lips.some((x) => x.A === "habla" && x.B === "habla"), `${lips.length} segmentos, ${viol.length} violaciones`);
+      if (m.count === 2) ok(`${tag}: render con plano general de los dos y primeros planos individuales`, row.result.coverage?.general && (row.result.coverage?.primerPlanoA || row.result.coverage?.primerPlanoB), JSON.stringify(row.result.coverage));
+    }
+    if (m.mode === "Solo audio") {
+      // Modo A: solo audio — no se genera video (ni MP4 en Storage, ni reproductor de video, ni descarga MP4).
+      await W().getByTestId("wizard-audio-player").waitFor({ timeout: 30000 }); await snap("paso10c-reproducir-audio");
+      ok(`${tag}: solo audio no genera video (sin MP4 en Storage ni en la página)`, row.video_path === null && await W().getByTestId("wizard-player").count() === 0 && await W().getByTestId("wizard-download-mp4").count() === 0, String(row.video_path));
+      const aplay = await W().getByTestId("wizard-audio-player").evaluate(async (a) => { a.muted = true; await a.play().catch(() => {}); await new Promise((r) => setTimeout(r, 2500)); const o = { rs: a.readyState, t: a.currentTime, err: a.error?.code ?? null }; a.pause(); return o; });
+      ok(`${tag}: el reproductor de audio reproduce el episodio`, aplay.rs >= 2 && aplay.t > 1 && !aplay.err, JSON.stringify(aplay));
+      const audUrl = await W().getByTestId("wizard-download-audio").getAttribute("href"), aud = path.join(OUT, `${tag}.mp3`);
+      fs.writeFileSync(aud, Buffer.from(await (await fetch(audUrl)).arrayBuffer()));
+      const pa = probe(aud), LA = loud(aud);
+      ok(`${tag}: descarga de audio MP3, −16±1 LUFS, TP ≤ −1 dBTP`, pa.streams.some((x) => x.codec_name === "mp3") && !pa.streams.some((x) => x.codec_type === "video") && Math.abs(LA.I + 16) <= 1 && LA.TP <= -1, JSON.stringify(LA));
+      const ops = (await db.query("select provider, op, state, count(*)::int n from podcast_studio_operations where episode_id=$1 group by 1,2,3", [row.id])).rows;
+      ok(`${tag}: solo voz en el libro (sin avatar ni imágenes de pago), todo liquidado`, ops.length > 0 && ops.every((o) => o.state === "settled" && o.op === "tts"), JSON.stringify(ops));
+      summary[tag] = { id: row.id, result: row.result, cost: row.cost_usd };
+      return;
+    }
+    await W().getByTestId("wizard-player").waitFor({ timeout: 30000 }); await snap("paso10c-reproducir");
+    const play = await W().getByTestId("wizard-player").evaluate(async (v) => { v.muted = true; await v.play().catch(() => {}); await new Promise((r) => setTimeout(r, 3000)); const o = { rs: v.readyState, t: v.currentTime, w: v.videoWidth, h: v.videoHeight, err: v.error?.code ?? null }; v.pause(); return o; });
+    ok(`${tag}: el reproductor reproduce el MP4 ${m.format ? "9:16" : "16:9"}`, play.rs >= 2 && play.t > 1 && !play.err && (m.format ? play.h > play.w : play.w > play.h), JSON.stringify(play));
+    const mp4Url = await W().getByTestId("wizard-download-mp4").getAttribute("href"), audUrl = await W().getByTestId("wizard-download-audio").getAttribute("href");
+    await snap("paso10d-descargar");
+    const mp4 = path.join(OUT, `${tag}.mp4`), aud = path.join(OUT, `${tag}.mp3`);
+    fs.writeFileSync(mp4, Buffer.from(await (await fetch(mp4Url)).arrayBuffer())); fs.writeFileSync(aud, Buffer.from(await (await fetch(audUrl)).arrayBuffer()));
+    const pr = probe(mp4), pa = probe(aud), L = loud(mp4), LA = loud(aud);
+    ok(`${tag}: descarga MP4 H.264+AAC y audio MP3 separados`, pr.streams.some((x) => x.codec_name === "h264") && pr.streams.some((x) => x.codec_name === "aac") && pa.streams.some((x) => x.codec_name === "mp3"));
+    ok(`${tag}: audio −16±1 LUFS, TP ≤ −1 dBTP (MP4 y MP3 medidos)`, Math.abs(L.I + 16) <= 1 && L.TP <= -1 && Math.abs(LA.I + 16) <= 1, JSON.stringify({ mp4: L, mp3: LA }));
+    ok(`${tag}: música presente en la mezcla`, !!row.result?.music, String(row.result?.music));
+    const ops = (await db.query("select provider, op, state, count(*)::int n, sum(actual_usd)::float usd from podcast_studio_operations where episode_id=$1 group by 1,2,3", [row.id])).rows;
+    ok(`${tag}: cada operación de pago una vez en el libro, todas liquidadas`, ops.length > 0 && ops.every((o) => o.state === "settled"), JSON.stringify(ops));
+    fs.writeFileSync(path.join(OUT, `${tag}-resultado.json`), JSON.stringify({ SIMULADO: true, episodio: row.id, modo: row.mode, resultado: row.result, costo_simulado_usd: row.cost_usd, libro: ops }, null, 1));
+    const again = await worker(row.id, "studio");
+    ok(`${tag}: re-despacho de un episodio listo no regenera ni cobra`, /STUDIO_NOT_AUTHORIZED/.test(again.out));
+    await S.p.reload(); await S.p.getByTestId("studio-episodes").waitFor(); await snap("paso10e-lista");
+    ok(`${tag}: aparece en «Tus episodios»`, (await S.p.getByTestId("studio-episodes").textContent()).includes(m.title));
+    summary[tag] = { id: row.id, result: row.result, cost: row.cost_usd };
+  }
+  const AV = [["aaaaaaaa-0000-4000-8000-000000000001", "Avatar Hans (simulado)"], ["aaaaaaaa-0000-4000-8000-000000000002", "Avatar Invitada (simulado)"]];
+  if (cases.includes("10") || cases.includes("11")) for (const [id, name] of AV) await db.query("insert into public.avatars (id,user_id,name,provider,provider_avatar_id,status,consent_given) values ($1,$2,$3,'heygen','asset:simulado','ready',true) on conflict (id) do nothing", [id, OWNER.id, name]);
+  const MODES = [
+    { tag: "c10a", mode: "Solo audio", title: "E2E estudio audio", script: "En 1977 el radiotelescopio Big Ear registró una señal intensa y breve.\n\nEl astrónomo Jerry Ehman escribió Wow en el margen.\n\nLa señal nunca volvió a detectarse.", count: 2, voices: [ANA, LEO], mood: "misterio", intensity: "alta" },
+    { tag: "c10d", mode: "Narración con imágenes", title: "E2E estudio narración visual", script: "En 1977 el radiotelescopio Big Ear registró una señal intensa y breve.\n\nEl astrónomo Jerry Ehman escribió Wow en el margen.\n\nLa señal nunca volvió a detectarse.", count: 2, voices: [ANA, LEO], mood: "misterio" },
+    { tag: "c10b", mode: "Presentador con avatar", title: "E2E estudio avatar", script: "Hola, hoy te cuento tres datos sobre volcanes.\n\nOlympus Mons está en Marte y es el volcán más alto.\n\nLos volcanes crean islas como Hawái.", count: 1, voices: [DURO], avatars: [AV[0][0]] },
+    { tag: "c10c", mode: "Conversación con dos avatares", title: "E2E estudio conversación", topic: "la luna Europa", count: 2, voices: [ANA, LEO], avatars: [AV[0][0], AV[1][0]], format: "Vertical 9:16 (Reels/TikTok)", swap: true },
+  ];
+  if (cases.includes("10")) for (const m of MODES) await studioFlow(s, m.tag, m);
+  if (cases.includes("10")) {
+    // Aislamiento del estudio: otra cuenta no puede ver, autorizar ni descargar episodios ajenos (ni su libro).
+    const own = (await db.query("select id, status, video_path, authorized_usd from podcast_studio_episodes where user_id=$1 and video_path is not null order by created_at desc limit 1", [OWNER.id])).rows[0];
+    if (own) {
+      const o = await session(OTHER, "intruso-estudio");
+      const r = await o.p.evaluate(async (id) => { const g = await fetch(`/api/podcast/v3/${id}`); const a = await fetch(`/api/podcast/v3/${id}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ confirm: true, authorizedUsd: 1 }) }); return [g.status, a.status, await g.text()]; }, own.id);
+      ok("c10-aislamiento: GET y autorizar episodio de estudio ajeno → rechazados sin datos", [403, 404].includes(r[0]) && [403, 404].includes(r[1]) && !r[2].includes(own.video_path), r.slice(0, 2).join(","));
+      const after = (await db.query("select status, authorized_usd from podcast_studio_episodes where id=$1", [own.id])).rows[0];
+      ok("c10-aislamiento: el episodio ajeno queda intacto", after.status === own.status && String(after.authorized_usd) === String(own.authorized_usd), JSON.stringify(after));
+      const tok = await o.p.evaluate(() => { const k = Object.keys(localStorage).find((x) => x.includes("auth-token")); return k ? JSON.parse(localStorage.getItem(k)).access_token : null; }).catch(() => null);
+      const st = (await fetch(`http://127.0.0.1:54821/storage/v1/object/videos/${own.video_path}`, { headers: tok ? { authorization: `Bearer ${tok}` } : {} })).status;
+      ok("c10-aislamiento: MP4 ajeno no descargable sin firma", st >= 400, String(st));
+      await o.ctx.close();
+    } else ok("c10-aislamiento: hay un episodio de estudio entregado para probar", false);
+  }
+  if (cases.includes("11")) {
+    // Móvil: emulación de iPhone 13 y Pixel 7 (viewport, DPR, UA, táctil) en Chromium; capturas de cada paso.
+    const DEV = { "iphone13": { viewport: { width: 390, height: 664 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1" },
+      "pixel7": { viewport: { width: 412, height: 839 }, deviceScaleFactor: 2.625, isMobile: true, hasTouch: true, userAgent: "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36" } };
+    for (const [dev, opt] of Object.entries(DEV)) {
+      const M = await session(OWNER, `c11-${dev}`, opt);
+      await M.p.goto(`${BASE}/dashboard`); await shot(M.p, `c11-${dev}-00-dashboard`);
+      const link = M.p.locator('header div.sm\\:hidden a[href="/dashboard/podcast"]');
+      ok(`c11-${dev}: menú móvil muestra «Podcast»`, await link.isVisible());
+      await link.click(); await M.p.waitForURL(/\/dashboard\/podcast$/);
+      const overflow = await M.p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      ok(`c11-${dev}: sin desbordamiento horizontal`, overflow <= 1, `${overflow}px`);
+      await studioFlow(M, `c11-${dev}`, { ...MODES.find((x) => x.tag === "c10c"), title: `E2E móvil ${dev}` }); // conversación (por etiqueta, no por posición)
+      await M.ctx.close();
+    }
+    const D = await session(OWNER, "c11-escritorio");
+    ok("c11-escritorio: menú de escritorio muestra «Podcast»", await D.p.locator('nav a[href="/dashboard/podcast"]').isVisible()); await shot(D.p, "c11-escritorio-menu"); await D.ctx.close();
+  }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
-  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10 };
-  const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`)).length]));
+  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40 };
+  const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[a-d]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name))).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));
+  for (const r of results.filter((x) => !x.pass)) console.log(`FALLO_DETALLE FAIL ${r.name} ${String(r.detail).slice(0, 200)}`);
   const failed = results.filter((r) => !r.pass).length; console.log(`POR_CASO ${JSON.stringify(perCase)}`); console.log(`RESULTADO ${results.length - failed}/${results.length} PASS`); process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(2); });

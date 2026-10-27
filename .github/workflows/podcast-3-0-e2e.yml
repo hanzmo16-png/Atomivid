@@ -1,0 +1,221 @@
+# Podcast 3.0 — tipos, regresión (cabeza vs base), pruebas de render v3 con ffmpeg, demos por modo con QC de audio y
+# E2E de navegador (casos 1–9 de Podcast 2.1 + caso 10: asistente de 14 pasos en los tres modos) con proveedores SIMULADOS. USD 0: no usa ningún secreto del repositorio,
+# todo corre en 127.0.0.1 (PG local, PostgREST, mocks de ElevenLabs/Pexels con espeak-ng). La migración propuesta se aplica
+# SOLO a la base desechable del runner. Falla si alguna prueba se omite, si un caso no alcanza su mínimo de comprobaciones,
+# o si hay tráfico de salida no local.
+name: podcast-3-0-e2e
+on:
+  workflow_dispatch:
+    inputs:
+      cases: { description: "Casos E2E (coma)", default: "1,2,3,4,5,6,7,8,9,10,11" }
+  pull_request:
+    branches: [claude/atomivid-mvp-setup-0079jv, main]
+  push:
+    branches: ["grok/podcast-3-*", "grok/podcast-estudio-*"]
+    paths:
+      - ".github/workflows/podcast-3-0-e2e.yml"
+      - "scripts/podcast-3-0/**"
+      - "scripts/podcast-video-worker.ts"
+      - "supabase/proposals/20261023120000_podcast_v3_studio*.sql"
+      - "package.json"
+      - "src/lib/podcast/**"
+      - "src/app/dashboard/podcast/**"
+      - "src/app/api/podcast/**"
+      - "src/lib/supabase/**"
+      - "supabase/proposals/20261021200000_podcast_v2_production*.sql"
+      - "scripts/harness/e2e/**"
+      - "docs/podcast-2-1-prueba-real/**"
+permissions:
+  contents: read
+concurrency:
+  group: podcast-3-0-e2e-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  typecheck:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Tipos de rutas de Next (LayoutProps/PageProps) + tsc
+        run: npx next typegen && npm run typecheck
+  regression:
+    # Suite unitaria completa del repo (Reels, Long Form, avatares, etc.) + build, en la cabeza y en la base del PR/rama.
+    # Falla solo si la cabeza introduce fallos que la base no tiene (los preexistentes se listan, no se ocultan).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-not-a-secret
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, path: head }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: head/package-lock.json }
+      - name: Base de comparación
+        run: |
+          base="${{ github.event.pull_request.base.sha }}"; [ -n "$base" ] || base=$(git -C head merge-base HEAD origin/claude/atomivid-mvp-setup-0079jv)
+          echo "BASE_SHA=$base" >> "$GITHUB_ENV"; git -C head worktree add "$GITHUB_WORKSPACE/base" "$base"
+      - name: Suite + build (cabeza y base)
+        run: |
+          for t in head base; do
+            ( cd "$t" && npm ci --no-audit --no-fund >/dev/null 2>&1
+              NODE_OPTIONS=--test-reporter=tap npm run test:unit > "../unit-$t.log" 2>&1; echo $? > "../unit-$t.exit"
+              { npx next typegen && npm run typecheck; } > "../tsc-$t.log" 2>&1; echo $? > "../tsc-$t.exit"
+              npm run build > "../build-$t.log" 2>&1; echo $? > "../build-$t.exit" ) || true
+            grep -E '^\s*not ok' "unit-$t.log" | sed -E 's/^\s*not ok [0-9]+ - //; s/ # .*$//' | sort -u > "fail-$t.txt"
+            echo "$t: unit=$(cat unit-$t.exit) tsc=$(cat tsc-$t.exit) build=$(cat build-$t.exit) fallos=$(wc -l < fail-$t.txt) $(grep -E '^# (tests|pass|fail|skipped)' unit-$t.log | tr '\n' ' ')"
+          done | tee regression-summary.txt
+          comm -23 fail-head.txt fail-base.txt > fail-new.txt
+          echo "Fallos nuevos (cabeza, no en base):"; cat fail-new.txt; echo "Preexistentes (en base):"; cat fail-base.txt
+          [ ! -s fail-new.txt ] || { echo "::error::regresión: fallos nuevos"; exit 1; }
+          [ "$(cat unit-head.exit)" = 0 ] || { echo "::error::test:unit termina con código $(cat unit-head.exit) en la cabeza"; exit 1; }
+          [ "$(cat tsc-head.exit)" = 0 ] || [ "$(cat tsc-base.exit)" != 0 ] || { echo "::error::typecheck rompe solo en la cabeza"; exit 1; }
+          [ "$(cat build-head.exit)" = 0 ] || [ "$(cat build-base.exit)" != 0 ] || { echo "::error::build rompe solo en la cabeza"; exit 1; }
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression
+          retention-days: 7
+          path: |
+            regression-summary.txt
+            fail-*.txt
+            unit-*.log
+            tsc-*.log
+            build-*.log
+  render:
+    # Pruebas v3 puras + de render (ffmpeg real): música presente, −16 LUFS/TP ≤ −1, sin recorte, planos, costos/idempotencia.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - name: ffmpeg, espeak-ng y fuentes
+        timeout-minutes: 12
+        run: |
+          sudo rm -f /var/lib/man-db/auto-update
+          sudo apt-get -o Acquire::Retries=3 update -q && sudo apt-get -o Acquire::Retries=3 install -yq --no-install-recommends ffmpeg espeak-ng fonts-dejavu-core
+      - run: npm ci --no-audit --no-fund
+      - name: Pruebas Podcast 3.0 (sin omisiones)
+        run: |
+          set -o pipefail
+          npm run test:podcast3 2>&1 | tee v3-tests.log
+          grep -q '^# skipped 0$' v3-tests.log && grep -q '^# todo 0$' v3-tests.log && grep -q '^# fail 0$' v3-tests.log
+      - name: Resumen de pruebas (anotaciones, sin secretos)
+        if: always()
+        run: |
+          [ -f v3-tests.log ] || exit 0
+          echo "::notice title=test:podcast3::$(grep -E '^# (tests|pass|fail|skipped|todo) ' v3-tests.log | tr '\n' ' ')"
+          echo "::notice title=estimación 10 min::$(grep -o 'ESTIMACION_10MIN.*' v3-tests.log | head -1 | cut -c1-600)"
+          grep -E '^not ok ' v3-tests.log | head -5 | while read -r l; do echo "::warning title=fallo::${l:0:300}"; done
+      - name: Demo por modo (A narración, B avatar, C conversación) con QC de audio
+        run: |
+          set -o pipefail
+          npm run podcast3:demo -- demo-out 2>&1 | tee demo.log
+          node scripts/podcast-3-0/demo-qc.cjs demo-out
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: podcast-3-0-demos
+          retention-days: 7
+          path: |
+            v3-tests.log
+            demo.log
+            demo-out/**
+  e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      CI: "1"
+      E2E_HOME: ${{ github.workspace }}/.e2e-local
+      E2E_PGPORT: "55532"
+      E2E_TIMEOUT: "5400"
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - name: Dependencias del sistema
+        timeout-minutes: 20
+        run: |
+          sudo rm -f /var/lib/man-db/auto-update
+          sudo apt-get -o Acquire::Retries=3 update -q
+          sudo apt-get install -yq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -yq postgresql-17 espeak-ng ffmpeg python3-numpy xz-utils
+          sudo systemctl stop postgresql || true
+          echo "PG_BIN=/usr/lib/postgresql/17/bin" >> "$GITHUB_ENV"
+      - run: npm ci --no-audit --no-fund
+      - name: Pruebas Podcast v2 (sin omisiones)
+        run: |
+          set -o pipefail
+          node --import tsx --test src/lib/podcast/v2/v2.test.ts src/lib/podcast/v2/integration.test.ts src/lib/podcast/editor/editor.test.ts \
+            src/lib/podcast/episode.test.ts src/lib/podcast/server.test.ts src/lib/podcast/visual.test.ts src/lib/podcast/video.test.ts \
+            src/lib/podcast/pilot.test.ts src/lib/podcast/notice-check.test.ts src/lib/podcast/run-budget.test.ts \
+            src/lib/video/long-form/production-preflight.test.ts 2>&1 | tee v2-tests.log
+          grep -q '^# skipped 0$' v2-tests.log || { echo "::error::hay pruebas omitidas"; exit 1; }
+          grep -q '^# todo 0$' v2-tests.log || { echo "::error::hay pruebas todo"; exit 1; }
+          grep -q '^# fail 0$' v2-tests.log
+      - name: Arnés local
+        run: bash scripts/harness/e2e/infra/setup.sh
+      - name: ffmpeg de Playwright (grabación de vídeo de las sesiones)
+        run: node "$E2E_HOME/deps/node_modules/playwright/cli.js" install ffmpeg
+      - name: Entorno Podcast
+        run: bash scripts/harness/e2e/podcast/start.sh
+      - name: Migración y rollback (BD desechable)
+        run: set -o pipefail; bash scripts/harness/e2e/podcast/migration-audit.sh 2>&1 | tee migration-audit.log
+      - name: Migración del estudio 3.0 y rollback (BD desechable)
+        run: set -o pipefail; bash scripts/harness/e2e/podcast/migration-audit-v3.sh 2>&1 | tee migration-audit-v3.log
+      - name: E2E casos
+        env:
+          CASES: ${{ inputs.cases || '1,2,3,4,5,6,7,8,9,10,11' }}
+        run: |
+          set -o pipefail
+          bash scripts/harness/e2e/podcast/run.sh ci "$CASES"
+          grep -Eq '^RESULTADO ([0-9]+)/\1 PASS$' "$E2E_HOME/out/ci.log" || { echo "::error::E2E con fallos"; exit 1; }
+      - name: Resumen E2E y migración (anotaciones, sin secretos)
+        if: always()
+        run: |
+          [ -f v2-tests.log ] && echo "::notice title=podcast v2::$(grep -E '^# (tests|pass|fail|skipped) ' v2-tests.log | tr '\n' ' ')"
+          [ -f migration-audit.log ] && echo "::notice title=migración 2.x::$(grep -c '^PASS' migration-audit.log) PASS · $(tail -n 1 migration-audit.log)"
+          [ -f migration-audit-v3.log ] && echo "::notice title=migración 3.0::$(grep -c '^PASS' migration-audit-v3.log) PASS · $(grep -c '^FAIL' migration-audit-v3.log) FAIL · $(grep -E '^(FAIL|PASS aislamiento|PASS anon)' migration-audit-v3.log | tr '\n' '|' | cut -c1-700)"
+          f="$E2E_HOME/out/ci.log"; [ -f "$f" ] || exit 0
+          echo "::notice title=E2E::$(grep -E '^RESULTADO' "$f" | tail -1) · $(grep -Ec '^PASS c10' "$f") PASS modos estudio · $(grep -Ec '^PASS c11-' "$f") PASS móvil · $(grep -Ec '(^|[^A-Z])FAIL ' "$f") FAIL"
+          echo "::notice title=E2E por caso::$(grep -o 'POR_CASO.*' "$f" | tail -1 | cut -c1-900)"
+          grep -E '(^|[^A-Z])FAIL ' "$f" | head -6 | while read -r l; do echo "::warning title=E2E fallo::${l:0:300}"; done
+          echo "::notice title=E2E modos::$(grep -E 'c10a|c10d' "$f" | grep -E 'solo audio|reproductor|descarga' | cut -c1-120 | tr '\n' '|' | cut -c1-900)"
+      - name: QC de audio de los MP4 descargados (−16±1.5 LUFS, TP ≤ −1 dBTP, sin recorte)
+        run: |
+          mkdir -p audio-qc
+          bash scripts/harness/e2e/podcast/mp4-audio-qc.sh audio-qc "$E2E_HOME"/out/ci/*.mp4
+      - name: Ningún proveedor real contactado
+        if: always()
+        run: |
+          # next-intercept.cjs rechaza (no envía) toda salida no local y la registra. Un intento hacia un proveedor de pago
+          # o hacia Supabase real indica una ruta sin simular: falla. Otros intentos (p. ej. registro npm de next dev) se listan.
+          f="$E2E_HOME/logs/egress.jsonl"; [ -f "$f" ] || exit 0
+          grep '"egress_refused"' "$f" | sort -u -t'"' -k10,10 || true
+          if grep '"egress_refused"' "$f" | grep -Eiq 'elevenlabs|pexels|fal\.(ai|run)|openai|anthropic|recraft|heygen|d-id|supabase\.co|stripe'; then
+            echo "::error::intento de salida hacia un proveedor real"; exit 1; fi
+      - name: Evidencia (sin secretos)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: podcast-3-0-e2e
+          retention-days: 7
+          path: |
+            v2-tests.log
+            migration-audit.log
+            migration-audit-v3.log
+            .e2e-local/out/ci.log
+            .e2e-local/out/ci/summary.json
+            .e2e-local/out/ci/*.json
+            .e2e-local/out/ci/*.mp4
+            .e2e-local/out/ci/*.png
+            audio-qc/*.json
+            .e2e-local/logs/*.jsonl
+            .e2e-local/logs/next.log

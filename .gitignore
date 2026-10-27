@@ -54,3 +54,4 @@ next-env.d.ts
 __pycache__/
 *.pyc
 .render-attempt.json
+podcast-cierre-out/
