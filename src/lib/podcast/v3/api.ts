@@ -135,14 +135,31 @@ export async function authorizeAction(d: ApiDeps, id: string, body: Record<strin
 }
 
 /**
+ * Archivo de entrega del propio episodio. El prefijo no basta: `..`, `.`, un segmento vacío o una ruta codificada
+ * salen de `${userId}/podcast-studio/${episodeId}/` y no se firman.
+ */
+export function ownStudioAsset(userId: string, episodeId: string, p: string | null): boolean {
+  if (!p || p.includes("\\") || p.includes("\0")) return false;
+  let decoded: string;
+  try { decoded = decodeURIComponent(p); } catch { return false; }
+  if (decoded !== p || decoded.includes("\\") || decoded.includes("\0")) return false;
+  const prefix = `${userId}/podcast-studio/${episodeId}/`;
+  if (!decoded.startsWith(prefix)) return false;
+  const rest = decoded.slice(prefix.length);
+  return rest.length > 0 && rest.split("/").every((seg) => seg !== "" && seg !== "." && seg !== "..");
+}
+
+/**
  * GET del episodio de estudio (estado + enlaces de descarga firmados). Solo el dueño; solo rutas dentro de su carpeta
- * del episodio; enlaces solo cuando está «ready». Separado de Next para probar aislamiento y descarga sin red.
+ * del episodio; enlaces solo cuando está «ready». Solo audio no firma MP4. Separado de Next para probar aislamiento
+ * y descarga sin red.
  */
 export async function episodeAction(userId: string, row: StudioEpisodeRow | "missing" | null, sign: (path: string, name: string) => Promise<string | null>): Promise<Out> {
   if (row === "missing") return { status: 503, body: { error: "Requiere la migración del estudio." } };
   if (!row || row.user_id !== userId) return { status: 404, body: { error: "Episodio no encontrado." } };
-  const signOwn = async (p: string | null, name: string) => (!p || !p.startsWith(`${userId}/podcast-studio/${row.id}/`) ? null : sign(p, name));
+  const audioOnly = (() => { const s = StudioSpec.safeParse(row.spec); return s.success && s.data.output === "audio"; })();
+  const signOwn = async (p: string | null, name: string) => (!p || !ownStudioAsset(userId, row.id, p) ? null : sign(p, name));
   const { spec: _spec, ...pub } = row;
-  return { status: 200, body: { episode: pub, video_url: row.status === "ready" ? await signOwn(row.video_path, `${row.title}.mp4`) : null,
+  return { status: 200, body: { episode: pub, video_url: row.status === "ready" && !audioOnly ? await signOwn(row.video_path, `${row.title}.mp4`) : null,
     audio_url: row.status === "ready" ? await signOwn(row.audio_path, `${row.title}.${row.audio_path?.split(".").pop() ?? "mp3"}`) : null } };
 }

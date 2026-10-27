@@ -1,6 +1,7 @@
 /** Podcast 3.0 — pruebas puras (sin red, sin ffmpeg, sin proveedores). */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { StudioSpec, STUDIO_VERSION, validateSpec, voiceAvailability, EL_DURO_VOICE_ID } from "./spec";
 import { parseLabeledScript, narrationTurns, generateConversation, templateConversation, coherenceIssues } from "./script";
 import { planEpisode, planIssues, pickAsset, type VisualAsset } from "./editorial";
@@ -9,7 +10,7 @@ import { mixGraph, transitionTimes } from "./audio";
 import { shotFrames, wrap, subtitlePages, FPS } from "./compose";
 import { autoMood, trackExpression, BUNDLED_TRACKS, licenseManifest, V2_MOOD_MAP } from "./music-library";
 import { defaultDraft, loadDraft, stepErrors, draftToSpec, draftToV2, withVoiceKinds, STEP } from "./wizard";
-import { studioAction, authorizeAction, type ApiDeps } from "./api";
+import { studioAction, authorizeAction, episodeAction, type ApiDeps } from "./api";
 import { turnsFor } from "./pipeline";
 import type { AccountVoice } from "@/lib/podcast/voices";
 
@@ -323,4 +324,85 @@ test("guard del worker: solo toma un episodio con autorización vigente (o runne
   assert.equal(await supabaseRunGuard(lost.client as never).acquire("e", "d".repeat(40)), true, "runner perdido (marca vieja) se puede retomar");
   const live = fake({ status: "generating", run_started_at: new Date().toISOString() });
   assert.equal(await supabaseRunGuard(live.client as never).acquire("e", "e".repeat(40)), false);
+  const ready = fake({ status: "ready", run_started_at: "2026-10-27T02:00:00Z" });
+  assert.equal(await supabaseRunGuard(ready.client as never).acquire("e", "f".repeat(40)), false, "un episodio listo no se regenera");
+  assert.equal(ready.updates, 0); assert.equal(ready.db.status, "ready");
+});
+
+const EP = "11111111-1111-4111-8111-111111111111";
+const episodeRow = (over: Record<string, unknown> = {}) => ({ id: EP, user_id: "u1", title: "Señal", mode: "narracion", spec: spec({ mode: "narracion", output: "video" }), status: "ready", estimate: {}, estimated_usd: 1, authorized_usd: 2, authorized_at: "2026-10-27T03:00:00Z", run_started_at: "2026-10-27T03:01:00Z", progress: null, result: null, video_path: `u1/podcast-studio/${EP}/episodio.mp4`, audio_path: `u1/podcast-studio/${EP}/episodio.mp3`, cost_usd: 1.2, error: null, created_at: "", updated_at: "", ...over }) as never;
+
+test("descarga: solo el dueño, solo «ready», solo su carpeta; otra cuenta, otro episodio o una ruta ajena no firman", async () => {
+  const signed: string[] = [];
+  const sign = async (p: string) => { signed.push(p); return `signed:${p}`; };
+  const own = await episodeAction("u1", episodeRow(), sign);
+  assert.equal(own.status, 200);
+  assert.equal(own.body.video_url, `signed:u1/podcast-studio/${EP}/episodio.mp4`);
+  assert.equal(own.body.audio_url, `signed:u1/podcast-studio/${EP}/episodio.mp3`);
+  assert.equal("spec" in (own.body.episode as object), false);
+  const nested = await episodeAction("u1", episodeRow({ audio_path: `u1/podcast-studio/${EP}/paid/voz.mp3`, video_path: null }), sign);
+  assert.equal(nested.body.audio_url, `signed:u1/podcast-studio/${EP}/paid/voz.mp3`);
+  assert.equal(nested.body.video_url, null);
+  const before = signed.length;
+  const other = await episodeAction("u2", episodeRow(), sign);
+  assert.equal(other.status, 404); assert.equal(signed.length, before); assert.equal(JSON.stringify(other.body).includes("episodio.mp4"), false);
+  const foreign = [
+    `u2/podcast-studio/${EP}/episodio.mp4`,
+    `u1/podcast-studio/22222222-2222-4222-8222-222222222222/episodio.mp4`,
+    `u1/podcast-studio/${EP}/../../u2/secreto.mp4`,
+    `u1/podcast-studio/${EP}/%2e%2e/%2e%2e/u2/secreto.mp4`,
+    `u1/podcast-studio/${EP}/../episodio.mp4`,
+    `u1\\podcast-studio\\${EP}\\episodio.mp4`,
+    `u1/podcast-studio/${EP}`,
+  ];
+  for (const video_path of foreign) {
+    const n = signed.length;
+    const out = await episodeAction("u1", episodeRow({ video_path, audio_path: video_path }), sign);
+    assert.equal(out.status, 200, video_path);
+    assert.equal(out.body.video_url, null, video_path);
+    assert.equal(out.body.audio_url, null, video_path);
+    assert.equal(signed.length, n, video_path);
+  }
+  for (const status of ["draft", "authorized", "generating", "failed"]) {
+    const n = signed.length;
+    const out = await episodeAction("u1", episodeRow({ status }), sign);
+    assert.equal(out.body.video_url, null, status);
+    assert.equal(out.body.audio_url, null, status);
+    assert.equal(signed.length, n, status);
+  }
+});
+
+test("descarga: solo audio no firma MP4 aunque la fila tenga video_path", async () => {
+  const signed: string[] = [];
+  const sign = async (p: string) => { signed.push(p); return `signed:${p}`; };
+  const audio = spec({ mode: "narracion", output: "audio", visual: { provider: "solo_set", recreations: false } });
+  const out = await episodeAction("u1", episodeRow({ spec: audio, video_path: `u1/podcast-studio/${EP}/episodio.mp4`, audio_path: `u1/podcast-studio/${EP}/episodio.mp3` }), sign);
+  assert.equal(out.body.video_url, null);
+  assert.equal(out.body.audio_url, `signed:u1/podcast-studio/${EP}/episodio.mp3`);
+  assert.deepEqual(signed, [`u1/podcast-studio/${EP}/episodio.mp3`]);
+});
+
+test("API: «failed» solo se reautoriza con confirmación y monto; sin monto no llama a authorize ni despacha", async () => {
+  const row = { id: "e1", user_id: "u1", title: "T", mode: "dialogo", spec: spec(), status: "failed", estimate: {}, estimated_usd: 1, authorized_usd: 2, authorized_at: "2026-10-27T01:00:00Z", run_started_at: "2026-10-27T02:00:00Z", progress: null, result: null, video_path: null, audio_path: null, cost_usd: null, error: "x", created_at: "", updated_at: "" };
+  let authorized = 0, dispatches = 0, usd = 0;
+  const d = deps({ load: async () => ({ ...row }) as never, authorize: async (_id, n) => { authorized++; usd = n; return true; }, dispatch: async () => { dispatches++; return true; } });
+  const bare = await authorizeAction(d, "e1", { confirm: true });
+  assert.equal(bare.status, 402); assert.equal(authorized, 0); assert.equal(dispatches, 0);
+  const silent = await authorizeAction(d, "e1", { authorizedUsd: 2 });
+  assert.equal(silent.status, 400); assert.equal(authorized, 0); assert.equal(dispatches, 0);
+  const again = await authorizeAction(d, "e1", { confirm: true, authorizedUsd: 2 });
+  assert.equal(again.status, 200); assert.equal(authorized, 1); assert.equal(usd, 2); assert.equal(dispatches, 1);
+  const ready = await authorizeAction(deps({ load: async () => ({ ...row, status: "ready" }) as never, authorize: async () => { authorized++; return true; }, dispatch: async () => { dispatches++; return true; } }), "e1", { confirm: true, authorizedUsd: 2 });
+  assert.equal(ready.status, 409); assert.equal(authorized, 1); assert.equal(dispatches, 1);
+});
+
+test("re-despacho de la interfaz no envía un monto nuevo (un episodio fallido no se reautoriza con ese botón)", () => {
+  const wizard = readFileSync(new URL("../../../app/dashboard/podcast/PodcastWizard.tsx", import.meta.url), "utf8");
+  const list = readFileSync(new URL("../../../app/dashboard/podcast/StudioEpisodeList.tsx", import.meta.url), "utf8");
+  const retry = wizard.split("\n").find((l) => l.includes("Volver a pedir el inicio"));
+  assert.ok(retry);
+  assert.match(retry, /confirm: true/);
+  assert.doesNotMatch(retry, /authorizedUsd/);
+  assert.match(list, /JSON\.stringify\(\{ confirm: true \}\)/);
+  assert.match(list, /canRedispatch=\{status === "authorized"\}/);
 });
