@@ -1,0 +1,69 @@
+# USD 0 · PRODUCCIÓN SOLO SE LEE. Puerta previa de cualquier etapa del plan (O3 … DONE), en particular de los merges
+# O4 (#201), O5 (#199), O7 (#207) y O10 (#228), que no tienen workflow de ejecución propio. Ejecuta cierre.sh en modo
+# GATE_ONLY (cada sentencia en BEGIN TRANSACTION READ ONLY … ROLLBACK, sin leer filas de datos) y exige el número exacto
+# de comprobaciones de la etapa con 0 FAIL. No mergea, no migra, no despliega y no cambia flags ni secretos.
+# Un merge solo se hace con autorización concreta de Hans y con esta puerta en verde, lanzada justo antes y sobre el
+# mismo estado; si el estado cambia entre la puerta y el merge, se repite la puerta.
+name: puerta-lectura
+on:
+  workflow_dispatch:
+    inputs:
+      etapa:
+        description: "Operación que va a ejecutarse (la puerta comprueba el estado esperado justo antes)"
+        required: true
+        type: choice
+        options: [O3, O4, O5, O7, O8, O10, DONE]
+  # Registro del workflow (vive fuera de la rama por defecto): en push comprueba la etapa O3, solo lectura.
+  push:
+    branches: [claude/puertas-merge]
+    paths: [".github/workflows/puerta-lectura.yml"]
+permissions:
+  contents: read
+concurrency:
+  group: puerta-lectura
+  cancel-in-progress: false
+jobs:
+  puerta:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || 'aws-0-us-west-2.pooler.supabase.com' }}
+      SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
+      ETAPA: ${{ inputs.etapa || 'O3' }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Integridad SHA-256 y pruebas offline de la puerta
+        run: |
+          sha256sum -c docs/ops/cierre/SHA256SUMS && sha256sum -c docs/ops/conciliacion/SHA256SUMS
+          python3 -I scripts/qa/schema-readonly/gate_test.py && python3 -I scripts/qa/schema-readonly/reconcile_test.py
+      - name: PostgreSQL 17 (solo cliente psql/pg_dump)
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -yq postgresql-17
+          sudo systemctl stop postgresql || true
+      - name: Puerta en vivo (GATE_ONLY; producción solo lectura)
+        env: { OUT: "${{ github.workspace }}/cierre-out" }
+        run: |
+          set +e -uo pipefail
+          declare -A WANT=([O3]=16 [O4]=17 [O5]=16 [O7]=15 [O8]=13 [O10]=15 [DONE]=13)
+          g=0; GATE_ONLY=1 GATE_NEXT="$ETAPA" bash scripts/qa/schema-readonly/cierre.sh > puerta.log 2>&1 || g=$?
+          grep -E '^(PASS|FAIL) GATE|^RESULT' puerta.log
+          n=$(grep -c "^PASS GATE\[$ETAPA\]" puerta.log); f=$(grep -c '^FAIL' puerta.log)
+          if [ "$g" -eq 0 ] && [ "$n" -eq "${WANT[$ETAPA]}" ] && [ "$f" -eq 0 ] && grep -qx 'RESULT cierre: 0 FAIL' puerta.log; then
+            echo "PUERTA $ETAPA: VERDE ($n/${WANT[$ETAPA]}) · commit ${{ github.sha }}" | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::PUERTA $ETAPA: NO pasa ($n/${WANT[$ETAPA]} PASS, $f FAIL, exit $g): la operación $ETAPA no puede ejecutarse"; exit 1
+          fi
+      - name: Agregados vigentes (trabajos en curso, marcadores; sin filas de datos)
+        if: always()
+        run: |
+          f=cierre-out/impact.txt; [ -f "$f" ] || exit 0
+          grep -E '^(session_read_only|inflight|impact130000|impact140000)' "$f" || true
