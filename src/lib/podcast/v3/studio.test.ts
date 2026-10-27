@@ -190,3 +190,15 @@ test("owner check: signed request bound to the account; any error or other answe
   assert.equal(await askAppIsStudioOwner(U, { SUPABASE_SERVICE_ROLE_KEY: KEY }, (async () => { throw new Error("down"); }) as unknown as typeof fetch), false, "network error");
   assert.equal(await askAppIsStudioOwner(U, {}, f(true)), false, "no key");
 });
+
+test("still photo source: wizard photo from «videos», existing avatar from «avatar-uploads»; never another account's path", async () => {
+  // Regresión P2 real (episodio 0de4b445): la foto de un avatar existente se buscaba en «videos» y el episodio falló con «FOTO».
+  const { stillSource, STUDIO_BUCKET } = await import("./still-source");
+  const { RECORDING_BUCKET } = await import("@/lib/video/avatar/recording");
+  const owner = "0f8fad5b-d9cb-469f-a165-70867728950e";
+  assert.deepEqual(stillSource(owner, `foto:${owner}/podcast-studio/photos/a.jpg`, null), { bucket: STUDIO_BUCKET, path: `${owner}/podcast-studio/photos/a.jpg` });
+  assert.deepEqual(stillSource(owner, "avatar-row-id", `${owner}/avatars/photo.jpg`), { bucket: RECORDING_BUCKET, path: `${owner}/avatars/photo.jpg` });
+  assert.equal(RECORDING_BUCKET, "avatar-uploads");
+  for (const [ref, photo] of [["avatar-row-id", null], ["avatar-row-id", "otra-cuenta/avatars/p.jpg"], [`foto:otra-cuenta/x.jpg`, null], ["avatar-row-id", `${owner}/../otra/p.jpg`]] as const)
+    assert.throws(() => stillSource(owner, ref, photo), /Avatar sin foto fija/, `${ref} ${photo}`);
+});

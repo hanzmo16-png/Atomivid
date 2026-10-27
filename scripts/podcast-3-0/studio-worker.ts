@@ -51,6 +51,7 @@ export async function runStudioJob(episodeId: string) {
   const { searchScenePhotos } = await import("../../src/lib/ai/footage");
   const { downloadToFile } = await import("../../src/lib/podcast/visual-assets");
   const { heygenAvatarProvider } = await import("../../src/lib/providers/avatar/heygen");
+  const { stillSource } = await import("../../src/lib/podcast/v3/still-source");
   const service = createServiceClient();
   const BUCKET = "videos";
   const { data: row } = await service.from(STUDIO_TABLE).select(STUDIO_COLUMNS).eq("id", episodeId).single();
@@ -84,7 +85,12 @@ export async function runStudioJob(episodeId: string) {
   };
   const avatar = realAvatar({
     publishAudio: async (file) => { const p = await upload(`${base}/avatar-audio/${path.basename(file)}`, file, "audio/wav"); const { data } = await service.storage.from(BUCKET).createSignedUrl(p, 3600); if (!data?.signedUrl) throw new Error("SIGN"); return data.signedUrl; },
-    fetchStill: async (ref, dest) => { const p = ref.startsWith("foto:") ? ref.slice(5) : (await avatarRow(ref)).source_photo_path; if (!p || !p.startsWith(`${owner}/`)) throw new Error("Avatar sin foto fija disponible"); const { data } = await service.storage.from(BUCKET).download(p); if (!data) throw new Error("FOTO"); const { writeFile } = await import("node:fs/promises"); await writeFile(dest, Buffer.from(await data.arrayBuffer())); },
+    fetchStill: async (ref, dest) => {
+      // Wizard photo → «videos»; existing avatar → «avatar-uploads» (see still-source.ts). Owner-only path either way.
+      const src = stillSource(owner, ref, ref.startsWith("foto:") ? null : (await avatarRow(ref)).source_photo_path);
+      const { data } = await service.storage.from(src.bucket).download(src.path); if (!data) throw new Error("FOTO");
+      const { writeFile } = await import("node:fs/promises"); await writeFile(dest, Buffer.from(await data.arrayBuffer()));
+    },
   });
   const wrapped = { ...avatar, prepare: preparePhoto, prepareUsd: 0, render: async (ref: string, a: string, s: number, d: string, m: number) => avatar.render(await resolveRef(ref), a, s, d, m) };
   // Saldo verificado ANTES de cualquier cargo (GET de facturación gratuitos; nunca generación).
