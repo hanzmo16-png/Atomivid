@@ -39,6 +39,31 @@ const hydrated = await p.locator('[data-testid="podcast-wizard"][data-hydrated="
 ok("studio wizard visible and hydrated for the owner", hydrated); await shot(p, "00-estudio");
 if (!hydrated) stop("studio not available for the owner");
 
+// Reintento del MISMO episodio fallido por la interfaz («Reintentar» del asistente): reutiliza lo ya pagado.
+const RETRY = process.env.RETRY_EPISODE_ID || "";
+let row; let opsBefore = [];
+if (RETRY) {
+  const { data: prev } = await db.from("podcast_studio_episodes").select("id,user_id,status,authorized_usd,error").eq("id", RETRY).maybeSingle();
+  if (!ok("retry: the episode exists, is the owner's and is failed", !!prev && prev.user_id === OWNER && prev.status === "failed", `${prev?.status} ${prev?.error ?? ""}`)) stop("retry target not failed or not the owner's");
+  const { data: before } = await db.from("podcast_studio_operations").select("key,provider,op,state,actual_usd,reserved_usd").eq("episode_id", RETRY);
+  opsBefore = before || [];
+  facts.retryOf = RETRY; facts.opsBeforeRetry = opsBefore.length;
+  facts.settledBeforeRetryUsd = Math.round(opsBefore.reduce((s0, o) => s0 + (o.state === "settled" ? Number(o.actual_usd ?? o.reserved_usd) : 0), 0) * 10000) / 10000;
+  // El asistente muestra el progreso del episodio guardado en su borrador; con «failed» ofrece «Reintentar».
+  await p.evaluate(({ id, budget }) => { const k = "atomivid.podcast.asistente.v2"; const d = JSON.parse(localStorage.getItem(k) || "{}"); localStorage.setItem(k, JSON.stringify({ ...d, step: 9, episodeId: id, draftId: null, authorized: false, budgetUsd: budget, modality: "dialogo" })); }, { id: RETRY, budget: BUDGET });
+  await p.reload(); await dismiss(p);
+  const retryBtn = W().getByRole("button", { name: /Reintentar \(no se cobra dos veces/ });
+  const shown = await retryBtn.waitFor({ timeout: 60000 }).then(() => true, () => false);
+  await shot(p, "R1-fallido"); ok("retry: the wizard shows the failure and the «Reintentar» action", shown); if (!shown) stop("no retry button");
+  await retryBtn.click();
+  const auth = W().getByLabel("Autorizo el cargo");
+  ok("retry: authorization is asked again (a failed episode is never re-authorized silently)", await auth.waitFor({ timeout: 30000 }).then(() => true, () => false));
+  ok("retry: cannot generate without the checkbox", await W().getByRole("button", { name: "Generar episodio" }).isDisabled());
+  await auth.check(); await W().getByRole("button", { name: "Generar episodio" }).click();
+  await W().getByTestId("wizard-progress").waitFor({ timeout: 60000 }); await shot(p, "R2-reintento");
+  for (let i = 0; i < 30; i++) { const { data } = await db.from("podcast_studio_episodes").select("id,status,authorized_usd").eq("id", RETRY).single(); if (data && data.status !== "failed") { row = data; break; } await p.waitForTimeout(2000); }
+  if (!ok("retry: same episode re-authorized from the account", !!row && ["authorized", "generating", "ready"].includes(row.status), row?.status)) stop("not re-authorized");
+} else {
 const mode = CASO === "p2" ? "dialogo" : "visual";
 await W().getByTestId(`modalidad-${mode}`).click(); await next();
 const title = `Prueba real ${CASO.toUpperCase()} ${new Date().toISOString().slice(0, 16).replace("T", " ")}`;
@@ -119,8 +144,9 @@ if (!(Number.isFinite(est) && est <= BUDGET)) stop(`estimate ${est} exceeds the 
 
 await W().getByLabel("Autorizo el cargo").check(); await W().getByRole("button", { name: "Generar episodio" }).click();
 await W().getByTestId("wizard-progress").waitFor({ timeout: 60000 }); await shot(p, "10b-progreso");
-let row; for (let i = 0; i < 30 && !row; i++) { const { data } = await db.from("podcast_studio_episodes").select("id,status,authorized_usd").eq("user_id", OWNER).eq("title", title).order("created_at", { ascending: false }).limit(1); row = data?.[0]; if (!row) await p.waitForTimeout(2000); }
+for (let i = 0; i < 30 && !row; i++) { const { data } = await db.from("podcast_studio_episodes").select("id,status,authorized_usd").eq("user_id", OWNER).eq("title", title).order("created_at", { ascending: false }).limit(1); row = data?.[0]; if (!row) await p.waitForTimeout(2000); }
 if (!ok("episode created and authorized from the account", !!row && ["authorized", "generating", "ready"].includes(row.status), row?.status)) stop("no episode");
+}
 facts.episode = row.id; facts.authorizedUsd = Number(row.authorized_usd);
 ok("authorized amount == budget chosen in the wizard", Math.abs(Number(row.authorized_usd) - BUDGET) < 1e-6, `${row.authorized_usd}`);
 const t0 = Date.now(); let ep;
@@ -132,6 +158,14 @@ const keys = (ops || []).map((o) => o.key); facts.ops = (ops || []).reduce((a, o
 const settled = (ops || []).reduce((s, o) => s + (o.state === "settled" ? Number(o.actual_usd ?? o.reserved_usd) : 0), 0);
 facts.settledUsd = Math.round(settled * 10000) / 10000;
 ok("no duplicated provider operation (idempotency key unique)", new Set(keys).size === keys.length, `${keys.length} ops`);
+if (RETRY) {
+  const beforeKeys = new Set(opsBefore.map((o) => o.key));
+  const newOps = (ops || []).filter((o) => !beforeKeys.has(o.key));
+  facts.retryNewOps = newOps.reduce((a0, o) => { const k = `${o.provider}/${o.op}/${o.state}`; a0[k] = (a0[k] || 0) + 1; return a0; }, {});
+  facts.retryNewSettledUsd = Math.round(newOps.reduce((s0, o) => s0 + (o.state === "settled" ? Number(o.actual_usd ?? o.reserved_usd) : 0), 0) * 10000) / 10000;
+  ok("retry: every operation paid before the failure is reused (no second row, same key)", opsBefore.every((o) => (ops || []).filter((x) => x.key === o.key).length === 1), `${opsBefore.length} reused`);
+  ok("retry: no new voice call for turns already narrated", !newOps.some((o) => o.provider === "elevenlabs"), JSON.stringify(facts.retryNewOps));
+}
 ok("no uncertain or still-reserved charge left", !(ops || []).some((o) => o.state === "uncertain" || o.state === "reserved"), JSON.stringify(facts.ops));
 ok("spend within the authorization (ledger and episode cost)", settled <= facts.authorizedUsd + 1e-6 && (Number.isNaN(facts.costUsd) || facts.costUsd <= facts.authorizedUsd + 1e-6), `ledger ${facts.settledUsd} / episode ${facts.costUsd} / authorized ${facts.authorizedUsd}`);
 if (ep?.status !== "ready") { await browser.close(); finish(); }

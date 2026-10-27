@@ -15,6 +15,10 @@ on:
         description: "Autorización por episodio (no supera el tope del caso)"
         required: true
         default: "0"
+      episodio_reintento:
+        description: "Podcast: id de un episodio FALLIDO del dueño para reintentarlo por la interfaz (reutiliza lo pagado)"
+        required: false
+        default: ""
       lf_prior_usd:
         description: "Long Form: lo ya gastado en intentos anteriores del caso (cuenta para el tope de 12)"
         required: false
@@ -77,6 +81,7 @@ jobs:
           EVID: ${{ runner.temp }}/evid/shots
           LF_REQUEST_ID: ${{ inputs.lf_request_id }}
           LF_PRIOR_USD: ${{ inputs.lf_prior_usd }}
+          RETRY_EPISODE_ID: ${{ inputs.episodio_reintento }}
           LF_TOPIC: ${{ inputs.lf_topic }}
         run: if [ "$CASO" = lf ]; then node scripts/qa/real/longform-real.mjs; else node scripts/qa/real/podcast-real.mjs; fi
       - name: Evidencia cifrada (capturas, hechos y descarga) a la rama de evidencias
