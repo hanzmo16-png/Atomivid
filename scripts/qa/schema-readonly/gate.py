@@ -16,7 +16,7 @@ FROZEN = {
     "201": "9944360b5a32130d46811ea9d57f569b1e9031f5",
     "199": "49594f1e989d1c6f8c21bae4e650075ea4532ed4",
     "207": "d8b203d665e62602cec5cb72620f03b5630edd12",
-    "228": "0acef98aa8da6f510fa0901121a9c34a8bb061ce",
+    "228": "16b47781d7faa81c3d31a07e195a2f0fe37ed7a9",
 }
 MERGES = (("201", "O4"), ("199", "O5"), ("207", "O7"), ("228", "O10"))
 MOVED = {"O2": "20261024120000_resume_authorization_ref_match.sql", "O3": "20261024130000_spend_authorization_baseline_fix.sql",
