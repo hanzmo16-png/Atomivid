@@ -120,9 +120,12 @@ export function validateSpec(spec: StudioSpec, voices: AccountVoice[], viewer: V
  * «No disponible» para que el dueño sepa por qué (nunca se sustituye). Si está concedida a otra cuenta, se oculta
  * a las demás (privacidad).
  */
-export function voiceAvailability(voices: AccountVoice[], viewer: VoiceViewer, env: Record<string, string | undefined> = process.env) {
+export type VoiceChoice = { voiceId: string; name: string; available: boolean; note: string | null; kind: "sintetica" | "clonada" };
+
+export function voiceAvailability(voices: AccountVoice[], viewer: VoiceViewer, env: Record<string, string | undefined> = process.env): VoiceChoice[] {
   const visible = visibleVoices(voices, viewer, env);
-  const list = visible.map((v) => ({ voiceId: v.voiceId, name: v.name, available: true, note: isPrivateVoice(v) ? "Voz clonada" : null as string | null }));
-  if (!list.some((v) => v.voiceId === EL_DURO_VOICE_ID) && !parsePrivateVoiceGrants(env.PRIVATE_VOICE_GRANTS).has(EL_DURO_VOICE_ID)) list.push({ voiceId: EL_DURO_VOICE_ID, name: "El Duro (Hans)", available: false, note: "No disponible: requiere autorización (PRIVATE_VOICE_GRANTS)." });
+  const list: VoiceChoice[] = visible.map((v) => ({ voiceId: v.voiceId, name: v.name, available: true, note: isPrivateVoice(v) ? "Voz clonada" : null, kind: isPrivateVoice(v) ? "clonada" : "sintetica" }));
+  // Sin concesión para nadie: la fila sigue visible y deshabilitada (el dueño ve el motivo). Si la concesión es de otra cuenta, no se añade.
+  if (!list.some((v) => v.voiceId === EL_DURO_VOICE_ID) && !parsePrivateVoiceGrants(env.PRIVATE_VOICE_GRANTS).has(EL_DURO_VOICE_ID)) list.push({ voiceId: EL_DURO_VOICE_ID, name: "El Duro (Hans)", available: false, note: "No disponible: requiere autorización (PRIVATE_VOICE_GRANTS).", kind: "clonada" });
   return list;
 }

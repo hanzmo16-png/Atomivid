@@ -8,7 +8,7 @@ import { estimateEpisodeCost, MemoryLedger, paidOnce, opKey, committedUsd, relea
 import { mixGraph, transitionTimes } from "./audio";
 import { shotFrames, wrap, subtitlePages, FPS } from "./compose";
 import { autoMood, trackExpression, BUNDLED_TRACKS, licenseManifest, V2_MOOD_MAP } from "./music-library";
-import { defaultDraft, loadDraft, stepErrors, draftToSpec, draftToV2 } from "./wizard";
+import { defaultDraft, loadDraft, stepErrors, draftToSpec, draftToV2, withVoiceKinds, STEP } from "./wizard";
 import { studioAction, authorizeAction, type ApiDeps } from "./api";
 import { turnsFor } from "./pipeline";
 import type { AccountVoice } from "@/lib/podcast/voices";
@@ -37,8 +37,25 @@ test("spec: El Duro sin concesión aparece como NO disponible (no se oculta ni s
   const list = voiceAvailability(VOICES, OWNER, {});
   const d = list.find((v) => v.voiceId === EL_DURO_VOICE_ID);
   assert.equal(d?.available, false);
-  assert.equal(voiceAvailability(VOICES, OWNER, GRANT).find((v) => v.voiceId === EL_DURO_VOICE_ID)?.available, true);
+  assert.match(d?.note ?? "", /No disponible: requiere autorización \(PRIVATE_VOICE_GRANTS\)/);
+  const granted = voiceAvailability(VOICES, OWNER, GRANT).find((v) => v.voiceId === EL_DURO_VOICE_ID);
+  assert.equal(granted?.available, true);
+  assert.equal(granted?.kind, "clonada", "con concesión el dueño la elige como voz clonada");
   assert.equal(voiceAvailability(VOICES, { ...OWNER, email: "otra@example.com" }, GRANT).some((v) => v.voiceId === EL_DURO_VOICE_ID), false, "concedida a otra cuenta: oculta");
+});
+
+test("asistente: El Duro concedido se guarda voice_kind clonada; sin concesión no se puede avanzar; otra voz sigue sintética", () => {
+  const catalog = voiceAvailability(VOICES, OWNER, GRANT);
+  const base = defaultDraft();
+  const picked = withVoiceKinds({ ...base, modality: "avatar", mode: "avatar", count: 1, title: "T", script: "x".repeat(30), participants: [{ ...base.participants[0], voice_id: EL_DURO_VOICE_ID, voice_kind: "sintetica" }, base.participants[1]] }, catalog);
+  assert.equal(picked.participants[0].voice_kind, "clonada");
+  assert.equal(draftToSpec(picked).participants[0].voice_kind, "clonada");
+  const synth = withVoiceKinds({ ...picked, participants: [{ ...picked.participants[0], voice_id: "voiceAnaHost1", voice_kind: "clonada" }, picked.participants[1]] }, catalog);
+  assert.equal(synth.participants[0].voice_kind, "sintetica");
+  assert.equal(withVoiceKinds(picked, catalog), picked, "si el tipo ya es correcto no se clona el borrador");
+  const off = voiceAvailability(VOICES, OWNER, {});
+  assert.equal(off.find((v) => v.voiceId === EL_DURO_VOICE_ID)?.available, false);
+  assert.ok(stepErrors({ ...base, participants: [{ ...base.participants[0], voice_id: EL_DURO_VOICE_ID }, base.participants[1]] }, STEP.voces, { unavailableVoices: off.filter((v) => !v.available).map((v) => v.voiceId) }).some((e) => /no está disponible/));
 });
 
 test("spec: foto sin consentimiento explícito no pasa el esquema", () => {
@@ -212,6 +229,20 @@ test("API: guion por plantilla sin LLM; estimación gratis; crear con estudio ap
   assert.equal((await studioAction(deps(), { action: "create", ...body(spec({ budget_usd: 0.01 })) })).status, 402);
   assert.equal((await studioAction(deps({ insert: async () => "missing" }), { action: "create", ...body() })).status, 503, "migración no aplicada: 503, nada se cobra");
   assert.equal((await studioAction(deps(), { action: "create", ...body() })).status, 200);
+});
+
+test("API: El Duro concedido se guarda clonada para el dueño; otra cuenta y sin concesión se rechazan", async () => {
+  const duro = spec({ mode: "avatar", participants: [{ id: "A", name: "Hans", voice_id: EL_DURO_VOICE_ID, voice_kind: "sintetica", avatar: { kind: "existente", avatar_id: "a" } }] });
+  let saved: Record<string, unknown> | null = null;
+  const owner = await studioAction(deps({ env: GRANT, insert: async (row) => { saved = row; return { id: "11111111-1111-4111-8111-111111111111" }; } }), { action: "create", ...body(duro) });
+  assert.equal(owner.status, 200, JSON.stringify(owner.body));
+  assert.equal((saved?.spec as { participants: { voice_kind: string }[] }).participants[0].voice_kind, "clonada");
+  const other = await studioAction(deps({ env: GRANT, viewer: { ...OWNER, email: "otra@example.com" } }), { action: "create", ...body(duro) });
+  assert.equal(other.status, 400);
+  assert.match(String(other.body.error), /El Duro|no está disponible|no autorizada/);
+  const off = await studioAction(deps({ env: {} }), { action: "create", ...body(duro) });
+  assert.equal(off.status, 400);
+  assert.match(String(off.body.error), /no está autorizada/);
 });
 
 test("API: aislamiento — foto o avatar de otra cuenta → 403", async () => {

@@ -6,6 +6,7 @@
 import type { AccountVoice } from "@/lib/podcast/voices";
 import type { VoiceViewer } from "@/lib/voices/private-voices";
 import { StudioSpec, validateSpec, STUDIO_VERSION, type StudioSpec as Spec } from "./spec";
+import { isPrivateVoice } from "@/lib/voices/private-voices";
 import { preflight, type ImageProvider, type Providers } from "./pipeline";
 import { generateConversation, type LlmFn } from "./script";
 import { keywords, type VisualAsset } from "./editorial";
@@ -62,13 +63,19 @@ export async function studioAction(d: ApiDeps, body: Record<string, unknown> | n
   try { requireProvider(spec.visual.provider, d.env ?? process.env); } catch (e) { if (e instanceof ProviderUnavailableError) return { status: 409, body: { error: e.message, provider: spec.visual.provider } }; throw e; }
   let voices: AccountVoice[];
   try { voices = await d.voices(); } catch { return { status: 503, body: { error: "No se pudieron consultar las voces; inténtalo más tarde." } }; }
-  const issues = validateSpec(spec, voices, d.viewer);
+  const env = d.env ?? process.env;
+  const issues = validateSpec(spec, voices, d.viewer, env);
   if (issues.length) return { status: 400, body: { error: issues[0].message, issues } };
+  // El cliente puede omitir voice_kind (el esquema pone «sintetica»). Un clon privado concedido se guarda como «clonada».
+  const stored: Spec = { ...spec, participants: spec.participants.map((p) => {
+    const v = voices.find((x) => x.voiceId === p.voice_id);
+    return { ...p, voice_kind: v && isPrivateVoice(v) ? "clonada" : "sintetica" };
+  }) };
   for (const p of spec.participants) {
     if (p.avatar.kind === "foto" && !p.avatar.photo_path.startsWith(`${d.userId}/podcast-studio/photos/`)) return { status: 403, body: { error: "La foto del avatar no pertenece a tu cuenta." } };
     if (p.avatar.kind === "existente" && d.ownsAvatar && !(await d.ownsAvatar(p.avatar.avatar_id))) return { status: 403, body: { error: "Ese avatar no está disponible en tu cuenta." } };
   }
-  const pf = await preflight(spec, planningProviders());
+  const pf = await preflight(stored, planningProviders());
   const estimate = { lines: pf.estimate.lines, totalUsd: pf.estimate.totalUsd, assumptions: pf.estimate.assumptions, rates: pf.estimate.rates, turns: pf.turns.length, mood: pf.mood,
     shots: pf.plan.shots.reduce<Record<string, number>>((m, s) => ({ ...m, [s.kind]: (m[s.kind] ?? 0) + 1 }), {}), overBudget: pf.estimate.totalUsd > spec.budget_usd,
     byProvider: pf.estimate.lines.reduce<Record<string, number>>((m, l) => ({ ...m, [l.provider]: Math.round(((m[l.provider] ?? 0) + l.usd) * 1e4) / 1e4 }), {}),
@@ -78,7 +85,7 @@ export async function studioAction(d: ApiDeps, body: Record<string, unknown> | n
   if (b.action === "create") {
     if (!d.enabled) return DISABLED;
     if (estimate.overBudget) return { status: 402, body: { error: `El costo estimado (USD ${estimate.totalUsd.toFixed(2)}) supera tu presupuesto máximo (USD ${spec.budget_usd.toFixed(2)}). Sube el presupuesto o reduce apariciones del avatar.`, estimate } };
-    const row = await d.insert({ user_id: d.userId, title: spec.title, mode: spec.mode, spec, status: "draft", estimate, estimated_usd: estimate.totalUsd });
+    const row = await d.insert({ user_id: d.userId, title: stored.title, mode: stored.mode, spec: stored, status: "draft", estimate, estimated_usd: estimate.totalUsd });
     if (row === "missing") return DISABLED;
     if (!row) return { status: 500, body: { error: "No se pudo guardar el episodio." } };
     return { status: 200, body: { id: row.id, estimate } };
