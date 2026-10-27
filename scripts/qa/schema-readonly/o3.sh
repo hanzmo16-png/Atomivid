@@ -89,7 +89,7 @@ complete() { local miss="" dup; for k in $KEYS; do [ -n "$(get "$2" "$k")" ] || 
   [ -s "$2" ] && [ -z "$miss" ] && [ -z "$dup" ] && [ "$(get "$2" read_only)" = on ] && [ "$(get "$2" end)" = ok ] && echo "PASS O3[$1] snapshot complete ($(wc -l < "$2") facts, no duplicate key)" \
     || { echo "FAIL O3[$1] snapshot $2 incomplete, duplicated or not read-only (missing:${miss:- none}; duplicated:${dup:- none})"; fails=$((fails+1))
          # fail closed: no other check may run on a broken snapshot (it would only add noise to the verdict)
-         echo "RESULT o3 ${CMD}: $fails FAIL (stopped: broken snapshot)"; exit 1; }; }
+         echo "INFO stopped: no other check runs on a broken snapshot"; echo "RESULT o3 ${CMD}: $fails FAIL"; exit 1; }; }
 hashes() { [ "$(sha256sum < "$MIG" | cut -d' ' -f1)" = $SHA_MIG ] && cmp -s "$MIG" "$R/supabase/proposals/$NAME" && [ "$(sha256sum < "$RB" | cut -d' ' -f1)" = $SHA_RB ] \
   && [ "$(sha256sum < "$CT" | cut -d' ' -f1)" = "$SHA_CT" ] && [ "$(sha256sum < "$PR198" | cut -d' ' -f1)" = $SHA_PR198 ] \
   || { echo "FAIL O3 sha256 of the migration / rollback / contingency / PR198 differs from the audited one"; exit 1; }; }
