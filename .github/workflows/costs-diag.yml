@@ -1,0 +1,30 @@
+# Consumo de proveedores en solo lectura (USD 0): saldos guardados, saldo actual sin persistir, listado del proveedor y
+# operaciones registradas. No inserta snapshots ni escribe en producción.
+name: costs-diag
+on:
+  workflow_dispatch:
+    inputs:
+      desde: { description: "Inicio del intervalo (UTC, ISO)", required: true }
+  push:
+    branches: [claude/puertas-merge]
+    paths: [".github/workflows/costs-diag.yml"]
+permissions:
+  contents: read
+jobs:
+  heygen:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: HeyGen (solo lectura)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
+          DESDE: ${{ inputs.desde }}
+        run: npx tsx scripts/qa/real/heygen-costs.ts
