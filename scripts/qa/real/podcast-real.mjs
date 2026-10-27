@@ -74,7 +74,12 @@ if (CASO === "p2") {
   }
 }
 await shot(p, "05-avatares"); await next();
-ok("step 6 music", await atStep(6), await stepTitle()); await W().getByLabel("Ambiente musical").selectOption("auto", { timeout: 5000 }).catch(() => {}); await shot(p, "06-musica"); await next();
+ok("step 6 music", await atStep(6), await stepTitle()); {
+  // Localizador estable: el <label> con el texto visible «Estilo musical» contiene el <select> (no depende del aria-label).
+  const style = W().locator("label", { hasText: "Estilo musical" }).locator("select");
+  ok("step 6: music style select present", (await style.count()) === 1, `${await style.count()}`);
+  await style.selectOption("auto"); ok("step 6: music style = automatic", (await style.inputValue()) === "auto", await style.inputValue());
+} await shot(p, "06-musica"); await next();
 ok("step 7 visuals", await atStep(7), await stepTitle());
 const pexels = W().getByLabel("Fotos de archivo (Pexels)"); if (await pexels.count()) await pexels.check();
 const rc = await W().getByTestId("proveedor-recraft").textContent().catch(() => "");
