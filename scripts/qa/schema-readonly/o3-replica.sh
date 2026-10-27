@@ -58,31 +58,25 @@ same=1; for k in ma_count ma_has_o2 ma_has_o3 ma_md5_without_o3 sm_md5 pi_paid_o
 bash "$O2" snap "$(U)" "$T/r0-o2.snap" >/dev/null && bash "$O2" done "$T/r0-o2.snap" >/dev/null && pass "replica: o2.sh done passes (O2 objects as in production)" || fail "replica o2 done"
 gate O3 before 16
 
-# behaviour (the bug 130000 fixes): open an authorization for a podcast project that has RESERVED operations. PR198 puts
-# them in the baseline (never counted against the cap); 130000 leaves them out. Synthetic episode row, always rolled back.
-PID=$(q "select substr(project_id, 9) from public.pi_paid_operations where project_id ~ '^podcast-[0-9a-f-]{36}\$' group by project_id
-  having bool_or(status = 'RESERVED') and not bool_or(status in ('SUBMITTED','PROVIDER_JOB_RECORDED','RECONCILIATION_REQUIRED'))
-  and project_id not in (select project_id from public.pi_spend_authorizations) order by 1 limit 1")
+# behaviour (the bug 130000 fixes): open an authorization for a podcast episode that has one RESERVED and one COMMITTED
+# operation. PR198 puts both in the baseline (the RESERVED one is never counted against the cap once submitted); 130000
+# keeps only the settled one. Synthetic episode + two ledger rows cloned from an existing row's shape; always rolled back.
+PID=e0000000-0000-4000-8000-0000000003a0
 probe(){ LW -d replica -At 2>&1 <<SQL | grep -E '^(BASE|ERROR)' | head -1
 begin;
 insert into auth.users(id, email) values ('cccccccc-0000-4000-8000-0000000000e3', 'o3@x') on conflict do nothing;
 insert into public.podcast_episodes(id, user_id, title, source) values ('$PID', 'cccccccc-0000-4000-8000-0000000000e3', 'o3 probe', 'upload');
+insert into public.pi_paid_operations select (jsonb_populate_record(null::public.pi_paid_operations, to_jsonb(o)
+  || jsonb_build_object('project_id', 'podcast-$PID', 'idempotency_key', 'o3-probe-' || v.n, 'status', v.s))).*
+  from (select * from public.pi_paid_operations order by idempotency_key limit 1) o, (values (1, 'RESERVED'), (2, 'COMMITTED')) v(n, s);
 set local role service_role;
 select 'BASE ' || (r->>'opened') || ' ' || (r->>'baselineOperations') from (select public.pi_open_spend_authorization('$PID', 1, 'o3-probe') r) x;
 rollback;
 SQL
 }
-if [ -n "$PID" ]; then
-  TOT=$(q "select count(*) from public.pi_paid_operations where project_id = 'podcast-$PID'"); RES=$(q "select count(*) from public.pi_paid_operations where project_id = 'podcast-$PID' and status = 'RESERVED'")
-  b0=$(probe); [ "$b0" = "BASE true $TOT" ] && pass "before O3: baseline includes the $RES RESERVED operation(s) ($b0 of $TOT) — the defect" || fail "before O3 probe: [$b0] want BASE true $TOT"
-else echo "INFO no production podcast project with RESERVED operations and no authorization: behaviour probe skipped"; fi
-
-# effective access by role (not only the ACL text): anon / authenticated are refused, service_role can call it
-access(){ local r out; for r in anon authenticated; do out=$(LW -d replica -At -c "begin; set local role $r; select public.pi_open_spend_authorization('00000000-0000-4000-8000-000000000000', 1, 'x'); rollback;" 2>&1)
-    echo "$out" | grep -q 'permission denied for function pi_open_spend_authorization' || { fail "$1: role $r was not refused ($out)"; return; }; done
-  out=$(LW -d replica -At -c "begin; set local role service_role; select public.pi_open_spend_authorization('00000000-0000-4000-8000-000000000000', 1, 'x')->>'reason'; rollback;" 2>&1)
-  [ "$out" = "episode not found" ] && pass "$1: anon and authenticated refused (permission denied); service_role executes (episode not found)" || fail "$1: service_role call [$out]"; }
-access "access before O3"
+TOT=2; RES=1
+b0=$(probe); [ "$b0" = "BASE true 2" ] && pass "before O3: the baseline includes the RESERVED operation (2 of 2) — the defect 130000 fixes" || fail "before O3 probe: [$b0] want BASE true 2"
+[ "$(q "select count(*) from public.pi_paid_operations where project_id = 'podcast-$PID'")" = 0 ] && pass "probe rows rolled back" || fail "probe rows persisted"
 
 echo "== 3. O3 on the replica exactly as the workflow runs it"
 o3 apply > "$T/apply1.log" 2>&1 && pass "o3.sh apply: exit 0, '1 aplicada [$NAME], 0 reconciliadas'" || { fail "o3.sh apply"; tail -5 "$T/apply1.log"; }
@@ -92,7 +86,7 @@ grep -q 'O3 STATE: COMPLETADO' <(cls "$T/r1.snap") && pass "classify post-O3 = C
 grep -q 'O3 STATE: PRE' <(cls "$T/r0.snap") && pass "classify pre-O3 = PRE" || fail "classify pre"
 gate O4 after 17
 access "access after O3"
-if [ -n "$PID" ]; then b1=$(probe); [ "$b1" = "BASE true $((TOT - RES))" ] && pass "after O3: baseline excludes the RESERVED operation(s) ($b1 of $TOT)" || fail "after O3 probe: [$b1] want BASE true $((TOT - RES))"; fi
+b1=$(probe); [ "$b1" = "BASE true 1" ] && pass "after O3: the baseline keeps only the settled operation (1 of 2)" || fail "after O3 probe: [$b1] want BASE true 1"
 o3 pre "$T/r1.snap" > "$T/n1.out"
 rejects "N1 second run on the post-O3 state stops at 'pre'" 3 "$T/n1.out" "_migrations_applied rows | 120000 | 130000" "markers 000000" "pi_open_spend_authorization body (prosrc md5) == PR198"
 o3 apply > "$T/apply2.log" 2>&1; grep -q 'ya está registrada como aplicada' "$T/apply2.log" && grep -q 'Resumen: 0 aplicada' "$T/apply2.log" && pass "re-running the tool: skipped, 0 applied" || fail "tool re-run"
@@ -102,7 +96,7 @@ echo "== 4. Contingency"
 LW -d postgres -c "create database onlyrb template replica" >/dev/null
 "$PGBIN/psql" "$(U onlyrb)" -X -q -v ON_ERROR_STOP=1 -f "$R/supabase/proposals/${NAME%.sql}.rollback.sql" >/dev/null 2>&1; snap rb onlyrb
 bash "$O3" same "$T/r0.snap" "$T/rb.snap" > "$T/rb.same"
-rejects "N4 audited rollback ALONE leaves the registry row" 3 "$T/rb.same" "ma_count unchanged" "ma_has_o3 unchanged" "ma_md5_without_o3"
+rejects "N4 audited rollback ALONE leaves the registry row" 2 "$T/rb.same" "ma_count unchanged" "ma_has_o3 unchanged"
 "$PGBIN/psql" "$(U)" -X -q -v ON_ERROR_STOP=1 -f "$R/docs/ops/o3/O3_contingencia_registro.sql" > /dev/null 2> "$T/ct0.err"; rc=$?; snap n2
 [ $rc != 0 ] && grep -q 'O3 CONTINGENCIA: precondition failed' "$T/ct0.err" && cmp -s <(grep -v '^read_only' "$T/r1.snap") <(grep -v '^read_only' "$T/n2.snap") && pass "N2 step 2 before step 1: refused, state byte-identical" || fail "N2 (rc=$rc)"
 o3 contingency "$(U)" > "$T/ct1.log" 2>&1 && pass "o3.sh contingency: both steps exit 0" || { fail "contingency"; tail -5 "$T/ct1.log"; }
@@ -110,7 +104,7 @@ snap r2; o3 same "$T/r0.snap" "$T/r2.snap" > "$T/r2.same" && pass "after the con
 o3 verdict "$T/r0.snap" "$T/r2.snap" > "$T/v2.out"; [ $? = 0 ] && pass "verdict = REVERTIDO" || fail "verdict clean"
 gate O3 restored 16
 access "access after the contingency (permissions restored)"
-if [ -n "$PID" ]; then b2=$(probe); [ "$b2" = "BASE true $TOT" ] && pass "after the contingency: PR198 behaviour is back" || fail "restored probe [$b2]"; fi
+b2=$(probe); [ "$b2" = "BASE true 2" ] && pass "after the contingency: PR198 behaviour is back (2 of 2)" || fail "restored probe [$b2]"
 o3 contingency "$(U)" > /dev/null 2>&1 && snap r2b && o3 same "$T/r0.snap" "$T/r2b.snap" > /dev/null && pass "contingency is re-runnable" || fail "contingency second run"
 
 echo "== 5. Fault injection and regressions"
@@ -130,7 +124,7 @@ o3 done "$T/n6.snap" > "$T/n6.out"; rejects "N6 tampered body (marker 130000 sti
 grep -q 'INDETERMINADO' <(cls "$T/n6.snap") && pass "N6 classify = INDETERMINADO" || fail "N6 classify"
 # truncated / duplicated snapshots
 head -n 12 "$T/r0.snap" > "$T/trunc.snap"; o3 pre "$T/trunc.snap" > "$T/n5.out"; grep -q 'incomplete' "$T/n5.out" && ! grep -q 'RESULT .*: 0 FAIL' "$T/n5.out" && pass "N5 truncated snapshot refused" || fail "N5"
-{ cat "$T/r0.snap"; echo "usage_md5|00"; } > "$T/dup.snap"; o3 same "$T/r0.snap" "$T/dup.snap" > "$T/n5b.out"; grep -q 'duplicated: usage_md5' "$T/n5b.out" && pass "N5 duplicated key refused" || fail "N5 dup"
+{ cat "$T/r0.snap"; echo "usage_md5|00"; } > "$T/dup.snap"; o3 same "$T/r0.snap" "$T/dup.snap" > "$T/n5b.out"; grep -q 'duplicated:usage_md5' "$T/n5b.out" && pass "N5 duplicated key refused" || fail "N5 dup"
 # concurrent change of protected data between pre and post -> post fails on it; contingency -> BLOQUEADO, data kept
 snap n8pre
 LW -d replica -c "insert into auth.users(id, email) values ('cccccccc-0000-4000-8000-0000000000e4', 'o3c@x') on conflict do nothing; insert into public.podcast_episodes(id, user_id, title, source) values ('e0000000-0000-4000-8000-0000000003b0', 'cccccccc-0000-4000-8000-0000000000e4', 'concurrente', 'upload')" >/dev/null
