@@ -1,6 +1,6 @@
 import { cinematicV6Enabled } from "./cinematic-v6-access";
 import { DocumentaryResponseError } from "./json-response";
-import { SupplyUnavailableError } from "@/lib/supply/policy";
+import { SupplyUnavailableError, nextPeriodMessage } from "@/lib/supply/policy";
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -37,7 +37,9 @@ export async function enqueueScriptJob(session: SupabaseClient, user: {id:string
 
 /** A worker invocation replays cached stages but admits at most ONE new paid
  * request. A lost HTTP response cannot resubmit: SQL CAS and the ledger both fence it. */
-export async function runScriptJobStep(id:string, service=createServiceClient()) {
+/** Injection for zero-cost tests of the real step (production always uses the defaults). */
+export type ScriptJobStepDeps = { research?: typeof researchDocumentary };
+export async function runScriptJobStep(id:string, service=createServiceClient(), deps:ScriptJobStepDeps={}) {
  await recoverStaleRunningJob(id,service);
  const token=randomUUID();
  const {data:claim,error:claimError}=await service.rpc("claim_documentary_script_job",{p_id:id,p_token:token});
@@ -61,7 +63,7 @@ export async function runScriptJobStep(id:string, service=createServiceClient())
    documentaryScopeInput(input,fields),
    input.recoverLegacyOperator && isInternalProductionOwner(owner.user),async()=>{
     await update({stage:"Investigando fuentes"});
-    const researchPack=await researchDocumentary({topic:fields.topic,references:parseSources(fields.sources),openQuestions:parseOpenQuestions(fields.openQuestions)});
+    const researchPack=await (deps.research??researchDocumentary)({topic:fields.topic,references:parseSources(fields.sources),openQuestions:parseOpenQuestions(fields.openQuestions)});
     const beats=await generateDocumentaryScript({researchPack,creativeHistory:input.creativeHistory,referenceContract:input.referenceContract,writerContract:input.writerContract,extraEditorialRounds:job.editorial_rounds??0,mode:"curiosity_documentary",language:fields.language,
      targetDurationSeconds:Number(fields.durationMinutes)*60,cinematicV6:cinematicV6Enabled(owner.user),allowVisualSceneRepair:(job.retry_count??0)>0,onStage:stage=>update({stage}),
      onDraft:draft=>update({editorial_checkpoint:draft}),onEditorialApproved:r=>{editorial=r;}});
@@ -76,6 +78,12 @@ export async function runScriptJobStep(id:string, service=createServiceClient())
  } catch(error) {
   if(error instanceof DocumentaryStepYield) {await update({status:"queued",run_token:null});return {state:"queued"};}
   if(error instanceof SupplyUnavailableError) {
+   // A daily quota or a period spend ceiling cannot clear before the next period: say so and let the worker stop
+   // instead of asking again every few seconds (real run 2026-10-27: 156 refused polls in 48 min, USD 0).
+   if(error.waitsForNextPeriod) {
+    await update({status:"queued",run_token:null,stage:"En espera del próximo periodo del proveedor",error_message:nextPeriodMessage(error.reason)});
+    return {state:"waiting_period"};
+   }
    await update({status:"queued",run_token:null,stage:"Esperando disponibilidad",error_message:error.customerMessage});
    return {state:"waiting"};
   }

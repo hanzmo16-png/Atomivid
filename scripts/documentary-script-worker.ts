@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { SCRIPT_JOB_PATH, scriptJobSignature } from "../src/lib/video/long-form/script-job-auth";
+import { workerNextAction } from "../src/lib/video/long-form/script-worker-step";
 async function main() {
 const probe=process.env.SCRIPT_PROBE_ONLY==="true";
 const id=probe?randomUUID():process.env.SCRIPT_JOB_ID;
@@ -30,10 +31,13 @@ for(let step=0;;step++) {
  }
  const result=await response.json() as {state:string};
  console.log(`Preparation stage ${step+1}: ${result.state}`);
- if(["completed","probe_ok"].includes(result.state)) break;
- if(result.state==="running") {await new Promise(r=>setTimeout(r,60_000));continue;} // Owned by another invocation: wait, NEVER steal.
- if(!["queued","waiting"].includes(result.state)) throw new Error(`Preparation stopped: ${result.state}`);
- if(result.state==="waiting") await new Promise(r=>setTimeout(r,15000));
+ const action=workerNextAction(result.state);
+ if(action.kind==="done") break;
+ // A daily quota / period spend ceiling: asking again before the next period cannot succeed. The job stays queued
+ // with its reason; the owner resumes it from the app. Not an error and nothing was called or charged.
+ if(action.kind==="stop_waiting_period") {console.log("Preparation waiting for the provider's next period; stopped without polling");break;}
+ if(action.kind==="error") throw new Error(action.message);
+ if(action.afterMs>0) await new Promise(r=>setTimeout(r,action.afterMs));
 }
 }
 main().catch(error => { console.error(error instanceof Error ? error.message : "Worker interrupted"); process.exitCode=1; });
