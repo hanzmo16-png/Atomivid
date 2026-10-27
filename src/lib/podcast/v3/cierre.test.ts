@@ -21,8 +21,11 @@ test("saldo y topes previos: la demanda del estudio usa la regla de producción 
     { provider: "heygen", state: "released", reserved_usd: 9, actual_usd: 0 }, { provider: "elevenlabs", state: "reserved", reserved_usd: 0.2, actual_usd: null }]));
   assert.deepEqual(d.find((x) => x.provider === "heygen"), { provider: "heygen", unit: "usd", units: 8.4, usd: 8.4 }, "liquidado al real + incierto al reservado; liberado no cuenta");
   assert.equal(d.find((x) => x.provider === "elevenlabs")!.usd, 1.1);
-  assert.equal(unsupportedSpend(needs({ imagesUsd: 0.4 }))?.includes("no está conectado"), true);
+  assert.equal(unsupportedSpend(needs({ imagesUsd: 0.4 }))?.includes("no está activado"), true);
+  assert.equal(unsupportedSpend(needs({ imagesUsd: 0.4 }), true), null, "con Recraft conectado se verifica saldo en vez de bloquear");
   assert.equal(unsupportedSpend(needs()), null);
+  const rc = studioSupplyDemands(needs({ imagesUsd: 0.16 }), studioSpendByProvider([{ provider: "recraft", state: "settled", reserved_usd: 0.04, actual_usd: 0.04 }]));
+  assert.deepEqual(rc.find((x) => x.provider === "recraft"), { provider: "recraft", unit: "usd", units: 0.2, usd: 0.2 }, "recreaciones: misma regla y proveedor que Reels/Long Form, con lo gastado en 24 h");
 });
 
 test("quien escucha no queda congelado: movimiento de cámara sutil, continuo, del largo exacto del plano y sin animar labios", () => {

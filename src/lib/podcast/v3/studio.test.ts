@@ -1,6 +1,7 @@
 /** Podcast 2.1 Estudio audiovisual — pruebas puras (sin red, sin ffmpeg, sin proveedores reales). */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { RECRAFT_USD_PER_IMAGE } from "@/lib/providers/image/recraft";
 import { studioFlag, visualProviders, requireProvider, ProviderUnavailableError, lipTimeline, lipViolations, shotCoverage, estimateByMode, syntheticTurns } from "./studio";
 import { planEpisode, type VisualAsset } from "./editorial";
 import { classifyTurn, templateConversation, conversationPrompt, coherenceIssues } from "./script";
@@ -24,7 +25,8 @@ test("proveedores visuales: Recraft no disponible con motivo; elegirlo lanza (nu
   const ps = visualProviders({});
   const rc = ps.find((p) => p.id === "recraft")!;
   assert.equal(rc.available, false); assert.match(rc.reason!, /FAL_KEY/);
-  assert.match(visualProviders({ FAL_KEY: "x" }).find((p) => p.id === "recraft")!.reason!, /no está conectado/);
+  assert.match(visualProviders({ FAL_KEY: "x" }).find((p) => p.id === "recraft")!.reason!, /PODCAST_STUDIO_RECRAFT/);
+  assert.equal(visualProviders({ FAL_KEY: " ", PODCAST_STUDIO_RECRAFT: "1" }).find((p) => p.id === "recraft")!.available, false);
   assert.equal(visualProviders({ FAL_KEY: "x", PODCAST_STUDIO_RECRAFT: "1" }).find((p) => p.id === "recraft")!.available, true);
   assert.throws(() => requireProvider("recraft", {}), ProviderUnavailableError);
   assert.throws(() => requireProvider("dalle", {}), ProviderUnavailableError);
@@ -37,6 +39,18 @@ const deps = (over: Partial<ApiDeps> = {}): ApiDeps => ({ userId: "u1", viewer: 
   insert: async () => ({ id: "11111111-1111-4111-8111-111111111111" }), load: async () => null, authorize: async () => true, dispatch: async () => true, ...over });
 const dlg = (visual: Record<string, unknown> = {}) => ({ spec: { mode: "dialogo", title: "T", script: templateConversation({ topic: "la luna Europa", hostName: "Ana", guestName: "Luis", minutes: 3 }).map((t) => `${t.speaker === "A" ? "Ana" : "Luis"}: ${t.text}`).join("\n"), target_minutes: 3,
   participants: [{ id: "A", name: "Ana", voice_id: "voiceAnaHost1", avatar: { kind: "existente", avatar_id: "a1" } }, { id: "B", name: "Luis", voice_id: "voiceLuisGuest", avatar: { kind: "existente", avatar_id: "a2" } }], visual, music: {}, budget_usd: 50 } });
+
+test("API: Recraft elegido y activado → la estimación cuenta las recreaciones a la tarifa de Recraft; con Pexels, ninguna", async () => {
+  const env = { FAL_KEY: "k", PODCAST_STUDIO_RECRAFT: "1" };
+  const rc = await studioAction(deps({ env }), { action: "estimate", ...dlg({ provider: "recraft" }) });
+  assert.equal(rc.status, 200);
+  const img = (r: typeof rc) => (r.body.estimate as { lines: { concept: string; usd: number; detail: string }[] }).lines.find((l) => l.concept === "imagenes")!;
+  const n = Number(/(\d+) recreaciones a USD/.exec(img(rc).detail)?.[1]);
+  assert.ok(n >= 1 && n <= 4, `peor caso de recreaciones (1..4) incluido en el presupuesto antes de autorizar: ${img(rc).detail}`);
+  assert.equal(img(rc).usd, Math.round(n * RECRAFT_USD_PER_IMAGE * 1e4) / 1e4);
+  const px = await studioAction(deps({ env }), { action: "estimate", ...dlg({ provider: "pexels" }) });
+  assert.equal(img(px).usd, 0, "con Pexels no se cobra ninguna recreación aunque Recraft esté activado");
+});
 
 test("API: proveedor Recraft elegido y no disponible → 409 con motivo, sin crear ni estimar con otro proveedor", async () => {
   let inserted = 0;

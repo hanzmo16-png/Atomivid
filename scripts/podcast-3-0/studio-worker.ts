@@ -28,6 +28,8 @@ export async function runStudioJob(episodeId: string) {
   const { searchScenePhotos } = await import("../../src/lib/ai/footage");
   const { downloadToFile } = await import("../../src/lib/podcast/visual-assets");
   const { heygenAvatarProvider } = await import("../../src/lib/providers/avatar/heygen");
+  const { recraftRecreate, studioRecraftEnabled } = await import("../../src/lib/podcast/v3/recraft-studio");
+  const { RECRAFT_USD_PER_IMAGE } = await import("../../src/lib/providers/image/recraft");
   const service = createServiceClient();
   const BUCKET = "videos";
   const { data: row } = await service.from(STUDIO_TABLE).select(STUDIO_COLUMNS).eq("id", episodeId).single();
@@ -64,12 +66,15 @@ export async function runStudioJob(episodeId: string) {
     fetchStill: async (ref, dest) => { const p = ref.startsWith("foto:") ? ref.slice(5) : (await avatarRow(ref)).source_photo_path; if (!p || !p.startsWith(`${owner}/`)) throw new Error("Avatar sin foto fija disponible"); const { data } = await service.storage.from(BUCKET).download(p); if (!data) throw new Error("FOTO"); const { writeFile } = await import("node:fs/promises"); await writeFile(dest, Buffer.from(await data.arrayBuffer())); },
   });
   const wrapped = { ...avatar, prepare: preparePhoto, prepareUsd: 0, render: async (ref: string, a: string, s: number, d: string, m: number) => avatar.render(await resolveRef(ref), a, s, d, m) };
+  // Recraft (recreaciones) solo si el usuario lo eligió Y el interruptor del worker está encendido; jamás como sustituto.
+  const recraft = spec.visual.provider === "recraft" && studioRecraftEnabled()
+    ? { recreate: recraftRecreate(spec.format === "9:16" ? "9:16" : "16:9"), recreateUsd: RECRAFT_USD_PER_IMAGE, recreateProvider: "recraft" } : null;
   // Saldo verificado ANTES de cualquier cargo (GET de facturación gratuitos; nunca generación).
   // Misma regla de producción que el resto de Atomicvid (saldo verificado + topes diarios/mensuales por proveedor y
   // global), ANTES de cualquier cargo. Lo que el estudio gastó en 24 h se suma a la demanda (su libro no está en pi_*).
   const readiness = async (needs: import("../../src/lib/podcast/v3/pipeline").ProviderNeeds) => {
     const [{ ensureJobSupplyReady }, { studioSupplyDemands, studioSpendByProvider, unsupportedSpend }] = await Promise.all([import("../../src/lib/supply/readiness"), import("../../src/lib/podcast/v3/readiness")]);
-    const blocked = unsupportedSpend(needs); if (blocked) return blocked;
+    const blocked = unsupportedSpend(needs, Boolean(recraft)); if (blocked) return blocked;
     const { data: recent, error: recentError } = await service.from(STUDIO_OPS_TABLE).select("provider,state,reserved_usd,actual_usd").gte("created_at", new Date(Date.now() - 24 * 3600_000).toISOString());
     if (recentError) return "No se pudo leer el gasto reciente del estudio.";
     const demands = studioSupplyDemands(needs, studioSpendByProvider(recent ?? []));
@@ -99,10 +104,15 @@ export async function runStudioJob(episodeId: string) {
   // Arnés: inyección de un rechazo (sin cargo) en la N-ésima voz; solo con proveedores simulados, nunca en producción.
   const rejectTtsCall = Number(process.env.PODCAST_V3_MOCK_TTS_REJECT_CALL || 0);
   const providers = simulated ? mockProviders(Number.isInteger(rejectTtsCall) && rejectTtsCall > 0 ? { rejectTtsCall } : {}) : { tts: realTts(spec.language, rates?.voiceUsdPer1kChars), avatar: wrapped, readiness,
-    images: realImages({ searchPhotos: async (q) => (await searchScenePhotos(q, spec.format === "9:16" ? "portrait" : "landscape", spec.language)).map((c) => ({ id: c.sourceId, url: c.url, credit: c.photographer })), download: downloadToFile }) };
+    images: { ...realImages({ searchPhotos: async (q) => (await searchScenePhotos(q, spec.format === "9:16" ? "portrait" : "landscape", spec.language)).map((c) => ({ id: c.sourceId, url: c.url, credit: c.photographer })), download: downloadToFile }), ...recraft } };
   console.log("STUDIO_PROVIDERS", simulated ? "mock" : "real adapter (untested live)");
   const progress = (stage: string, pct: number) => { void service.from(STUDIO_TABLE).update({ progress: { stage, pct }, updated_at: new Date().toISOString() }).eq("id", episodeId); };
   try {
+    // Elegido Recraft con el interruptor apagado en el worker (app y worker desalineados): falla antes de cualquier cargo.
+    if (!simulated && spec.visual.provider === "recraft" && !recraft) {
+      const { ProviderUnavailableError } = await import("../../src/lib/podcast/v3/studio");
+      throw new ProviderUnavailableError("Ilustraciones Recraft (fal.ai)", "Recraft no está activado en el generador del estudio. No se hizo ningún cargo.");
+    }
     const r = await runEpisode(spec, { owner, episode: episodeId, dir, providers, small: simulated, ledger: supabaseStudioLedger(service, owner), guard: supabaseRunGuard(service), authorizedUsd: Number(row.authorized_usd), onProgress: progress, artifacts, rates });
     const video = r.mp4 ? await upload(`${base}/episodio.mp4`, r.mp4, "video/mp4") : null; // solo audio: sin MP4
     const audio = await upload(`${base}/episodio.${spec.audio_export}`, r.audio, spec.audio_export === "mp3" ? "audio/mpeg" : "audio/wav");
