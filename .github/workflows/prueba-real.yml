@@ -10,7 +10,7 @@ on:
         description: "preflight (USD 0) | descargas (USD 0, MP4+MP3 de episodio_reintento) | p1 (≤ 1) | p2 (≤ 3) | lf (≤ 12, todo el caso)"
         required: true
         type: choice
-        options: [preflight, p1, p2, lf]
+        options: [preflight, descargas, p1, p2, lf]
       presupuesto_usd:
         description: "Autorización por episodio (no supera el tope del caso)"
         required: true
