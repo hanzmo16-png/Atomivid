@@ -1,0 +1,143 @@
+# O3 — EJECUCIÓN ÚNICA, solo con autorización concreta de Hans: aplica en producción la migración
+# supabase/migrations/20261024130000_spend_authorization_baseline_fix.sql (sha256 56a24ada…cd6b, idéntica a la propuesta
+# auditada de #207 y #224) con la herramienta del plan, scripts/apply-supabase-migration.ts, un único archivo; la herramienta
+# la registra en public._migrations_applied. Requiere O2 COMPLETADO: run 40427566003 (leído en la API) y `o2.sh done` sobre una
+# lectura nueva. NO ejecuta O4 ni operaciones posteriores, merges, despliegues, flags, secretos, conciliación ni llamadas pagadas.
+# Solo con workflow_dispatch desde esta rama y con `sha_autorizado` igual al commit ejecutado; el push solo registra el
+# workflow (job omitido). Una segunda ejecución no escribe: `o3.sh pre` exige 64 registradas sin la 130000 y el cuerpo PR198.
+# Contingencia SOLO si la ejecución dejó algún cambio y la verificación posterior falla: paso 1 rollback auditado
+# 5d7a3b1f…; solo si el paso 1 tuvo éxito, paso 2 docs/ops/o3/O3_contingencia_registro.sql (92242fd6…). Dictamen:
+# REVERTIDO (estado previo exacto) | BLOQUEADO (O3 deshecho, cambios concurrentes de datos que no se tocan).
+# Cancelación o resultado indeterminado: docs/ops/o3/RECUPERACION.md (clasificación de solo lectura; no reintentar).
+name: o3-ejecucion-unica
+on:
+  workflow_dispatch:
+    inputs:
+      sha_autorizado:
+        description: "Commit completo autorizado por Hans para esta única ejecución (40 caracteres)"
+        required: true
+        type: string
+  # Solo para que GitHub registre el workflow (vive fuera de la rama por defecto): en push el job se OMITE.
+  push:
+    branches: [claude/o3-ejecucion-unica]
+    paths: [".github/workflows/o3-ejecucion-unica.yml"]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: o3-ejecucion-unica
+  cancel-in-progress: false
+jobs:
+  o3:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/claude/o3-ejecucion-unica'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || 'aws-0-us-west-2.pooler.supabase.com' }}
+      SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
+      O2: scripts/qa/schema-readonly/o2.sh
+      O3: scripts/qa/schema-readonly/o3.sh
+      OUT: ${{ github.workspace }}
+      SHA_AUTORIZADO: ${{ inputs.sha_autorizado }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false, fetch-depth: 0 }
+      - name: "0. Vínculo al SHA autorizado (antes de instalar nada)"
+        run: bash "$O3" bind "$SHA_AUTORIZADO"
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: "1. SHA-256 exactos (migración == propuesta auditada, rollback, contingencia, PR198) e igualdad con #207/#224"
+        run: |
+          set -euo pipefail
+          sha256sum -c docs/ops/o3/SHA256SUMS && sha256sum -c docs/ops/o2/SHA256SUMS && sha256sum -c docs/ops/cierre/SHA256SUMS
+          cmp supabase/migrations/20261024130000_spend_authorization_baseline_fix.sql supabase/proposals/20261024130000_spend_authorization_baseline_fix.sql
+          for c in d8b203d665e62602cec5cb72620f03b5630edd12 91da24bed1a536a6592bbae5fe59f4561d5fb9fd; do
+            git fetch -q --depth=1 origin $c
+            git show $c:supabase/proposals/20261024130000_spend_authorization_baseline_fix.sql | cmp - supabase/migrations/20261024130000_spend_authorization_baseline_fix.sql
+            git show $c:supabase/proposals/20261024130000_spend_authorization_baseline_fix.rollback.sql | cmp - supabase/proposals/20261024130000_spend_authorization_baseline_fix.rollback.sql
+          done
+          echo "OK: migración y rollback idénticos a los de #207 (d8b203d) y #224 (91da24b)"
+      - name: Pruebas offline de la puerta y del reconciliador
+        run: python3 -I scripts/qa/schema-readonly/gate_test.py && python3 -I scripts/qa/schema-readonly/reconcile_test.py && bash -n "$O2"
+      - name: Pruebas offline de la puerta y del reconciliador
+        run: python3 -I scripts/qa/schema-readonly/gate_test.py && python3 -I scripts/qa/schema-readonly/reconcile_test.py && bash -n "$O2" && bash -n "$O3"
+      - name: PostgreSQL 17 (solo cliente)
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -yq postgresql-17
+          sudo systemctl stop postgresql || true
+      - name: Conexión (enmascarada)
+        run: |
+          set -euo pipefail
+          URL=$(npx tsx -e 'import { resolveConnection } from "./scripts/lib/supabase-db"; const c = resolveConnection(); if (!c) { process.exit(3) } process.stdout.write(c.connectionString)')
+          echo "::add-mask::$URL"; PW=$(node -e 'const u=new URL(process.argv[1]); process.stdout.write(decodeURIComponent(u.password))' "$URL"); echo "::add-mask::$PW"
+          echo "DB_URL=$URL" >> "$GITHUB_ENV"
+      - name: "2. O2 COMPLETADO: run 40427566003 en la API y o2.sh done sobre lectura nueva; puerta O3 16/16"
+        env: { OUT: "${{ github.workspace }}/cierre-pre", GITHUB_TOKEN: "${{ github.token }}" }
+        run: |
+          set +e -o pipefail
+          bash "$O3" o2run 40427566003 || { echo "::error::sin evidencia vinculada de O2 COMPLETADO: no se ejecuta O3"; exit 1; }
+          bash "$O2" snap "$DB_URL" o2now.snap && bash "$O2" done o2now.snap || { echo "::error::O2 no está en su estado auditado: no se ejecuta O3"; exit 1; }
+          GATE_ONLY=1 GATE_NEXT=O3 bash scripts/qa/schema-readonly/cierre.sh 2>&1 | tee puerta-o3.log; rc=${PIPESTATUS[0]}
+          n=$(grep -c '^PASS GATE\[O3\]' puerta-o3.log); f=$(grep -c '^FAIL' puerta-o3.log)
+          echo "puerta O3: rc=$rc PASS=$n FAIL=$f"
+          [ "$rc" -eq 0 ] && [ "$n" -eq 16 ] && [ "$f" -eq 0 ] && grep -q '^RESULT cierre: 0 FAIL' puerta-o3.log || { echo "::error::puerta O3 no está 16/16 en verde: no se ejecuta O3"; exit 1; }
+      - name: "3. Estado previo (solo lectura) contra referencias auditadas: 64/1/0, 548/41, t t f f, cuerpo PR198, ACL, 0 en curso, statement_timeout 2 min"
+        run: |
+          set -euo pipefail
+          bash "$O3" snap "$DB_URL" pre.snap
+          bash "$O3" pre pre.snap
+          bash "$O3" classify pre.snap | grep -q 'O3 STATE: PRE'
+          bash "$O3" probe
+      - name: "4. Ejecutar O3 (herramienta real, un solo archivo)"
+        id: exec
+        run: bash "$O3" apply
+      - name: "5. Verificación posterior: done (referencias auditadas) + sin otros cambios + GATE_NEXT=O4 17/17"
+        id: verify
+        env: { OUT: "${{ github.workspace }}/cierre-post" }
+        run: |
+          set +e -uo pipefail
+          ok=1
+          bash "$O3" snap "$DB_URL" post.snap || ok=0
+          bash "$O3" post pre.snap post.snap || ok=0
+          g=0; GATE_ONLY=1 GATE_NEXT=O4 bash scripts/qa/schema-readonly/cierre.sh > puerta-o4.log 2>&1 || g=$?
+          grep -E '^(PASS|FAIL) GATE|^RESULT' puerta-o4.log
+          n=$(grep -c '^PASS GATE\[O4\]' puerta-o4.log)
+          [ "$g" -eq 0 ] && [ "$n" -eq 17 ] && ! grep -q '^FAIL' puerta-o4.log || ok=0
+          if [ $ok = 1 ]; then
+            echo "VERIFICACION POSTERIOR: OK"
+            echo "O3 COMPLETADO · commit $SHA_AUTORIZADO · run ${{ github.run_id }} · verificación posterior y GATE_NEXT=O4 en verde" >> "$GITHUB_STEP_SUMMARY"
+          else echo "::error::verificación posterior fallida"; exit 1; fi
+      - name: "6. Contingencia (solo si la ejecución dejó cambios y la verificación falla; se corta si falla el paso 1)"
+        if: failure() && (steps.exec.outcome == 'success' || steps.exec.outcome == 'failure') && steps.verify.outcome != 'success'
+        run: |
+          set +e -uo pipefail
+          bash "$O3" snap "$DB_URL" now.snap || { echo "::error::no se pudo leer el estado: NO se aplica nada. INDETERMINADO: seguir docs/ops/o3/RECUPERACION.md"; exit 1; }
+          bash "$O3" classify now.snap
+          if bash "$O3" same pre.snap now.snap > same0.log; then
+            echo "::error::O3 no dejó ningún cambio (estado previo exacto): nada que revertir. BLOQUEADO"; exit 1; fi
+          grep FAIL same0.log
+          has=$(grep '^ma_has_o3|' now.snap | cut -d'|' -f2); m=$(grep '^m130|' now.snap | cut -d'|' -f2)
+          echo "precondición contingencia: 130000 registrada=$has marcador=$m (se exige al menos uno de los dos)"
+          [ "$has" = 1 ] || [ "$m" = t ] || { echo "::error::el cambio no es de O3: NO se aplica la contingencia. BLOQUEADO"; exit 1; }
+          bash "$O3" contingency "$DB_URL" || { echo "::error::contingencia detenida (si falló el paso 1, el paso 2 no se ejecutó). INDETERMINADO: seguir docs/ops/o3/RECUPERACION.md"; bash "$O3" snap "$DB_URL" fail.snap && bash "$O3" classify fail.snap; exit 1; }
+          bash "$O3" snap "$DB_URL" after.snap || { echo "::error::no se pudo leer el estado tras la contingencia. INDETERMINADO"; exit 1; }
+          bash "$O3" verdict pre.snap after.snap; v=$?
+          g=0; GATE_ONLY=1 OUT="$PWD/cierre-rb" GATE_NEXT=O3 bash scripts/qa/schema-readonly/cierre.sh > puerta-o3-rb.log 2>&1 || g=$?
+          grep -E '^(PASS|FAIL) GATE|^RESULT' puerta-o3-rb.log
+          case "$v" in
+            0) [ "$g" -eq 0 ] && echo "::error::O3 REVERTIDO (estado previo exacto, puerta O3 en verde)" || echo "::error::O3 revertido pero la puerta O3 no pasa: BLOQUEADO";;
+            3) echo "::error::O3 deshecho; cambios concurrentes de datos NO sobrescritos: BLOQUEADO";;
+            *) echo "::error::la contingencia no dejó el estado previo: INDETERMINADO, seguir docs/ops/o3/RECUPERACION.md";;
+          esac
+          exit 1
+      - name: "Cancelación: clasificación de solo lectura (no escribe)"
+        if: cancelled() && env.DB_URL != ''
+        run: |
+          bash "$O3" snap "$DB_URL" cancel.snap && bash "$O3" classify cancel.snap || true
+          echo "::error::run cancelado: NO reintentar; seguir docs/ops/o3/RECUPERACION.md"

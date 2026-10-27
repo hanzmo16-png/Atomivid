@@ -1,0 +1,45 @@
+# USD 0 · PRODUCCIÓN SOLO SE LEE. Ensayo de O3 (migración 20261024130000) en PostgreSQL 17 desechable con los MISMOS
+# comandos del workflow de ejecución (o3.sh), más los mutantes del verificador O2 (o2-mutantes.sh, endurecimiento 6c35019).
+name: o3-ensayo-replica
+on:
+  push:
+    branches: [claude/o3-ejecucion-unica]
+    paths: [".github/workflows/o3-*.yml", "scripts/qa/schema-readonly/o2*.sh", "scripts/qa/schema-readonly/o3*.sh", "docs/ops/o3/**", "supabase/migrations/20261024130000_spend_authorization_baseline_fix.sql"]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: o3-ensayo-replica
+  cancel-in-progress: false
+jobs:
+  ensayo:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || 'aws-0-us-west-2.pooler.supabase.com' }}
+      SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false, fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Hashes y pruebas offline
+        run: |
+          sha256sum -c docs/ops/o3/SHA256SUMS && sha256sum -c docs/ops/o2/SHA256SUMS && sha256sum -c docs/ops/cierre/SHA256SUMS
+          python3 -I scripts/qa/schema-readonly/gate_test.py && python3 -I scripts/qa/schema-readonly/reconcile_test.py
+      - name: PostgreSQL 17
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -yq postgresql-17
+          sudo systemctl stop postgresql || true
+      - name: Mutantes del verificador O2 (6c35019) en PostgreSQL desechable (sin producción)
+        run: env -u SUPABASE_DB_URL -u SUPABASE_DB_PASSWORD -u SUPABASE_URL -u SUPABASE_PROJECT_REF -u SUPABASE_DB_HOST bash scripts/qa/schema-readonly/o2-mutantes.sh
+      - name: Ensayo O3 en réplica desechable (escrituras solo locales)
+        run: bash scripts/qa/schema-readonly/o3-replica.sh
