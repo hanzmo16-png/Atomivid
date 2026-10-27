@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       caso:
-        description: "preflight (USD 0) | p1 (≤ 1) | p2 (≤ 3) | lf (≤ 12, todo el caso)"
+        description: "preflight (USD 0) | descargas (USD 0, MP4+MP3 de episodio_reintento) | p1 (≤ 1) | p2 (≤ 3) | lf (≤ 12, todo el caso)"
         required: true
         type: choice
         options: [preflight, p1, p2, lf]
@@ -56,7 +56,7 @@ jobs:
         with: { persist-credentials: false }
       - name: Tope del caso (antes de instalar nada)
         run: |
-          case "$CASO" in preflight) MAX=0;; p1) MAX=1;; p2) MAX=3;; lf) MAX=12;; *) echo "::error::caso desconocido"; exit 1;; esac
+          case "$CASO" in preflight|descargas) MAX=0;; p1) MAX=1;; p2) MAX=3;; lf) MAX=12;; *) echo "::error::caso desconocido"; exit 1;; esac
           python3 -c "import sys; b=float(sys.argv[1]); m=float(sys.argv[2]); sys.exit(0 if 0 <= b <= m and (m == 0 or b > 0) else 1)" "$BUDGET_USD" "$MAX" \
             || { echo "::error::presupuesto $BUDGET_USD fuera del tope del caso $CASO (USD $MAX)"; exit 1; }
           echo "caso=$CASO presupuesto=USD $BUDGET_USD (tope del caso USD $MAX)"
@@ -83,7 +83,7 @@ jobs:
           LF_PRIOR_USD: ${{ inputs.lf_prior_usd }}
           RETRY_EPISODE_ID: ${{ inputs.episodio_reintento }}
           LF_TOPIC: ${{ inputs.lf_topic }}
-        run: if [ "$CASO" = lf ]; then node scripts/qa/real/longform-real.mjs; else node scripts/qa/real/podcast-real.mjs; fi
+        run: if [ "$CASO" = lf ]; then node scripts/qa/real/longform-real.mjs; elif [ "$CASO" = descargas ]; then node scripts/qa/real/podcast-downloads.mjs; else node scripts/qa/real/podcast-real.mjs; fi
       - name: Evidencia cifrada (capturas, hechos y descarga) a la rama de evidencias
         if: always()
         env: { GH_TOKEN: "${{ github.token }}" }
