@@ -233,10 +233,11 @@ test("API: guion por plantilla sin LLM; estimación gratis; crear con estudio ap
 
 test("API: El Duro concedido se guarda clonada para el dueño; otra cuenta y sin concesión se rechazan", async () => {
   const duro = spec({ mode: "avatar", participants: [{ id: "A", name: "Hans", voice_id: EL_DURO_VOICE_ID, voice_kind: "sintetica", avatar: { kind: "existente", avatar_id: "a" } }] });
-  let saved: Record<string, unknown> | null = null;
-  const owner = await studioAction(deps({ env: GRANT, insert: async (row) => { saved = row; return { id: "11111111-1111-4111-8111-111111111111" }; } }), { action: "create", ...body(duro) });
+  const captured: { spec: { participants: { voice_kind: string }[] } | null } = { spec: null };
+  const owner = await studioAction(deps({ env: GRANT, insert: async (row) => { const specRow = row.spec; if (specRow && typeof specRow === "object" && "participants" in specRow) captured.spec = specRow as { participants: { voice_kind: string }[] }; return { id: "11111111-1111-4111-8111-111111111111" }; } }), { action: "create", ...body(duro) });
   assert.equal(owner.status, 200, JSON.stringify(owner.body));
-  assert.equal((saved?.spec as { participants: { voice_kind: string }[] }).participants[0].voice_kind, "clonada");
+  assert.ok(captured.spec, "el episodio guardado incluye la especificación");
+  assert.equal(captured.spec.participants[0].voice_kind, "clonada");
   const other = await studioAction(deps({ env: GRANT, viewer: { ...OWNER, email: "otra@example.com" } }), { action: "create", ...body(duro) });
   assert.equal(other.status, 400);
   assert.match(String(other.body.error), /El Duro|no está disponible|no autorizada/);
