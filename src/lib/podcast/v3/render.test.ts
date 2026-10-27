@@ -217,3 +217,68 @@ test("duraciones reales mayores que la estimación: se para ANTES de pedir clips
   assert.equal(providers.calls.tts.length, tts, "la voz pagada se reutiliza");
   assert.ok(ok.r.mp4 && providers.calls.avatar.length > 0);
 });
+
+test("modo C: fallo al leer la foto fija DESPUÉS de pagar voz y clips → reintento del mismo episodio sin llamadas ni cargos nuevos", { timeout: 600_000 }, async () => {
+  // Caso real P2 (episodio 0de4b445): 8 voces + 1 clip pagados, luego «FOTO» al leer la foto fija del oyente.
+  const ledger = new MemoryLedger(), providers = mockProviders({ tonesOnly: true }), artifacts = await diskArtifacts();
+  const realStill = providers.avatar.still.bind(providers.avatar);
+  let broken = true;
+  providers.avatar.still = async (ref: string, dest: string) => { if (broken) throw new Error("FOTO"); return realStill(ref, dest); };
+  await assert.rejects(render(C, { ledger, providers, artifacts, episode: "ep-foto" }), /FOTO/);
+  const ttsPaid = providers.calls.tts.length, clipsPaid = providers.calls.avatar.length;
+  assert.ok(ttsPaid > 0 && clipsPaid > 0, "voz y al menos un clip ya pagados antes del fallo");
+  const before = new Map([...ledger.rows].map(([k, r]) => [k, JSON.stringify(r)]));
+  broken = false; // arreglo desplegado (foto en el bucket correcto)
+  const retry = await render(C, { ledger, providers, artifacts, episode: "ep-foto" });
+  assert.equal(providers.calls.tts.length, ttsPaid, "ninguna voz se vuelve a pedir");
+  assert.equal(providers.calls.avatar.length, clipsPaid + (retry.r.paidOps), "solo se piden los clips que faltaban");
+  assert.ok(retry.r.mp4 && (await stat(retry.r.mp4)).size > 10_000, "el episodio se completa");
+  for (const [k, r] of before) assert.equal(JSON.stringify(ledger.rows.get(k)), r, `operación pagada ${k} reutilizada sin cambios (sin segundo cobro)`);
+  const newRows = [...ledger.rows.keys()].filter((k) => !before.has(k));
+  assert.equal(newRows.length, retry.r.paidOps, "las únicas operaciones nuevas son las que faltaban");
+  assert.ok(newRows.every((k) => !/tts|voz|voice/i.test(k)), `sin voz nueva: ${newRows.join(",")}`);
+});
+
+test("P2 real reproducido: guion de 8 turnos, mismo avatar existente para A y B; «FOTO» tras pagar 8 voces y clips → reintento del mismo episodio: 8 voces reutilizadas, clips pagados reutilizados, «ready» con MP4 y MP3 reproducibles y firmables", { timeout: 900_000 }, async () => {
+  const P2 = StudioSpec.parse({ ...base, mode: "dialogo", title: "Prueba real P2", script: "Ana: ¿De verdad un cometa puede venir de otra estrella?\nLuis: Sí, y lo sabemos por su velocidad: ningún objeto ligado al Sol va tan rápido.\nAna: ¿Y no podría ser un error de medición?\nLuis: Lo midieron varios observatorios durante semanas. Los datos coinciden.\nAna: Entonces, ¿qué nos dice de su origen?\nLuis: Que los sistemas planetarios expulsan restos, y algunos cruzan el espacio durante millones de años.\nAna: Me cuesta imaginarlo. ¿Volverá?\nLuis: No. Va de salida, y nunca más lo veremos.",
+    participants: [{ id: "A", name: "Ana", voice_id: "CeFSZuaHs4SxcBxb9nCr", avatar: { kind: "existente", avatar_id: "av-hans" } }, { id: "B", name: "Luis", voice_id: "vozLuisInv", avatar: { kind: "existente", avatar_id: "av-hans" } }],
+    visual: { avatar_frequency: 0.5, avatar_max_seconds: 20, recreations: false }, music: { enabled: true, mood: "auto" } });
+  const ledger = new MemoryLedger(), providers = mockProviders({ tonesOnly: true }), artifacts = await diskArtifacts();
+  const realStill = providers.avatar.still.bind(providers.avatar);
+  let broken = true;
+  providers.avatar.still = async (ref: string, dest: string) => { if (broken) throw new Error("FOTO"); return realStill(ref, dest); };
+  await assert.rejects(render(P2, { ledger, providers, artifacts, episode: "0de4b445" }), /FOTO/);
+  assert.equal(providers.calls.tts.length, 8, "8 voces pagadas antes del fallo (como en producción)");
+  const clipsBefore = providers.calls.avatar.length; assert.ok(clipsBefore >= 1, "al menos un clip de avatar pagado antes del fallo");
+  const before = new Map([...ledger.rows].map(([k, r]) => [k, JSON.stringify(r)]));
+  const settledBefore = [...ledger.rows.values()].filter((r) => r.state === "settled");
+  assert.ok(settledBefore.length >= 9 && [...ledger.rows.values()].every((r) => r.state === "settled"), "todo lo pagado quedó asentado; nada incierto ni reservado");
+
+  broken = false; // la foto fija se lee del bucket correcto
+  const retry = await render(P2, { ledger, providers, artifacts, episode: "0de4b445" });
+  assert.equal(providers.calls.tts.length, 8, "reintento: cero voces nuevas (las 8 se reutilizan)");
+  for (const [k, r] of before) assert.equal(JSON.stringify(ledger.rows.get(k)), r, `operación pagada ${k} reutilizada sin cambios`);
+  const newKeys = [...ledger.rows.keys()].filter((k) => !before.has(k));
+  assert.equal(providers.calls.avatar.length - clipsBefore, newKeys.length, "solo se piden los clips que aún no existían; ninguno pagado se repite");
+  assert.ok(newKeys.every((k) => ledger.rows.get(k)!.provider !== providers.tts.name), "ninguna operación de voz nueva");
+  assert.equal(retry.r.paidOps, newKeys.length);
+  console.log("P2_SIM", JSON.stringify({ voicesFirstRun: 8, clipsFirstRun: clipsBefore, settledReusedOps: before.size, voicesOnRetry: providers.calls.tts.length - 8, newClipsOnRetry: newKeys.length }));
+
+  // «ready»: el pipeline entrega MP4 y audio decodificables (lo que el worker sube y la app firma).
+  assert.ok(retry.r.ok && retry.r.mp4 && retry.r.audio);
+  const probe = (f: string) => JSON.parse(spawnSync("ffprobe", ["-v", "error", "-show_entries", "stream=codec_type,codec_name:format=duration", "-of", "json", f], { encoding: "utf8" }).stdout);
+  const v = probe(retry.r.mp4!), a = probe(retry.r.audio);
+  assert.ok(v.streams.some((x: { codec_type: string }) => x.codec_type === "video") && v.streams.some((x: { codec_type: string }) => x.codec_type === "audio"), "MP4 con video y audio");
+  assert.ok(Number(v.format.duration) > 10 && Number(a.format.duration) > 10, "MP4 y MP3 con duración real");
+  const dec = spawnSync("ffmpeg", ["-v", "error", "-i", retry.r.mp4!, "-f", "null", "-"], { encoding: "utf8" });
+  assert.equal(dec.status, 0, `el MP4 se decodifica completo (reproducible): ${dec.stderr.slice(0, 200)}`);
+
+  // Descarga desde la cuenta: la ruta de la app firma MP4 y MP3 del episodio «ready» del dueño.
+  const { episodeAction } = await import("./api");
+  const id = "11111111-1111-4111-8111-0de4b4450000";
+  const signed: string[] = [];
+  const out = await episodeAction("u1", { id, user_id: "u1", title: "Prueba real P2", mode: "dialogo", spec: P2, status: "ready", estimate: {}, estimated_usd: 0.52, authorized_usd: 3, authorized_at: "", run_started_at: "", progress: null, result: null,
+    video_path: `u1/podcast-studio/${id}/episodio.mp4`, audio_path: `u1/podcast-studio/${id}/episodio.mp3`, cost_usd: 0.3, error: null, created_at: "", updated_at: "" } as never, async (p) => { signed.push(p); return `signed:${p}`; });
+  assert.equal(out.body.video_url, `signed:u1/podcast-studio/${id}/episodio.mp4`);
+  assert.equal(out.body.audio_url, `signed:u1/podcast-studio/${id}/episodio.mp3`);
+});
