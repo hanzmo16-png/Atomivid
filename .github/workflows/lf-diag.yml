@@ -1,0 +1,29 @@
+# Diagnóstico de solo lectura del preflight de material de Long Form (cierre 2026-10-27). USD 0: solo búsquedas gratuitas.
+name: lf-diag
+on:
+  workflow_dispatch:
+    inputs:
+      request_id: { description: "Solicitud Long Form", required: true }
+  push:
+    branches: [claude/puertas-merge]
+    paths: [".github/workflows/lf-diag.yml"]
+permissions:
+  contents: read
+jobs:
+  diag:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Preflight de material (solo lectura)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          LF_REQUEST_ID: ${{ inputs.request_id }}
+        run: npx tsx scripts/qa/real/lf-material-diag.ts
