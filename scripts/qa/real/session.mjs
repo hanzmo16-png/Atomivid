@@ -38,5 +38,10 @@ const ssr = createServerClient(url, key, { cookies: { getAll: () => [], setAll: 
 await ssr.auth.setSession({ access_token: v.session.access_token, refresh_token: v.session.refresh_token });
 const cookies = jar.filter((c) => c.value).map((c) => ({ name: c.name, value: c.value, domain: APP.hostname, path: "/", httpOnly: false, secure: true, sameSite: "Lax", expires: Math.floor(Date.now() / 1000) + 3600 }));
 if (!cookies.length) { console.log("FAIL session: no auth cookie produced"); process.exit(1); }
+// Server-side check with the same cookies (no browser): the app must not send this session to /login.
+const probe = await fetch(new URL("/dashboard/podcast", APP), { redirect: "manual", headers: { cookie: cookies.map((c) => `${c.name}=${c.value}`).join("; ") } });
+const loc = probe.headers.get("location") || "";
+console.log(`session check: GET /dashboard/podcast -> ${probe.status}${loc ? " " + new URL(loc, APP).pathname : ""} (cookie names: ${[...new Set(cookies.map((c) => c.name.replace(/^sb-[a-z0-9]+-/, "sb-*-")))].join(",")})`);
+if (probe.status >= 300 && probe.status < 400 && /\/login/.test(loc)) { console.log("FAIL session: the production app does not accept this session (server-side)"); process.exit(1); }
 fs.writeFileSync(out, JSON.stringify({ cookies, origins: [] }), { mode: 0o600 });
 console.log(`PASS session: owner session ready (${cookies.length} cookie chunk(s), email confirmed)`);
