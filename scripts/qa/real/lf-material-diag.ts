@@ -8,6 +8,7 @@ import { usesAnchoredVisuals, usesVisualIdentity, type ProductionPlan } from "@/
 import { screenCandidate, searchCandidatesStrict, selectionQueries } from "@/lib/video/long-form/stock-selection";
 import { getFootageProvider } from "@/lib/providers/footage";
 
+async function main() {
 const id = process.env.LF_REQUEST_ID!, max = Number(process.env.DIAG_SHOTS || 6);
 const db = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
 const { data: row } = await db.from("video_requests").select("script_json,long_form_production_plan,language").eq("id", id).single();
@@ -31,3 +32,5 @@ for (const shot of shots as Array<{ id: string; type?: string; anchoredVisual?: 
   if (++n >= max) break;
 }
 console.log(`\nDONE: printed ${n} scene(s) without an accepted candidate (of ${shots.length} planned)`);
+}
+main().catch((e) => { console.error(String(e).slice(0, 300)); process.exit(1); });
