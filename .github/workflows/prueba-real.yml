@@ -1,0 +1,81 @@
+# Validación REAL desde la cuenta del dueño (cierre 2026-10-27, autorizado por Hans; tope total USD 16: Podcast ≤ 4,
+# Long Form ≤ 12). Cada caso tiene su tope fijo aquí; el presupuesto es la autorización por producción que la base de datos
+# hace cumplir. «preflight» no autoriza ni cobra nada. El registro público solo muestra hechos no sensibles; capturas y
+# archivos descargados se cifran (clave pública scripts/qa/real/evidence.pub.pem) antes de guardarse en la rama de evidencias.
+name: prueba-real
+on:
+  workflow_dispatch:
+    inputs:
+      caso:
+        description: "preflight (USD 0) | p1 (≤ 1) | p2 (≤ 3)"
+        required: true
+        type: choice
+        options: [preflight, p1, p2]
+      presupuesto_usd:
+        description: "Autorización por episodio (no supera el tope del caso)"
+        required: true
+        default: "0"
+  # Solo registra el workflow (vive fuera de la rama por defecto): en push el job se OMITE.
+  push:
+    branches: [claude/puertas-merge]
+    paths: [".github/workflows/prueba-real.yml"]
+permissions:
+  contents: write
+concurrency:
+  group: prueba-real
+  cancel-in-progress: false
+jobs:
+  real:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      OWNER_ID: ${{ secrets.INTERNAL_PRODUCTION_OWNER_USER_ID }}
+      CASO: ${{ inputs.caso }}
+      BUDGET_USD: ${{ inputs.presupuesto_usd }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - name: Tope del caso (antes de instalar nada)
+        run: |
+          case "$CASO" in preflight) MAX=0;; p1) MAX=1;; p2) MAX=3;; *) echo "::error::caso desconocido"; exit 1;; esac
+          python3 -c "import sys; b=float(sys.argv[1]); m=float(sys.argv[2]); sys.exit(0 if 0 <= b <= m and (m == 0 or b > 0) else 1)" "$BUDGET_USD" "$MAX" \
+            || { echo "::error::presupuesto $BUDGET_USD fuera del tope del caso $CASO (USD $MAX)"; exit 1; }
+          echo "caso=$CASO presupuesto=USD $BUDGET_USD (tope del caso USD $MAX)"
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Navegador y ffmpeg
+        run: |
+          npm i --no-save --no-audit --no-fund playwright@1.55.0 >/dev/null
+          npx playwright install --with-deps chromium >/dev/null
+          sudo apt-get install -yq ffmpeg >/dev/null
+      - name: Sesiones de la cuenta del dueño (sin correo; nada sensible en el registro)
+        run: |
+          node scripts/qa/real/session.mjs "$RUNNER_TEMP/state1.json"
+          node scripts/qa/real/session.mjs "$RUNNER_TEMP/state2.json"
+      - name: Prueba real Podcast Studio
+        env:
+          STATE_FILE: ${{ runner.temp }}/state1.json
+          STATE_FILE_2: ${{ runner.temp }}/state2.json
+          EVID: ${{ runner.temp }}/evid/shots
+        run: node scripts/qa/real/podcast-real.mjs
+      - name: Evidencia cifrada (capturas, hechos y descarga) a la rama de evidencias
+        if: always()
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          set -eu
+          cd "$RUNNER_TEMP"; [ -d evid ] || exit 0
+          rm -f state1.json state2.json
+          tar czf evid.tgz evid; openssl rand -hex 32 > k.txt
+          openssl enc -aes-256-cbc -pbkdf2 -salt -in evid.tgz -out evid.tgz.enc -pass file:k.txt
+          openssl pkeyutl -encrypt -pubin -inkey "$GITHUB_WORKSPACE/scripts/qa/real/evidence.pub.pem" -pkeyopt rsa_padding_mode:oaep -in k.txt -out k.enc
+          rm -f k.txt evid.tgz
+          d="cierre/${{ github.run_id }}-$CASO"; git clone -q --depth 1 --branch claude/evidencias-cierre "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" ev 2>/dev/null \
+            || { git init -q ev; git -C ev checkout -q -b claude/evidencias-cierre; git -C ev remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"; }
+          mkdir -p "ev/$d"; mv evid.tgz.enc k.enc "ev/$d/"
+          git -C ev add -A; git -C ev -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com commit -q -m "evidencia cifrada $d"
+          git -C ev push -q origin claude/evidencias-cierre
+          echo "evidencia cifrada: rama claude/evidencias-cierre, carpeta $d"
