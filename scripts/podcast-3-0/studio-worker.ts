@@ -7,23 +7,32 @@ import { mkdir, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-/** Mismo interruptor que la app: PODCAST_V3_ENABLED=1, o el piloto del dueño (PODCAST_V3_OWNER_PILOT=0 lo apaga).
- *  Con el piloto, si el generador conoce al dueño (PODCAST_V3_OWNER_USER_ID, del secreto INTERNAL_PRODUCTION_OWNER_USER_ID)
- *  el episodio debe ser suyo. Si no lo conoce (el secreto no existe en GitHub; sí en la app), se confía en la autorización
- *  del episodio: solo la app la crea, y la app solo la permite al dueño (anon/authenticated no escriben las tablas). */
-export async function studioWorkerEnabled(episodeId: string, env: Record<string, string | undefined> = process.env, ownerOf?: (id: string) => Promise<string | null>): Promise<boolean> {
+/** Mismo interruptor que la app: PODCAST_V3_ENABLED=1, o el piloto del dueño (PODCAST_V3_OWNER_PILOT=0 lo apaga) para
+ *  episodios del dueño, verificado aquí de forma independiente: por PODCAST_V3_OWNER_USER_ID (secreto
+ *  INTERNAL_PRODUCTION_OWNER_USER_ID, si existe en GitHub) o por PODCAST_V3_OWNER_EMAIL_SHA256 (sha256 del correo
+ *  confirmado del dueño, no secreto). Sin ninguno de los dos, o con otra cuenta: no se genera ni se cobra. */
+export type EpisodeOwner = { id: string; email: string | null; email_confirmed_at: string | null } | null;
+export async function studioWorkerEnabled(episodeId: string, env: Record<string, string | undefined> = process.env, ownerOf?: (id: string) => Promise<EpisodeOwner>): Promise<boolean> {
   if (env.PODCAST_V3_ENABLED === "1") return true;
   if (env.PODCAST_V3_OWNER_PILOT === "0" || !/^[0-9a-f-]{36}$/i.test(episodeId)) return false;
-  const owner = env.PODCAST_V3_OWNER_USER_ID?.trim().toLowerCase();
-  if (!owner) return true;
-  if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(owner)) return false;
-  const read = ownerOf ?? (async (id: string) => {
+  const ownerId = env.PODCAST_V3_OWNER_USER_ID?.trim().toLowerCase(), ownerHash = env.PODCAST_V3_OWNER_EMAIL_SHA256?.trim().toLowerCase();
+  const idOk = !!ownerId && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(ownerId), hashOk = !!ownerHash && /^[0-9a-f]{64}$/.test(ownerHash);
+  if (!idOk && !hashOk) return false;
+  const read = ownerOf ?? (async (id: string): Promise<EpisodeOwner> => {
     if (!env.SUPABASE_SERVICE_ROLE_KEY) return null;
     const { createServiceClient } = await import("../../src/lib/supabase/service");
-    const { data } = await createServiceClient().from("podcast_studio_episodes").select("user_id").eq("id", id).maybeSingle();
-    return (data as { user_id?: string } | null)?.user_id ?? null;
+    const service = createServiceClient();
+    const { data } = await service.from("podcast_studio_episodes").select("user_id").eq("id", id).maybeSingle();
+    const uid = (data as { user_id?: string } | null)?.user_id;
+    if (!uid) return null;
+    const { data: u } = await service.auth.admin.getUserById(uid);
+    return { id: uid, email: u?.user?.email ?? null, email_confirmed_at: u?.user?.email_confirmed_at ?? null };
   });
-  return (await read(episodeId))?.toLowerCase() === owner;
+  const o = await read(episodeId);
+  if (!o) return false;
+  if (idOk) return o.id.toLowerCase() === ownerId;
+  const { createHash } = await import("node:crypto");
+  return !!o.email && !!o.email_confirmed_at && createHash("sha256").update(o.email.trim().toLowerCase()).digest("hex") === ownerHash;
 }
 
 export async function runStudioJob(episodeId: string) {
@@ -33,7 +42,7 @@ export async function runStudioJob(episodeId: string) {
     console.log("STUDIO_DISABLED");
     if (/^[0-9a-f-]{36}$/i.test(episodeId) && process.env.SUPABASE_SERVICE_ROLE_KEY) {
       const { createServiceClient } = await import("../../src/lib/supabase/service");
-      await createServiceClient().from("podcast_studio_episodes").update({ status: "failed", error: "El estudio no está activado en el generador (PODCAST_V3_ENABLED). No se hizo ningún cargo.", updated_at: new Date().toISOString() }).eq("id", episodeId).eq("status", "authorized");
+      await createServiceClient().from("podcast_studio_episodes").update({ status: "failed", error: "El estudio no está activado en el generador para esta cuenta (interruptor o piloto del dueño). No se hizo ningún cargo.", updated_at: new Date().toISOString() }).eq("id", episodeId).eq("status", "authorized");
     }
     return;
   }

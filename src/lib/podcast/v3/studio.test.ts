@@ -152,19 +152,24 @@ test("owner pilot: only the internal owner (email confirmed) gets the studio; PO
   assert.equal(studioGenerationEnabled({ id: "99999999-2222-4333-8444-555555555555" }, { PODCAST_V3_ENABLED: "1" }), true, "global switch unchanged");
 });
 
-test("owner pilot in the worker: only the owner's episodes run with the switch off; nothing is read for malformed ids", async () => {
+test("owner pilot in the worker: only the owner's episodes run with the switch off (owner id or confirmed-email hash)", async () => {
   const { studioWorkerEnabled } = await import("../../../../scripts/podcast-3-0/studio-worker");
-  const OWNER = "11111111-2222-4333-8444-555555555555", EP = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+  const { createHash } = await import("node:crypto");
+  const OWNER = "11111111-2222-4333-8444-555555555555", OTHER = "99999999-2222-4333-8444-555555555555", EP = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+  const H = createHash("sha256").update("owner@example.com").digest("hex");
   let reads = 0;
-  const of = (u: string | null) => async () => { reads++; return u; };
+  const of = (id: string | null, email = "owner@example.com", confirmed: string | null = "2026-01-01") => async () => { reads++; return id ? { id, email, email_confirmed_at: confirmed } : null; };
   assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: OWNER }, of(OWNER)), true);
   assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: OWNER.toUpperCase() }, of(OWNER)), true, "case-insensitive");
-  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: OWNER }, of("99999999-2222-4333-8444-555555555555")), false, "another account's episode");
+  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: OWNER }, of(OTHER)), false, "another account's episode");
   assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: OWNER }, of(null)), false, "episode not found");
+  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_EMAIL_SHA256: H }, of(OTHER, "Owner@Example.com ")), true, "by confirmed email hash (normalized)");
+  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_EMAIL_SHA256: H }, of(OTHER, "intruder@example.com")), false, "another email");
+  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_EMAIL_SHA256: H }, of(OTHER, "owner@example.com", null)), false, "unconfirmed email");
   reads = 0;
   assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: OWNER, PODCAST_V3_OWNER_PILOT: "0" }, of(OWNER)), false, "kill switch");
-  assert.equal(await studioWorkerEnabled(EP, {}, of("99999999-2222-4333-8444-555555555555")), true, "no owner configured in the generator: the app-created authorization is trusted");
-  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: "not-a-uuid" }, of(OWNER)), false, "malformed owner");
+  assert.equal(await studioWorkerEnabled(EP, {}, of(OWNER)), false, "no owner identity in the generator: fail closed");
+  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: "not-a-uuid", PODCAST_V3_OWNER_EMAIL_SHA256: "xyz" }, of(OWNER)), false, "malformed identities");
   assert.equal(await studioWorkerEnabled("not-an-id", { PODCAST_V3_OWNER_USER_ID: OWNER }, of(OWNER)), false);
   assert.equal(reads, 0, "no lookup when the pilot cannot apply");
   assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_ENABLED: "1" }, of(null)), true, "global switch unchanged");

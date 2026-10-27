@@ -83,6 +83,9 @@ jobs:
           PODCAST_V3_ENABLED: ${{ vars.PODCAST_V3_ENABLED }}
           # Piloto del dueño (mismo criterio que la app): solo los episodios de esta cuenta se generan con el interruptor apagado.
           PODCAST_V3_OWNER_USER_ID: ${{ secrets.INTERNAL_PRODUCTION_OWNER_USER_ID }}
+          # Identidad del dueño sin secreto (el secreto INTERNAL_PRODUCTION_OWNER_USER_ID no existe en Actions): sha256 de su
+          # correo confirmado. Con el piloto, solo los episodios de esa cuenta se generan con el interruptor global apagado.
+          PODCAST_V3_OWNER_EMAIL_SHA256: "8dcc0bfc5e69efb6c156c7972579693e10c2ff3c72ca363fc6d1fb79d58fdaac"
           # Interruptor del piloto también en el generador (variable del repositorio PODCAST_V3_OWNER_PILOT=0 lo apaga aquí).
           PODCAST_V3_OWNER_PILOT: ${{ vars.PODCAST_V3_OWNER_PILOT }}
           HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
