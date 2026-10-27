@@ -40,11 +40,11 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   const poll = useRef<ReturnType<typeof setInterval> | null>(null);
   // Borrador persistente: volver atrás o recargar no pierde nada.
   // Hidratación desde localStorage (solo existe en el cliente): un único setState al montar.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { setD(loadDraft(localStorage.getItem(WIZARD_STORAGE_KEY))); setLoaded(true); }, []);
+  // Un borrador viejo puede tener el id del clon con voice_kind «sintetica»: se corrige en la misma hidratación
+  // (el catálogo llega por props desde el servidor, ya disponible al montar).
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+  useEffect(() => { setD(withVoiceKinds(loadDraft(localStorage.getItem(WIZARD_STORAGE_KEY)), voices)); setLoaded(true); }, []);
   useEffect(() => { if (loaded) localStorage.setItem(WIZARD_STORAGE_KEY, JSON.stringify(d)); }, [d, loaded]);
-  // Un borrador viejo puede tener el id del clon con voice_kind «sintetica»: se corrige al conocer el catálogo.
-  useEffect(() => { if (loaded) setD((x) => withVoiceKinds(x, voices)); }, [loaded, voices]);
   const set = (patch: Partial<WizardDraft>) => setD((x) => ({ ...x, ...patch }));
   const setP = (i: 0 | 1, patch: Partial<WizardDraft["participants"][0]>) => setD((x) => { const ps = [...x.participants] as WizardDraft["participants"]; ps[i] = { ...ps[i], ...patch }; return { ...x, participants: ps }; });
   const unavailable = voices.filter((v) => !v.available).map((v) => v.voiceId);
