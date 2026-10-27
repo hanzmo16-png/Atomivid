@@ -29,9 +29,11 @@ const next = () => W().getByRole("button", { name: "Siguiente" }).click();
 const stepTitle = async () => (await W().getByTestId("wizard-step-title").textContent()) ?? "";
 const atStep = async (n) => { await p.waitForFunction((k) => (document.querySelector('[data-testid="wizard-step-title"]')?.textContent ?? "").includes(`Paso ${k}`), n, { timeout: 30000 }).catch(() => {}); return (await stepTitle()).includes(`Paso ${n}`); };
 
-await p.goto(`${APP}/dashboard/podcast`);
+// Bienvenida/tour u otros modales del panel: se cierran como lo haría el usuario («Omitir» o Escape).
+const dismiss = async (pg) => { for (const n of ["Omitir", "Cerrar", "Entendido", "Saltar"]) await pg.getByRole("button", { name: n }).first().click({ timeout: 2500 }).catch(() => {}); await pg.keyboard.press("Escape").catch(() => {}); };
+await p.goto(`${APP}/dashboard/podcast`); await dismiss(p);
 ok("owner session: /dashboard/podcast opens (not redirected to login)", !/\/login/.test(p.url()), new URL(p.url()).pathname);
-await p.evaluate(() => localStorage.removeItem("atomivid.podcast.asistente.v2")); await p.reload();
+await p.evaluate(() => localStorage.removeItem("atomivid.podcast.asistente.v2")); await p.reload(); await dismiss(p);
 const hydrated = await p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor({ timeout: 60000 }).then(() => true, () => false);
 ok("studio wizard visible and hydrated for the owner", hydrated); await shot(p, "00-estudio");
 if (!hydrated) stop("studio not available for the owner");
@@ -115,7 +117,7 @@ ok("spend within the authorization (ledger and episode cost)", settled <= facts.
 if (ep?.status !== "ready") { await browser.close(); finish(); }
 
 async function checkCard(page, tag) {
-  await page.goto(`${APP}/dashboard/podcast`); const card = page.getByTestId(`studio-episode-${row.id}`);
+  await page.goto(`${APP}/dashboard/podcast`); await dismiss(page); const card = page.getByTestId(`studio-episode-${row.id}`);
   const seen = await card.waitFor({ timeout: 60000 }).then(() => true, () => false);
   ok(`${tag}: episode listed in «Tus episodios»`, seen); if (!seen) return null;
   const player = card.getByTestId(ep.video_path ? "studio-player" : "studio-audio-player");
