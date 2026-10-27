@@ -10,7 +10,7 @@ import { shotFrames, wrap, subtitlePages, textLines, FPS } from "./compose";
 import { realImages } from "./adapters";
 import { autoMood, trackExpression, BUNDLED_TRACKS, licenseManifest, V2_MOOD_MAP } from "./music-library";
 import { defaultDraft, loadDraft, stepErrors, draftToSpec, draftToV2, withVoiceKinds, STEP } from "./wizard";
-import { studioAction, authorizeAction, type ApiDeps } from "./api";
+import { studioAction, authorizeAction, episodeAction, type ApiDeps } from "./api";
 import { turnsFor } from "./pipeline";
 import type { AccountVoice } from "@/lib/podcast/voices";
 
@@ -346,4 +346,58 @@ test("guard del worker: solo toma un episodio con autorización vigente (o runne
   assert.equal(await supabaseRunGuard(lost.client as never).acquire("e", "d".repeat(40)), true, "runner perdido (marca vieja) se puede retomar");
   const live = fake({ status: "generating", run_started_at: new Date().toISOString() });
   assert.equal(await supabaseRunGuard(live.client as never).acquire("e", "e".repeat(40)), false);
+});
+
+// Contención de la descarga (PR #231, revisión delta de Grok): portado tal cual.
+const EP = "11111111-1111-4111-8111-111111111111";
+const episodeRow = (over: Record<string, unknown> = {}) => ({ id: EP, user_id: "u1", title: "Señal", mode: "narracion", spec: spec({ mode: "narracion", output: "video" }), status: "ready", estimate: {}, estimated_usd: 1, authorized_usd: 2, authorized_at: "2026-10-27T03:00:00Z", run_started_at: "2026-10-27T03:01:00Z", progress: null, result: null, video_path: `u1/podcast-studio/${EP}/episodio.mp4`, audio_path: `u1/podcast-studio/${EP}/episodio.mp3`, cost_usd: 1.2, error: null, created_at: "", updated_at: "", ...over }) as never;
+
+test("descarga: solo el dueño, solo «ready», solo su carpeta; otra cuenta, otro episodio o una ruta ajena no firman", async () => {
+  const signed: string[] = [];
+  const sign = async (p: string) => { signed.push(p); return `signed:${p}`; };
+  const own = await episodeAction("u1", episodeRow(), sign);
+  assert.equal(own.status, 200);
+  assert.equal(own.body.video_url, `signed:u1/podcast-studio/${EP}/episodio.mp4`);
+  assert.equal(own.body.audio_url, `signed:u1/podcast-studio/${EP}/episodio.mp3`);
+  assert.equal("spec" in (own.body.episode as object), false);
+  const nested = await episodeAction("u1", episodeRow({ audio_path: `u1/podcast-studio/${EP}/paid/voz.mp3`, video_path: null }), sign);
+  assert.equal(nested.body.audio_url, `signed:u1/podcast-studio/${EP}/paid/voz.mp3`);
+  assert.equal(nested.body.video_url, null);
+  const before = signed.length;
+  const other = await episodeAction("u2", episodeRow(), sign);
+  assert.equal(other.status, 404); assert.equal(signed.length, before); assert.equal(JSON.stringify(other.body).includes("episodio.mp4"), false);
+  const foreign = [
+    `u2/podcast-studio/${EP}/episodio.mp4`,
+    `u1/podcast-studio/22222222-2222-4222-8222-222222222222/episodio.mp4`,
+    `u1/podcast-studio/${EP}/../../u2/secreto.mp4`,
+    `u1/podcast-studio/${EP}/%2e%2e/%2e%2e/u2/secreto.mp4`,
+    `u1/podcast-studio/${EP}/../episodio.mp4`,
+    `u1\\podcast-studio\\${EP}\\episodio.mp4`,
+    `u1/podcast-studio/${EP}`,
+  ];
+  for (const video_path of foreign) {
+    const n = signed.length;
+    const out = await episodeAction("u1", episodeRow({ video_path, audio_path: video_path }), sign);
+    assert.equal(out.status, 200, video_path);
+    assert.equal(out.body.video_url, null, video_path);
+    assert.equal(out.body.audio_url, null, video_path);
+    assert.equal(signed.length, n, video_path);
+  }
+  for (const status of ["draft", "authorized", "generating", "failed"]) {
+    const n = signed.length;
+    const out = await episodeAction("u1", episodeRow({ status }), sign);
+    assert.equal(out.body.video_url, null, status);
+    assert.equal(out.body.audio_url, null, status);
+    assert.equal(signed.length, n, status);
+  }
+});
+
+test("descarga: solo audio no firma MP4 aunque la fila tenga video_path", async () => {
+  const signed: string[] = [];
+  const sign = async (p: string) => { signed.push(p); return `signed:${p}`; };
+  const audio = spec({ mode: "narracion", output: "audio", visual: { provider: "solo_set", recreations: false } });
+  const out = await episodeAction("u1", episodeRow({ spec: audio, video_path: `u1/podcast-studio/${EP}/episodio.mp4`, audio_path: `u1/podcast-studio/${EP}/episodio.mp3` }), sign);
+  assert.equal(out.body.video_url, null);
+  assert.equal(out.body.audio_url, `signed:u1/podcast-studio/${EP}/episodio.mp3`);
+  assert.deepEqual(signed, [`u1/podcast-studio/${EP}/episodio.mp3`]);
 });
