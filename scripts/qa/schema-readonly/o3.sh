@@ -87,7 +87,9 @@ same_as() { chk "$1" "$(get "$3" "$4")" "$(get "$2" "$4")" "$4 unchanged"; }
 complete() { local miss="" dup; for k in $KEYS; do [ -n "$(get "$2" "$k")" ] || miss="$miss $k"; done
   dup=$(cut -d'|' -f1 "$2" 2>/dev/null | sort | uniq -d | paste -sd' ')
   [ -s "$2" ] && [ -z "$miss" ] && [ -z "$dup" ] && [ "$(get "$2" read_only)" = on ] && [ "$(get "$2" end)" = ok ] && echo "PASS O3[$1] snapshot complete ($(wc -l < "$2") facts, no duplicate key)" \
-    || { echo "FAIL O3[$1] snapshot $2 incomplete, duplicated or not read-only (missing:${miss:- none}; duplicated:${dup:- none})"; fails=$((fails+1)); }; }
+    || { echo "FAIL O3[$1] snapshot $2 incomplete, duplicated or not read-only (missing:${miss:- none}; duplicated:${dup:- none})"; fails=$((fails+1))
+         # fail closed: no other check may run on a broken snapshot (it would only add noise to the verdict)
+         echo "RESULT o3 ${CMD}: $fails FAIL (stopped: broken snapshot)"; exit 1; }; }
 hashes() { [ "$(sha256sum < "$MIG" | cut -d' ' -f1)" = $SHA_MIG ] && cmp -s "$MIG" "$R/supabase/proposals/$NAME" && [ "$(sha256sum < "$RB" | cut -d' ' -f1)" = $SHA_RB ] \
   && [ "$(sha256sum < "$CT" | cut -d' ' -f1)" = "$SHA_CT" ] && [ "$(sha256sum < "$PR198" | cut -d' ' -f1)" = $SHA_PR198 ] \
   || { echo "FAIL O3 sha256 of the migration / rollback / contingency / PR198 differs from the audited one"; exit 1; }; }
@@ -104,6 +106,7 @@ done_state() {
   objects "$1" "$2" $POST_SRC; }
 DATA_KEYS="pi_paid_operations open_operations pi_data_md5 auth_rows auth_md5 usage_md5 podcast_busy podcast_md5 jobs_active jobs_md5"
 
+CMD=${1:-}
 case "${1:-}" in
   snap) snap "$2" "$3" || { echo "FAIL O3[snap] read-only snapshot query failed"; exit 1; }; complete snap "$3";;
   pre)

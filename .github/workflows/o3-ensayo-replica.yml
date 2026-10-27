@@ -4,7 +4,7 @@ name: o3-ensayo-replica
 on:
   push:
     branches: [claude/o3-ejecucion-unica]
-    paths: [".github/workflows/o3-*.yml", "scripts/qa/schema-readonly/o2*.sh", "scripts/qa/schema-readonly/o3*.sh", "docs/ops/o3/**", "supabase/migrations/20261024130000_spend_authorization_baseline_fix.sql"]
+    paths: [".github/workflows/o3-*.yml", "scripts/qa/schema-readonly/o2*.sh", "scripts/qa/schema-readonly/o3*.sh", "scripts/qa/schema-readonly/harness-lib*.sh", "docs/ops/o3/**", "supabase/migrations/20261024130000_spend_authorization_baseline_fix.sql"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -34,6 +34,8 @@ jobs:
         run: |
           sha256sum -c docs/ops/o3/SHA256SUMS && sha256sum -c docs/ops/o2/SHA256SUMS && sha256sum -c docs/ops/cierre/SHA256SUMS
           python3 -I scripts/qa/schema-readonly/gate_test.py && python3 -I scripts/qa/schema-readonly/reconcile_test.py
+      - name: Regresión del arnés (un error inesperado o una comprobación inexistente nunca termina en 0 FAIL)
+        run: bash scripts/qa/schema-readonly/harness-lib_test.sh
       - name: PostgreSQL 17
         run: |
           sudo apt-get update -q && sudo apt-get install -yq postgresql-common
