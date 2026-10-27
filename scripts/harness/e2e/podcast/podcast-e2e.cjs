@@ -520,6 +520,11 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       fs.writeFileSync(aud, Buffer.from(await (await fetch(audUrl)).arrayBuffer()));
       const pa = probe(aud), LA = loud(aud);
       ok(`${tag}: descarga de audio MP3, −16±1 LUFS, TP ≤ −1 dBTP`, pa.streams.some((x) => x.codec_name === "mp3") && !pa.streams.some((x) => x.codec_type === "video") && Math.abs(LA.I + 16) <= 1 && LA.TP <= -1, JSON.stringify(LA));
+      await S.p.reload(); await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor(); await S.p.getByTestId("studio-episodes").waitFor();
+      await S.p.getByRole("button", { name: "Empezar de nuevo" }).click();
+      const audioCard = S.p.getByTestId(`studio-episode-${row.id}`);
+      await audioCard.getByTestId("studio-download-audio").waitFor({ timeout: 20000 });
+      ok(`${tag}: tras reiniciar el asistente, la cuenta sigue ofreciendo el audio`, await audioCard.getByTestId("studio-audio-player").count() === 1 && await audioCard.getByTestId("studio-download-mp4").count() === 0 && await W().getByTestId("wizard-audio-player").count() === 0);
       const ops = (await db.query("select provider, op, state, count(*)::int n from podcast_studio_operations where episode_id=$1 group by 1,2,3", [row.id])).rows;
       ok(`${tag}: solo voz en el libro (sin avatar ni imágenes de pago), todo liquidado`, ops.length > 0 && ops.every((o) => o.state === "settled" && o.op === "tts"), JSON.stringify(ops));
       summary[tag] = { id: row.id, result: row.result, cost: row.cost_usd };
@@ -543,6 +548,11 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     ok(`${tag}: re-despacho de un episodio listo no regenera ni cobra`, /STUDIO_NOT_AUTHORIZED/.test(again.out));
     await S.p.reload(); await S.p.getByTestId("studio-episodes").waitFor(); await snap("paso10e-lista");
     ok(`${tag}: aparece en «Tus episodios»`, (await S.p.getByTestId("studio-episodes").textContent()).includes(m.title));
+    await S.p.getByRole("button", { name: "Empezar de nuevo" }).click();
+    const card = S.p.getByTestId(`studio-episode-${row.id}`);
+    await card.getByTestId("studio-download-mp4").waitFor({ timeout: 20000 });
+    const listed = await card.getByTestId("studio-player").evaluate(async (v) => { v.muted = true; await v.play().catch(() => {}); await new Promise((r) => setTimeout(r, 3000)); const o = { rs: v.readyState, t: v.currentTime, err: v.error?.code ?? null }; v.pause(); return o; });
+    ok(`${tag}: tras reiniciar el asistente, la cuenta reproduce y descarga el MP4`, listed.rs >= 2 && listed.t > 1 && !listed.err && await card.getByTestId("studio-download-audio").count() === 1 && await W().getByTestId("wizard-player").count() === 0, JSON.stringify(listed));
     summary[tag] = { id: row.id, result: row.result, cost: row.cost_usd };
   }
   const AV = [["aaaaaaaa-0000-4000-8000-000000000001", "Avatar Hans (simulado)"], ["aaaaaaaa-0000-4000-8000-000000000002", "Avatar Invitada (simulado)"]];

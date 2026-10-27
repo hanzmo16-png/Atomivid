@@ -109,7 +109,14 @@ export async function authorizeAction(d: ApiDeps, id: string, body: Record<strin
       row = again;
     }
   }
-  if (row.status !== "draft" && row.status !== "failed") return { status: 409, body: { error: row.status === "generating" ? "Ya se está generando; no se inicia otra vez." : "Este episodio ya fue autorizado." } };
+  // El cargo ya quedó registrado y el worker no ha tomado el episodio: solo se vuelve a pedir el inicio.
+  // No se llama a authorize (no cambia el monto) y el guard del worker impide una segunda generación.
+  if (row.status === "authorized" && !row.run_started_at) {
+    if (body?.confirm !== true) return { status: 400, body: { error: "Confirma explícitamente el costo antes de generar." } };
+    const dispatched = await d.dispatch(id);
+    return { status: 200, body: { ok: true, dispatched, note: dispatched ? null : "Autorizado. No pudimos confirmar el inicio del trabajo; pulsa «Reintentar» (no se cobra dos veces)." } };
+  }
+  if (row.status !== "draft" && row.status !== "failed") return { status: 409, body: { error: row.status === "generating" || row.status === "authorized" ? "Ya se está generando; no se inicia otra vez." : "Este episodio ya fue autorizado." } };
   if (body?.confirm !== true) return { status: 400, body: { error: "Confirma explícitamente el costo antes de generar." } };
   const usd = Number(body?.authorizedUsd);
   const spec = StudioSpec.safeParse(row.spec);
