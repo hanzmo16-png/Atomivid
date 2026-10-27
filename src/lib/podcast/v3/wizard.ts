@@ -38,8 +38,15 @@ export function voiceKindFor(voiceId: string, catalog: readonly { voiceId: strin
 }
 
 export function withVoiceKinds(d: WizardDraft, catalog: readonly { voiceId: string; kind?: "sintetica" | "clonada" }[]): WizardDraft {
-  const participants = d.participants.map((p) => ({ ...p, voice_kind: voiceKindFor(p.voice_id, catalog) })) as WizardDraft["participants"];
-  if (participants.every((p, i) => p.voice_kind === d.participants[i].voice_kind)) return d;
+  const participants = d.participants.map((p) => {
+    if (!p.voice_id) return p.voice_kind === "sintetica" ? p : { ...p, voice_kind: "sintetica" as const };
+    const known = catalog.find((v) => v.voiceId === p.voice_id);
+    // Catálogo vacío o aún sin esta voz: no degradar un clon ya guardado (un fallo al listar voces no debe reescribir el borrador).
+    if (!known) return p;
+    const voice_kind = known.kind === "clonada" ? "clonada" : "sintetica";
+    return voice_kind === p.voice_kind ? p : { ...p, voice_kind };
+  }) as WizardDraft["participants"];
+  if (participants.every((p, i) => p === d.participants[i])) return d;
   return { ...d, participants };
 }
 export const defaultDraft = (): WizardDraft => ({ step: 0, modality: null, mode: null, language: "es", provider: "pexels", intensity: "media", intro: true, outro: true, ducking: true, title: "", topic: "", script: "", minutes: 5, count: 1, participants: [P("Anfitrión"), P("Invitado")],

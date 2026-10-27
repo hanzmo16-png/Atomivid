@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -30,8 +30,11 @@ const STAGE: Record<string, string> = { voz: "Generando voces", musica: "Mezclan
 
 export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generationEnabled = v3Enabled, providers = [], previewNotice = null }: { voices: WizardVoice[]; avatars: WizardAvatar[]; v2Enabled: boolean; v3Enabled: boolean; generationEnabled?: boolean; providers?: VisualProvider[]; previewNotice?: string | null }) {
   const router = useRouter();
-  const [d, setD] = useState<WizardDraft>(defaultDraft);
+  const [raw, setRaw] = useState<WizardDraft>(defaultDraft);
   const [loaded, setLoaded] = useState(false);
+  // El tipo de voz se deriva del catálogo en el render: un efecto con setState rompe el lint del repo
+  // (react-hooks/set-state-in-effect) y un catálogo vacío no debe reescribir un clon ya guardado.
+  const d = useMemo(() => (loaded ? withVoiceKinds(raw, voices) : raw), [loaded, raw, voices]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -40,13 +43,11 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   const poll = useRef<ReturnType<typeof setInterval> | null>(null);
   // Borrador persistente: volver atrás o recargar no pierde nada.
   // Hidratación desde localStorage (solo existe en el cliente): un único setState al montar.
-  // Un borrador viejo puede tener el id del clon con voice_kind «sintetica»: se corrige en la misma hidratación
-  // (el catálogo llega por props desde el servidor, ya disponible al montar).
-  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
-  useEffect(() => { setD(withVoiceKinds(loadDraft(localStorage.getItem(WIZARD_STORAGE_KEY)), voices)); setLoaded(true); }, []);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setRaw(loadDraft(localStorage.getItem(WIZARD_STORAGE_KEY))); setLoaded(true); }, []);
   useEffect(() => { if (loaded) localStorage.setItem(WIZARD_STORAGE_KEY, JSON.stringify(d)); }, [d, loaded]);
-  const set = (patch: Partial<WizardDraft>) => setD((x) => ({ ...x, ...patch }));
-  const setP = (i: 0 | 1, patch: Partial<WizardDraft["participants"][0]>) => setD((x) => { const ps = [...x.participants] as WizardDraft["participants"]; ps[i] = { ...ps[i], ...patch }; return { ...x, participants: ps }; });
+  const set = (patch: Partial<WizardDraft>) => setRaw((x) => ({ ...x, ...patch }));
+  const setP = (i: 0 | 1, patch: Partial<WizardDraft["participants"][0]>) => setRaw((x) => { const ps = [...x.participants] as WizardDraft["participants"]; ps[i] = { ...ps[i], ...patch }; return { ...x, participants: ps }; });
   const unavailable = voices.filter((v) => !v.available).map((v) => v.voiceId);
   const errs = stepErrors(d, d.step, { unavailableVoices: unavailable, providers });
   const studio = v3Enabled; // sin estudio, «Solo audio» usa el flujo actual (Podcast 2.x) y los modos con avatar quedan en espera
@@ -85,6 +86,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
       if (!generationEnabled && !studio && d.modality === "audio") {
         const r = await api("/api/podcast", draftToV2(withVoiceKinds(d, voices), v2Enabled));
         localStorage.removeItem(WIZARD_STORAGE_KEY);
+        setRaw(defaultDraft());
         router.push(`/dashboard/podcast/${String(r.id)}`);
         return;
       }
@@ -308,6 +310,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
               <div className="mt-2 h-2 w-full rounded bg-surface"><div className="h-2 rounded bg-accent" style={{ width: `${status?.episode.status === "ready" ? 100 : status?.episode.progress?.pct ?? 2}%` }} /></div>
               {status?.episode.error && <p className="mt-2 text-danger">{status.episode.error}</p>}
               {status?.episode.status === "failed" && <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={() => { set({ draftId: d.episodeId, episodeId: null, authorized: false }); }}>Reintentar (no se cobra dos veces lo ya generado)</Button>}
+              {status?.episode.status === "authorized" && <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={() => void run(async () => { const again = await api(`/api/podcast/v3/${d.episodeId}`, { confirm: true, authorizedUsd: d.budgetUsd }); if (again.note) setNote(String(again.note)); })}>Volver a pedir el inicio (no se cobra otra vez)</Button>}
               <p className="mt-2 text-xs text-ink-muted">Puedes cerrar esta página: el episodio sigue generándose y aparecerá en «Tus episodios».</p>
             </div>
           )}
@@ -324,7 +327,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
       <div className="sticky bottom-0 mt-4 flex justify-between gap-2 bg-canvas/95 py-2">
         <Button type="button" variant="ghost" size="sm" onClick={() => go(Math.max(0, d.step - 1))} disabled={d.step === 0 || busy}>Atrás</Button>
         <div className="flex gap-2">
-          <Button type="button" variant="ghost" size="sm" onClick={() => { localStorage.removeItem(WIZARD_STORAGE_KEY); setD(defaultDraft()); setEstimate(null); setStatus(null); setNote(null); setError(null); router.refresh(); }}>Empezar de nuevo</Button>
+          <Button type="button" variant="ghost" size="sm" onClick={() => { localStorage.removeItem(WIZARD_STORAGE_KEY); setRaw(defaultDraft()); setEstimate(null); setStatus(null); setNote(null); setError(null); router.refresh(); }}>Empezar de nuevo</Button>
           {d.step < STEP.generacion && <Button type="button" size="sm" onClick={next} disabled={busy}>Siguiente</Button>}
         </div>
       </div>
