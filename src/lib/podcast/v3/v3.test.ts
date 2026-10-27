@@ -284,3 +284,43 @@ test("una segunda generación del mismo episodio no marca el episodio como falli
   assert.equal(studioRunErrorFailsEpisode(new DuplicateRunError()), false);
   assert.equal(studioRunErrorFailsEpisode(new Error("almacenamiento")), true);
 });
+
+test("API: reintento tras un fallo (reautorizado, con la marca del intento anterior) se puede re-despachar sin otro cargo", async () => {
+  const row = { id: "e1", user_id: "u1", title: "T", mode: "dialogo", spec: spec(), status: "authorized", estimate: {}, estimated_usd: 1, authorized_usd: 2, authorized_at: "2026-10-27T03:00:00Z", run_started_at: "2026-10-27T02:00:00Z", progress: null, result: null, video_path: null, audio_path: null, cost_usd: null, error: null, created_at: "", updated_at: "" };
+  let authorized = 0, dispatches = 0;
+  const d = deps({ load: async () => ({ ...row }) as never, authorize: async () => { authorized++; return true; }, dispatch: async () => { dispatches++; return true; } });
+  const again = await authorizeAction(d, "e1", { confirm: true, authorizedUsd: 2 });
+  assert.equal(again.status, 200); assert.equal(dispatches, 1); assert.equal(authorized, 0, "no se vuelve a autorizar ni cambia el monto");
+  // Un worker ya tomó el episodio DESPUÉS de esta autorización: no se re-despacha.
+  const taken = await authorizeAction(deps({ load: async () => ({ ...row, run_started_at: "2026-10-27T03:05:00Z" }) as never, dispatch: async () => { dispatches++; return true; } }), "e1", { confirm: true });
+  assert.equal(taken.status, 409); assert.equal(dispatches, 1);
+});
+
+test("guard del worker: solo toma un episodio con autorización vigente (o runner perdido); «failed» exige reautorizar", async () => {
+  const { supabaseRunGuard } = await import("./store");
+  const fake = (row: { status: string; run_started_at: string | null }) => {
+    const db = { ...row }; let updates = 0;
+    const builder = (mode: "select" | "update", patch?: Record<string, unknown>) => {
+      const where: [string, unknown][] = [];
+      const match = () => where.every(([k, v]) => (db as Record<string, unknown>)[k] === v);
+      const b = {
+        eq(k: string, v: unknown) { if (k !== "id") where.push([k, v]); return b; },
+        is(k: string, v: unknown) { where.push([k, v]); return b; },
+        async maybeSingle() { return { data: { ...db }, error: null }; },
+        async select() { if (mode === "update" && match()) { Object.assign(db, patch); updates++; return { data: [{ id: "e" }], error: null }; } return { data: [], error: null }; },
+      };
+      return b;
+    };
+    return { db, get updates() { return updates; }, client: { from: () => ({ select: () => builder("select"), update: (p: Record<string, unknown>) => builder("update", p) }) } };
+  };
+  const ok = fake({ status: "authorized", run_started_at: null });
+  assert.equal(await supabaseRunGuard(ok.client as never).acquire("e", "a".repeat(40)), true); assert.equal(ok.db.status, "generating");
+  const second = await supabaseRunGuard(ok.client as never).acquire("e", "b".repeat(40));
+  assert.equal(second, false, "un segundo worker no gana la carrera");
+  const failed = fake({ status: "failed", run_started_at: "2026-10-27T02:00:00Z" });
+  assert.equal(await supabaseRunGuard(failed.client as never).acquire("e", "c".repeat(40)), false); assert.equal(failed.updates, 0); assert.equal(failed.db.status, "failed");
+  const lost = fake({ status: "generating", run_started_at: new Date(Date.now() - 3 * 3600_000).toISOString() });
+  assert.equal(await supabaseRunGuard(lost.client as never).acquire("e", "d".repeat(40)), true, "runner perdido (marca vieja) se puede retomar");
+  const live = fake({ status: "generating", run_started_at: new Date().toISOString() });
+  assert.equal(await supabaseRunGuard(live.client as never).acquire("e", "e".repeat(40)), false);
+});
