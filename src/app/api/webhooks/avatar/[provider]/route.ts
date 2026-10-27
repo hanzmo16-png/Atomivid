@@ -4,7 +4,7 @@ import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { fixtureAvatarProvider } from "@/lib/providers/avatar/fixture";
 import { heygenAvatarProvider } from "@/lib/providers/avatar/heygen";
 import type { AvatarVideoProvider } from "@/lib/providers/avatar";
-import { avatarStatusesThatMayAdvanceTo, handleAvatarWebhook, verifyWebhookSecret } from "@/lib/video/avatar/webhook";
+import { avatarStatusesThatMayAdvanceTo, handleAvatarWebhook, verifyHeygenWebhookSignature, verifyWebhookSecret } from "@/lib/video/avatar/webhook";
 
 /**
  * Webhook para que un proveedor de avatar notifique que un video terminó
@@ -12,15 +12,15 @@ import { avatarStatusesThatMayAdvanceTo, handleAvatarWebhook, verifyWebhookSecre
  * es la única vía — checkVideoStatus() (sondeo) sigue funcionando si el
  * webhook nunca llega, así que perderse uno no cuelga ninguna solicitud.
  *
- * Autenticación: NINGÚN mecanismo de firma de webhook de HeyGen pudo
- * confirmarse contra la documentación oficial primaria (ver
- * providers/avatar/heygen.ts) — en vez de inventar una verificación de
- * firma que no se pudo confirmar, este endpoint exige un secreto
- * compartido PROPIO (AVATAR_WEBHOOK_SECRET, configurado por nosotros al
- * registrar la URL del webhook en el proveedor) en el header
- * `X-Atomivid-Webhook-Secret`. Sin ese secreto configurado, o si no
- * coincide, se rechaza con 401 ANTES de leer el cuerpo — nunca se procesa
- * un payload no autenticado. La lógica de negocio vive en
+ * Autenticación, antes de interpretar el cuerpo:
+ * 1. Si el proveedor es heygen y HEYGEN_WEBHOOK_SECRET está configurado,
+ *    solo vale la firma oficial (`signature` = HMAC-SHA256 hex del cuerpo
+ *    crudo). El header propio no la sustituye: un secreto más amplio no
+ *    debe saltarse la firma del endpoint.
+ * 2. En cualquier otro caso, secreto propio `X-Atomivid-Webhook-Secret`
+ *    (AVATAR_WEBHOOK_SECRET). Sin HEYGEN_WEBHOOK_SECRET la firma oficial
+ *    no autentica: no se inventa una clave y no se rota ningún secreto.
+ * Un fallo responde 401. La lógica de negocio vive en
  * video/avatar/webhook.ts (probada sin Supabase/Next.js reales).
  */
 
@@ -36,12 +36,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 
-  const authenticated = verifyWebhookSecret(process.env.AVATAR_WEBHOOK_SECRET?.trim(), request.headers.get("x-atomivid-webhook-secret"));
-  if (!authenticated) {
+  const { provider: providerName } = await params;
+  const heygenSecret = process.env.HEYGEN_WEBHOOK_SECRET?.trim();
+  const headerOk = verifyWebhookSecret(process.env.AVATAR_WEBHOOK_SECRET?.trim(), request.headers.get("x-atomivid-webhook-secret"));
+  let raw: string | null = null;
+  if (providerName === "heygen" && heygenSecret) {
+    raw = await request.text();
+    const signed = verifyHeygenWebhookSignature(heygenSecret, raw, request.headers.get("signature"));
+    if (!signed) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  } else if (!headerOk) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const { provider: providerName } = await params;
   const provider = PROVIDERS[providerName];
   if (!provider) {
     return NextResponse.json({ error: "unknown provider" }, { status: 404 });
@@ -49,7 +55,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
 
   let payload: unknown;
   try {
-    payload = await request.json();
+    payload = JSON.parse(raw ?? await request.text());
   } catch {
     return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
   }

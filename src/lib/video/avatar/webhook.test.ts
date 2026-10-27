@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { avatarStatusesThatMayAdvanceTo, handleAvatarWebhook, verifyWebhookSecret } from "./webhook";
+import { createHmac } from "node:crypto";
+import { avatarStatusesThatMayAdvanceTo, handleAvatarWebhook, verifyHeygenWebhookSignature, verifyWebhookSecret } from "./webhook";
 import { fixtureAvatarProvider } from "@/lib/providers/avatar/fixture";
 
 test("verifyWebhookSecret rechaza si falta el secreto esperado (no configurado)", () => {
@@ -22,6 +23,24 @@ test("verifyWebhookSecret acepta si ambos secretos coinciden exactamente", () =>
 test("verifyWebhookSecret rechaza si ambos están vacíos/undefined (nunca autentica por 'ausencia == ausencia')", () => {
   assert.equal(verifyWebhookSecret(undefined, null), false);
   assert.equal(verifyWebhookSecret("", ""), false);
+});
+
+test("verifyWebhookSecret rechaza longitudes distintas sin lanzar", () => {
+  assert.equal(verifyWebhookSecret("short", "a-much-longer-provided-secret"), false);
+});
+
+test("verifyHeygenWebhookSignature exige el cuerpo crudo: falta, firma mala y cuerpo alterado no entran", () => {
+  const secret = "whsec_simulated_only";
+  const raw = '{ "event_type" : "avatar_video.success", "event_data" : { "video_id" : "vid_raw" } }';
+  const signature = createHmac("sha256", secret).update(raw).digest("hex");
+  const reserialized = createHmac("sha256", secret).update(JSON.stringify(JSON.parse(raw))).digest("hex");
+  assert.notEqual(signature, reserialized);
+  assert.equal(verifyHeygenWebhookSignature(secret, raw, signature), true);
+  assert.equal(verifyHeygenWebhookSignature(secret, raw, null), false);
+  assert.equal(verifyHeygenWebhookSignature(undefined, raw, signature), false);
+  assert.equal(verifyHeygenWebhookSignature(secret, raw, "ab".repeat(32)), false);
+  assert.equal(verifyHeygenWebhookSignature(secret, raw + " ", signature), false);
+  assert.equal(verifyHeygenWebhookSignature(secret, JSON.stringify(JSON.parse(raw)), signature), false);
 });
 
 test("handleAvatarWebhook devuelve 400 sin tocar la base de datos ante un payload no reconocido", async () => {

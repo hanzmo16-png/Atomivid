@@ -31,10 +31,12 @@ async function api(path: string, init: RequestInit = {}) {
   const body = await response.json().catch(() => null);
   if (!response.ok) {
     // Free-form provider errors may echo private media URLs. Never log them publicly.
+    // 401/403 and 429 stay upstream_error: a billable POST is never classified as safe to replay.
     const code = safeToken(body?.error?.code);
     const param = safeToken(body?.error?.param);
+    const kind = response.status === 401 || response.status === 403 ? "auth" : response.status === 429 ? "rate_limit" : "http";
     const knownMessage = body?.error?.message === "Extra inputs are not permitted" ? ": Extra inputs are not permitted" : "";
-    throw new AvatarProviderError(`HeyGen HTTP ${response.status}; code=${code}; param=${param}${knownMessage}`, "heygen", "upstream_error", { http: response.status, body });
+    throw new AvatarProviderError(`HeyGen HTTP ${response.status}; kind=${kind}; code=${code}; param=${param}${knownMessage}`, "heygen", "upstream_error", { http: response.status, body });
   }
   if (!body?.data || typeof body.data !== "object") throw fail("HeyGen devolvió una respuesta sin data.");
   return body.data;
@@ -135,5 +137,20 @@ export const heygenAvatarProvider: AvatarVideoProvider = {
   async deleteAvatar() { return { deleted: false, reason: "La limpieza de recursos requiere una operación separada." }; },
   async cancelVideo() { return { cancelled: false, reason: "No se ha confirmado una cancelación que evite el cobro." }; },
   estimateVideoCostUsd(request: Pick<AvatarVideoRequest, "script" | "audioDurationSeconds">) { return estimateHeygenCost(request.audioDurationSeconds!); },
-  processWebhookPayload() { return null; },
+  processWebhookPayload(payload: unknown) {
+    // Official delivery: event_type + event_data.video_id.
+    // https://developers.heygen.com/docs/webhook-events
+    // Only the avatar video job itself moves render status. GIF, caption and
+    // translation events are not this job and must not mark it complete.
+    if (!payload || typeof payload !== "object") return null;
+    const root = payload as Record<string, unknown>;
+    const event = root.event_type;
+    const data = root.event_data;
+    if (typeof event !== "string" || !data || typeof data !== "object") return null;
+    const videoId = (data as Record<string, unknown>).video_id;
+    if (typeof videoId !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(videoId)) return null;
+    if (event === "avatar_video.success") return { providerJobId: videoId, status: "completed" as const };
+    if (event === "avatar_video.fail") return { providerJobId: videoId, status: "failed" as const };
+    return null;
+  },
 };
