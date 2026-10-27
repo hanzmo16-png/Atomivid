@@ -51,10 +51,12 @@ jobs:
         with: { node-version: 22, cache: npm }
       - run: npm ci --no-audit --no-fund
       - name: Navegador y ffmpeg
+        timeout-minutes: 15
         run: |
+          sudo rm -f /var/lib/man-db/auto-update
+          sudo apt-get update -q >/dev/null && sudo DEBIAN_FRONTEND=noninteractive apt-get install -yq --no-install-recommends ffmpeg >/dev/null
           npm i --no-save --no-audit --no-fund playwright@1.55.0 >/dev/null
           npx playwright install --with-deps chromium >/dev/null
-          sudo apt-get install -yq ffmpeg >/dev/null
       - name: Sesiones de la cuenta del dueño (sin correo; nada sensible en el registro)
         run: |
           node scripts/qa/real/session.mjs "$RUNNER_TEMP/state1.json"
