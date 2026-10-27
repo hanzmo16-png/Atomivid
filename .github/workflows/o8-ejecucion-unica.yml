@@ -69,7 +69,7 @@ jobs:
           done
           echo "OK: migración y rollback idénticos a los de #207 (d8b203d) y del candidato #228 (0acef98)"
       - name: Pruebas offline de la puerta, del reconciliador y del arnés
-        run: python3 -I scripts/qa/schema-readonly/gate_test.py && python3 -I scripts/qa/schema-readonly/reconcile_test.py && bash scripts/qa/schema-readonly/harness-lib_test.sh && bash -n "$O8" && bash -n "$O8"
+        run: python3 -I scripts/qa/schema-readonly/gate_test.py && python3 -I scripts/qa/schema-readonly/reconcile_test.py && bash scripts/qa/schema-readonly/harness-lib_test.sh && bash scripts/qa/schema-readonly/o8-postgate_test.sh && bash -n "$O8"
       - name: PostgreSQL 17 (solo cliente)
         run: |
           sudo apt-get update -q && sudo apt-get install -yq postgresql-common
@@ -101,7 +101,7 @@ jobs:
       - name: "4. Ejecutar O8 (herramienta real, un solo archivo; SQL + registro en una transacción)"
         id: exec
         run: bash "$O8" apply
-      - name: "5. Verificación posterior: done (referencias auditadas, acceso por rol, libro vacío) + sin otros cambios + GATE_NEXT=DONE 13/13"
+      - name: "5. Verificación posterior: done (referencias auditadas, acceso por rol, libro vacío) + sin otros cambios + GATE_NEXT=O10 14/14 (cola informativa)"
         id: verify
         env: { OUT: "${{ github.workspace }}/cierre-post" }
         run: |
@@ -109,13 +109,14 @@ jobs:
           ok=1
           bash "$O8" snap "$DB_URL" post.snap || ok=0
           bash "$O8" post pre.snap post.snap || ok=0
-          g=0; GATE_ONLY=1 GATE_NEXT=DONE bash scripts/qa/schema-readonly/cierre.sh > puerta-done.log 2>&1 || g=$?
-          grep -E '^(PASS|FAIL) GATE|^RESULT' puerta-done.log
-          n=$(grep -c '^PASS GATE\[DONE\]' puerta-done.log)
-          [ "$g" -eq 0 ] && [ "$n" -eq 13 ] && ! grep -q '^FAIL' puerta-done.log || ok=0
+          # after O8 the next operation is O10 (merge #228): o8-postgate.sh requires its 14 database/repository checks; the
+          # in-flight one belongs to O10 and is only reported (a busy podcast is not an O8 failure). Tested offline.
+          g=0; GATE_ONLY=1 GATE_NEXT=O10 bash scripts/qa/schema-readonly/cierre.sh > puerta-o10.log 2>&1 || g=$?
+          grep -E '^(PASS|FAIL) GATE|^RESULT' puerta-o10.log
+          bash scripts/qa/schema-readonly/o8-postgate.sh puerta-o10.log "$g" || ok=0
           if [ $ok = 1 ]; then
             echo "VERIFICACION POSTERIOR: OK"
-            echo "O8 COMPLETADO · commit $SHA_AUTORIZADO · run ${{ github.run_id }} · verificación posterior y GATE_NEXT=DONE en verde" >> "$GITHUB_STEP_SUMMARY"
+            echo "O8 COMPLETADO · commit $SHA_AUTORIZADO · run ${{ github.run_id }} · verificación posterior y GATE_NEXT=O10 (14 comprobaciones de base de datos y repositorio) en verde" >> "$GITHUB_STEP_SUMMARY"
           else echo "::error::verificación posterior fallida"; exit 1; fi
       - name: "6. Contingencia (solo si la ejecución dejó cambios y la verificación falla; guarda de filas del estudio; se corta si falla el paso 1)"
         if: failure() && (steps.exec.outcome == 'success' || steps.exec.outcome == 'failure') && steps.verify.outcome != 'success'

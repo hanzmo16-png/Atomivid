@@ -25,7 +25,7 @@ La herramienta aplica la 140000 y su fila de registro en **una sola transacción
 | Clasificación | Qué significa | Acción |
 |---|---|---|
 | `PRE` | Nada aplicado: cuerpos de 20261005150229, sin objetos de la 140000 y sin registro. | Reportar **BLOQUEADO** (sin cambios). Una nueva ejecución requiere una nueva autorización de Hans. |
-| `COMPLETADO` | Estado posterior auditado: `o8.sh done` pasa (cuerpos, acceso por rol, RLS, libro del estudio vacío). | Reportar. Para O10 hacen falta además `o8.sh post` contra el `pre.snap` del run y `GATE_NEXT=DONE` 13/13. |
+| `COMPLETADO` | Estado posterior auditado: `o8.sh done` pasa (cuerpos, acceso por rol, RLS, libro del estudio vacío). | Reportar. Para O10 hacen falta además `o8.sh post` contra el `pre.snap` del run y `GATE_NEXT=O10` con sus 14 comprobaciones de base de datos y repositorio en verde (la de trabajo en curso la exige O10). |
 | `PARCIAL_SIN_REGISTRO` | Objetos de la 140000 presentes sin fila de registro (solo posible por intervención manual). | No registrar a mano. Requiere autorización de Hans para la contingencia auditada (guarda + paso 1 + paso 2). |
 | `PARCIAL_SOLO_REGISTRO` | Fila de registro sin los objetos. | **No** ejecutar el rollback: la guarda lo rechaza porque borraría `pi_supply_state`. Requiere una decisión de Hans sobre retirar solo la fila; no hay paso automático. |
 | `INDETERMINADO` | Cualquier otro estado: un cuerpo distinto del auditado, el paso 1 fallido a medias, O3 no completado… | Detener. No aplicar nada. Informar a Hans con el snapshot (solo digests) y esperar instrucciones. |
@@ -36,4 +36,4 @@ O10 no se considera hasta que se cumplan las tres condiciones:
 
 1. Un run de O8 sobre el SHA autorizado terminó **COMPLETADO**: paso 5 en verde y contingencia no ejecutada.
 2. Una lectura nueva de producción pasa `o8.sh done`.
-3. `GATE_NEXT=DONE` está 13/13.
+3. `GATE_NEXT=O10`: las 14 comprobaciones de base de datos y repositorio en verde (la de trabajo en curso es de O10).

@@ -3,20 +3,22 @@
 
 `next` names the operation about to run; the expected production state is the one left by every earlier operation:
   O1  conciliation A  → O2 migration 120000 → O3 migration 130000 → O4 merge #201 → O5 merge #199 → O7 merge #207
-  → O8 migration 140000 → DONE (state after O8).
+  → O8 migration 140000 → O10 merge #228 (Podcast Studio candidate) → DONE (state after O10).
 Fails closed: any divergence, missing fact or unknown stage is a FAIL. Exit 1 when anything failed.
 Usage: gate.py facts.json   (facts are collected read-only by cierre.sh; see gate_test.py for the schema)
 """
 import json
 import sys
 
-ORDER = ["O1", "O2", "O3", "O4", "O5", "O7", "O8", "DONE"]
+ORDER = ["O1", "O2", "O3", "O4", "O5", "O7", "O8", "O10", "DONE"]
 FROZEN = {
     "base": "762714e2ff3d19a62d2c705b7487ff9a364677e7",
     "201": "9944360b5a32130d46811ea9d57f569b1e9031f5",
     "199": "49594f1e989d1c6f8c21bae4e650075ea4532ed4",
     "207": "d8b203d665e62602cec5cb72620f03b5630edd12",
+    "228": "0acef98aa8da6f510fa0901121a9c34a8bb061ce",
 }
+MERGES = (("201", "O4"), ("199", "O5"), ("207", "O7"), ("228", "O10"))
 MOVED = {"O2": "20261024120000_resume_authorization_ref_match.sql", "O3": "20261024130000_spend_authorization_baseline_fix.sql",
          "O8": "20261024140000_podcast_v3_studio.sql"}
 
@@ -60,20 +62,21 @@ def evaluate(f: dict) -> list:
         want = done(stage, op)
         ok((name in reg) is want, f"{name} {'registered' if want else 'not registered'} in _migrations_applied")
     b, t = f["base"], f["trees"]
-    expected_tree = t.get("207") if done(stage, "O7") else t.get("199") if done(stage, "O5") else t.get("201") if done(stage, "O4") else t.get("base")
+    last = next((pr for pr, op in reversed(MERGES) if done(stage, op)), None)
+    expected_tree = t.get(last or "base")
     ok(b.get("tree") is not None and b.get("tree") == expected_tree, f"production branch tree == the expected integrated tree ({str(b.get('tree'))[:12]} vs {str(expected_tree)[:12]})")
-    if not done(stage, "O4"):
+    if last is None:
         ok(b.get("head") == FROZEN["base"], f"production branch head unchanged ({str(b.get('head'))[:12]})")
     else:
-        last = "207" if done(stage, "O7") else "199" if done(stage, "O5") else "201"
         parents = b.get("parents") or []
         ok(len(parents) == 2 and parents[1] == FROZEN[last], f"last integration is a merge commit of #{last} @ {FROZEN[last][:7]} (parents {[p[:7] for p in parents]})")
     h = f["heads"]
-    for pr, op in (("201", "O4"), ("199", "O5"), ("207", "O7")):
-        if not done(stage, op):
+    for pr, op in MERGES:
+        # #228 may still take review fixes before O10 (FROZEN["228"] is then re-authorized): its head is checked at O10
+        if not done(stage, op) and (pr != "228" or stage == "O10"):
             ok(h.get(pr) == FROZEN[pr], f"#{pr} head still frozen at {FROZEN[pr][:7]} (got {str(h.get(pr))[:7]})")
     i = f["inflight"]
-    if stage in ("O4", "O5", "O7"):
+    if stage in ("O4", "O5", "O7", "O10"):
         ok(i.get("due") == 0 and i.get("busy") == 0 and i.get("documentary") == 0,
            f"no in-flight work before a merge (podcast due={i.get('due')} busy={i.get('busy')}, documentary={i.get('documentary')})")
     return out

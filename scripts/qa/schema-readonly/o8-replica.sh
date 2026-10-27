@@ -178,7 +178,7 @@ access "access after recovering from a failed contingency step 1"
 # binding
 o8 bind 0000000000000000000000000000000000000000 > "$T/n10.out"; grep -q '^FAIL O8\[bind\] checked-out commit' "$T/n10.out" && pass "N10 bind refuses a different SHA" || fail "N10"
 o8 bind "$(git -C "$R" rev-parse HEAD)" > /dev/null && pass "positive: bind accepts the checked-out SHA" || fail "bind positive"
-# the O8 gate: offline (stage O8 13 checks, DONE 13 checks, and its negatives) — it cannot hold on a replica before O7
+# the O8 gate: offline (stage O8 13 checks, O10 15 checks, DONE 13 checks, and their negatives) — it cannot hold on a replica before O7
 python3 -I "$R/scripts/qa/schema-readonly/gate_test.py" > "$T/gate_test.out" 2>&1 && pass "gate_test.py (stages O8/DONE and their fail-closed cases) passes offline" || { fail "gate_test.py"; tail -5 "$T/gate_test.out"; }
 
 echo "== 6. Repeatability"

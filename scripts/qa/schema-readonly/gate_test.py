@@ -8,14 +8,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gate  # noqa: E402
 
 A = [f"a{i:02d}.sql" for i in range(18)]
-TREES = {"base": "T-base", "201": "T-201", "199": "T-199", "207": "T-207"}
+TREES = {"base": "T-base", "201": "T-201", "199": "T-199", "207": "T-207", "228": "T-228"}
 
 
 def state(stage: str) -> dict:
     """The facts production should show right before `stage` runs."""
     d = lambda op: gate.done(stage, op)
     reg = ["0001_init.sql"] + (A if d("O1") else []) + [n for op, n in gate.MOVED.items() if d(op)]
-    last = "207" if d("O7") else "199" if d("O5") else "201" if d("O4") else None
+    last = next((pr for pr, op in reversed(gate.MERGES) if d(op)), None)
     return {
         "next": stage,
         "markers": {"000000": True, "120000": d("O2"), "130000": d("O3"), "140000": d("O8")},
@@ -28,7 +28,7 @@ def state(stage: str) -> dict:
         "base": {"head": gate.FROZEN["base"] if not last else "M-" + last, "tree": TREES[last or "base"],
                  "parents": [] if not last else ["P", gate.FROZEN[last]]},
         "trees": dict(TREES),
-        "heads": {"201": gate.FROZEN["201"], "199": gate.FROZEN["199"], "207": gate.FROZEN["207"]},
+        "heads": {pr: gate.FROZEN[pr] for pr in ("201", "199", "207", "228")},
         "inflight": {"due": 0, "busy": 0, "documentary": 0},
     }
 
@@ -70,6 +70,16 @@ MUTATIONS = [
     ("O7", "scheduled podcast episode due at merge time", lambda f: f["inflight"].__setitem__("due", 1)),
     ("O8", "studio tables created before O8", lambda f: f["studio"].update(present=True, rows=0)),
     ("O8", "#207 merged with a squash", lambda f: f["base"].__setitem__("parents", ["P", "x"])),
+    ("O10", "#228 head changed after its CI", lambda f: f["heads"].__setitem__("228", "feedface")),
+    ("O10", "in-flight podcast job at merge time", lambda f: f["inflight"].__setitem__("busy", 1)),
+    ("O10", "scheduled podcast episode due at merge time", lambda f: f["inflight"].__setitem__("due", 1)),
+    ("O10", "documentary job queued at merge time", lambda f: f["inflight"].__setitem__("documentary", 1)),
+    ("O10", "production tree is not #207's tree", lambda f: f["base"].__setitem__("tree", "T-199")),
+    ("O10", "140000 rolled back before O10", lambda f: f["markers"].__setitem__("140000", False)),
+    ("O10", "studio rows before the merge", lambda f: f["studio"].__setitem__("rows", 1)),
+    ("DONE", "#228 merged by squash (no merge commit with #228 as parent)", lambda f: f["base"].__setitem__("parents", ["P"])),
+    ("DONE", "#228 merged at another head", lambda f: f["base"].__setitem__("parents", ["P", "0acef99"])),
+    ("DONE", "tree after O10 is not #228's tree", lambda f: f["base"].__setitem__("tree", "T-207")),
     ("DONE", "140000 marker still f after O8", lambda f: f["markers"].__setitem__("140000", False)),
     ("DONE", "studio ledger not empty right after O8", lambda f: f["studio"].__setitem__("rows", 3)),
     ("DONE", "140000 applied but not registered", lambda f: f["registry_names"].remove(gate.MOVED["O8"])),
@@ -84,5 +94,9 @@ check("unknown stage fails", failing({"next": "O6"}) != [])
 check("missing facts fail", failing({"next": "O1"}) != [])
 check("in-flight work is not required to be 0 for a migration stage (O2)",
       failing({**state("O2"), "inflight": {"due": 1, "busy": 1, "documentary": 1}}) == [])
+check("#228 head is not required to be frozen before O10 (O8: review fixes still possible)",
+      failing({**state("O8"), "heads": {**state("O8")["heads"], "228": "newhead"}}) == [])
+counts = {st: len(gate.evaluate(state(st))) for st in gate.ORDER}
+check(f"check counts per stage {counts}", (counts["O3"], counts["O4"], counts["O8"], counts["O10"], counts["DONE"]) == (16, 17, 13, 15, 13))
 print(f"RESULT gate_test: {fails} FAIL")
 sys.exit(1 if fails else 0)

@@ -4,7 +4,7 @@ name: o8-ensayo-replica
 on:
   push:
     branches: [claude/o8-ejecucion-unica]
-    paths: [".github/workflows/o8-*.yml", "scripts/qa/schema-readonly/o3*.sh", "scripts/qa/schema-readonly/o8*.sh", "scripts/qa/schema-readonly/harness-lib*.sh", "docs/ops/o8/**", "supabase/migrations/20261024140000_podcast_v3_studio.sql", "supabase/proposals/20261024140000_podcast_v3_studio*.sql"]
+    paths: [".github/workflows/o8-*.yml", "scripts/qa/schema-readonly/o3*.sh", "scripts/qa/schema-readonly/o8*.sh", "scripts/qa/schema-readonly/harness-lib*.sh", "scripts/qa/schema-readonly/gate*.py", "scripts/qa/schema-readonly/cierre.sh", "docs/ops/o8/**", "supabase/migrations/20261024140000_podcast_v3_studio.sql", "supabase/proposals/20261024140000_podcast_v3_studio*.sql"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -33,7 +33,7 @@ jobs:
       - name: Hashes y pruebas offline
         run: |
           sha256sum -c docs/ops/o8/SHA256SUMS && sha256sum -c docs/ops/o3/SHA256SUMS && sha256sum -c docs/ops/cierre/SHA256SUMS
-          python3 -I scripts/qa/schema-readonly/gate_test.py && python3 -I scripts/qa/schema-readonly/reconcile_test.py
+          python3 -I scripts/qa/schema-readonly/gate_test.py && python3 -I scripts/qa/schema-readonly/reconcile_test.py && bash scripts/qa/schema-readonly/o8-postgate_test.sh
       - name: Regresión del arnés (un error inesperado o una comprobación inexistente nunca termina en 0 FAIL)
         run: bash scripts/qa/schema-readonly/harness-lib_test.sh
       - name: PostgreSQL 17
