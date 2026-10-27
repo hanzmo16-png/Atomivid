@@ -21,7 +21,7 @@ function webp(): Buffer {
   b.writeUInt32LE(10, 16); b.writeUIntLE(1079, 24, 3); b.writeUIntLE(1919, 27, 3); return b;
 }
 
-function harness(opts: { styleIdReturned?: string | undefined; sizes?: [number, number][] } = {}) {
+function harness(opts: { styleIdReturned?: string | undefined; sizes?: ([number, number] | [number, number, "blank"])[] } = {}) {
   const objects = new Map<string, Buffer>();
   const ledger = memoryLedgerStore();
   const faults = { sign: false, list: false, upload: false };
@@ -33,8 +33,9 @@ function harness(opts: { styleIdReturned?: string | undefined; sizes?: [number, 
     isAvailable: () => true,
     estimateCostUsd: (r: ImageGenerationRequest) => (r.style?.styleId ? 0.035 : 0.04),
     submitImage: async () => ({ providerJobId: `job-test-${++submits}` }),
-    resumeImage: async (id: string, r: ImageGenerationRequest) => { resumes++; const [w, h] = opts.sizes?.[Math.min(Number(id.split("-").pop()) - 1, opts.sizes.length - 1)] ?? [1080, 1920];
-      return { buffer: webp(), mimeType: "image/webp", extension: "webp", width: w, height: h, model: "m",
+    resumeImage: async (id: string, r: ImageGenerationRequest) => { resumes++; const [w, h, blank] = opts.sizes?.[Math.min(Number(id.split("-").pop()) - 1, opts.sizes.length - 1)] ?? [1080, 1920];
+      const buffer = webp(); if (blank) buffer[199] = 1;
+      return { buffer, mimeType: "image/webp", extension: "webp", width: w, height: h, model: "m",
       costUsd: r.style?.styleId ? 0.035 : 0.04, styleId: r.style?.styleId ?? returned, providerJobId: id }; },
     generateImage: async () => { throw new Error("unexpected sync path"); },
   } as unknown as ImageProvider;
@@ -54,7 +55,7 @@ function harness(opts: { styleIdReturned?: string | undefined; sizes?: [number, 
   const persisted: string[] = [];
   let persistFails = false;
   const scene = (style: typeof references | { styleId: string }, sceneIndex: number, onMissingStyleId: "stop" | "same_references" = "stop") => resolveRecraftReelScene({ ...base(sceneIndex), style,
-    qc: (a) => checkGeneratedImage(a, "9:16", { stats: async () => ({ stdev: [40, 40, 40] }) }),
+    qc: (a) => checkGeneratedImage(a, "9:16", { stats: async (b) => ({ stdev: b[199] === 1 ? [1, 1, 1] : [40, 40, 40] }) }),
     onMissingStyleId, onStyleId: async (s) => { if (persistFails) throw new Error("injected style persistence failure"); persisted.push(s); } });
   return { run, scene, objects, ledger, faults, persisted, setPersistFail: (v: boolean) => { persistFails = v; },
     get submits() { return submits; }, get resumes() { return resumes; } };
@@ -208,8 +209,8 @@ test("no key in errors and only mocked fal URLs are contacted", async () => {
   for (const u of seen) assert.match(u, /^https:\/\/(queue\.fal\.run|image\.example\.test)\//);
 });
 
-test("Reel · control automático: imagen con defecto se paga y se aparta; UNA regeneración (clave propia) ocupa la escena", async () => {
-  const h = harness({ sizes: [[1080, 1080], [1080, 1920]] });
+test("Reel · control automático: imagen en blanco se paga y se aparta; UNA regeneración (clave propia) ocupa la escena", async () => {
+  const h = harness({ sizes: [[1080, 1920, "blank"], [1080, 1920]] });
   const r = await h.scene(references, 0);
   assert.equal(r.generated.status, "generated");
   assert.equal(h.submits, 2);
@@ -219,15 +220,22 @@ test("Reel · control automático: imagen con defecto se paga y se aparta; UNA r
   assert.deepEqual(h.persisted, [SID], "the valid style of the rejected image is kept for the regeneration");
 });
 
+test("Reel · defecto de tamaño/encuadre (del proveedor): se detiene SIN pagar una regeneración que repetiría el defecto", async () => {
+  const h = harness({ sizes: [[1080, 1080], [1080, 1920]] });
+  await assert.rejects(h.scene(references, 0), (e: unknown) => e instanceof GeneratedImageRejectedError && !e.regenerated && /no se pagó otra generación/.test(e.customerMessage));
+  assert.equal(h.submits, 1, "one paid image, no regeneration");
+  assert.ok([...h.objects.keys()].some((k) => k === "review-request/qc-rejected/scene-0-recraft.webp"), "rejected image kept apart");
+});
+
 test("Reel · defecto también al regenerar: se detiene (soporte) sin tercera imagen ni stock", async () => {
-  const h = harness({ sizes: [[1080, 1080], [1080, 1080]] });
+  const h = harness({ sizes: [[1080, 1920, "blank"], [1080, 1920, "blank"]] });
   await assert.rejects(h.scene(references, 0), (e: unknown) => e instanceof GeneratedImageRejectedError && /no pasó el control/.test(e.customerMessage));
   await assert.rejects(h.scene({ styleId: SID }, 0), GeneratedImageRejectedError);
   assert.equal(h.submits, 2);
 });
 
 test("Reel · interrupción tras el rechazo: el siguiente intento va directo a la regeneración, sin reenviar la rechazada", async () => {
-  const h = harness({ sizes: [[1080, 1080], [1080, 1920]] });
+  const h = harness({ sizes: [[1080, 1920, "blank"], [1080, 1920]] });
   h.faults.sign = true;
   await assert.rejects(h.scene(references, 0));
   h.faults.sign = false;
