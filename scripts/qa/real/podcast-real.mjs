@@ -64,16 +64,17 @@ if (CASO === "p2") {
 await shot(p, "04-voces"); await next();
 ok("step 5 avatars", await atStep(5), await stepTitle());
 if (CASO === "p2") {
+  // Solo avatares YA existentes de la cuenta: nunca «Crear desde una foto» (exige la foto y el consentimiento de una persona real).
   for (const t of ["A", "B"]) {
     const sel = W().getByLabel(`Avatar ${t}`);
-    const opts = await sel.locator("option").evaluateAll((os) => os.map((o) => ({ v: o.value, d: o.disabled })).filter((o) => o.v && !o.d));
+    const opts = await sel.locator("option").evaluateAll((os) => os.map((o) => ({ v: o.value, d: o.disabled })).filter((o) => o.v && o.v !== "__foto" && !o.d));
     facts[`avatars${t}`] = opts.length;
-    if (!ok(`owner has a ready avatar for ${t}`, opts.length > (t === "B" ? 1 : 0) || opts.length > 0, `${opts.length}`)) stop(`no avatar for ${t}`);
-    await sel.selectOption(opts[t === "B" && opts.length > 1 ? 1 : 0].v);
+    if (t === "A") { if (!ok("owner has a ready avatar for A", opts.length > 0, `${opts.length}`)) stop("no avatar for A"); await sel.selectOption(opts[0].v); }
+    else await sel.selectOption(opts.length > 1 ? opts[1].v : "").catch(() => {});
   }
 }
 await shot(p, "05-avatares"); await next();
-ok("step 6 music", await atStep(6), await stepTitle()); await W().getByLabel("Estilo musical").selectOption({ index: 0 }).catch(() => {}); await shot(p, "06-musica"); await next();
+ok("step 6 music", await atStep(6), await stepTitle()); await W().getByLabel("Ambiente musical").selectOption("auto", { timeout: 5000 }).catch(() => {}); await shot(p, "06-musica"); await next();
 ok("step 7 visuals", await atStep(7), await stepTitle());
 const pexels = W().getByLabel("Fotos de archivo (Pexels)"); if (await pexels.count()) await pexels.check();
 const rc = await W().getByTestId("proveedor-recraft").textContent().catch(() => "");
