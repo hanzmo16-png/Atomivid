@@ -52,7 +52,7 @@ const pgLedger = (owner: string): StudioLedger => ({
 });
 /** Exclusión por compare-and-set (misma regla que supabaseRunGuard). */
 const pgGuard: RunGuard = {
-  async acquire(e) { const r = await db.query("update public.podcast_studio_episodes set status='generating', run_token=gen_random_uuid(), run_started_at=now() where id=$1 and status in ('authorized','failed') returning id", [e]); return r.rowCount === 1; },
+  async acquire(e) { const r = await db.query("update public.podcast_studio_episodes set status='generating', run_token=gen_random_uuid(), run_started_at=now() where id=$1 and status='authorized' returning id", [e]); return r.rowCount === 1; },
   async release(e) { await db.query("update public.podcast_studio_episodes set run_token=null where id=$1", [e]); },
 };
 const ledgerStats = async (ep: string) => (await q<{ n: string; settled: string; reserved: string; uncertain: string; usd: string }>(
@@ -208,8 +208,13 @@ async function partB() {
     const calls = (p: ReturnType<typeof mockProviders>) => p.calls.tts.length + p.calls.avatar.length + p.calls.recreate.length + p.calls.prepare.length;
     const paid1 = calls(p1);
     ok(`B-${m.tag} libro tras la interrupción: sin reservas abiertas ni inciertas`, Number(s1.reserved) === 0 && Number(s1.uncertain) === 0, JSON.stringify(s1));
-    // 2) Recuperación: el worker marca «failed», el dueño pulsa «Reintentar» → reanuda sin volver a pagar.
+    // 2) Recuperación: el worker marca «failed»; sin nueva autorización un worker rezagado NO lo regenera.
     await db.query("update public.podcast_studio_episodes set status='failed' where id=$1", [id]);
+    const pStale = mockProviders();
+    const stale = await runEpisode(m.spec, { owner: A, episode: id, dir, providers: pStale, ledger: pgLedger(A), guard: pgGuard, authorizedUsd: 50, small: true, musicDir: path.join(OUT, "music") }).then(() => "corrió", (e: Error) => e.name);
+    ok(`B-${m.tag} episodio «failed» sin reautorizar: el worker no lo toma (0 llamadas de pago)`, stale === "DuplicateRunError" && calls(pStale) === 0 && (await one("select status from public.podcast_studio_episodes where id=$1", [id])) === "failed", `${stale}; ${calls(pStale)} llamadas`);
+    // El dueño pulsa «Reintentar» → la API reautoriza (failed → authorized, misma regla que la ruta) → reanuda sin volver a pagar.
+    await db.query("update public.podcast_studio_episodes set status='authorized', authorized_at=now() where id=$1 and status='failed'", [id]);
     const p2 = mockProviders();
     const r = await runEpisode(m.spec, { owner: A, episode: id, dir, providers: p2, ledger: pgLedger(A), guard: pgGuard, authorizedUsd: Number(await one("select authorized_usd from public.podcast_studio_episodes where id=$1", [id])), small: true, musicDir: path.join(OUT, "music") });
     const s2 = await ledgerStats(id);
@@ -217,7 +222,7 @@ async function partB() {
     ok(`B-${m.tag} 1ª ejecución: cada llamada de pago tiene exactamente una fila liquidada`, paid1 === Number(s1.n), `${paid1} llamadas / ${s1.n} filas`);
     ok(`B-${m.tag} reanudación: lo ya pagado se reutiliza (0 repeticiones), solo se paga lo que faltaba`, r.reusedOps >= Number(s1.n) && paid2 === Number(s2.n) - Number(s1.n) && Number(s2.settled) === Number(s2.n),
       `1ª=${paid1} llamadas, 2ª=${paid2} nuevas; filas ${s1.n}→${s2.n}; reutilizadas ${r.reusedOps}; USD ${s1.usd}→${s2.usd}`);
-    const r3 = await (async () => { await db.query("update public.podcast_studio_episodes set status='failed' where id=$1", [id]); const p3 = mockProviders(); await runEpisode(m.spec, { owner: A, episode: id, dir, providers: p3, ledger: pgLedger(A), guard: pgGuard, authorizedUsd: auth, small: true, musicDir: path.join(OUT, "music") }); return { paid: calls(p3), s: await ledgerStats(id) }; })();
+    const r3 = await (async () => { await db.query("update public.podcast_studio_episodes set status='authorized', authorized_at=now() where id=$1", [id]); const p3 = mockProviders(); await runEpisode(m.spec, { owner: A, episode: id, dir, providers: p3, ledger: pgLedger(A), guard: pgGuard, authorizedUsd: auth, small: true, musicDir: path.join(OUT, "music") }); return { paid: calls(p3), s: await ledgerStats(id) }; })();
     ok(`B-${m.tag} 3er reintento completo: 0 llamadas de pago, libro idéntico (sin cobro duplicado)`, r3.paid === 0 && r3.s.n === s2.n && r3.s.usd === s2.usd, `llamadas=${r3.paid}; filas=${r3.s.n}; USD ${r3.s.usd}`);
     ok(`B-${m.tag} gasto liquidado ≤ autorizado (tope)`, Number(s2.usd) <= auth + 1e-6, `USD ${s2.usd} / autorizado ${auth} (estimación ${estimate})`);
     ok(`B-${m.tag} cada clave del libro es única (sha256)`, Number(await one("select count(distinct key) from public.podcast_studio_operations where episode_id=$1", [id])) === Number(s2.n));

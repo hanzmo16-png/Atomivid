@@ -115,7 +115,10 @@ export async function authorizeAction(d: ApiDeps, id: string, body: Record<strin
   }
   // El cargo ya quedó registrado y el worker no ha tomado el episodio: solo se vuelve a pedir el inicio.
   // No se llama a authorize (no cambia el monto) y el guard del worker impide una segunda generación.
-  if (row.status === "authorized" && !row.run_started_at) {
+  // «Sin arranque» = ningún worker tomó el episodio DESPUÉS de esta autorización (un reintento tras un fallo conserva
+  // la marca del intento anterior, más antigua que authorized_at).
+  const notStarted = !row.run_started_at || (!!row.authorized_at && Date.parse(row.run_started_at) < Date.parse(row.authorized_at));
+  if (row.status === "authorized" && notStarted) {
     if (body?.confirm !== true) return { status: 400, body: { error: "Confirma explícitamente el costo antes de generar." } };
     const dispatched = await d.dispatch(id);
     return { status: 200, body: { ok: true, dispatched, note: dispatched ? null : "Autorizado. No pudimos confirmar el inicio del trabajo; pulsa «Reintentar» (no se cobra dos veces)." } };
