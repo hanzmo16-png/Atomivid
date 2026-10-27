@@ -11,6 +11,7 @@ import { getLongFormBudget } from "./cost";
 import { usesAnchoredVisuals, usesVisualIdentity } from "./production-plan-types";
 import { DATED_EVENT_EVIDENCE_REQUIRED, datedEventBlockMessage, datedEventEvidenceBlockers } from "./dated-event-preflight";
 import type { ProductionPlan, ProductionPlanBeatInput, VisualStrategy } from "./production-plan";
+import type { WorkerAuthorization } from "./worker-budget-preview";
 import { MAX_TEXT_FALLBACK_RATIO, visualReleasePreflight } from "./visual-release-preflight";
 
 export type CapacityVerdict = "Suficiente" | "Insuficiente" | "Sin verificar";
@@ -45,6 +46,8 @@ export type StrategyPreflight = {
   estimatedUsd: number;
   limitUsd: number;
   withinLimit: boolean;
+  /** Worker-stage total (script + conservative providers + music + render). Null when the caller did not compute it. */
+  authorization: WorkerAuthorization | null;
   providers: ProviderCheck[];
   capacityReady: boolean;
   globalNote: string | null;
@@ -97,9 +100,11 @@ export function sourceLabel(reliability: string | null | undefined): string | nu
   return reliability ? reliability : null;
 }
 
-export async function strategyPreflight(service: SupabaseClient, input: { strategy: VisualStrategy; plan: ProductionPlan; scriptJson: unknown; env?: Record<string, string | undefined>; refreshErrors?: Record<string, string> }): Promise<StrategyPreflight> {
+export async function strategyPreflight(service: SupabaseClient, input: { strategy: VisualStrategy; plan: ProductionPlan; scriptJson: unknown; env?: Record<string, string | undefined>; refreshErrors?: Record<string, string>; workerBudget?: WorkerAuthorization | null }): Promise<StrategyPreflight> {
   const limitUsd = getLongFormBudget(input.env).maxTotalUsd;
-  const out: StrategyPreflight = { strategy: input.strategy, estimatedUsd: input.plan.estimatedProviderCostUsd, limitUsd, withinLimit: input.plan.estimatedProviderCostUsd <= limitUsd, providers: [], capacityReady: false, globalNote: null };
+  // When the caller computed the worker total, that is the gate. The provider-only estimate is kept for display.
+  const withinLimit = input.workerBudget ? input.workerBudget.admits : input.plan.estimatedProviderCostUsd <= limitUsd;
+  const out: StrategyPreflight = { strategy: input.strategy, estimatedUsd: input.plan.estimatedProviderCostUsd, limitUsd, withinLimit, authorization: input.workerBudget ?? null, providers: [], capacityReady: false, globalNote: null };
   try {
     const demands = jobSupplyDemands({ mode: "long_form", script_json: input.scriptJson, recorded_audio_path: null, long_form_production_plan: input.plan }, input.plan.providers.voice);
     const readiness = await ensureJobSupplyReady(service, demands, { refresh: false });
