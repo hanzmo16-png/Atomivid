@@ -1,23 +1,23 @@
-# O3 — CLASIFICACIÓN DE SOLO LECTURA tras una cancelación o un resultado indeterminado (docs/ops/o3/RECUPERACION.md).
-# Lee producción dentro de BEGIN TRANSACTION READ ONLY … ROLLBACK (o3.sh snap) y dice PRE | COMPLETADO |
-# PARCIAL_SIN_REGISTRO | PARCIAL_SOLO_REGISTRO | INDETERMINADO. No escribe nada; no aplica ni revierte O3.
-name: o3-clasificar
+# O8 — CLASIFICACIÓN DE SOLO LECTURA tras una cancelación o un resultado indeterminado (docs/ops/o8/RECUPERACION.md).
+# Lee producción dentro de BEGIN TRANSACTION READ ONLY … ROLLBACK (o8.sh snap) y dice PRE | COMPLETADO |
+# PARCIAL_SIN_REGISTRO | PARCIAL_SOLO_REGISTRO | INDETERMINADO. No escribe nada; no aplica ni revierte O8.
+name: o8-clasificar
 on:
   workflow_dispatch:
     inputs:
       sha_autorizado:
-        description: "Commit del run de O3 a clasificar (40 caracteres)"
+        description: "Commit del run de O8 a clasificar (40 caracteres)"
         required: true
         type: string
   # Solo para que GitHub registre el workflow (vive fuera de la rama por defecto): en push el job se OMITE.
   push:
-    branches: [claude/o3-ejecucion-unica]
-    paths: [".github/workflows/o3-clasificar.yml"]
+    branches: [claude/o8-ejecucion-unica]
+    paths: [".github/workflows/o8-clasificar.yml"]
 permissions:
   contents: read
 jobs:
   clasificar:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/claude/o3-ejecucion-unica'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/claude/o8-ejecucion-unica'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
@@ -27,11 +27,11 @@ jobs:
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || 'aws-0-us-west-2.pooler.supabase.com' }}
       SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
-      O3: scripts/qa/schema-readonly/o3.sh
+      O8: scripts/qa/schema-readonly/o8.sh
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
-      - run: bash "$O3" bind "${{ inputs.sha_autorizado }}"
+      - run: bash "$O8" bind "${{ inputs.sha_autorizado }}"
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci --no-audit --no-fund
@@ -44,6 +44,6 @@ jobs:
           set -uo pipefail
           URL=$(npx tsx -e 'import { resolveConnection } from "./scripts/lib/supabase-db"; const c = resolveConnection(); if (!c) { process.exit(3) } process.stdout.write(c.connectionString)')
           echo "::add-mask::$URL"; PW=$(node -e 'const u=new URL(process.argv[1]); process.stdout.write(decodeURIComponent(u.password))' "$URL"); echo "::add-mask::$PW"
-          bash "$O3" snap "$URL" now.snap; bash "$O3" classify now.snap; c=$?
-          bash "$O3" done now.snap | grep -E '^(FAIL|RESULT)' || true
+          bash "$O8" snap "$URL" now.snap; bash "$O8" classify now.snap; c=$?
+          bash "$O8" done now.snap | grep -E '^(FAIL|RESULT)' || true
           exit $c

@@ -55,15 +55,15 @@ rc=0; bash "$old" > "$W/old.out" 2>&1 || rc=$?
 grep -q 'command not found' "$W/old.out" && grep -q 'RESULT old: 0 FAIL' "$W/old.out" && [ $rc = 0 ] && ok "repro: the old framework hides the missing command (0 FAIL, exit 0) — the audited defect" || ko "repro did not reproduce (rc=$rc)"
 # the rehearsal harnesses must use the library (no private pass/fail/rejects, finish through h_finish)
 D=$(dirname "$LIB")
-for h in o3-replica.sh o2-mutantes.sh; do
+for h in o3-replica.sh o2-mutantes.sh o8-replica.sh; do
   f="$D/$h"; grep -q 'harness-lib.sh"' "$f" && grep -q '^h_finish$' "$f" && ! grep -qE '^(rejects|pass|fail)\(\)|; fail\(\)|^fails=0' "$f" && ! grep -qE '(^|[;&|] *)rejects ' "$f" && ! grep -q "trap .* EXIT" "$f" \
     && ok "$h sources harness-lib.sh, ends with h_finish, no private rejects/pass/fail or EXIT trap" || ko "$h does not use the harness library correctly"
   bash -n "$f" && ok "$h: bash -n" || ko "$h: syntax"
 done
 # every function the rehearsal calls at the start of a line is defined somewhere it can reach (catches `access` again)
-for h in o3-replica.sh; do f="$D/$h"; miss=""
+for h in o3-replica.sh o8-replica.sh; do f="$D/$h"; miss=""
   # command words at line start, outside here-documents, excluding assignments (x=…)
-  for w in $(awk '/<<(SQL|EOF)([^A-Za-z]|$)/{h=1;next} h&&/^(SQL|EOF)$/{h=0;next} !h' "$f" | grep -oE '^[a-z_][a-z0-9_]*([ ;(]|$)' | grep -oE '^[a-z_][a-z0-9_]*' | sort -u); do
+  for w in $(awk '/<<\x27?(SQL|EOF)\x27?([^A-Za-z]|$)/{h=1;next} h&&/^(SQL|EOF)$/{h=0;next} !h' "$f" | grep -oE '^[a-z_][a-z0-9_]*([ ;(]|$)' | grep -oE '^[a-z_][a-z0-9_]*' | sort -u); do
     case $w in if|then|else|fi|for|do|done|while|case|esac|echo|printf|set|export|unset|local|trap|exit|return|bash|cat|grep|sed|head|tail|cmp|diff|sleep|kill|wait|mkdir|rm|cut|wc|mv|cp|node|npx|python3|true|false|shift) continue;; esac
     grep -qE "(^|[ ;])$w\(\)" "$f" "$LIB" || command -v "$w" >/dev/null 2>&1 || miss="$miss $w"; done
   [ -z "$miss" ] && ok "$h: every command at line start is a defined function or an installed command" || ko "$h: undefined at line start:$miss"
