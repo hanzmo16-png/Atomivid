@@ -1,5 +1,5 @@
 # O8 — EJECUCIÓN ÚNICA, solo con autorización concreta de Hans: aplica en producción la migración
-# supabase/migrations/20261024140000_podcast_v3_studio.sql (sha256 149a708e…9d19, idéntica a la propuesta auditada de #207 y
+# supabase/migrations/20261024140000_podcast_v3_studio.sql (sha256 7133f9a4…9d19, idéntica a la propuesta auditada de #207 y
 # del candidato #228) con la herramienta del plan, scripts/apply-supabase-migration.ts, un único archivo. El archivo no tiene
 # begin/commit propios: la herramienta ejecuta SQL + registro en public._migrations_applied en UNA transacción (no existe la
 # ventana «SQL sin registro»). Requiere O3 COMPLETADO (run de O3 leído en la API + `o3.sh done`) y la puerta GATE_NEXT=O8
