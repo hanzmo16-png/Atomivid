@@ -163,7 +163,8 @@ test("owner pilot in the worker: only the owner's episodes run with the switch o
   assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: OWNER }, of(null)), false, "episode not found");
   reads = 0;
   assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: OWNER, PODCAST_V3_OWNER_PILOT: "0" }, of(OWNER)), false, "kill switch");
-  assert.equal(await studioWorkerEnabled(EP, {}, of(OWNER)), false, "no owner configured");
+  assert.equal(await studioWorkerEnabled(EP, {}, of("99999999-2222-4333-8444-555555555555")), true, "no owner configured in the generator: the app-created authorization is trusted");
+  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: "not-a-uuid" }, of(OWNER)), false, "malformed owner");
   assert.equal(await studioWorkerEnabled("not-an-id", { PODCAST_V3_OWNER_USER_ID: OWNER }, of(OWNER)), false);
   assert.equal(reads, 0, "no lookup when the pilot cannot apply");
   assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_ENABLED: "1" }, of(null)), true, "global switch unchanged");
