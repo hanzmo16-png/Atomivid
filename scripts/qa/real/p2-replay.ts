@@ -118,14 +118,43 @@ async function main() {
       const probe = (f: string) => JSON.parse(spawnSync("ffprobe", ["-v", "error", "-show_entries", "stream=codec_type:format=duration", "-of", "json", f], { encoding: "utf8" }).stdout || "{}");
       const v = r.mp4 ? probe(r.mp4) : null, a = probe(r.audio);
       const decode = r.mp4 ? spawnSync("ffmpeg", ["-v", "error", "-i", r.mp4, "-f", "null", "-"]).status : null;
-      out(`RUN_${label}`, { authorizedUsd, ok: r.ok, reusedOps: r.reusedOps, newOps: r.paidOps, reusedKeys: [...new Set(reads)].map(short), wouldPay, wouldPayUsdCap: Math.round(wouldPay.reduce((n, x) => n + (x.usdCap ?? 0), 0) * 1e4) / 1e4,
-        projectedEpisodeUsd: r.spentUsd, mp4: v ? { streams: (v.streams ?? []).map((s: { codec_type: string }) => s.codec_type), seconds: Number(v.format?.duration) } : null, mp4DecodeStatus: decode, audioSeconds: Number(a.format?.duration), stillReads });
+      const res = { authorizedUsd, ok: r.ok, reusedOps: r.reusedOps, newOps: r.paidOps, reusedKeys: [...new Set(reads)].map(short), wouldPay, wouldPayUsdCap: Math.round(wouldPay.reduce((n, x) => n + (x.usdCap ?? 0), 0) * 1e4) / 1e4,
+        projectedEpisodeUsd: r.spentUsd, mp4: v ? { streams: (v.streams ?? []).map((s: { codec_type: string }) => s.codec_type), seconds: Number(v.format?.duration) } : null, mp4DecodeStatus: decode, audioSeconds: Number(a.format?.duration), stillReads };
+      out(`RUN_${label}`, res); return res;
     } catch (e) {
-      out(`RUN_${label}`, { authorizedUsd, failed: e instanceof Error ? `${e.name}: ${e.message}`.slice(0, 300) : "error", reusedKeys: [...new Set(reads)].map(short), wouldPay, stillReads });
+      const res = { authorizedUsd, failed: e instanceof Error ? `${e.name}: ${e.message}`.slice(0, 300) : "error", reusedKeys: [...new Set(reads)].map(short), wouldPay, stillReads };
+      out(`RUN_${label}`, res); return res;
     }
   };
-  for (const amount of (process.env.AMOUNTS ?? "0.5,1").split(",").map(Number).filter((n) => n > 0)) await run(String(amount).replace(".", "_"), amount);
+  const results: Record<string, unknown>[] = [];
+  for (const amount of (process.env.AMOUNTS ?? "0.5,1").split(",").map(Number).filter((n) => n > 0)) results.push(await run(String(amount).replace(".", "_"), amount) as Record<string, unknown>);
   const after = await real.byEpisode(episode);
-  out("LEDGER_UNCHANGED", { before: before.length, after: after.length, identical: JSON.stringify(sortK(before)) === JSON.stringify(sortK(after)) });
+  const unchanged = JSON.stringify(sortK(before)) === JSON.stringify(sortK(after));
+  out("LEDGER_UNCHANGED", { before: before.length, after: after.length, identical: unchanged });
+  // Puerta previa al reintento real (GATE=1): cualquier desviación → no se cobra nada (el job falla).
+  if (process.env.GATE === "1") {
+    const maxInc = Number(process.env.MAX_INCREMENTAL_USD);
+    const settled = before.filter((r) => r.state === "settled");
+    const last = results[results.length - 1] ?? {};
+    const pays = (last.wouldPay as { provider: string; op: string }[] | undefined) ?? [];
+    const reused = new Set((last.reusedKeys as string[] | undefined) ?? []);
+    const conditions = {
+      episodeFailed: row.status === "failed",
+      noReservedOrUncertain: before.every((r) => r.state === "settled" || r.state === "released"),
+      nineSettled: settled.length === 9,
+      artifactsPresent: checks.every((c) => c.storageRef && c.expectedPath && c.bytes > 0 && (c.seconds ?? 0) > 0),
+      everyPaidKeyReused: settled.every((r) => reused.has(short(r.key))) && last.reusedOps === settled.length,
+      zeroNewVoices: pays.every((x) => x.op !== "tts"),
+      onlyThreeNewClips: pays.length === 3 && pays.every((x) => x.provider === "heygen" && x.op === "avatar_clip"),
+      incrementalWithinLimit: Number.isFinite(maxInc) && Number(last.wouldPayUsdCap) <= maxInc + 1e-9,
+      authorizationCapsIncremental: Number.isFinite(maxInc) && Number(last.authorizedUsd) - settled.reduce((n, r) => n + Number(r.actual_usd ?? r.reserved_usd), 0) <= maxInc + 1e-9,
+      stillFound: ((last.stillReads as { found: boolean }[] | undefined) ?? []).some((x) => x.found),
+      endsOk: last.ok === true && last.mp4DecodeStatus === 0,
+      ledgerUnchanged: unchanged,
+    };
+    const pass = Object.values(conditions).every(Boolean);
+    out("GATE", { pass, conditions });
+    if (!pass) process.exitCode = 1;
+  }
 }
 main().catch((e) => { console.error(e instanceof Error ? e.message : "error"); process.exitCode = 1; });

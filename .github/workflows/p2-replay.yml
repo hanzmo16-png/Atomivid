@@ -7,6 +7,8 @@ on:
       episode_id: { description: "Episodio fallido a reproducir", required: true }
       pr_sha: { description: "SHA del código a probar", required: true }
       amounts: { description: "Montos de autorización a probar (coma)", required: false, default: "0.5,1" }
+      gate: { description: "Puerta previa al reintento real (1)", required: false, default: "" }
+      max_incremental_usd: { description: "Gasto incremental máximo autorizado", required: false, default: "0.32" }
   push:
     branches: [claude/puertas-merge]
     paths: [".github/workflows/p2-replay.yml"]
@@ -15,7 +17,8 @@ permissions:
 jobs:
   replay:
     if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-24.04
+    # Mismo entorno que el worker real (podcast-video.yml): ubuntu-latest, Node 22, ffmpeg de apt.
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -24,13 +27,13 @@ jobs:
         with: { persist-credentials: false, ref: "${{ inputs.pr_sha }}", path: pr }
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm, cache-dependency-path: pr/package-lock.json }
-      - name: ffmpeg y fuentes
-        timeout-minutes: 12
-        run: |
-          sudo rm -f /var/lib/man-db/auto-update
-          sudo apt-get -o Acquire::Retries=3 update -q && sudo apt-get -o Acquire::Retries=3 install -yq --no-install-recommends ffmpeg fonts-dejavu-core
-      - run: npm ci --no-audit --no-fund
+      - run: npm ci
         working-directory: pr
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core > /dev/null
+      - name: Entorno
+        run: |
+          echo "image=$ImageOS $ImageVersion"
+          ffmpeg -version | head -1; ffprobe -version | head -1
       - name: Reintento en seco (lectura)
         working-directory: pr
         env:
@@ -40,7 +43,21 @@ jobs:
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           EPISODE_ID: ${{ inputs.episode_id }}
           AMOUNTS: ${{ inputs.amounts }}
+          GATE: ${{ inputs.gate }}
+          MAX_INCREMENTAL_USD: ${{ inputs.max_incremental_usd }}
         run: |
           git rev-parse HEAD
           cp ../harness/scripts/qa/real/p2-replay.ts scripts/p2-replay.ts
           npx tsx scripts/p2-replay.ts
+      - name: Disponibilidad de proveedores (misma regla que el worker; solo GET de facturación)
+        if: inputs.gate == '1'
+        working-directory: pr
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
+          EPISODE_ID: ${{ inputs.episode_id }}
+        run: |
+          cp ../harness/scripts/qa/real/p2-supply.ts scripts/p2-supply.ts
+          npx tsx scripts/p2-supply.ts
