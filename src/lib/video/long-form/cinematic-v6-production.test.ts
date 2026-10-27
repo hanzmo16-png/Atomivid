@@ -167,8 +167,17 @@ function fakeService(initial: Record<string, unknown>) {
     };
     return api;
   };
+  // The budget gate reads documentary_script_jobs (maybeSingle) and pi_paid_operations
+  // (.eq ×3, .order, .limit) before the visual gate. This fixture has no script job and no
+  // billed calls: empty results, same as a real project with nothing spent. A query error
+  // still fail-closes confirm; these chains exist so the read can succeed.
+  const scriptJobs = () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }) });
+  const paidOps = () => {
+    const chain = { eq: () => chain, order: () => chain, limit: async () => ({ data: [], error: null }), in: async () => ({ data: [], error: null }) };
+    return { select: () => chain };
+  };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return { client: { from: () => ({ select: () => builder("select"), update: (v: Record<string, unknown>) => builder("update", v) }) } as any, row };
+  return { client: { from: (table?: string) => table === "documentary_script_jobs" ? scriptJobs() : table === "pi_paid_operations" ? paidOps() : { select: () => builder("select"), update: (v: Record<string, unknown>) => builder("update", v) } } as any, row };
 }
 
 test("confirm-production: v6 solo con cinematicV6 del servidor; sin él, v3; una confirmación existente nunca cambia de versión", async () => {

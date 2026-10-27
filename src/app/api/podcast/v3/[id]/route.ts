@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { podcastUser } from "@/lib/podcast/auth";
+import { studioGenerationEnabled } from "@/lib/podcast/v3/studio";
 import { listAccountVoices } from "@/lib/podcast/voices";
 import { authorizeAction, episodeAction } from "@/lib/podcast/v3/api";
 import { STUDIO_COLUMNS, STUDIO_TABLE, type StudioEpisodeRow } from "@/lib/podcast/v3/store";
 import { dispatchPodcastJob } from "@/lib/podcast/video-jobs";
 
-const enabled = () => process.env.PODCAST_V3_ENABLED === "1";
 const BUCKET = "videos";
 
 async function load(service: ReturnType<typeof createServiceClient>, id: string): Promise<StudioEpisodeRow | "missing" | null> {
@@ -35,7 +35,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const service = createServiceClient();
   const out = await authorizeAction({
-    userId: user.id, viewer: user, voices: () => listAccountVoices(), enabled: enabled(), llm: null,
+    userId: user.id, viewer: user, voices: () => listAccountVoices(), enabled: studioGenerationEnabled(user), llm: null,
     insert: async () => null, load: (x) => load(service, x),
     authorize: async (x, usd) => { const { data } = await service.from(STUDIO_TABLE).update({ status: "authorized", authorized_usd: usd, authorized_at: new Date().toISOString(), error: null, updated_at: new Date().toISOString() }).eq("id", x).eq("user_id", user.id).in("status", ["draft", "failed"]).select("id"); return (data?.length ?? 0) === 1; },
     dispatch: (x) => dispatchPodcastJob(x, "studio"),

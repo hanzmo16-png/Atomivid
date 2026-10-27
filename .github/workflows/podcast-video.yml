@@ -81,6 +81,12 @@ jobs:
           # Podcast 3.0 (estudio): debe coincidir con PODCAST_V3_ENABLED de la app (variable del repositorio). Sin ella el
           # worker no genera y marca el episodio «failed» sin cargos. HeyGen solo se usa en modos con avatar.
           PODCAST_V3_ENABLED: ${{ vars.PODCAST_V3_ENABLED }}
+          # Piloto del dueño (mismo criterio que la app): solo los episodios de esta cuenta se generan con el interruptor apagado.
+          PODCAST_V3_OWNER_USER_ID: ${{ secrets.INTERNAL_PRODUCTION_OWNER_USER_ID }}
+          # Sin el secreto (no existe en Actions), el generador pregunta a la app, con una petición firmada, si el dueño del
+          # episodio es el dueño (la app sí lo conoce). Nada de la identidad del dueño queda en el repositorio.
+          # Interruptor del piloto también en el generador (variable del repositorio PODCAST_V3_OWNER_PILOT=0 lo apaga aquí).
+          PODCAST_V3_OWNER_PILOT: ${{ vars.PODCAST_V3_OWNER_PILOT }}
           HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
           # Same allocation rate as the production app and the render worker.
           PRICING_ELEVENLABS_USD_PER_1K_CHARS: '0.2'

@@ -1,0 +1,74 @@
+[
+  {
+    "name": "samsung-s24-390",
+    "device": 390,
+    "withRecraft": 732,
+    "withArchive": 390,
+    "ok": false,
+    "culprits": [
+      {
+        "el": "div",
+        "text": "Una imagen por escena con un estilo único para este video. Costo estim",
+        "widthWhenHidden": 390
+      },
+      {
+        "el": "label",
+        "text": "Si Recraft crea el estilo pero no devuelve su identificador (style_id)",
+        "widthWhenHidden": 432
+      },
+      {
+        "el": "select[name=recraft_style_missing]",
+        "text": "Detener y conservar la imagen pagada (recomendado)Continuar con las mi",
+        "widthWhenHidden": 432
+      }
+    ]
+  },
+  {
+    "name": "pixel-7-412",
+    "device": 412,
+    "withRecraft": 732,
+    "withArchive": 412,
+    "ok": false,
+    "culprits": [
+      {
+        "el": "div",
+        "text": "Una imagen por escena con un estilo único para este video. Costo estim",
+        "widthWhenHidden": 412
+      },
+      {
+        "el": "label",
+        "text": "Si Recraft crea el estilo pero no devuelve su identificador (style_id)",
+        "widthWhenHidden": 432
+      },
+      {
+        "el": "select[name=recraft_style_missing]",
+        "text": "Detener y conservar la imagen pagada (recomendado)Continuar con las mi",
+        "widthWhenHidden": 432
+      }
+    ]
+  },
+  {
+    "name": "iphone-se-375",
+    "device": 375,
+    "withRecraft": 732,
+    "withArchive": 375,
+    "ok": false,
+    "culprits": [
+      {
+        "el": "div",
+        "text": "Una imagen por escena con un estilo único para este video. Costo estim",
+        "widthWhenHidden": 375
+      },
+      {
+        "el": "label",
+        "text": "Si Recraft crea el estilo pero no devuelve su identificador (style_id)",
+        "widthWhenHidden": 432
+      },
+      {
+        "el": "select[name=recraft_style_missing]",
+        "text": "Detener y conservar la imagen pagada (recomendado)Continuar con las mi",
+        "widthWhenHidden": 432
+      }
+    ]
+  }
+]

@@ -8,7 +8,7 @@ import { estimateEpisodeCost, MemoryLedger, paidOnce, opKey, committedUsd, relea
 import { mixGraph, transitionTimes } from "./audio";
 import { shotFrames, wrap, subtitlePages, FPS } from "./compose";
 import { autoMood, trackExpression, BUNDLED_TRACKS, licenseManifest, V2_MOOD_MAP } from "./music-library";
-import { defaultDraft, loadDraft, stepErrors, draftToSpec, draftToV2 } from "./wizard";
+import { defaultDraft, loadDraft, stepErrors, draftToSpec, draftToV2, withVoiceKinds, STEP } from "./wizard";
 import { studioAction, authorizeAction, type ApiDeps } from "./api";
 import { turnsFor } from "./pipeline";
 import type { AccountVoice } from "@/lib/podcast/voices";
@@ -37,8 +37,26 @@ test("spec: El Duro sin concesión aparece como NO disponible (no se oculta ni s
   const list = voiceAvailability(VOICES, OWNER, {});
   const d = list.find((v) => v.voiceId === EL_DURO_VOICE_ID);
   assert.equal(d?.available, false);
-  assert.equal(voiceAvailability(VOICES, OWNER, GRANT).find((v) => v.voiceId === EL_DURO_VOICE_ID)?.available, true);
+  assert.match(d?.note ?? "", /No disponible: requiere autorización \(PRIVATE_VOICE_GRANTS\)/);
+  const granted = voiceAvailability(VOICES, OWNER, GRANT).find((v) => v.voiceId === EL_DURO_VOICE_ID);
+  assert.equal(granted?.available, true);
+  assert.equal(granted?.kind, "clonada", "con concesión el dueño la elige como voz clonada");
   assert.equal(voiceAvailability(VOICES, { ...OWNER, email: "otra@example.com" }, GRANT).some((v) => v.voiceId === EL_DURO_VOICE_ID), false, "concedida a otra cuenta: oculta");
+});
+
+test("asistente: El Duro concedido se guarda voice_kind clonada; sin concesión no se puede avanzar; otra voz sigue sintética", () => {
+  const catalog = voiceAvailability(VOICES, OWNER, GRANT);
+  const base = defaultDraft();
+  const picked = withVoiceKinds({ ...base, modality: "avatar", mode: "avatar", count: 1, title: "T", script: "x".repeat(30), participants: [{ ...base.participants[0], voice_id: EL_DURO_VOICE_ID, voice_kind: "sintetica" }, base.participants[1]] }, catalog);
+  assert.equal(picked.participants[0].voice_kind, "clonada");
+  assert.equal(draftToSpec(picked).participants[0].voice_kind, "clonada");
+  const synth = withVoiceKinds({ ...picked, participants: [{ ...picked.participants[0], voice_id: "voiceAnaHost1", voice_kind: "clonada" }, picked.participants[1]] }, catalog);
+  assert.equal(synth.participants[0].voice_kind, "sintetica");
+  assert.equal(withVoiceKinds(picked, catalog), picked, "si el tipo ya es correcto no se clona el borrador");
+  assert.equal(withVoiceKinds(picked, []), picked, "un catálogo vacío no borra el clon ya guardado");
+  const off = voiceAvailability(VOICES, OWNER, {});
+  assert.equal(off.find((v) => v.voiceId === EL_DURO_VOICE_ID)?.available, false);
+  assert.ok(stepErrors({ ...base, participants: [{ ...base.participants[0], voice_id: EL_DURO_VOICE_ID }, base.participants[1]] }, STEP.voces, { unavailableVoices: off.filter((v) => !v.available).map((v) => v.voiceId) }).some((e) => /no está disponible/));
 });
 
 test("spec: foto sin consentimiento explícito no pasa el esquema", () => {
@@ -214,6 +232,21 @@ test("API: guion por plantilla sin LLM; estimación gratis; crear con estudio ap
   assert.equal((await studioAction(deps(), { action: "create", ...body() })).status, 200);
 });
 
+test("API: El Duro concedido se guarda clonada para el dueño; otra cuenta y sin concesión se rechazan", async () => {
+  const duro = spec({ mode: "avatar", participants: [{ id: "A", name: "Hans", voice_id: EL_DURO_VOICE_ID, voice_kind: "sintetica", avatar: { kind: "existente", avatar_id: "a" } }] });
+  const captured: { spec: { participants: { voice_kind: string }[] } | null } = { spec: null };
+  const owner = await studioAction(deps({ env: GRANT, insert: async (row) => { const specRow = row.spec; if (specRow && typeof specRow === "object" && "participants" in specRow) captured.spec = specRow as { participants: { voice_kind: string }[] }; return { id: "11111111-1111-4111-8111-111111111111" }; } }), { action: "create", ...body(duro) });
+  assert.equal(owner.status, 200, JSON.stringify(owner.body));
+  assert.ok(captured.spec, "el episodio guardado incluye la especificación");
+  assert.equal(captured.spec.participants[0].voice_kind, "clonada");
+  const other = await studioAction(deps({ env: GRANT, viewer: { ...OWNER, email: "otra@example.com" } }), { action: "create", ...body(duro) });
+  assert.equal(other.status, 400);
+  assert.match(String(other.body.error), /El Duro|no está disponible|no autorizada/);
+  const off = await studioAction(deps({ env: {} }), { action: "create", ...body(duro) });
+  assert.equal(off.status, 400);
+  assert.match(String(off.body.error), /no está autorizada/);
+});
+
 test("API: aislamiento — foto o avatar de otra cuenta → 403", async () => {
   const foreign = spec({ participants: [{ id: "A", name: "Ana", voice_id: "voiceAnaHost1", avatar: { kind: "foto", photo_path: "otro/podcast-studio/photos/x.jpg", consent: { given: true, at: "x", text: "consentimiento explícito" } } }, { id: "B", name: "Luis", voice_id: "voiceLuisGuest", avatar: { kind: "existente", avatar_id: "a2" } }] });
   assert.equal((await studioAction(deps(), { action: "create", ...body(foreign) })).status, 403);
@@ -231,4 +264,63 @@ test("API: autorizar exige confirmación explícita, monto ≥ estimación y ≤
   assert.equal((await authorizeAction(D({ load: async () => ({ ...row, user_id: "otro" }) as never }), "e1", { confirm: true, authorizedUsd: 2 })).status, 404);
   const ok = await authorizeAction(D(), "e1", { confirm: true, authorizedUsd: 2 });
   assert.equal(ok.status, 200); assert.equal(ok.body.dispatched, true);
+});
+
+test("API: autorizado sin arranque se re-despacha sin volver a autorizar ni cambiar el monto", async () => {
+  const row = { id: "e1", user_id: "u1", title: "T", mode: "dialogo", spec: spec(), status: "authorized", estimate: {}, estimated_usd: 1, authorized_usd: 2, authorized_at: "t", run_started_at: null, progress: null, result: null, video_path: null, audio_path: null, cost_usd: null, error: null, created_at: "", updated_at: "" };
+  let authorized = 0, dispatches = 0;
+  const d = deps({ load: async () => ({ ...row }) as never, authorize: async () => { authorized++; return true; }, dispatch: async () => { dispatches++; return false; } });
+  const missing = await authorizeAction(d, "e1", {});
+  assert.equal(missing.status, 400); assert.equal(authorized, 0); assert.equal(dispatches, 0);
+  const again = await authorizeAction(d, "e1", { confirm: true, authorizedUsd: 50 });
+  assert.equal(again.status, 200); assert.equal(again.body.dispatched, false); assert.equal(authorized, 0); assert.equal(dispatches, 1);
+  assert.match(String(again.body.note), /no se cobra dos veces/);
+  const started = await authorizeAction(deps({ load: async () => ({ ...row, run_started_at: "t" }) as never, dispatch: async () => { dispatches++; return true; } }), "e1", { confirm: true });
+  assert.equal(started.status, 409); assert.equal(dispatches, 1);
+});
+
+test("una segunda generación del mismo episodio no marca el episodio como fallido", async () => {
+  const { DuplicateRunError, studioRunErrorFailsEpisode } = await import("./pipeline");
+  assert.equal(studioRunErrorFailsEpisode(new DuplicateRunError()), false);
+  assert.equal(studioRunErrorFailsEpisode(new Error("almacenamiento")), true);
+});
+
+test("API: reintento tras un fallo (reautorizado, con la marca del intento anterior) se puede re-despachar sin otro cargo", async () => {
+  const row = { id: "e1", user_id: "u1", title: "T", mode: "dialogo", spec: spec(), status: "authorized", estimate: {}, estimated_usd: 1, authorized_usd: 2, authorized_at: "2026-10-27T03:00:00Z", run_started_at: "2026-10-27T02:00:00Z", progress: null, result: null, video_path: null, audio_path: null, cost_usd: null, error: null, created_at: "", updated_at: "" };
+  let authorized = 0, dispatches = 0;
+  const d = deps({ load: async () => ({ ...row }) as never, authorize: async () => { authorized++; return true; }, dispatch: async () => { dispatches++; return true; } });
+  const again = await authorizeAction(d, "e1", { confirm: true, authorizedUsd: 2 });
+  assert.equal(again.status, 200); assert.equal(dispatches, 1); assert.equal(authorized, 0, "no se vuelve a autorizar ni cambia el monto");
+  // Un worker ya tomó el episodio DESPUÉS de esta autorización: no se re-despacha.
+  const taken = await authorizeAction(deps({ load: async () => ({ ...row, run_started_at: "2026-10-27T03:05:00Z" }) as never, dispatch: async () => { dispatches++; return true; } }), "e1", { confirm: true });
+  assert.equal(taken.status, 409); assert.equal(dispatches, 1);
+});
+
+test("guard del worker: solo toma un episodio con autorización vigente (o runner perdido); «failed» exige reautorizar", async () => {
+  const { supabaseRunGuard } = await import("./store");
+  const fake = (row: { status: string; run_started_at: string | null }) => {
+    const db = { ...row }; let updates = 0;
+    const builder = (mode: "select" | "update", patch?: Record<string, unknown>) => {
+      const where: [string, unknown][] = [];
+      const match = () => where.every(([k, v]) => (db as Record<string, unknown>)[k] === v);
+      const b = {
+        eq(k: string, v: unknown) { if (k !== "id") where.push([k, v]); return b; },
+        is(k: string, v: unknown) { where.push([k, v]); return b; },
+        async maybeSingle() { return { data: { ...db }, error: null }; },
+        async select() { if (mode === "update" && match()) { Object.assign(db, patch); updates++; return { data: [{ id: "e" }], error: null }; } return { data: [], error: null }; },
+      };
+      return b;
+    };
+    return { db, get updates() { return updates; }, client: { from: () => ({ select: () => builder("select"), update: (p: Record<string, unknown>) => builder("update", p) }) } };
+  };
+  const ok = fake({ status: "authorized", run_started_at: null });
+  assert.equal(await supabaseRunGuard(ok.client as never).acquire("e", "a".repeat(40)), true); assert.equal(ok.db.status, "generating");
+  const second = await supabaseRunGuard(ok.client as never).acquire("e", "b".repeat(40));
+  assert.equal(second, false, "un segundo worker no gana la carrera");
+  const failed = fake({ status: "failed", run_started_at: "2026-10-27T02:00:00Z" });
+  assert.equal(await supabaseRunGuard(failed.client as never).acquire("e", "c".repeat(40)), false); assert.equal(failed.updates, 0); assert.equal(failed.db.status, "failed");
+  const lost = fake({ status: "generating", run_started_at: new Date(Date.now() - 3 * 3600_000).toISOString() });
+  assert.equal(await supabaseRunGuard(lost.client as never).acquire("e", "d".repeat(40)), true, "runner perdido (marca vieja) se puede retomar");
+  const live = fake({ status: "generating", run_started_at: new Date().toISOString() });
+  assert.equal(await supabaseRunGuard(live.client as never).acquire("e", "e".repeat(40)), false);
 });

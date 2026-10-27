@@ -89,7 +89,7 @@ import { directSequenceScenes, sequenceShotsForSpan } from "./sequence-direction
 import { directImpactScenes, hookStatus } from "./impact-direction";
 import { ProductionBudget, supabaseBudgetStore, type BudgetStore } from "./production-budget";
 import { getPricingConfig } from "@/lib/billing/pricing";
-import { getLongFormBudget } from "./cost";
+import { getLongFormBudget, LONG_FORM_RENDER_JOB_TIMEOUT_MIN, longFormRenderCeilingUsd } from "./cost";
 import { conservativeUnits, conservativeWorstCaseUsd, loadObservedMax, productionHardCap, type ObservedMax } from "./spend-cap";
 import { supabaseShotAssetStore, type ShotAssetStore } from "./durable-shot-assets";
 import { createImageStyleContext, executeShot, type ImageStyleContext, type ShotExecution } from "./shot-executor";
@@ -939,8 +939,5 @@ async function defaultScriptScopes(supabase: SupabaseClient, requestId: string):
   return [scope];
 }
 
-/** Minutos máximos del job de render long_form (timeout-minutes de .github/workflows/render.yml). */
-export const LONG_FORM_RENDER_JOB_TIMEOUT_MIN = 330;
-function renderCeilingUsd(): number {
-  return MAX_RENDER_ATTEMPTS * LONG_FORM_RENDER_JOB_TIMEOUT_MIN * getPricingConfig().renderUsdPerMinute;
-}
+export { LONG_FORM_RENDER_JOB_TIMEOUT_MIN };
+const renderCeilingUsd = longFormRenderCeilingUsd;

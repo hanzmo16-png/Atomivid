@@ -19,6 +19,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { canCurateAssets } from "@/lib/video/long-form/asset-curation";
 import type { ProductionPlanBeatInput } from "@/lib/video/long-form/production-plan";
 import { strategyPreflight, visualBlockMessage, visualCheck, type StrategyPreflight, type VisualCheck } from "@/lib/video/long-form/production-preflight";
+import { budgetsForPlans, loadScriptSpentUsd } from "@/lib/video/long-form/worker-budget-preview";
 
 
 /**
@@ -60,8 +61,17 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
   const recraftAllowed = recraftAllowedFor(user);
   const recraftPlans = recraftAllowed ? Object.fromEntries(Object.entries(configurePlans({ script, topic: data.topic, durationSeconds: data.duration_seconds, cinematicV6, imageProvider: "recraft" }))
     .map(([s, r]) => [s, r.plan])) as Record<VisualStrategy, ProductionPlan> : undefined;
-  const check = async (set: Record<VisualStrategy, ProductionPlan>) => Object.fromEntries(await Promise.all(VISUAL_STRATEGIES.map(async (strategy) =>
-    [strategy, await strategyPreflight(service, { strategy, plan: set[strategy], scriptJson: script })]))) as Record<VisualStrategy, StrategyPreflight>;
+  let scriptSpent: number | { error: string };
+  try {
+    scriptSpent = await loadScriptSpentUsd(service, id);
+  } catch (error) {
+    scriptSpent = { error: error instanceof Error ? error.message : "gasto del guion" };
+  }
+  const check = async (set: Record<VisualStrategy, ProductionPlan>) => {
+    const budgets = await budgetsForPlans(service, set, scriptSpent);
+    return Object.fromEntries(await Promise.all(VISUAL_STRATEGIES.map(async (strategy) =>
+      [strategy, await strategyPreflight(service, { strategy, plan: set[strategy], scriptJson: script, workerBudget: budgets[strategy] })]))) as Record<VisualStrategy, StrategyPreflight>;
+  };
   const [preflight, recraftPreflight] = await Promise.all([check(plans), recraftPlans ? check(recraftPlans) : Promise.resolve(undefined)]);
   const visual = await visualCheck(service, { requestId: id, plan: plans.balanced, beats: beats as ProductionPlanBeatInput[], topic: script.topic || data.topic })
     .catch((): VisualCheck => ({ applies: true, ready: false, codes: ["VISUAL_CHECK_UNAVAILABLE"], missingHeroIdentities: 0, missingHeroEvidence: 0, textCardRatio: null, maxTextCardRatio: 0.25, verifiedAssets: 0 }));

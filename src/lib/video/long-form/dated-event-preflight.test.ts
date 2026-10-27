@@ -4,6 +4,8 @@ import { calendarDatesIn, datedEventEvidenceBlockers, datedEventFindings, DATED_
 import { LongFormVisualQualityError } from "./visual-report";
 import { visualBlockMessage, visualCheck } from "./production-preflight";
 import type { ProductionPlan } from "./production-plan";
+import { shotsForSpan } from "./shots";
+import { visualsForBeat } from "./visual-intents";
 
 test("fechas de calendario (es/en/ISO) — día + mes", () => {
   assert.deepEqual(calendarDatesIn("La noche del 10 de mayo de 2024, millones de personas"), ["10 de mayo de 2024"]);
@@ -29,12 +31,30 @@ const dated = [
   { id: "b2", narration: "la primera de nivel G5 desde 2003.", visuals: [{ description: "diagram", quote: "la primera" }] },
 ];
 
-test("solo la visual anclada al pasaje fechado bloquea; una visual de otro pasaje no", () => {
-  const f = datedEventFindings(dated);
+// Fallo cerrado: escena sin cita en un pasaje fechado (su imagen se derivaría del pasaje).
+const unquoted = [{ id: "b1", narration: "La noche del 10 de mayo de 2024, millones de personas miraron hacia arriba.", visuals: [{ description: "green aurora over town" }] }];
+
+test("visual con cita literal en el pasaje fechado NO bloquea: la planificación v3 la convierte en tarjeta de texto", () => {
+  assert.deepEqual(datedEventFindings(dated), []);
+  assert.deepEqual(datedEventEvidenceBlockers(dated), []);
+  const f = datedEventFindings(unquoted);
   assert.equal(f.length, 1);
-  assert.equal(f[0].beatId, "b1");
-  assert.deepEqual(f[0].visuals, ["green aurora curtains moving over a small town at night"]);
-  assert.match(datedEventEvidenceBlockers(dated)[0], new RegExp(`^${DATED_EVENT_EVIDENCE_REQUIRED}:`));
+  assert.deepEqual(f[0].visuals, ["green aurora over town"]);
+  assert.match(datedEventEvidenceBlockers(unquoted)[0], new RegExp(`^${DATED_EVENT_EVIDENCE_REQUIRED}:`));
+});
+
+test("v3: la escena anclada al pasaje fechado se planifica como tarjeta de texto del pasaje; la de otro pasaje no", () => {
+  const visuals = visualsForBeat(dated[0], "t", { identity: false });
+  assert.deepEqual(visuals.map(v => Boolean(v.datedPassage)), [true, false]);
+  const shots = shotsForSpan({ beatId: "b1", beatType: "hook", startSec: 0, endSec: 10, narration: dated[0].narration, strategy: "cinematic", visuals, anchoring: {}, targetCount: 2 });
+  const datedShots = shots.filter(s => s.anchoredVisual?.datedPassage);
+  assert.ok(datedShots.length >= 1);
+  for (const s of datedShots) { assert.equal(s.type, "text"); assert.equal(s.source, "local"); }
+  for (const s of shots.filter(s => !s.anchoredVisual?.datedPassage)) assert.notEqual(s.anchoredVisual?.quote, dated[0].visuals[0].quote);
+  // v4 (identidad + pruebas verificadas) no cambia: su propio preflight decide.
+  assert.ok(visualsForBeat(dated[0], "t", { identity: true }).every(v => v.datedPassage === undefined));
+  // Sin fecha: nada cambia.
+  assert.ok(visualsForBeat(dated[1], "t", { identity: false }).every(v => v.datedPassage === undefined));
 });
 
 test("fallo cerrado: visual sin quote o beat sin visuales en un pasaje fechado cuenta como anclada", () => {
@@ -43,21 +63,22 @@ test("fallo cerrado: visual sin quote o beat sin visuales en un pasaje fechado c
 });
 
 test("el error es un LongFormVisualQualityError con IMPEDIMENTO DE ENTREGA y sin promesa de recursos gastados", () => {
-  const err = new LongFormDatedEventEvidenceError(datedEventEvidenceBlockers(dated));
+  const err = new LongFormDatedEventEvidenceError(datedEventEvidenceBlockers(unquoted));
   assert.ok(err instanceof LongFormVisualQualityError);
   assert.equal(err.name, "LongFormDatedEventEvidenceError");
   assert.match(err.message, /^IMPEDIMENTO DE ENTREGA/);
   assert.match(err.message, /No se inició, reservó ni cobró nada/);
 });
 
-test("Configurar/arranque (visualCheck): v3 fechado no está listo; v3 sin fecha y v1/v2 siguen como antes (sin E/S)", async () => {
+test("Configurar/arranque (visualCheck): v3 fechado sin cita no está listo; con cita anclada sí; v3 sin fecha y v1/v2 siguen como antes (sin E/S)", async () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const noIo = new Proxy({}, { get() { throw new Error("visualCheck v3 no debe tocar Supabase"); } }) as any;
   const v3 = { version: 3 } as ProductionPlan;
-  const blocked = await visualCheck(noIo, { requestId: "r", plan: v3, beats: dated as never, topic: "t" });
+  const blocked = await visualCheck(noIo, { requestId: "r", plan: v3, beats: unquoted as never, topic: "t" });
   assert.equal(blocked.ready, false);
   assert.deepEqual(blocked.codes, [DATED_EVENT_EVIDENCE_REQUIRED]);
   assert.match(visualBlockMessage(blocked), /IMPEDIMENTO DE ENTREGA/);
+  assert.equal((await visualCheck(noIo, { requestId: "r", plan: v3, beats: dated as never, topic: "t" })).ready, true);
   const undated = [{ id: "b1", narration: "Una noche de primavera, millones de personas miraron.", visuals: [] }];
   assert.deepEqual(await visualCheck(noIo, { requestId: "r", plan: v3, beats: undated as never, topic: "t" }), { applies: false, ready: true, codes: [], missingHeroIdentities: 0, missingHeroEvidence: 0, textCardRatio: null, maxTextCardRatio: 0.25, verifiedAssets: 0 });
   // Planes históricos v1/v2: sin cambios aunque el guion tenga fecha.

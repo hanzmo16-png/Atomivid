@@ -72,6 +72,12 @@ test("pre-flight completo: mismas demandas que el inicio, sin refrescar saldos a
   assert.equal(stale.providers.find((p) => p.provider === "elevenlabs")!.verdict, "Sin verificar");
   const over = await strategyPreflight(fakeService({}), { strategy: "balanced", plan, scriptJson, env: { LONG_FORM_MAX_TOTAL_USD: "0.5" } });
   assert.equal(over.withinLimit, false);
+  const { previewWorkerAuthorization } = await import("./worker-budget-preview");
+  const refused = previewWorkerAuthorization({ plan, scriptSpentUsd: 6, observed: {}, hardMaxUsd: 12 });
+  const gated = await strategyPreflight(fakeService({ elevenlabs: { level: "GREEN", free: 100000 }, openai: { level: "GREEN", free: 10 } }), { strategy: "balanced", plan, scriptJson, env: { LONG_FORM_MAX_TOTAL_USD: "12" }, workerBudget: refused });
+  assert.equal(gated.withinLimit, false);
+  assert.equal(gated.estimatedUsd, 0.61);
+  assert.match(gated.authorization?.userMessage ?? "", /guion ya gastado/);
   const broken = await strategyPreflight({ from: () => { throw new Error("db down"); } } as never, { strategy: "balanced", plan, scriptJson });
   assert.match(broken.globalNote!, /Se comprobará al iniciar/);
 });

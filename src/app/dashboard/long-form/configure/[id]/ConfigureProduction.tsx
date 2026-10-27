@@ -35,11 +35,23 @@ export function PreflightPanel({ summary, preflight, visual, visualBlockText, re
         <Row label="Motor" value={summary.engine} />
         {summary.requestedSeconds !== null && <Row label="Duración pedida" value={formatDuration(summary.requestedSeconds)} />}
         <Row label="Voz" value={summary.voice} />
-        <Row label="Costo estimado" value={USD.format(preflight.estimatedUsd)} />
+        <Row label="Costo estimado de proveedores" value={USD.format(preflight.estimatedUsd)} />
         <Row label="Límite autorizado por producción" value={USD.format(preflight.limitUsd)} />
+        {preflight.authorization && (
+          <>
+            <Row label="Guion ya gastado" value={USD.format(preflight.authorization.scriptSpentUsd)} />
+            <Row label="Render (peor caso)" value={USD.format(preflight.authorization.renderUsd)} />
+            <Row label="Subtotal que el worker exige" value={preflight.authorization.subtotalUsd === null ? "sin verificar" : USD.format(preflight.authorization.subtotalUsd)} />
+            <Row label="Techo con contingencia" value={preflight.authorization.proposedCeilingUsd === null ? "sin verificar" : USD.format(preflight.authorization.proposedCeilingUsd)} />
+            <Row label="Techo que se autorizaría" value={preflight.authorization.authorizedCeilingUsd === null ? "no cabe" : USD.format(preflight.authorization.authorizedCeilingUsd)} />
+          </>
+        )}
       </dl>
+      {preflight.authorization?.contingencyClipped && (
+        <p className="mt-2 text-ink-muted">La contingencia del {preflight.authorization.contingencyPct}% no cabe entera. Se autorizaría el tope, sin recortar voz, imágenes, video, música ni render.</p>
+      )}
       {!preflight.withinLimit && (
-        <p className="mt-2 text-danger" role="alert">El costo estimado supera el límite autorizado. Elige una estrategia más económica.</p>
+        <p className="mt-2 text-danger" role="alert">{preflight.authorization?.userMessage ?? "El costo estimado supera el límite autorizado. Elige una estrategia más económica."}</p>
       )}
       <h3 className="mt-3 text-xs font-medium uppercase tracking-wide text-ink-muted">Capacidad de proveedores</h3>
       <ul className="mt-1 grid gap-1.5">
@@ -156,8 +168,8 @@ export function PlanSummary({ plan }: { plan: ProductionPlan }) {
         </p>
       )}
       <p className="mt-2 text-xs text-ink-faint">
-        Estimación de costo de proveedores (no incluye el guion ya generado). Todavía no hay un sistema de créditos: no se
-        descuenta ningún saldo. La producción nunca supera las cantidades de este plan.
+        La cifra de proveedores no incluye el guion ya gastado ni el render. El subtotal que decide si se puede generar está en la comprobación previa. Todavía no hay un sistema de créditos: no se
+        descuenta ningún saldo hasta que confirmes. La producción nunca supera las cantidades de este plan.
       </p>
       {plan.requestedDurationSeconds !== undefined &&
         Math.abs(plan.durationSeconds / plan.requestedDurationSeconds - 1) > LONG_FORM_DURATION_TOLERANCE && (
@@ -260,7 +272,7 @@ export function ConfigureProduction({
   // Known, certain refusals are shown here and enforced on the server; "Sin verificar" is checked at the click.
   const selectedPreflight = livePreflight?.[strategy];
   const blockedReason = !selectedPreflight ? null
-    : !selectedPreflight.withinLimit ? "El costo estimado supera el límite autorizado."
+    : !selectedPreflight.withinLimit ? (selectedPreflight.authorization?.userMessage ?? "El costo estimado supera el límite autorizado.")
     : visual && !visual.ready ? "Falta material visual verificado (ver Comprobación previa)."
     : selectedPreflight.providers.some((p) => p.verdict === "Insuficiente") ? "Un proveedor no tiene capacidad suficiente (ver Comprobación previa)."
     : null;
@@ -322,6 +334,7 @@ export function ConfigureProduction({
         {VISUAL_STRATEGIES.map((option) => {
           const plan = plans[option];
           const selected = strategy === option;
+          const subtotal = livePreflight?.[option]?.authorization?.subtotalUsd;
           return (
             <label key={option} className="block cursor-pointer">
               <Card className={`p-4 transition-colors ${selected ? "border-accent-border ring-1 ring-accent-border" : ""}`}>
@@ -337,7 +350,7 @@ export function ConfigureProduction({
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-baseline justify-between gap-x-3">
                       <p className="font-medium text-ink">{VISUAL_STRATEGY_LABEL[option]}</p>
-                      <p className="text-sm tabular-nums text-ink-muted">~{USD.format(plan.estimatedProviderCostUsd)}</p>
+                      <p className="text-sm tabular-nums text-ink-muted">{subtotal != null ? `subtotal ${USD.format(subtotal)}` : `~${USD.format(plan.estimatedProviderCostUsd)}`}</p>
                     </div>
                     <p className="mt-0.5 text-sm text-ink-muted">{VISUAL_STRATEGY_DESCRIPTION[option]}</p>
                   </div>

@@ -21,6 +21,8 @@ import {
   type VisualStrategy,
 } from "./production-plan";
 import { getLongFormBudget } from "./cost";
+import { loadScriptSpentUsd, workerBudgetForPlan, previewWorkerAuthorization, type WorkerAuthorization } from "./worker-budget-preview";
+import type { ObservedMax } from "./spend-cap";
 import { validatePackagingInput } from "./packaging";
 import { productPlan } from "./product-plan";
 import { usesAnchoredVisuals, usesVisualIdentity } from "./production-plan-types";
@@ -73,6 +75,11 @@ export async function confirmLongFormProduction(
      * confirma (trigger: inmutable después). Ausente = voz predeterminada del producto, como siempre.
      */
     voiceId?: string;
+    /**
+     * Tests only. Production loads script spend and the ledger's observed unit prices — the same
+     * inputs produce.ts feeds to authorizeRequestBudget — and refuses when those stages do not fit.
+     */
+    budgetFacts?: { scriptSpentUsd: number; observed?: ObservedMax };
   },
 ): Promise<ConfirmProductionResult> {
   if (!isVisualStrategyValue(input.strategy)) return { ok: false, status: 400, error: "Estrategia visual inválida" };
@@ -120,13 +127,18 @@ export async function confirmLongFormProduction(
   });
   if (packagingCheck.packaging) plan.packaging = packagingCheck.packaging;
   const budget = getLongFormBudget();
-  if (plan.estimatedProviderCostUsd > budget.maxTotalUsd) {
-    return {
-      ok: false,
-      status: 409,
-      error: `El costo estimado ($${plan.estimatedProviderCostUsd.toFixed(2)}) supera el tope de producción configurado ($${budget.maxTotalUsd.toFixed(2)}). Elige una estrategia más económica.`,
-    };
+  // Same formula as the worker (script already spent + conservative units + music + render worst case).
+  // Provider-only `estimatedProviderCostUsd` can sit under the ceiling while that total does not.
+  let authorization: WorkerAuthorization;
+  try {
+    authorization = input.budgetFacts
+      ? previewWorkerAuthorization({ plan, scriptSpentUsd: input.budgetFacts.scriptSpentUsd, observed: input.budgetFacts.observed ?? {}, hardMaxUsd: budget.maxTotalUsd })
+      : await workerBudgetForPlan(service, plan, { scriptSpentUsd: await loadScriptSpentUsd(service, input.requestId), hardMaxUsd: budget.maxTotalUsd });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "error de lectura";
+    return { ok: false, status: 409, error: `No se pudo comprobar el presupuesto total antes de confirmar (${detail}). No se confirmó ni se cobró nada.` };
   }
+  if (!authorization.admits) return { ok: false, status: 409, error: authorization.userMessage };
 
   // Visual release gate (v4+): the plan is never locked while the worker would refuse it before spending.
   if (usesVisualIdentity(plan)) {

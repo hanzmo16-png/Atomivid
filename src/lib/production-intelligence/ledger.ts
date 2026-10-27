@@ -24,6 +24,8 @@ export type PaidOperation = {
   status: PaidOpStatus;
   providerJobId: string | null;
   resultRef: string | null;
+  /** `pi_paid_operations.supply_reconciled`: a REFUNDED row with provider proof of no charge, excluded from supply spend. */
+  supplyReconciled?: boolean;
   updatedAt: string;
 };
 
@@ -177,7 +179,8 @@ export async function reconcileWithProviderEvidence(store: LedgerStore, key: str
     patch = { status: "COMMITTED", providerJobId: ev.providerJobId, resultRef: ev.resultRef, committedUsd: ev.actualUsd, updatedAt: now() };
   } else {
     if (!ev.proof.trim()) throw new ReconciliationRequiredError(`${key}: not_charged needs a provider proof reference`);
-    patch = { status: "REFUNDED", committedUsd: 0, resultRef: `reconciled:not_charged:${ev.proof.slice(0, 200)}`, updatedAt: now() };
+    // supplyReconciled: without it pi_supply_spend keeps counting the full reservation of a call never charged.
+    patch = { status: "REFUNDED", committedUsd: 0, supplyReconciled: true, resultRef: `reconciled:not_charged:${ev.proof.slice(0, 200)}`, updatedAt: now() };
   }
   if (!await store.update(key, cur.status, patch)) throw new ReconciliationRequiredError(`${key}: row changed during reconciliation; re-read`);
   return (await store.get(key))!;

@@ -1,0 +1,62 @@
+# USD 0. Production is only read. (1) open-operation reconciliation tool: disposable tests on the production schema + a
+# dry run on a copy of the real open operations; (2) stage-aware pre-operation gate for O1 → O8 (unit tests + live O1).
+name: conciliacion-y-puerta
+on:
+  push:
+    branches: [claude/conciliacion-y-puerta, claude/conciliacion-hardening]
+    paths-ignore: ["docs/*.md"]
+permissions:
+  contents: read
+jobs:
+  conciliacion:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || 'aws-0-us-west-2.pooler.supabase.com' }}
+      SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: PostgreSQL 17
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -yq postgresql-17
+          sudo systemctl stop postgresql || true
+      - name: Reconciliation tool — production schema, synthetic tests + dry run on a copy (production read-only)
+        run: set -o pipefail; bash scripts/qa/conciliacion/ci.sh 2>&1 | tee conciliacion.log
+  puerta:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || 'aws-0-us-west-2.pooler.supabase.com' }}
+      SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Gate unit tests (every stage + unexpected states)
+        run: python3 -I scripts/qa/schema-readonly/gate_test.py
+      - name: PostgreSQL 17
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -yq postgresql-17
+          sudo systemctl stop postgresql || true
+      - name: Live gate before O1 (gate only, no data rows read; production read-only)
+        run: set -o pipefail; GATE_ONLY=1 GATE_NEXT=O1 bash scripts/qa/schema-readonly/cierre.sh 2>&1 | tee puerta.log
+      - name: Live gate for the NEXT stage O2 must fail closed today (O1 not done)
+        run: |
+          set -o pipefail
+          if GATE_ONLY=1 GATE_NEXT=O2 bash scripts/qa/schema-readonly/cierre.sh > puerta-o2.log 2>&1; then echo "::error::gate O2 passed although O1 was not executed"; exit 1; fi
+          grep -E '^(PASS|FAIL) GATE' puerta-o2.log
+          grep -q 'FAIL GATE\[O2\] O1 done' puerta-o2.log && echo "PASS gate O2 refuses today's production state (O1 not done), as expected"

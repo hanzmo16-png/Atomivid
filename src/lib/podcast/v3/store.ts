@@ -46,7 +46,9 @@ export function supabaseRunGuard(service: SupabaseClient, staleMs = 45 * 60_000)
       if (cur.error || !cur.data) return false;
       const row = cur.data as { status: string; run_started_at: string | null };
       const stale = row.status === "generating" && (!row.run_started_at || Date.parse(row.run_started_at) < Date.now() - staleMs);
-      if (!(row.status === "authorized" || row.status === "failed" || stale)) return false;
+      // Solo con una autorización vigente (o un runner perdido): un episodio «failed» exige que el dueño vuelva a
+      // autorizar (failed → authorized en la API); un worker rezagado no lo regenera por su cuenta.
+      if (!(row.status === "authorized" || stale)) return false;
       // Compare-and-set: solo gana quien vea el mismo estado (y la misma marca de inicio) que leyó.
       let q = service.from(STUDIO_TABLE).update({ status: "generating", run_token: uuid, run_started_at: new Date().toISOString(), error: null }).eq("id", episode).eq("status", row.status);
       q = row.run_started_at ? q.eq("run_started_at", row.run_started_at) : q.is("run_started_at", null);

@@ -178,8 +178,10 @@ export async function runAvatarScenarios(fakes: Fakes, outDir: string): Promise<
     if (ok.error) throw ok.error;
     const dup = await withVirtualTime(() => w.run(r8));
     s.check("2º envío del mismo request tras completar → attempt_blocked", code(dup.error) === "attempt_blocked", err(dup.error));
-    const hook = await handleAvatarWebhook({ provider: heygenAvatarProvider, rawPayload: { event_type: "avatar_video.success", event_data: { video_id: w.row(r8.requestId).avatar_provider_video_job_id } }, updateJobStatus: async () => ({ error: null }) });
-    s.check("HeyGen no tiene webhook implementado: un callback se rechaza (400) sin tocar estado", hook.status === 400 && w.row(r8.requestId).avatar_render_status === "completed", hook);
+    const payload = { event_type: "avatar_video.success", event_data: { video_id: w.row(r8.requestId).avatar_provider_video_job_id } };
+    const hook = await handleAvatarWebhook({ provider: heygenAvatarProvider, rawPayload: payload, updateJobStatus: async () => ({ error: null }) });
+    const duplicate = await handleAvatarWebhook({ provider: heygenAvatarProvider, rawPayload: payload, updateJobStatus: async () => ({ error: null }) });
+    s.check("callback oficial avatar_video.success se acepta y el duplicado no cambia el video ya completado", hook.status === 200 && duplicate.status === 200 && w.row(r8.requestId).avatar_render_status === "completed", { hook, duplicate });
     s.check("POST facturables = 1 (solo el envío original)", fakes.heygen.billablePosts() - before === 1, fakes.heygen.billablePosts() - before);
   });
 
