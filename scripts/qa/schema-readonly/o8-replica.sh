@@ -16,11 +16,12 @@ echo "== 1. Production, READ ONLY: current state, supply functions, run evidence
 PROD=$(cd "$R" && npx tsx -e 'import { resolveConnection } from "./scripts/lib/supabase-db"; const c = resolveConnection(); if (!c) { process.exit(3) } process.stdout.write(c.connectionString)') || { echo "FAIL no DB credential"; exit 1; }
 PW=$(node -e 'const u=new URL(process.argv[1]); process.stdout.write(decodeURIComponent(u.password))' "$PROD"); echo "::add-mask::$PW"; echo "::add-mask::$PROD"
 bash "$O3" snap "$PROD" "$T/prod-o3.snap" > "$T/prod-o3.log" 2>&1 || { cat "$T/prod-o3.log"; echo "FAIL production o3 snapshot"; exit 1; }
-expect_ok "production right now: o3.sh pre (O3 not yet applied; O8 follows O3 → O7)" "$T/prod-o3.pre" -- bash "$O3" pre "$T/prod-o3.snap"
+expect_ok "production right now: o3.sh done (O3 COMPLETADO, run 40516352388; O4/O5/O7 merged)" "$T/prod-o3.done" -- bash "$O3" done "$T/prod-o3.snap"
 bash "$O8" snap "$PROD" "$T/prod.snap" > "$T/prod.snaplog" 2>&1 || { cat "$T/prod.snaplog"; echo "FAIL production o8 snapshot"; exit 1; }
 pass "production: o8.sh snapshot complete in a READ ONLY transaction (pi_supply_state / pi_supply_spend evaluated read-only)"
-expect_reject "production is not yet in the O8 pre-state (130000 not registered, marker 130000 f)" 2 1 "$T/prod-o8.pre" "130000 registered | 140000 not registered" "markers 000000/120000/130000/140000" -- bash "$O8" pre "$T/prod.snap"
-bash "$O8" o3run 40427566003 > "$T/o3run-neg.out" 2>&1; grep -q '^FAIL O8\[o3run\]' "$T/o3run-neg.out" && pass "negative: the O2 run is refused as O3 evidence (O3 has not run yet; the real run id is an input of the O8 workflow)" || fail "o3run accepted a foreign run"
+expect_ok "production meets the O8 preconditions right now (o8.sh pre)" "$T/prod-o8.pre" -- bash "$O8" pre "$T/prod.snap"
+bash "$O8" o3run 40427566003 > "$T/o3run-neg.out" 2>&1; grep -q '^FAIL O8\[o3run\]' "$T/o3run-neg.out" && pass "negative: the O2 run is refused as O3 evidence" || fail "o3run accepted a foreign run"
+expect_ok "positive: the real O3 run 40516352388 is accepted as O3 COMPLETADO evidence" "$T/o3run.out" -- bash "$O8" o3run 40516352388
 expect_ok "production: tool connection statement_timeout=2min, read-only probe" "$T/probe.out" -- bash "$O8" probe
 export PGOPTIONS="-c default_transaction_read_only=on"
 "$PGBIN/pg_dump" "$PROD" --schema-only --no-owner --no-comments -n public -f "$T/public.sql" 2>/dev/null || { echo "FAIL pg_dump schema"; exit 1; }
@@ -55,7 +56,7 @@ bash "$O8" snap "$(U)" "$T/r00.snap" > /dev/null 2>&1 || { fail "replica pre-O3 
 same=1; for k in fn_spend fn_state fn_prestate fn_counts fn_cap exec_spend exec_state studio_tables m000 m120 m130 m140 ma_count supply_md5 spend_md5 auth_rows auth_md5; do
   [ "$(grep "^$k|" "$T/r00.snap")" = "$(grep "^$k|" "$T/prod.snap")" ] || { same=0; fail "replica differs from production in $k"; }; done
 [ $same = 1 ] && pass "replica == production in supply function bodies/attributes/EXECUTE, 140000 objects, markers, registry count, supply state and spend, authorizations"
-o3 apply > "$T/o3apply.log" 2>&1 && pass "O3 applied on the replica (o3.sh apply)" || { fail "O3 apply on the replica"; tail -5 "$T/o3apply.log"; }
+# O3 is already applied in production (run 40516352388): the replica copies that state, O3 is not applied again
 bash "$O3" snap "$(U)" "$T/o3done.snap" > /dev/null 2>&1; expect_ok "replica after O3: o3.sh done (what step 2 of the O8 workflow requires)" "$T/o3done.out" -- bash "$O3" done "$T/o3done.snap"
 snap r0; expect_ok "replica meets the O8 preconditions" "$T/r0.pre" -- o8 pre "$T/r0.snap"
 grep -q 'O8 STATE: PRE' <(cls "$T/r0.snap") && pass "classify pre-O8 = PRE" || fail "classify pre"

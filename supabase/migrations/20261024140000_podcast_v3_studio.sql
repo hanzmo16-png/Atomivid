@@ -81,7 +81,11 @@ do $$ begin
 end $$;
 create or replace function public.pi_studio_call_counts(p_provider text, p_day_start timestamptz, p_exclude_key text default null) returns jsonb
 language sql stable security invoker set search_path = '' as $$
-  select jsonb_build_object('active', count(*) filter (where s.state = 'reserved'), 'today', count(*) filter (where s.created_at >= p_day_start))
+  -- Audit E6 (#200): a 'reserved' row untouched for longer than any studio runner can live (podcast-video.yml job
+  -- timeout 200 min → 4 h) has no call in flight; it stops holding a concurrency slot. It still counts as possibly
+  -- charged in every spend total (cap trigger, pi_supply_spend) until mark-failed turns it 'uncertain'.
+  select jsonb_build_object('active', count(*) filter (where s.state = 'reserved' and greatest(s.created_at, s.updated_at) > clock_timestamp() - interval '4 hours'),
+    'today', count(*) filter (where s.created_at >= p_day_start))
   from public.podcast_studio_operations s where s.provider = p_provider and s.key is distinct from p_exclude_key
 $$;
 create or replace function public.pi_supply_state(p_provider text) returns jsonb

@@ -29,9 +29,9 @@ NAME=20261024140000_podcast_v3_studio.sql; O3NAME=20261024130000_spend_authoriza
 R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
 MIG=$R/supabase/migrations/$NAME; RB=$R/supabase/proposals/${NAME%.sql}.rollback.sql; CT=$R/docs/ops/o8/O8_contingencia_registro.sql
 PRE_FILE=$R/supabase/migrations/20261005150229_provider_supply_job_reservations.sql
-SHA_MIG=149a708e81fdb51d5dda4b893b5c1864c982ae4e38ca5700eba035181c6c9d19; SHA_RB=c2ab5b55990667a622fa24d850ba5aa76c1858851ebe5d6037d70f1cd4b50759
+SHA_MIG=7133f9a4d727814d13b59b293b2ae159174728514e0620ada218ca7d84185b57; SHA_RB=c2ab5b55990667a622fa24d850ba5aa76c1858851ebe5d6037d70f1cd4b50759
 SHA_PRE=${SHA_PRE_OVERRIDE:-0da15603bccb15c3972ac71c37c1292d6c7eb0a46d33c6b754402824ee39c8fa}; SHA_CT=${SHA_CT_OVERRIDE:-f72fe131ebf6a04116b43872fd7af6894a4482d6bccd045e97c74db48816b959}
-SPEND_PRE=15f511954308de9468c448d9b75c6419; STATE_PRE=5057aaf5d48eba5e4ad84f09dad0c13b; SPEND_POST=10e36eb37c0baa637c4f874d089bc0f7; STATE_POST=6eabcab0047a319ad79d2c66e91fd7df; COUNTS_POST=1597077476c97589ecf3875d4a0e1661; CAP_POST=8d4ff0a8ca0bb7e6b24f01c44064619d
+SPEND_PRE=15f511954308de9468c448d9b75c6419; STATE_PRE=5057aaf5d48eba5e4ad84f09dad0c13b; SPEND_POST=10e36eb37c0baa637c4f874d089bc0f7; STATE_POST=6eabcab0047a319ad79d2c66e91fd7df; COUNTS_POST=fa1817e3ba363bff1c30e173538b5518; CAP_POST=8d4ff0a8ca0bb7e6b24f01c44064619d
 O3_SHA=${O3_SHA:-4d27cb81db53a2b040ddec7774d4b428500749d4}
 F_SPEND='public.pi_supply_spend(text,timestamptz)'; F_STATE='public.pi_supply_state(text)'; F_PRESTATE='public.pi_supply_state_pre_studio(text)'
 F_COUNTS='public.pi_studio_call_counts(text,timestamptz,text)'; F_CAP='public.podcast_studio_operations_cap()'
