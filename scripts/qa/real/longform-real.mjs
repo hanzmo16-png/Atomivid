@@ -11,7 +11,7 @@ import { createClient } from "@supabase/supabase-js";
 import { chromium, devices } from "playwright";
 
 const APP = process.env.APP_URL || "https://atomivid.vercel.app";
-const CAP = Number(process.env.BUDGET_USD || 0), OWNER = process.env.OWNER_ID, EVID = process.env.EVID, MIN = Number(process.env.LF_MINUTES || 5);
+const CAP = Number(process.env.BUDGET_USD || 0), PRIOR = Number(process.env.LF_PRIOR_USD || 0), OWNER = process.env.OWNER_ID, EVID = process.env.EVID, MIN = Number(process.env.LF_MINUTES || 5);
 const STATE = process.env.STATE_FILE, STATE2 = process.env.STATE_FILE_2, REUSE = process.env.LF_REQUEST_ID || "";
 const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 let fails = 0; const facts = { capUsd: CAP };
@@ -34,7 +34,7 @@ const ctx = await browser.newContext({ storageState: STATE, viewport: { width: 1
 const p = await ctx.newPage(); const main = () => p.locator("main").innerText();
 let R = REUSE;
 if (!R) {
-  const topic = `La sonda Voyager 1 y el límite del sistema solar (prueba real ${new Date().toISOString().slice(0, 10)})`;
+  const topic = process.env.LF_TOPIC || `La sonda Voyager 1 y el límite del sistema solar (prueba real ${new Date().toISOString().slice(0, 10)})`;
   facts.topic = topic;
   await p.goto(`${APP}/dashboard/long-form/new`); await skipTour(p);
   ok("owner session: Long Form form opens", /long-form\/new/.test(p.url()), new URL(p.url()).pathname);
@@ -60,14 +60,26 @@ ok("review: editorial review completed and shown", /Revisión editorial completa
 ok("review: sources listed", /Referencias|Fuentes/.test(txt));
 ok("visual plan shown (strategy, production plan, preflight)", /Estrategia visual/.test(txt) && /Plan de producción/.test(txt) && /Comprobación previa/.test(txt));
 ok("nothing is generated or charged before confirming (stated)", /Nada se genera ni se cobra hasta que confirmes/.test(txt));
-const blocked = /IMPEDIMENTO DE ENTREGA|No se puede iniciar todavía/.test(txt);
-ok("no delivery impediment before confirming", !blocked, (txt.match(/(IMPEDIMENTO[^\n]*|No se puede iniciar[^\n]*)/) || [""])[0]);
-const limit = Number(((txt.match(/Límite autorizado por producción\s*USD\s*([0-9]+[.,][0-9]+)/) || [])[1] || "NaN").replace(",", "."));
-facts.productionLimitUsd = limit;
-ok("budget: production limit visible before confirming", Number.isFinite(limit) && limit > 0, String(limit));
+// Imágenes del proveedor actual (Recraft es opcional y no debe condicionar la prueba); estrategia: la primera que pase la
+// comprobación previa sin tocar ningún control (Equilibrado → Económico → Cinemático).
+await p.getByLabel(/Proveedor actual/).check().catch(() => {}); await sleep(1500);
+const isBlocked = (t) => /IMPEDIMENTO DE ENTREGA|No se puede iniciar todavía|no puede iniciar todavía/.test(t);
+let blocked = true; facts.strategies = {};
+for (const st of ["Equilibrado", "Económico / archivo", "Cinemático / IA"]) {
+  await p.getByText(st, { exact: true }).first().click().catch(() => {}); await sleep(2000);
+  txt = await main(); blocked = isBlocked(txt);
+  facts.strategies[st] = blocked ? (txt.match(/(Esta producción no puede iniciar[^\n]*)/) || [""])[0] : "OK";
+  if (!blocked) { facts.strategy = st; break; }
+}
+await shot(p, "C01b-estrategia");
+ok("no delivery impediment before confirming (some strategy, current image provider)", !blocked, JSON.stringify(facts.strategies));
+const usdOf = (re) => Number(((txt.match(re) || [])[1] || "NaN").replace(",", "."));
+const scriptUsd = usdOf(/Guion ya gastado\s*USD\s*([0-9]+[.,][0-9]+)/), ceiling = usdOf(/Techo que se autorizaría\s*USD\s*([0-9]+[.,][0-9]+)/), limit = usdOf(/Límite autorizado por producción\s*USD\s*([0-9]+[.,][0-9]+)/);
+Object.assign(facts, { priorAttemptsUsd: PRIOR, scriptSpendUsdPage: scriptUsd, ceilingUsd: ceiling, productionLimitUsd: limit });
+ok("budget: script spend and authorization ceiling visible before confirming", Number.isFinite(scriptUsd) && Number.isFinite(ceiling) && ceiling > 0, `script ${scriptUsd} / ceiling ${ceiling} / limit ${limit}`);
 const overflow = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth); ok("configure page: no horizontal overflow", overflow <= 1, `${overflow}px`);
-if (blocked || !Number.isFinite(limit)) stop("cannot confirm (impediment or no limit)");
-if (s1.usd + limit > CAP + 1e-6) stop(`script spend ${s1.usd} + production limit ${limit} exceeds the case cap ${CAP}: not confirming`);
+if (blocked || !Number.isFinite(ceiling)) stop("cannot confirm (impediment or no ceiling)");
+if (PRIOR + scriptUsd + ceiling > CAP + 1e-6) stop(`earlier attempts ${PRIOR} + script ${scriptUsd} + ceiling ${ceiling} exceed the case cap ${CAP}: not confirming`);
 await p.getByRole("button", { name: "Confirmar y generar video" }).click(); await sleep(6000); await shot(p, "C02-confirmado");
 let r; const t1 = Date.now();
 while (Date.now() - t1 < 150 * 60000) { const { data } = await db.from("video_requests").select("status,long_form_stage,video_path,error_message,duration_seconds,aspect_ratio").eq("id", R).single(); r = data; if (["completed", "failed"].includes(r?.status)) break; await sleep(30000); }

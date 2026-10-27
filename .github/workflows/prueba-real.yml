@@ -15,6 +15,14 @@ on:
         description: "Autorización por episodio (no supera el tope del caso)"
         required: true
         default: "0"
+      lf_prior_usd:
+        description: "Long Form: lo ya gastado en intentos anteriores del caso (cuenta para el tope de 12)"
+        required: false
+        default: "0"
+      lf_topic:
+        description: "Long Form: tema (vacío = el predeterminado)"
+        required: false
+        default: ""
       lf_request_id:
         description: "Long Form: retomar una solicitud ya creada (no crear otra ni volver a pagar el guion)"
         required: false
@@ -68,6 +76,8 @@ jobs:
           STATE_FILE_2: ${{ runner.temp }}/state2.json
           EVID: ${{ runner.temp }}/evid/shots
           LF_REQUEST_ID: ${{ inputs.lf_request_id }}
+          LF_PRIOR_USD: ${{ inputs.lf_prior_usd }}
+          LF_TOPIC: ${{ inputs.lf_topic }}
         run: if [ "$CASO" = lf ]; then node scripts/qa/real/longform-real.mjs; else node scripts/qa/real/podcast-real.mjs; fi
       - name: Evidencia cifrada (capturas, hechos y descarga) a la rama de evidencias
         if: always()
