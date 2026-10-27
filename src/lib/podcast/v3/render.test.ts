@@ -217,3 +217,24 @@ test("duraciones reales mayores que la estimación: se para ANTES de pedir clips
   assert.equal(providers.calls.tts.length, tts, "la voz pagada se reutiliza");
   assert.ok(ok.r.mp4 && providers.calls.avatar.length > 0);
 });
+
+test("modo C: fallo al leer la foto fija DESPUÉS de pagar voz y clips → reintento del mismo episodio sin llamadas ni cargos nuevos", { timeout: 600_000 }, async () => {
+  // Caso real P2 (episodio 0de4b445): 8 voces + 1 clip pagados, luego «FOTO» al leer la foto fija del oyente.
+  const ledger = new MemoryLedger(), providers = mockProviders({ tonesOnly: true }), artifacts = await diskArtifacts();
+  const realStill = providers.avatar.still.bind(providers.avatar);
+  let broken = true;
+  providers.avatar.still = async (ref: string, dest: string) => { if (broken) throw new Error("FOTO"); return realStill(ref, dest); };
+  await assert.rejects(render(C, { ledger, providers, artifacts, episode: "ep-foto" }), /FOTO/);
+  const ttsPaid = providers.calls.tts.length, clipsPaid = providers.calls.avatar.length;
+  assert.ok(ttsPaid > 0 && clipsPaid > 0, "voz y al menos un clip ya pagados antes del fallo");
+  const before = new Map([...ledger.rows].map(([k, r]) => [k, JSON.stringify(r)]));
+  broken = false; // arreglo desplegado (foto en el bucket correcto)
+  const retry = await render(C, { ledger, providers, artifacts, episode: "ep-foto" });
+  assert.equal(providers.calls.tts.length, ttsPaid, "ninguna voz se vuelve a pedir");
+  assert.equal(providers.calls.avatar.length, clipsPaid + (retry.r.paidOps), "solo se piden los clips que faltaban");
+  assert.ok(retry.r.mp4 && (await stat(retry.r.mp4)).size > 10_000, "el episodio se completa");
+  for (const [k, r] of before) assert.equal(JSON.stringify(ledger.rows.get(k)), r, `operación pagada ${k} reutilizada sin cambios (sin segundo cobro)`);
+  const newRows = [...ledger.rows.keys()].filter((k) => !before.has(k));
+  assert.equal(newRows.length, retry.r.paidOps, "las únicas operaciones nuevas son las que faltaban");
+  assert.ok(newRows.every((k) => !/tts|voz|voice/i.test(k)), `sin voz nueva: ${newRows.join(",")}`);
+});
