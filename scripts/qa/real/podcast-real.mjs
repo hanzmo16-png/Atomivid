@@ -88,8 +88,10 @@ await shot(p, "08-presupuesto"); await next();
 ok("step 9 preview", await atStep(9), await stepTitle()); await shot(p, "09-vista-previa"); await next();
 ok("step 10 authorize", await atStep(10), await stepTitle());
 const confirmText = (await W().textContent()) || "";
-const m = confirmText.match(/Costo estimado:\s*([^\s.]*?\$\s?[\d.,]+|[\d.,]+\s?US\$)/);
-const est = m ? Number(m[1].replace(/[^\d.,]/g, "").replace(",", ".")) : NaN;
+// El asistente muestra «Costo estimado: USD 0.42» (USD(n) = `USD ${n.toFixed(2)}`).
+const m = confirmText.match(/Costo estimado:\s*(USD\s?[\d.]+)/);
+const est = m ? Number(m[1].replace(/[^\d.]/g, "")) : NaN;
+ok("generation not blocked for the owner (migration + studio switch active)", !(await W().getByTestId("generacion-bloqueada").count()));
 facts.estimateUsd = est; facts.budgetUsd = BUDGET;
 ok("estimate shown before authorizing", Number.isFinite(est), m ? m[1] : confirmText.slice(0, 120));
 await shot(p, "10a-confirmar");
