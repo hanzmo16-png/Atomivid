@@ -60,6 +60,10 @@ export class MemoryRunGuard implements RunGuard {
   async release(e: string, t: string) { if (this.m.get(e) === t) this.m.delete(e); }
 }
 export class DuplicateRunError extends Error { constructor() { super("Ya hay una generación en curso para este episodio; no se inicia otra."); this.name = "DuplicateRunError"; } }
+/** El perdedor de una carrera no debe marcar el episodio «failed»: el ganador sigue y, si no, lo dejaría en error con el archivo ya listo. */
+export function studioRunErrorFailsEpisode(e: unknown): boolean {
+  return !(e instanceof DuplicateRunError);
+}
 
 export type StudioTurns = { turns: Turn[]; names: Record<"A" | "B", string> };
 /** Turnos según el modo: guion etiquetado (diálogo) o párrafos (narración/avatar; 2 voces alternan). */

@@ -10,12 +10,10 @@ import { listAccountVoices, VoicesUnavailableError, type AccountVoice } from "@/
 import { PODCAST_MAX_CHARS, type PodcastEpisode } from "@/lib/podcast/episode";
 import { NewEpisode } from "./NewEpisode";
 import { PodcastWizard, type WizardAvatar } from "./PodcastWizard";
+import { StudioEpisodeList } from "./StudioEpisodeList";
 import { voiceAvailability } from "@/lib/podcast/v3/spec";
 import { listStudioEpisodes } from "@/lib/podcast/v3/store";
 import { studioFlag, visualProviders } from "@/lib/podcast/v3/studio";
-
-const STUDIO_STATUS: Record<string, string> = { draft: "Borrador", authorized: "Autorizado", generating: "Generando", ready: "Listo", failed: "Con error" };
-const STUDIO_MODE: Record<string, string> = { narracion: "narración", avatar: "avatar", dialogo: "conversación" };
 
 const STATUS: Record<PodcastEpisode["status"], string> = { draft: "Borrador", generating: "Generando", ready: "Listo", failed: "Con error" };
 const VIDEO: Record<string, string> = { scheduled: "programado", queued: "en cola", running: "en producción", ready: "entregado", failed: "con error", blocked: "detenido" };
@@ -70,16 +68,7 @@ export default async function PodcastPage() {
         <NewEpisode voices={voices} voicesError={voicesError} usdPer1kChars={getPricingConfig().elevenLabsUsdPer1kChars} maxChars={PODCAST_MAX_CHARS} v2Enabled={podcastV2Enabled()} />
       </details>
       <h2 className="mt-8 text-lg font-semibold text-ink">Tus episodios</h2>
-      {studioEpisodes.length > 0 && (
-        <ul className="mt-2 grid gap-2" data-testid="studio-episodes">
-          {studioEpisodes.map((e) => (
-            <li key={e.id} className="rounded-lg border border-border p-3 text-sm">
-              <span className="font-medium text-ink">{e.title}</span>
-              <span className="ml-2 text-ink-muted">{STUDIO_STATUS[e.status] ?? e.status} · estudio: {STUDIO_MODE[e.mode] ?? e.mode}{e.cost_usd != null ? ` · USD ${Number(e.cost_usd).toFixed(2)}` : ""}</span>
-            </li>
-          ))}
-        </ul>
-      )}
+      <StudioEpisodeList episodes={studioEpisodes.map((e) => ({ id: e.id, title: e.title, status: e.status, mode: e.mode, cost_usd: e.cost_usd }))} />
       {episodes.length === 0 ? <p className="mt-2 text-sm text-ink-muted">Todavía no hay episodios.</p> : (
         <ul className="mt-2 grid gap-2">
           {episodes.map((e) => (

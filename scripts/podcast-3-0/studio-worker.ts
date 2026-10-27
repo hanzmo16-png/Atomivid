@@ -22,7 +22,7 @@ export async function runStudioJob(episodeId: string) {
   const { createServiceClient } = await import("../../src/lib/supabase/service");
   const { STUDIO_TABLE, STUDIO_OPS_TABLE, STUDIO_COLUMNS, supabaseStudioLedger, supabaseRunGuard } = await import("../../src/lib/podcast/v3/store");
   const { StudioSpec } = await import("../../src/lib/podcast/v3/spec");
-  const { runEpisode } = await import("../../src/lib/podcast/v3/pipeline");
+  const { runEpisode, studioRunErrorFailsEpisode } = await import("../../src/lib/podcast/v3/pipeline");
   const { lipTimeline, lipViolations, shotCoverage } = await import("../../src/lib/podcast/v3/studio");
   const { realTts, realAvatar, realImages } = await import("../../src/lib/podcast/v3/adapters");
   const { searchScenePhotos } = await import("../../src/lib/ai/footage");
@@ -122,6 +122,7 @@ export async function runStudioJob(episodeId: string) {
         lips: lipTimeline(r.plan).map((x) => ({ start: x.start, end: x.end, shot: x.shot, A: x.lips.A, B: x.lips.B })), lip_violations: lipViolations(lipTimeline(r.plan), r.timeline), coverage: shotCoverage(r.plan) }, error: null, updated_at: new Date().toISOString() }).eq("id", episodeId);
     console.log("STUDIO_READY", JSON.stringify({ usd: r.spentUsd, paid: r.paidOps, reused: r.reusedOps }));
   } catch (e) {
+    if (!studioRunErrorFailsEpisode(e)) { console.log("STUDIO_DUPLICATE"); return; }
     const msg = e instanceof Error ? e.message.slice(0, 400) : "Error";
     await service.from(STUDIO_TABLE).update({ status: "failed", error: msg, updated_at: new Date().toISOString() }).eq("id", episodeId);
     console.log("STUDIO_FAILED", e instanceof Error ? e.name : "unknown", e instanceof Error && "detail" in e ? String((e as { detail?: string }).detail ?? "").slice(0, 200) : "");

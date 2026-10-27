@@ -53,6 +53,7 @@ test("asistente: El Duro concedido se guarda voice_kind clonada; sin concesión 
   const synth = withVoiceKinds({ ...picked, participants: [{ ...picked.participants[0], voice_id: "voiceAnaHost1", voice_kind: "clonada" }, picked.participants[1]] }, catalog);
   assert.equal(synth.participants[0].voice_kind, "sintetica");
   assert.equal(withVoiceKinds(picked, catalog), picked, "si el tipo ya es correcto no se clona el borrador");
+  assert.equal(withVoiceKinds(picked, []), picked, "un catálogo vacío no borra el clon ya guardado");
   const off = voiceAvailability(VOICES, OWNER, {});
   assert.equal(off.find((v) => v.voiceId === EL_DURO_VOICE_ID)?.available, false);
   assert.ok(stepErrors({ ...base, participants: [{ ...base.participants[0], voice_id: EL_DURO_VOICE_ID }, base.participants[1]] }, STEP.voces, { unavailableVoices: off.filter((v) => !v.available).map((v) => v.voiceId) }).some((e) => /no está disponible/));
@@ -263,4 +264,23 @@ test("API: autorizar exige confirmación explícita, monto ≥ estimación y ≤
   assert.equal((await authorizeAction(D({ load: async () => ({ ...row, user_id: "otro" }) as never }), "e1", { confirm: true, authorizedUsd: 2 })).status, 404);
   const ok = await authorizeAction(D(), "e1", { confirm: true, authorizedUsd: 2 });
   assert.equal(ok.status, 200); assert.equal(ok.body.dispatched, true);
+});
+
+test("API: autorizado sin arranque se re-despacha sin volver a autorizar ni cambiar el monto", async () => {
+  const row = { id: "e1", user_id: "u1", title: "T", mode: "dialogo", spec: spec(), status: "authorized", estimate: {}, estimated_usd: 1, authorized_usd: 2, authorized_at: "t", run_started_at: null, progress: null, result: null, video_path: null, audio_path: null, cost_usd: null, error: null, created_at: "", updated_at: "" };
+  let authorized = 0, dispatches = 0;
+  const d = deps({ load: async () => ({ ...row }) as never, authorize: async () => { authorized++; return true; }, dispatch: async () => { dispatches++; return false; } });
+  const missing = await authorizeAction(d, "e1", {});
+  assert.equal(missing.status, 400); assert.equal(authorized, 0); assert.equal(dispatches, 0);
+  const again = await authorizeAction(d, "e1", { confirm: true, authorizedUsd: 50 });
+  assert.equal(again.status, 200); assert.equal(again.body.dispatched, false); assert.equal(authorized, 0); assert.equal(dispatches, 1);
+  assert.match(String(again.body.note), /no se cobra dos veces/);
+  const started = await authorizeAction(deps({ load: async () => ({ ...row, run_started_at: "t" }) as never, dispatch: async () => { dispatches++; return true; } }), "e1", { confirm: true });
+  assert.equal(started.status, 409); assert.equal(dispatches, 1);
+});
+
+test("una segunda generación del mismo episodio no marca el episodio como fallido", async () => {
+  const { DuplicateRunError, studioRunErrorFailsEpisode } = await import("./pipeline");
+  assert.equal(studioRunErrorFailsEpisode(new DuplicateRunError()), false);
+  assert.equal(studioRunErrorFailsEpisode(new Error("almacenamiento")), true);
 });

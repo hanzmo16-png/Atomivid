@@ -1,0 +1,96 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/Button";
+import { safeParseJsonResponse } from "@/lib/http/safe-json";
+
+export type StudioListEpisode = { id: string; title: string; status: string; mode: string; cost_usd: number | null };
+
+const STATUS: Record<string, string> = { draft: "Borrador", authorized: "Autorizado", generating: "Generando", ready: "Listo", failed: "Con error" };
+const MODE: Record<string, string> = { narracion: "narración", avatar: "avatar", dialogo: "conversación" };
+
+type Media = { status: string; error: string | null; videoUrl: string | null; audioUrl: string | null; cost: number | null };
+
+/** Cuerpo visible de un episodio de estudio. Sin red: las pruebas de render le pasan las URLs ya firmadas. */
+export function StudioEpisodePlayback({ title, statusLabel, detail, videoUrl, audioUrl, error, canRedispatch, busy, onRedispatch }: {
+  title: string; statusLabel: string; detail: string; videoUrl: string | null; audioUrl: string | null; error: string | null;
+  canRedispatch: boolean; busy?: boolean; onRedispatch?: () => void;
+}) {
+  return (
+    <>
+      <span className="font-medium text-ink">{title}</span>
+      <span className="ml-2 text-ink-muted">{statusLabel} · estudio: {detail}</span>
+      {error && <p className="mt-1 text-danger">{error}</p>}
+      {canRedispatch && <Button type="button" variant="secondary" size="sm" className="mt-2" loading={busy} onClick={onRedispatch}>Volver a pedir el inicio (no se cobra otra vez)</Button>}
+      {videoUrl && <video data-testid="studio-player" src={videoUrl} controls playsInline className="mt-2 w-full max-w-full rounded" />}
+      {audioUrl && <audio data-testid="studio-audio-player" src={audioUrl} controls className="mt-2 w-full max-w-full" />}
+      <div className="mt-1 flex min-w-0 flex-wrap gap-3">
+        {videoUrl && <a className="text-accent underline" href={videoUrl} data-testid="studio-download-mp4">Descargar video (MP4)</a>}
+        {audioUrl && <a className="text-accent underline" href={audioUrl} data-testid="studio-download-audio">Descargar audio</a>}
+      </div>
+    </>
+  );
+}
+
+function StudioEpisodeCard({ episode }: { episode: StudioListEpisode }) {
+  const [media, setMedia] = useState<Media | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const live = episode.status === "ready" || episode.status === "generating" || episode.status === "authorized" || episode.status === "failed";
+  useEffect(() => {
+    if (!live) return;
+    let stop = false;
+    const tick = async () => {
+      try {
+        const res = await fetch(`/api/podcast/v3/${episode.id}`);
+        const out = await safeParseJsonResponse<{ episode?: { status?: string; error?: string | null; cost_usd?: number | null }; video_url?: string | null; audio_url?: string | null }>(res);
+        if (!out.ok || stop) return;
+        const next: Media = { status: out.data.episode?.status ?? episode.status, error: out.data.episode?.error ?? null, videoUrl: out.data.video_url ?? null, audioUrl: out.data.audio_url ?? null, cost: out.data.episode?.cost_usd ?? null };
+        setMedia(next);
+        if (next.status === "ready" || next.status === "failed") stop = true;
+      } catch { /* el siguiente ciclo reintenta */ }
+    };
+    void tick();
+    const timer = episode.status === "ready" || episode.status === "failed" ? null : setInterval(() => { if (!stop) void tick(); }, 4000);
+    return () => { stop = true; if (timer) clearInterval(timer); };
+  }, [episode.id, episode.status, live]);
+  const status = media?.status ?? episode.status;
+  const cost = media?.cost ?? episode.cost_usd;
+  async function redispatch() {
+    if (busy) return;
+    setBusy(true); setNote(null);
+    try {
+      const res = await fetch(`/api/podcast/v3/${episode.id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirm: true }) });
+      const out = await safeParseJsonResponse<{ note?: string | null }>(res);
+      if (!out.ok) setNote(out.error);
+      else if (out.data.note) setNote(out.data.note);
+    } catch { setNote("No se pudo reintentar el inicio."); }
+    finally { setBusy(false); }
+  }
+  return (
+    <li data-testid={`studio-episode-${episode.id}`} className="min-w-0 max-w-full rounded-lg border border-border p-3 text-sm">
+      <StudioEpisodePlayback
+        title={episode.title}
+        statusLabel={STATUS[status] ?? status}
+        detail={`${MODE[episode.mode] ?? episode.mode}${cost != null ? ` · USD ${Number(cost).toFixed(2)}` : ""}`}
+        videoUrl={media?.videoUrl ?? null}
+        audioUrl={media?.audioUrl ?? null}
+        error={media?.error ?? null}
+        canRedispatch={status === "authorized"}
+        busy={busy}
+        onRedispatch={() => void redispatch()}
+      />
+      {note && <p className="mt-1 text-xs text-ink-muted">{note}</p>}
+    </li>
+  );
+}
+
+/** Episodios del estudio en «Tus episodios»: reproducir y descargar sigue disponible aunque el asistente se reinicie. */
+export function StudioEpisodeList({ episodes }: { episodes: StudioListEpisode[] }) {
+  if (episodes.length === 0) return null;
+  return (
+    <ul className="mt-2 grid min-w-0 gap-2" data-testid="studio-episodes">
+      {episodes.map((e) => <StudioEpisodeCard key={e.id} episode={e} />)}
+    </ul>
+  );
+}
