@@ -89,7 +89,7 @@ ok("step 9 preview", await atStep(9), await stepTitle()); await shot(p, "09-vist
 ok("step 10 authorize", await atStep(10), await stepTitle());
 const confirmText = (await W().textContent()) || "";
 // El asistente muestra «Costo estimado: USD 0.42» (USD(n) = `USD ${n.toFixed(2)}`).
-const m = confirmText.match(/Costo estimado:\s*(USD\s?[\d.]+)/);
+const m = confirmText.match(/Costo estimado:\s*(USD\s?\d+\.\d{2})/);
 const est = m ? Number(m[1].replace(/[^\d.]/g, "")) : NaN;
 ok("generation not blocked for the owner (migration + studio switch active)", !(await W().getByTestId("generacion-bloqueada").count()));
 facts.estimateUsd = est; facts.budgetUsd = BUDGET;
