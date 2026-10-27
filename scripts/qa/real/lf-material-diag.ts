@@ -35,7 +35,16 @@ if (process.env.DIAG_SUPPLY) {
   for (const o of (ops ?? []).filter((x) => x.status !== "COMMITTED")) console.log("anthropic non-committed op", redact(JSON.stringify(o)));
   const last = (ops ?? []).slice(-3).map((o) => ({ project: redact(o.project_id).slice(0, 40), status: o.status, reserved_usd: o.reserved_usd, committed_usd: o.committed_usd, created_at: o.created_at, updated_at: o.updated_at }));
   console.log("anthropic last ops", JSON.stringify(last));
-  const { data: eps } = await sdb.from("podcast_studio_episodes").select("id,title,status,authorized_usd,cost_usd,created_at,updated_at").gte("created_at", "2026-10-27T00:00:00Z").order("created_at");
+  // Avatares listos de la cuenta del dueño: ¿existe su foto fija en cada bucket? (solo sí/no; sin rutas)
+  if (process.env.OWNER_ID) {
+    const { data: avs } = await sdb.from("avatars").select("id,status,source_photo_path,provider_avatar_id").eq("user_id", process.env.OWNER_ID).eq("status", "ready");
+    for (const a of avs ?? []) {
+      const p = String(a.source_photo_path ?? ""); const dir = p.split("/").slice(0, -1).join("/"), name = p.split("/").pop() ?? "";
+      const exists = async (b: string) => { if (!p) return false; const { data } = await sdb.storage.from(b).list(dir, { search: name, limit: 5 }); return !!data?.some((f) => f.name === name); };
+      console.log("avatar", redact(a.id), JSON.stringify({ hasPhotoPath: !!p, ownerPrefix: p.startsWith(`${process.env.OWNER_ID}/`), inAvatarUploads: await exists("avatar-uploads"), inVideos: await exists("videos"), hasProviderAvatar: !!a.provider_avatar_id }));
+    }
+  }
+  const { data: eps } = await sdb.from("podcast_studio_episodes").select("id,title,status,authorized_usd,cost_usd,error,created_at,updated_at").gte("created_at", "2026-10-27T00:00:00Z").order("created_at");
   console.log("podcast studio episodes today", JSON.stringify((eps ?? []).map((e) => ({ ...e, title: String(e.title).slice(0, 34) }))));
   const { data: pops } = await sdb.from("podcast_studio_operations").select("episode_id,provider,op,state,reserved_usd,actual_usd,created_at").gte("created_at", "2026-10-27T00:00:00Z").order("created_at");
   console.log("podcast studio ops today", JSON.stringify(pops));

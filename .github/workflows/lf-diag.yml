@@ -23,6 +23,12 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci --no-audit --no-fund
+      - name: Cuenta del dueño (solo el id, enmascarado)
+        if: inputs.supply == '1'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/qa/real/session.mjs "$RUNNER_TEMP/s.json" >/dev/null && rm -f "$RUNNER_TEMP/s.json"
       - name: Preflight de material (solo lectura)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
