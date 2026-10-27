@@ -2,11 +2,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { StudioSpec, STUDIO_VERSION, validateSpec, voiceAvailability, EL_DURO_VOICE_ID } from "./spec";
-import { parseLabeledScript, narrationTurns, generateConversation, templateConversation, coherenceIssues } from "./script";
+import { parseLabeledScript, narrationTurns, narrationSegments, NARRATION_SEGMENT_WORDS, generateConversation, templateConversation, coherenceIssues } from "./script";
 import { planEpisode, planIssues, pickAsset, type VisualAsset } from "./editorial";
 import { estimateEpisodeCost, MemoryLedger, paidOnce, opKey, committedUsd, releaseUndelivered, ProviderRejectedError, BudgetExceededError, UnauthorizedChargeError, UncertainChargeError } from "./cost";
 import { mixGraph, transitionTimes } from "./audio";
-import { shotFrames, wrap, subtitlePages, FPS } from "./compose";
+import { shotFrames, wrap, subtitlePages, textLines, FPS } from "./compose";
+import { realImages } from "./adapters";
 import { autoMood, trackExpression, BUNDLED_TRACKS, licenseManifest, V2_MOOD_MAP } from "./music-library";
 import { defaultDraft, loadDraft, stepErrors, draftToSpec, draftToV2, withVoiceKinds, STEP } from "./wizard";
 import { studioAction, authorizeAction, type ApiDeps } from "./api";
@@ -79,6 +80,26 @@ test("guion: etiquetas de hablante (nombres, A/B, [B], guiones) → turnos A/B c
 test("guion: narración con dos voces alterna por párrafo", () => {
   assert.deepEqual(narrationTurns("uno\n\ndos\n\ntres", 2).map((t) => t.speaker), ["A", "B", "A"]);
   assert.deepEqual(narrationTurns("uno\n\ndos", 1).map((t) => t.speaker), ["A", "A"]);
+});
+
+test("guion: un párrafo largo de narración se divide en segmentos de oraciones completas (un plano por segmento)", () => {
+  // Regresión P1 real (episodio 938479f1): un párrafo de ~55 s quedó en UN turno y por tanto con UNA sola imagen.
+  const para = "El cometa interestelar cruzó nuestro sistema solar. Viajaba demasiado rápido para estar atado al Sol, y su brillo cambiaba de forma inesperada. Primero, la velocidad: más de cincuenta kilómetros por segundo. Segundo, la forma: alargada, quizá aplanada. Tercero, el gas: casi invisible. Cada dato cuenta una parte de la historia, y juntos dibujan un visitante que no se parece a nada de lo que conocíamos. Lo que sí sabemos es que vino de otra estrella y que ya se aleja para siempre.";
+  const turns = narrationTurns(para, 1);
+  assert.ok(turns.length >= 3, `${turns.length} segmentos`);
+  assert.equal(turns.map((t) => t.text).join(" "), para, "no se pierde ni se altera texto");
+  assert.ok(turns.every((t) => /[.!?…]$/.test(t.text)), "cada segmento termina en oración completa");
+  assert.ok(turns.every((t) => t.text.split(" ").length <= NARRATION_SEGMENT_WORDS), "≤ máximo de palabras");
+  assert.deepEqual(new Set(turns.map((t) => t.id)).size, turns.length, "ids únicos");
+  // Dos voces: los segmentos de un mismo párrafo conservan la voz del párrafo.
+  assert.deepEqual([...new Set(narrationTurns(`${para}\n\nCorto.`, 2).map((t) => t.speaker))], ["A", "B"]);
+  assert.deepEqual(narrationSegments("Una sola oración sin punto final"), ["Una sola oración sin punto final"]);
+});
+
+test("imágenes reales: la descripción de la foto entra en las etiquetas de pertinencia", async () => {
+  const imgs = realImages({ searchPhotos: async () => [{ id: 7, url: "u", description: "Comet over a night sky" }], download: async () => {} });
+  const [a] = await imgs.search("cometa interestelar");
+  assert.ok(a.tags.includes("comet") && a.tags.includes("cometa"), a.tags.join(","));
 });
 
 test("generador: LLM simulado coherente se usa; si falla o es incoherente, plantilla determinista", async () => {
@@ -198,6 +219,8 @@ test("composición: fotogramas acumulados = duración del audio (sincronía A/V)
   assert.equal(pages.join(" ").replace(/\n/g, " ").split(" ").length, 60);
   assert.ok(pages.every((p) => p.split("\n").length <= 2));
   assert.equal(wrap("a b c", 100), "a b c");
+  // Regresión P1 real: cada línea va en su propio drawtext (el salto de línea dentro de un textfile se dibujaba como «□»).
+  assert.ok(textLines(long, 40).every((l) => !l.includes("\n") && l.length <= 40));
 });
 
 test("asistente: borrador persistente tolerante, validación por paso y especificación", () => {

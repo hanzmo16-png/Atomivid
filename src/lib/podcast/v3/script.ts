@@ -54,10 +54,28 @@ export function parseLabeledScript(text: string, names?: { A?: string; B?: strin
   return { turns, labels };
 }
 
-/** Narración: párrafos → turnos; con dos voces, alterna por párrafo (A, B, A…). */
+/** Máximo de palabras por segmento de narración: cada segmento lleva su propio plano (imagen o transición). */
+export const NARRATION_SEGMENT_WORDS = 40;
+
+/** Párrafo → segmentos de oraciones completas de ≤ NARRATION_SEGMENT_WORDS palabras (una oración más larga queda sola). */
+export function narrationSegments(paragraph: string, maxWords = NARRATION_SEGMENT_WORDS): string[] {
+  const sentences = paragraph.match(/[^.!?…]+(?:[.!?…]+["»”)]*|$)/g)?.map((x) => x.trim()).filter(Boolean) ?? [paragraph];
+  const out: string[] = []; let cur = "";
+  const words = (x: string) => x.split(/\s+/).filter(Boolean).length;
+  for (const st of sentences) { if (cur && words(cur) + words(st) > maxWords) { out.push(cur); cur = st; } else cur = cur ? `${cur} ${st}` : st; }
+  if (cur) out.push(cur);
+  return out;
+}
+
+/**
+ * Narración: párrafos → turnos; un párrafo largo se divide en segmentos de oraciones completas para que cada parte tenga
+ * su propio plano (antes, un párrafo de un minuto quedaba con una sola imagen). Con dos voces, alterna por párrafo (A, B, A…).
+ */
 export function narrationTurns(text: string, voices: 1 | 2): Turn[] {
   const paras = text.replace(/\r\n?/g, "\n").split(/\n\s*\n/).map((p) => p.replace(/\s+/g, " ").trim()).filter(Boolean);
-  return paras.map((p, i) => ({ id: turnId(i), speaker: voices === 2 && i % 2 === 1 ? "B" : "A", text: p, kind: "narracion" as const }));
+  const turns: Turn[] = [];
+  paras.forEach((p, i) => { for (const seg of narrationSegments(p)) turns.push({ id: turnId(turns.length), speaker: voices === 2 && i % 2 === 1 ? "B" : "A", text: seg, kind: "narracion" as const }); });
+  return turns;
 }
 
 export type LlmFn = (prompt: string) => Promise<string>;
