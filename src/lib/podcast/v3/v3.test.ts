@@ -2,14 +2,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { StudioSpec, STUDIO_VERSION, validateSpec, voiceAvailability, EL_DURO_VOICE_ID } from "./spec";
-import { parseLabeledScript, narrationTurns, generateConversation, templateConversation, coherenceIssues } from "./script";
+import { parseLabeledScript, narrationTurns, narrationSegments, NARRATION_SEGMENT_WORDS, generateConversation, templateConversation, coherenceIssues } from "./script";
 import { planEpisode, planIssues, pickAsset, type VisualAsset } from "./editorial";
 import { estimateEpisodeCost, MemoryLedger, paidOnce, opKey, committedUsd, releaseUndelivered, ProviderRejectedError, BudgetExceededError, UnauthorizedChargeError, UncertainChargeError } from "./cost";
 import { mixGraph, transitionTimes } from "./audio";
-import { shotFrames, wrap, subtitlePages, FPS } from "./compose";
+import { shotFrames, wrap, subtitlePages, textLines, FPS } from "./compose";
+import { realImages } from "./adapters";
 import { autoMood, trackExpression, BUNDLED_TRACKS, licenseManifest, V2_MOOD_MAP } from "./music-library";
 import { defaultDraft, loadDraft, stepErrors, draftToSpec, draftToV2, withVoiceKinds, STEP } from "./wizard";
-import { studioAction, authorizeAction, type ApiDeps } from "./api";
+import { studioAction, authorizeAction, episodeAction, type ApiDeps } from "./api";
 import { turnsFor } from "./pipeline";
 import type { AccountVoice } from "@/lib/podcast/voices";
 
@@ -79,6 +80,26 @@ test("guion: etiquetas de hablante (nombres, A/B, [B], guiones) → turnos A/B c
 test("guion: narración con dos voces alterna por párrafo", () => {
   assert.deepEqual(narrationTurns("uno\n\ndos\n\ntres", 2).map((t) => t.speaker), ["A", "B", "A"]);
   assert.deepEqual(narrationTurns("uno\n\ndos", 1).map((t) => t.speaker), ["A", "A"]);
+});
+
+test("guion: un párrafo largo de narración se divide en segmentos de oraciones completas (un plano por segmento)", () => {
+  // Regresión P1 real (episodio 938479f1): un párrafo de ~55 s quedó en UN turno y por tanto con UNA sola imagen.
+  const para = "El cometa interestelar cruzó nuestro sistema solar. Viajaba demasiado rápido para estar atado al Sol, y su brillo cambiaba de forma inesperada. Primero, la velocidad: más de cincuenta kilómetros por segundo. Segundo, la forma: alargada, quizá aplanada. Tercero, el gas: casi invisible. Cada dato cuenta una parte de la historia, y juntos dibujan un visitante que no se parece a nada de lo que conocíamos. Lo que sí sabemos es que vino de otra estrella y que ya se aleja para siempre.";
+  const turns = narrationTurns(para, 1);
+  assert.ok(turns.length >= 3, `${turns.length} segmentos`);
+  assert.equal(turns.map((t) => t.text).join(" "), para, "no se pierde ni se altera texto");
+  assert.ok(turns.every((t) => /[.!?…]$/.test(t.text)), "cada segmento termina en oración completa");
+  assert.ok(turns.every((t) => t.text.split(" ").length <= NARRATION_SEGMENT_WORDS), "≤ máximo de palabras");
+  assert.deepEqual(new Set(turns.map((t) => t.id)).size, turns.length, "ids únicos");
+  // Dos voces: los segmentos de un mismo párrafo conservan la voz del párrafo.
+  assert.deepEqual([...new Set(narrationTurns(`${para}\n\nCorto.`, 2).map((t) => t.speaker))], ["A", "B"]);
+  assert.deepEqual(narrationSegments("Una sola oración sin punto final"), ["Una sola oración sin punto final"]);
+});
+
+test("imágenes reales: la descripción de la foto entra en las etiquetas de pertinencia", async () => {
+  const imgs = realImages({ searchPhotos: async () => [{ id: 7, url: "u", description: "Comet over a night sky" }], download: async () => {} });
+  const [a] = await imgs.search("cometa interestelar");
+  assert.ok(a.tags.includes("comet") && a.tags.includes("cometa"), a.tags.join(","));
 });
 
 test("generador: LLM simulado coherente se usa; si falla o es incoherente, plantilla determinista", async () => {
@@ -198,6 +219,8 @@ test("composición: fotogramas acumulados = duración del audio (sincronía A/V)
   assert.equal(pages.join(" ").replace(/\n/g, " ").split(" ").length, 60);
   assert.ok(pages.every((p) => p.split("\n").length <= 2));
   assert.equal(wrap("a b c", 100), "a b c");
+  // Regresión P1 real: cada línea va en su propio drawtext (el salto de línea dentro de un textfile se dibujaba como «□»).
+  assert.ok(textLines(long, 40).every((l) => !l.includes("\n") && l.length <= 40));
 });
 
 test("asistente: borrador persistente tolerante, validación por paso y especificación", () => {
@@ -323,4 +346,58 @@ test("guard del worker: solo toma un episodio con autorización vigente (o runne
   assert.equal(await supabaseRunGuard(lost.client as never).acquire("e", "d".repeat(40)), true, "runner perdido (marca vieja) se puede retomar");
   const live = fake({ status: "generating", run_started_at: new Date().toISOString() });
   assert.equal(await supabaseRunGuard(live.client as never).acquire("e", "e".repeat(40)), false);
+});
+
+// Contención de la descarga (PR #231, revisión delta de Grok): portado tal cual.
+const EP = "11111111-1111-4111-8111-111111111111";
+const episodeRow = (over: Record<string, unknown> = {}) => ({ id: EP, user_id: "u1", title: "Señal", mode: "narracion", spec: spec({ mode: "narracion", output: "video" }), status: "ready", estimate: {}, estimated_usd: 1, authorized_usd: 2, authorized_at: "2026-10-27T03:00:00Z", run_started_at: "2026-10-27T03:01:00Z", progress: null, result: null, video_path: `u1/podcast-studio/${EP}/episodio.mp4`, audio_path: `u1/podcast-studio/${EP}/episodio.mp3`, cost_usd: 1.2, error: null, created_at: "", updated_at: "", ...over }) as never;
+
+test("descarga: solo el dueño, solo «ready», solo su carpeta; otra cuenta, otro episodio o una ruta ajena no firman", async () => {
+  const signed: string[] = [];
+  const sign = async (p: string) => { signed.push(p); return `signed:${p}`; };
+  const own = await episodeAction("u1", episodeRow(), sign);
+  assert.equal(own.status, 200);
+  assert.equal(own.body.video_url, `signed:u1/podcast-studio/${EP}/episodio.mp4`);
+  assert.equal(own.body.audio_url, `signed:u1/podcast-studio/${EP}/episodio.mp3`);
+  assert.equal("spec" in (own.body.episode as object), false);
+  const nested = await episodeAction("u1", episodeRow({ audio_path: `u1/podcast-studio/${EP}/paid/voz.mp3`, video_path: null }), sign);
+  assert.equal(nested.body.audio_url, `signed:u1/podcast-studio/${EP}/paid/voz.mp3`);
+  assert.equal(nested.body.video_url, null);
+  const before = signed.length;
+  const other = await episodeAction("u2", episodeRow(), sign);
+  assert.equal(other.status, 404); assert.equal(signed.length, before); assert.equal(JSON.stringify(other.body).includes("episodio.mp4"), false);
+  const foreign = [
+    `u2/podcast-studio/${EP}/episodio.mp4`,
+    `u1/podcast-studio/22222222-2222-4222-8222-222222222222/episodio.mp4`,
+    `u1/podcast-studio/${EP}/../../u2/secreto.mp4`,
+    `u1/podcast-studio/${EP}/%2e%2e/%2e%2e/u2/secreto.mp4`,
+    `u1/podcast-studio/${EP}/../episodio.mp4`,
+    `u1\\podcast-studio\\${EP}\\episodio.mp4`,
+    `u1/podcast-studio/${EP}`,
+  ];
+  for (const video_path of foreign) {
+    const n = signed.length;
+    const out = await episodeAction("u1", episodeRow({ video_path, audio_path: video_path }), sign);
+    assert.equal(out.status, 200, video_path);
+    assert.equal(out.body.video_url, null, video_path);
+    assert.equal(out.body.audio_url, null, video_path);
+    assert.equal(signed.length, n, video_path);
+  }
+  for (const status of ["draft", "authorized", "generating", "failed"]) {
+    const n = signed.length;
+    const out = await episodeAction("u1", episodeRow({ status }), sign);
+    assert.equal(out.body.video_url, null, status);
+    assert.equal(out.body.audio_url, null, status);
+    assert.equal(signed.length, n, status);
+  }
+});
+
+test("descarga: solo audio no firma MP4 aunque la fila tenga video_path", async () => {
+  const signed: string[] = [];
+  const sign = async (p: string) => { signed.push(p); return `signed:${p}`; };
+  const audio = spec({ mode: "narracion", output: "audio", visual: { provider: "solo_set", recreations: false } });
+  const out = await episodeAction("u1", episodeRow({ spec: audio, video_path: `u1/podcast-studio/${EP}/episodio.mp4`, audio_path: `u1/podcast-studio/${EP}/episodio.mp3` }), sign);
+  assert.equal(out.body.video_url, null);
+  assert.equal(out.body.audio_url, `signed:u1/podcast-studio/${EP}/episodio.mp3`);
+  assert.deepEqual(signed, [`u1/podcast-studio/${EP}/episodio.mp3`]);
 });

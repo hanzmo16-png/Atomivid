@@ -82,13 +82,22 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
   const font = await fontFile(dir);
   const bg = await setBackground(dir, o.set, o.frame);
   const fs = Math.round(h * (w > h ? 0.04 : 0.028));
-  const textFilter = async (name: string, text: string, y: string, size: number, box = true) => {
-    const f = path.join(dir, `${name}-${idx}.txt`);
-    await writeFile(f, wrap(text, w > h ? 60 : 32));
-    return `drawtext=fontfile='${esc(font)}':textfile='${esc(f)}':fontcolor=white:fontsize=${size}:x=(w-text_w)/2:y=${y}:line_spacing=6${box ? ":box=1:boxcolor=black@0.55:boxborderw=12" : ""}`;
+  // Un drawtext POR LÍNEA: con varias líneas en un textfile, el ffmpeg del runner (6.1) dibuja el salto de línea como «□»
+  // (P1 real). `anchor` fija el borde superior ("top") o inferior ("bottom") del bloque en `y`.
+  const textFilter = async (name: string, text: string, y: string, size: number, box = true, anchor: "top" | "bottom" = "top") => {
+    const lines = textLines(text, w > h ? 60 : 32);
+    const lineH = Math.round(size * 1.25) + (box ? 24 : 6);
+    const parts: string[] = [];
+    for (const [i, line] of lines.entries()) {
+      const f = path.join(dir, `${name}-${idx}-${i}.txt`);
+      await writeFile(f, line);
+      const ly = anchor === "top" ? `${y}+${i * lineH}` : `${y}-${(lines.length - i) * lineH}`;
+      parts.push(`drawtext=fontfile='${esc(font)}':textfile='${esc(f)}':fontcolor=white:fontsize=${size}:x=(w-text_w)/2:y=${ly}${box ? ":box=1:boxcolor=black@0.55:boxborderw=12" : ""}`);
+    }
+    return parts;
   };
   const post: string[] = [];
-  if (shot.label) post.push((await textFilter("tag", shot.label, "h*0.05", Math.round(fs * 0.9))).replace("x=(w-text_w)/2", "x=w*0.04"));
+  if (shot.label) post.push(...(await textFilter("tag", shot.label, "h*0.05", Math.round(fs * 0.9))).map((f) => f.replace("x=(w-text_w)/2", "x=w*0.04")));
   if (src.subtitle) {
     // Subtítulos paginados: bloques de ≤2 líneas repartidos en el plano en proporción a sus caracteres.
     const pages = subtitlePages(src.subtitle, w > h ? 60 : 32);
@@ -96,7 +105,7 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
     let acc = 0;
     for (const [k, page] of pages.entries()) {
       const a = acc / totalChars * (frames / FPS), b = (acc + page.length) / totalChars * (frames / FPS); acc += page.length;
-      post.push((await textFilter(`sub${k}`, page, "h*0.86-text_h", fs)) + `:enable='between(t,${a.toFixed(3)},${b.toFixed(3)})'`);
+      post.push(...(await textFilter(`sub${k}`, page, "h*0.9", fs, true, "bottom")).map((f) => f + `:enable='between(t,${a.toFixed(3)},${b.toFixed(3)})'`));
     }
   }
   if (o.fade && frames > 2 * Math.round(FPS * 0.25)) post.push(`fade=t=in:st=0:d=0.25,fade=t=out:st=${(frames / FPS - 0.25).toFixed(3)}:d=0.25`);
@@ -145,7 +154,7 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
       break;
     }
     case "titulo": {
-      const t = await textFilter("title", src.title ?? "", "(h-text_h)/2", Math.round(fs * 1.6), false);
+      const t = (await textFilter("title", src.title ?? "", "(h-text_h)/2", Math.round(fs * 1.6), false)).join(",");
       args = ["-i", bg, "-filter_complex", `[0:v]${stillMotion(w, h, frames, idx)},${t},${tail("trim=end_frame=" + frames)}`];
       break;
     }
@@ -164,6 +173,11 @@ export function wrap(text: string, width: number): string {
   for (const wd of words) { if ((cur + " " + wd).trim().length > width) { if (cur) lines.push(cur); cur = wd; } else cur = (cur + " " + wd).trim(); }
   if (cur) lines.push(cur);
   return lines.join("\n");
+}
+
+/** Líneas ya ajustadas a `width`, sin saltos de línea dentro (cada una va en su propio drawtext). */
+export function textLines(text: string, width: number): string[] {
+  return wrap(text, width).split("\n").map((l) => l.trim()).filter(Boolean);
 }
 
 export function subtitlePages(text: string, width: number): string[] {

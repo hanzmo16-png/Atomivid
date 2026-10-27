@@ -18,18 +18,30 @@ export function validStudioOwnerSignature(secret: string | undefined, userId: st
   return timingSafeEqual(Buffer.from(signature), Buffer.from(studioOwnerSignature(secret, userId, nonce, timestamp)));
 }
 
-/** Lado del generador: pregunta a la app (fail closed ante cualquier error o respuesta inesperada). */
-export async function askAppIsStudioOwner(userId: string, env: Record<string, string | undefined> = process.env, fetchImpl: typeof fetch = fetch): Promise<boolean> {
+/** Lado del generador: pregunta firmada a la app; `null` ante cualquier error o respuesta inesperada (fail closed). */
+async function askAppOwner(userId: string, env: Record<string, string | undefined>, fetchImpl: typeof fetch): Promise<{ owner?: unknown; internalOwner?: unknown } | null> {
   const secret = env.SUPABASE_SERVICE_ROLE_KEY?.trim(), base = env.PODCAST_V3_APP_URL?.trim() || "https://atomivid.vercel.app";
-  if (!secret || !UUID.test(userId)) return false;
+  if (!secret || !UUID.test(userId)) return null;
   const { randomUUID } = await import("node:crypto");
   const nonce = randomUUID(), timestamp = String(Date.now());
   try {
     const res = await fetchImpl(`${base}${STUDIO_OWNER_PATH}`, { method: "POST", redirect: "error", signal: AbortSignal.timeout(20_000),
       headers: { "content-type": "application/json", "x-probe-nonce": nonce, "x-probe-time": timestamp, "x-probe-signature": studioOwnerSignature(secret, userId, nonce, timestamp) },
       body: JSON.stringify({ userId }) });
-    if (!res.ok) return false;
-    const body = (await res.json()) as { owner?: unknown };
-    return body.owner === true;
-  } catch { return false; }
+    if (!res.ok) return null;
+    return (await res.json()) as { owner?: unknown; internalOwner?: unknown };
+  } catch { return null; }
+}
+
+/** ¿Es la cuenta del dueño con el piloto del estudio activo? (fail closed). */
+export async function askAppIsStudioOwner(userId: string, env: Record<string, string | undefined> = process.env, fetchImpl: typeof fetch = fetch): Promise<boolean> {
+  return (await askAppOwner(userId, env, fetchImpl))?.owner === true;
+}
+
+/**
+ * ¿Es la cuenta interna del dueño (INTERNAL_PRODUCTION_OWNER_USER_ID de la app, correo confirmado)? Solo para decisiones
+ * que la app ya tomó con ese mismo criterio (p. ej. Recraft en el render), sin exponer la identidad al generador (fail closed).
+ */
+export async function askAppIsInternalOwner(userId: string, env: Record<string, string | undefined> = process.env, fetchImpl: typeof fetch = fetch): Promise<boolean> {
+  return (await askAppOwner(userId, env, fetchImpl))?.internalOwner === true;
 }
