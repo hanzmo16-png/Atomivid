@@ -18,7 +18,7 @@ if (process.env.DIAG_SUPPLY) {
   const now = Date.now();
   const { data: pols } = await sdb.from("pi_supply_policies").select("provider,enabled,unit,baseline,unit_cost_usd,daily_forecast,daily_cap_usd,monthly_cap_usd,max_concurrent,max_daily_calls,timezone,evidence,updated_at");
   for (const p of pols ?? []) console.log("policy", JSON.stringify({ ...p, evidence: String(p.evidence ?? "").trim() ? "present" : "absent" }));
-  for (const pr of ["__global__", "anthropic", "elevenlabs", "openai"]) {
+  for (const pr of ["__global__", "anthropic", "elevenlabs", "openai", "heygen"]) {
     const { data, error } = await sdb.rpc("pi_supply_state", { p_provider: pr });
     const d = (data ?? {}) as Record<string, unknown>;
     const age = d.checkedAt ? Math.round((now - Date.parse(String(d.checkedAt))) / 3600000) : null;

@@ -70,10 +70,21 @@ if (CASO === "p2") {
     const opts = await sel.locator("option").evaluateAll((os) => os.map((o) => ({ v: o.value, d: o.disabled })).filter((o) => o.v && o.v !== "__foto" && !o.d));
     facts[`avatars${t}`] = opts.length;
     if (t === "A") { if (!ok("owner has a ready avatar for A", opts.length > 0, `${opts.length}`)) stop("no avatar for A"); await sel.selectOption(opts[0].v); }
-    else await sel.selectOption(opts.length > 1 ? opts[1].v : "").catch(() => {});
+    else {
+      // El diálogo exige un avatar por participante. Con un solo avatar listo en la cuenta, B usa ese mismo avatar
+      // (la interfaz lo permite); se registra como limitación visible: ambos hablantes con la misma cara.
+      const pick = opts.length > 1 ? opts[1].v : opts[0]?.v;
+      facts.sameAvatarForB = opts.length <= 1;
+      if (!ok("an existing avatar is selectable for B", !!pick, `${opts.length} existing`)) stop("no avatar for B");
+      await sel.selectOption(pick);
+    }
   }
 }
 await shot(p, "05-avatares"); await next();
+if (CASO === "p2") {
+  const blockers = await W().locator('[role="alert"], [data-testid="wizard-errors"]').allInnerTexts().catch(() => []);
+  if (!(await atStep(6))) { ok("step 5 → 6 advances (no validation blockers)", false, JSON.stringify(blockers).slice(0, 200)); stop("wizard did not leave step 5"); }
+}
 ok("step 6 music", await atStep(6), await stepTitle()); {
   // Localizador estable: el <label> con el texto visible «Estilo musical» contiene el <select> (no depende del aria-label).
   const style = W().locator("label", { hasText: "Estilo musical" }).locator("select");
