@@ -36,7 +36,6 @@ jobs:
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      OWNER_ID: ${{ secrets.INTERNAL_PRODUCTION_OWNER_USER_ID }}
       CASO: ${{ inputs.caso }}
       BUDGET_USD: ${{ inputs.presupuesto_usd }}
     steps:
