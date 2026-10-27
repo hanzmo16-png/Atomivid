@@ -174,3 +174,15 @@ Los casos 1–9 del mismo arnés no se repitieron en esta máquina. En GitHub, s
 - `package.json` (`test:podcast3` y `test:unit` incluyen el render de la lista)
 
 Para integrarlo, Claude puede tomar el borrador #229. La base del PR es `claude/candidato-podcast-studio`. No se empujó a ramas `claude/*`.
+
+## CI en `a761920c` (punta de #229 al cerrar la espera)
+
+Los cinco checks de ese commit terminaron. Ninguno falló. No hubo nada que corregir de `7e67dd15`. #229 sigue en borrador.
+
+| Workflow / job | Resultado | Run |
+| --- | --- | --- |
+| `qa-m3-movil` / `movil` | pass (5m26s) | https://github.com/hanzmo16-png/Atomivid/actions/runs/40438561631 |
+| Rescate motor editorial / `rescate` | pass (2m37s) | https://github.com/hanzmo16-png/Atomivid/actions/runs/40438561605 |
+| Vercel | pass | https://vercel.com/atomivid/atomivid/7F3ruwmqEwJQ9G1BbcPbYcyfFVw4 |
+| Vercel Preview Comments | pass | https://vercel.com/github |
+| `spend-authorization-postgres` / `verify` | pass (48s) | https://github.com/hanzmo16-png/Atomivid/actions/runs/40438561772 |
