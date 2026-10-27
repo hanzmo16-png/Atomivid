@@ -196,7 +196,7 @@ for f in "$OUT"/reconcile/*.sql; do echo "--- $(basename "$f") sha256 $(sha256su
 fi  # end of the replica rehearsal
 echo "== GATE[${GATE_NEXT:=O1}] (fail closed): production state expected right before ${GATE_NEXT}"
 BASE_BR=claude/atomivid-mvp-setup-0079jv
-git -C "$R" fetch -q --depth=2 origin "$BASE_BR" 9944360b5a32130d46811ea9d57f569b1e9031f5 49594f1e989d1c6f8c21bae4e650075ea4532ed4 d8b203d665e62602cec5cb72620f03b5630edd12 16b47781d7faa81c3d31a07e195a2f0fe37ed7a9 762714e2ff3d19a62d2c705b7487ff9a364677e7 2>/dev/null
+git -C "$R" fetch -q --depth=2 origin "$BASE_BR" 9944360b5a32130d46811ea9d57f569b1e9031f5 49594f1e989d1c6f8c21bae4e650075ea4532ed4 d8b203d665e62602cec5cb72620f03b5630edd12 1d7116bd49b73357f0b1384ae346324d9ae0f1de 762714e2ff3d19a62d2c705b7487ff9a364677e7 2>/dev/null
 BH=$(git -C "$R" ls-remote origin "refs/heads/$BASE_BR" | cut -f1); git -C "$R" cat-file -e "$BH" 2>/dev/null || git -C "$R" fetch -q --depth=2 origin "$BH"
 head_of(){ git -C "$R" ls-remote origin "refs/heads/$1" | cut -f1; }
 tree_of(){ git -C "$R" rev-parse "$1^{tree}" 2>/dev/null; }
@@ -220,7 +220,7 @@ cat > "$OUT/gate-facts.json" <<JSON
  "base": {"head": "$BH", "tree": "$(tree_of "$BH")", "parents": $(git -C "$R" rev-list --parents -n1 "$BH" 2>/dev/null | python3 -I -c 'import json,sys; print(json.dumps(sys.stdin.read().split()[1:]))')},
  "trees": {"base": "$(tree_of 762714e2ff3d19a62d2c705b7487ff9a364677e7)", "201": "$(tree_of 9944360b5a32130d46811ea9d57f569b1e9031f5)",
            "199": "$(tree_of 49594f1e989d1c6f8c21bae4e650075ea4532ed4)", "207": "$(tree_of d8b203d665e62602cec5cb72620f03b5630edd12)",
-           "228": "$(tree_of 16b47781d7faa81c3d31a07e195a2f0fe37ed7a9)"},
+           "228": "$(tree_of 1d7116bd49b73357f0b1384ae346324d9ae0f1de)"},
  "heads": {"201": "$(head_of grok/p0-auth-ref-trigger)", "199": "$(head_of claude/documental-cinematografico)", "207": "$(head_of claude/pr200-sobre-201-199)",
            "228": "$(head_of claude/candidato-podcast-studio)"},
  "inflight": {"due": ${due:-null}, "busy": ${busy:-null}, "documentary": ${dq:-null}}}

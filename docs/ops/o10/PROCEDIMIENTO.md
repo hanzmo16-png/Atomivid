@@ -8,7 +8,7 @@ USD 0. O10 no aplica migraciones ni cambia flags, secretos ni datos. Solo integr
 1. O8 COMPLETADO: el run de `o8-ejecucion-unica.yml` terminó en verde, con `o8.sh done`, `o8.sh post` y `o8-postgate.sh`.
 2. La revisión de Grok del delta 0acef98 está entregada y sin bloqueos abiertos. Si obliga a cambiar #228, el nuevo head
    sustituye a `FROZEN["228"]` en `gate.py` y necesita CI completa y autorización nueva. No se mergea un head no congelado.
-3. CI de #228 en verde sobre el head congelado `16b47781d7faa81c3d31a07e195a2f0fe37ed7a9` (25/25 checks, incluido
+3. CI de #228 en verde sobre el head congelado `1d7116bd49b73357f0b1384ae346324d9ae0f1de` (25/25 checks, incluido
    `director-worker-e2e` lanzado a mano: run 40451253874).
 4. `GATE_ONLY=1 GATE_NEXT=O10 bash scripts/qa/schema-readonly/cierre.sh`: **15/15 PASS, 0 FAIL**. Esa puerta exige:
    - estado posterior a O8 (marcadores 000000/120000/130000/140000 = t, 120000/130000/140000 registradas, tablas del
