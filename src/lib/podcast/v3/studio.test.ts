@@ -152,25 +152,41 @@ test("owner pilot: only the internal owner (email confirmed) gets the studio; PO
   assert.equal(studioGenerationEnabled({ id: "99999999-2222-4333-8444-555555555555" }, { PODCAST_V3_ENABLED: "1" }), true, "global switch unchanged");
 });
 
-test("owner pilot in the worker: only the owner's episodes run with the switch off (owner id or confirmed-email hash)", async () => {
+test("owner pilot in the worker: only the owner's episodes run with the switch off (owner id, or the app's signed answer)", async () => {
   const { studioWorkerEnabled } = await import("../../../../scripts/podcast-3-0/studio-worker");
-  const { createHash } = await import("node:crypto");
   const OWNER = "11111111-2222-4333-8444-555555555555", OTHER = "99999999-2222-4333-8444-555555555555", EP = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
-  const H = createHash("sha256").update("owner@example.com").digest("hex");
-  let reads = 0;
-  const of = (id: string | null, email = "owner@example.com", confirmed: string | null = "2026-01-01") => async () => { reads++; return id ? { id, email, email_confirmed_at: confirmed } : null; };
-  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: OWNER }, of(OWNER)), true);
-  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: OWNER.toUpperCase() }, of(OWNER)), true, "case-insensitive");
-  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: OWNER }, of(OTHER)), false, "another account's episode");
-  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: OWNER }, of(null)), false, "episode not found");
-  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_EMAIL_SHA256: H }, of(OTHER, "Owner@Example.com ")), true, "by confirmed email hash (normalized)");
-  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_EMAIL_SHA256: H }, of(OTHER, "intruder@example.com")), false, "another email");
-  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_EMAIL_SHA256: H }, of(OTHER, "owner@example.com", null)), false, "unconfirmed email");
-  reads = 0;
-  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: OWNER, PODCAST_V3_OWNER_PILOT: "0" }, of(OWNER)), false, "kill switch");
-  assert.equal(await studioWorkerEnabled(EP, {}, of(OWNER)), false, "no owner identity in the generator: fail closed");
-  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: "not-a-uuid", PODCAST_V3_OWNER_EMAIL_SHA256: "xyz" }, of(OWNER)), false, "malformed identities");
-  assert.equal(await studioWorkerEnabled("not-an-id", { PODCAST_V3_OWNER_USER_ID: OWNER }, of(OWNER)), false);
-  assert.equal(reads, 0, "no lookup when the pilot cannot apply");
-  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_ENABLED: "1" }, of(null)), true, "global switch unchanged");
+  let reads = 0, asks = 0;
+  const of = (id: string | null) => async () => { reads++; return id; };
+  const app = (answer: boolean) => async () => { asks++; return answer; };
+  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: OWNER }, { ownerOf: of(OWNER), askApp: app(false) }), true, "owner id configured: compared locally");
+  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: OWNER.toUpperCase() }, { ownerOf: of(OWNER) }), true, "case-insensitive");
+  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: OWNER }, { ownerOf: of(OTHER), askApp: app(true) }), false, "another account (the app is not asked)");
+  assert.equal(asks, 0);
+  assert.equal(await studioWorkerEnabled(EP, {}, { ownerOf: of(OWNER), askApp: app(true) }), true, "no owner id: the app confirms the owner");
+  assert.equal(await studioWorkerEnabled(EP, {}, { ownerOf: of(OTHER), askApp: app(false) }), false, "no owner id: the app says not the owner");
+  assert.equal(await studioWorkerEnabled(EP, {}, { ownerOf: of(null), askApp: app(true) }), false, "episode not found");
+  reads = 0; asks = 0;
+  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_PILOT: "0" }, { ownerOf: of(OWNER), askApp: app(true) }), false, "kill switch");
+  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: "not-a-uuid" }, { ownerOf: of(OWNER), askApp: app(true) }), false, "malformed owner id");
+  assert.equal(await studioWorkerEnabled("not-an-id", {}, { ownerOf: of(OWNER), askApp: app(true) }), false);
+  assert.equal(reads + asks, 0, "no lookup when the pilot cannot apply");
+  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_ENABLED: "1" }, { ownerOf: of(null) }), true, "global switch unchanged");
+});
+
+test("owner check: signed request bound to the account; any error or other answer fails closed", async () => {
+  const { askAppIsStudioOwner, validStudioOwnerSignature, studioOwnerSignature, STUDIO_OWNER_PATH } = await import("./owner-check");
+  const KEY = "k".repeat(40), U = "11111111-2222-4333-8444-555555555555", N = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", T = String(Date.now());
+  assert.equal(validStudioOwnerSignature(KEY, U, N, T, studioOwnerSignature(KEY, U, N, T)), true);
+  assert.equal(validStudioOwnerSignature(KEY, "99999999-2222-4333-8444-555555555555", N, T, studioOwnerSignature(KEY, U, N, T)), false, "signature bound to the account");
+  assert.equal(validStudioOwnerSignature(KEY, U, N, String(Date.now() - 600_000), studioOwnerSignature(KEY, U, N, String(Date.now() - 600_000))), false, "expired");
+  assert.equal(validStudioOwnerSignature("short", U, N, T, studioOwnerSignature("short", U, N, T)), false, "weak secret");
+  let seen: { url: string; ok: boolean } | null = null;
+  const f = (owner: unknown, status = 200) => (async (url: string, init: RequestInit) => { const h = init.headers as Record<string, string>; seen = { url, ok: validStudioOwnerSignature(KEY, U, h["x-probe-nonce"], h["x-probe-time"], h["x-probe-signature"]) }; return new Response(JSON.stringify({ owner }), { status }); }) as unknown as typeof fetch;
+  assert.equal(await askAppIsStudioOwner(U, { SUPABASE_SERVICE_ROLE_KEY: KEY }, f(true)), true);
+  assert.ok(seen!.ok && seen!.url.endsWith(STUDIO_OWNER_PATH), "the request is signed for this account");
+  assert.equal(await askAppIsStudioOwner(U, { SUPABASE_SERVICE_ROLE_KEY: KEY }, f(false)), false);
+  assert.equal(await askAppIsStudioOwner(U, { SUPABASE_SERVICE_ROLE_KEY: KEY }, f("yes")), false, "only a literal true counts");
+  assert.equal(await askAppIsStudioOwner(U, { SUPABASE_SERVICE_ROLE_KEY: KEY }, f(true, 401)), false, "HTTP error");
+  assert.equal(await askAppIsStudioOwner(U, { SUPABASE_SERVICE_ROLE_KEY: KEY }, (async () => { throw new Error("down"); }) as unknown as typeof fetch), false, "network error");
+  assert.equal(await askAppIsStudioOwner(U, {}, f(true)), false, "no key");
 });

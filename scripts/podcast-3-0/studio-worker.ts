@@ -9,30 +9,25 @@ import path from "node:path";
 
 /** Mismo interruptor que la app: PODCAST_V3_ENABLED=1, o el piloto del dueño (PODCAST_V3_OWNER_PILOT=0 lo apaga) para
  *  episodios del dueño, verificado aquí de forma independiente: por PODCAST_V3_OWNER_USER_ID (secreto
- *  INTERNAL_PRODUCTION_OWNER_USER_ID, si existe en GitHub) o por PODCAST_V3_OWNER_EMAIL_SHA256 (sha256 del correo
- *  confirmado del dueño, no secreto). Sin ninguno de los dos, o con otra cuenta: no se genera ni se cobra. */
-export type EpisodeOwner = { id: string; email: string | null; email_confirmed_at: string | null } | null;
-export async function studioWorkerEnabled(episodeId: string, env: Record<string, string | undefined> = process.env, ownerOf?: (id: string) => Promise<EpisodeOwner>): Promise<boolean> {
+ *  INTERNAL_PRODUCTION_OWNER_USER_ID, si existe en GitHub) o, si no, preguntando a la app con una petición firmada (la app
+ *  sí conoce al dueño). Cualquier otra cuenta, error o falta de respuesta: no se genera ni se cobra. */
+export async function studioWorkerEnabled(episodeId: string, env: Record<string, string | undefined> = process.env,
+  deps: { ownerOf?: (id: string) => Promise<string | null>; askApp?: (userId: string) => Promise<boolean> } = {}): Promise<boolean> {
   if (env.PODCAST_V3_ENABLED === "1") return true;
   if (env.PODCAST_V3_OWNER_PILOT === "0" || !/^[0-9a-f-]{36}$/i.test(episodeId)) return false;
-  const ownerId = env.PODCAST_V3_OWNER_USER_ID?.trim().toLowerCase(), ownerHash = env.PODCAST_V3_OWNER_EMAIL_SHA256?.trim().toLowerCase();
-  const idOk = !!ownerId && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(ownerId), hashOk = !!ownerHash && /^[0-9a-f]{64}$/.test(ownerHash);
-  if (!idOk && !hashOk) return false;
-  const read = ownerOf ?? (async (id: string): Promise<EpisodeOwner> => {
+  const ownerId = env.PODCAST_V3_OWNER_USER_ID?.trim().toLowerCase();
+  if (ownerId && !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(ownerId)) return false;
+  const read = deps.ownerOf ?? (async (id: string) => {
     if (!env.SUPABASE_SERVICE_ROLE_KEY) return null;
     const { createServiceClient } = await import("../../src/lib/supabase/service");
-    const service = createServiceClient();
-    const { data } = await service.from("podcast_studio_episodes").select("user_id").eq("id", id).maybeSingle();
-    const uid = (data as { user_id?: string } | null)?.user_id;
-    if (!uid) return null;
-    const { data: u } = await service.auth.admin.getUserById(uid);
-    return { id: uid, email: u?.user?.email ?? null, email_confirmed_at: u?.user?.email_confirmed_at ?? null };
+    const { data } = await createServiceClient().from("podcast_studio_episodes").select("user_id").eq("id", id).maybeSingle();
+    return (data as { user_id?: string } | null)?.user_id ?? null;
   });
-  const o = await read(episodeId);
-  if (!o) return false;
-  if (idOk) return o.id.toLowerCase() === ownerId;
-  const { createHash } = await import("node:crypto");
-  return !!o.email && !!o.email_confirmed_at && createHash("sha256").update(o.email.trim().toLowerCase()).digest("hex") === ownerHash;
+  const uid = (await read(episodeId))?.toLowerCase();
+  if (!uid) return false;
+  if (ownerId) return uid === ownerId;
+  const ask = deps.askApp ?? (async (u: string) => (await import("../../src/lib/podcast/v3/owner-check")).askAppIsStudioOwner(u, env));
+  return ask(uid);
 }
 
 export async function runStudioJob(episodeId: string) {
