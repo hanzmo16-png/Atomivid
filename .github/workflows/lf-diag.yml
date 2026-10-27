@@ -4,6 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       request_id: { description: "Solicitud Long Form", required: true }
+      shots: { description: "Máximo de escenas a mostrar", required: false, default: "6" }
+      compact: { description: "Una línea por escena (1) o detalle (vacío)", required: false, default: "" }
   push:
     branches: [claude/puertas-merge]
     paths: [".github/workflows/lf-diag.yml"]
@@ -26,4 +28,6 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           LF_REQUEST_ID: ${{ inputs.request_id }}
+          DIAG_SHOTS: ${{ inputs.shots }}
+          DIAG_COMPACT: ${{ inputs.compact }}
         run: npx tsx scripts/qa/real/lf-material-diag.ts

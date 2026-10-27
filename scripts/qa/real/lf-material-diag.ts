@@ -27,8 +27,9 @@ for (const shot of shots as Array<{ id: string; type?: string; anchoredVisual?: 
     if (accepted) break;
   }
   if (accepted) continue;
-  console.log(`\n== ${shot.id} | intent: ${JSON.stringify(visual).slice(0, 300)}\n   queries: ${JSON.stringify(qs)}`);
-  for (const r of rejects.slice(0, 5)) console.log("   ", r);
+  const v = visual as { subject?: string; description?: string; place?: string };
+  if (process.env.DIAG_COMPACT) console.log(`MISS ${shot.id} | type ${shot.type} | subject «${v.subject ?? ""}» | place «${v.place ?? ""}» | desc «${(v.description ?? "").slice(0, 90)}» | best «${(rejects[0] ?? "").replace(/^\[q\d\] /, "").slice(0, 110)}»`);
+  else { console.log(`\n== ${shot.id} | intent: ${JSON.stringify(visual).slice(0, 300)}\n   queries: ${JSON.stringify(qs)}`); for (const r of rejects.slice(0, 5)) console.log("   ", r); }
   if (++n >= max) break;
 }
 console.log(`\nDONE: printed ${n} scene(s) without an accepted candidate (of ${shots.length} planned)`);
