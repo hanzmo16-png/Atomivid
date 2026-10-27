@@ -9,7 +9,8 @@ import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { StudioSpec, STUDIO_VERSION } from "./spec";
-import { runEpisode, MemoryRunGuard, DuplicateRunError, preflight, PaidArtifactMissingError, type ArtifactStore } from "./pipeline";
+import { runEpisode, MemoryRunGuard, DuplicateRunError, preflight, PaidArtifactMissingError, stillListeners, type ArtifactStore } from "./pipeline";
+import { planEpisode } from "./editorial";
 import { MemoryLedger, UnauthorizedChargeError, UncertainChargeError } from "./cost";
 import { mockProviders } from "./mocks";
 import { ebur128, readPcm, rmsDb, ffprobeDuration } from "./ffmpeg";
@@ -314,4 +315,28 @@ test("foto fija: un avatar que nunca escucha (sin planos de conversación) no se
   const { r } = await render(B, { providers });
   assert.ok(r.ok && r.mp4, "modo avatar sin planos de conversación sigue funcionando aunque el avatar no tenga foto fija");
   assert.equal(checked.length, 0);
+});
+
+test("foto fija: con duraciones reales el plan puede añadir un oyente que el preliminar no tiene → en diálogo con dos avatares se comprueban LOS DOS antes de pagar", { timeout: 900_000 }, async () => {
+  const D = StudioSpec.parse({ ...base, mode: "dialogo", title: "Dos avatares", script: "Ana: El cometa viene de otra estrella, eso ya está medido por varios observatorios.\nLuis: Su velocidad lo confirma: ningún objeto ligado al Sol va tan rápido.\nAna: Y su brillo cambió de una forma que nadie esperaba.\nLuis: Por eso sigue abierto el debate sobre su forma.\nAna: Y ya se aleja para siempre de nosotros.",
+    participants: [{ id: "A", name: "Ana", voice_id: "CeFSZuaHs4SxcBxb9nCr", avatar: { kind: "existente", avatar_id: "av-ana" } }, { id: "B", name: "Luis", voice_id: "vozLuisInv", avatar: { kind: "existente", avatar_id: "av-luis" } }],
+    visual: { avatar_frequency: 1, avatar_max_seconds: 6, recreations: false }, music: { enabled: false, mood: "auto" } });
+  const pf = await preflight(D, mockProviders({ tonesOnly: true }));
+  const listenersOf = (seconds: number[]) => { const plan = planEpisode({ mode: "dialogo", turns: pf.turns.map((t, i) => ({ ...t, seconds: seconds[i] })), assets: [], avatarFrequency: 1, avatarMaxSeconds: 6, recreations: false, hasAvatar: { A: true, B: true }, introSeconds: 1 });
+    return [...new Set(plan.shots.filter((s) => (s.kind === "two_shot" || s.kind === "over_shoulder") && s.speaker).map((s) => (s.speaker === "A" ? "B" : "A")))].sort().join(""); };
+  // Mismo guion: turnos cortos → los primeros planos encadenados pasan a «sobre el hombro» (hay oyentes); un turno real más
+  // largo que el máximo de avatar deja una imagen en medio y ese oyente desaparece. El oyente depende de la duración REAL.
+  const short = listenersOf(pf.turns.map(() => 3)), long = listenersOf(pf.turns.map((_, i) => (i === 1 ? 9 : 3)));
+  assert.notEqual(short, long, `oyentes con duraciones distintas: ${short} vs ${long}`);
+  // Por eso la comprobación previa no depende del plan preliminar: en diálogo con dos avatares cubre a A y a B.
+  assert.deepEqual(stillListeners(D, pf.plan), ["A", "B"]);
+  const providers = mockProviders({ tonesOnly: true }), checked: string[] = [];
+  providers.avatar.checkStill = async (ref) => { checked.push(ref); return ref !== "av-luis"; };
+  const ledger = new MemoryLedger();
+  await assert.rejects(render(D, { ledger, providers }), /FOTO/);
+  assert.deepEqual([...new Set(checked)].sort(), ["av-ana", "av-luis"], "se comprueban los dos avatares");
+  assert.equal(providers.calls.tts.length + providers.calls.avatar.length, 0, "sin ningún cargo");
+  assert.equal(ledger.rows.size, 0);
+  // Fuera de un diálogo de dos avatares nadie escucha: no hay comprobación.
+  assert.deepEqual(stillListeners(StudioSpec.parse({ ...D, participants: [D.participants[0], { ...D.participants[1], avatar: { kind: "ninguno" } }] }), pf.plan), []);
 });
