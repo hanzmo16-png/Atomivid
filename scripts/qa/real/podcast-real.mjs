@@ -70,7 +70,7 @@ const title = `Prueba real ${CASO.toUpperCase()} ${new Date().toISOString().slic
 facts.title = title;
 await W().getByLabel("Título del episodio").fill(title);
 const P1 = "El cometa interestelar que cruzó nuestro sistema solar dejó a los astrónomos con más preguntas que respuestas. Viajaba demasiado rápido para estar atado al Sol, y su brillo cambiaba de una forma que nadie esperaba. En este episodio repasamos qué se observó, qué se descartó y qué sigue abierto. Primero, la velocidad: más de cincuenta kilómetros por segundo al entrar. Segundo, la forma: alargada, quizá aplanada. Tercero, el gas: casi invisible. Cada dato cuenta una parte de la historia, y juntos dibujan un visitante que no se parece a nada de lo que conocíamos. Lo que sí sabemos es que vino de otra estrella y que ya se aleja para siempre.";
-const P2 = "Ana: ¿De verdad un cometa puede venir de otra estrella?\nLuis: Sí, y lo sabemos por su velocidad: ningún objeto ligado al Sol va tan rápido.\nAna: ¿Y no podría ser un error de medición?\nLuis: Lo midieron varios observatorios durante semanas. Los datos coinciden.\nAna: Entonces, ¿qué nos dice de su origen?\nLuis: Que los sistemas planetarios expulsan restos, y algunos cruzan el espacio durante millones de años.\nAna: Me cuesta imaginarlo. ¿Volverá?\nLuis: No. Va de salida, y nunca más lo veremos.";
+const P2 = "Hans: Valeria, ¿de verdad un cometa puede venir de otra estrella?\nValeria: Sí, Hans. Lo sabemos por su velocidad: ningún objeto atado al Sol viaja tan rápido.\nHans: ¿Y no podría ser un error de medición?\nValeria: Lo siguieron varios observatorios durante semanas, y todos los datos coinciden.\nHans: Entonces, ¿qué nos cuenta de su origen?\nValeria: Que los sistemas planetarios expulsan restos, y algunos viajan millones de años entre las estrellas.\nHans: ¿Volveremos a verlo?\nValeria: No. Va de salida, y nunca más regresará.";
 await W().getByLabel("Guion").fill(CASO === "p2" ? P2 : P1); await shot(p, "02-guion"); await next();
 await atStep(3);
 if (CASO === "p2") { for (const [l, v] of [["Personalidad A", "Curiosa, pregunta"], ["Personalidad B", "Experto, responde con datos"]]) { const f = W().getByLabel(l); if (await f.count()) await f.fill(v); } }
@@ -84,7 +84,9 @@ await W().getByLabel("Voz A").selectOption(DURO);
 if (CASO === "p2") {
   const others = await W().getByLabel("Voz B").locator("option:not([disabled])").evaluateAll((os) => os.map((o) => o.value).filter((v) => v && v !== "CeFSZuaHs4SxcBxb9nCr"));
   ok("a second voice exists for B", others.length > 0, `${others.length} options`); if (!others.length) stop("no second voice");
-  await W().getByLabel("Voz B").selectOption(others[0]);
+  const CALLIE = "7YaUDeaStRuoYg3FKsmU"; facts.voiceB = others.includes(CALLIE) ? "callie" : "other";
+  ok("voice B = Callie (Valeria's voice, chosen by the owner)", others.includes(CALLIE)); if (!others.includes(CALLIE)) stop("Callie not selectable for B");
+  await W().getByLabel("Voz B").selectOption(CALLIE);
 }
 await shot(p, "04-voces"); await next();
 ok("step 5 avatars", await atStep(5), await stepTitle());
@@ -92,18 +94,14 @@ if (CASO === "p2") {
   // Solo avatares YA existentes de la cuenta: nunca «Crear desde una foto» (exige la foto y el consentimiento de una persona real).
   for (const t of ["A", "B"]) {
     const sel = W().getByLabel(`Avatar ${t}`);
-    const opts = await sel.locator("option").evaluateAll((os) => os.map((o) => ({ v: o.value, d: o.disabled })).filter((o) => o.v && o.v !== "__foto" && !o.d));
-    facts[`avatars${t}`] = opts.length;
-    if (t === "A") { if (!ok("owner has a ready avatar for A", opts.length > 0, `${opts.length}`)) stop("no avatar for A"); await sel.selectOption(opts[0].v); }
-    else {
-      // El diálogo exige un avatar por participante. Con un solo avatar listo en la cuenta, B usa ese mismo avatar
-      // (la interfaz lo permite); se registra como limitación visible: ambos hablantes con la misma cara.
-      const pick = opts.length > 1 ? opts[1].v : opts[0]?.v;
-      facts.sameAvatarForB = opts.length <= 1;
-      if (!ok("an existing avatar is selectable for B", !!pick, `${opts.length} existing`)) stop("no avatar for B");
-      await sel.selectOption(pick);
-    }
+    const opts = await sel.locator("option").evaluateAll((os) => os.map((o) => ({ v: o.value, d: o.disabled, t: (o.textContent || "").trim() })).filter((o) => o.v && o.v !== "__foto" && !o.d));
+    facts[`avatars${t}`] = opts.map((o) => o.t);
+    // Dos identidades distintas: A = Hans, B = Valeria (avatar registrado desde su asset de HeyGen). Nunca la misma cara.
+    const pick = opts.find((o) => (t === "A" ? /Hans/ : /Valeria/).test(o.t));
+    if (!ok(`avatar ${t} = ${t === "A" ? "Hans" : "Valeria"} (existing, ready)`, !!pick, JSON.stringify(facts[`avatars${t}`]))) stop(`no avatar for ${t}`);
+    await sel.selectOption(pick.v); facts[`avatar${t}Id`] = pick.v;
   }
+  if (!ok("two distinct identities (A and B use different avatars)", facts.avatarAId !== facts.avatarBId)) stop("same avatar for A and B");
 }
 await shot(p, "05-avatares"); await next();
 if (CASO === "p2") {
@@ -198,6 +196,11 @@ if (href) {
       ok("media: video stream present", !!v);
       const loud = spawnSync("ffmpeg", ["-hide_banner", "-nostats", "-i", file, "-af", "ebur128", "-f", "null", "-"], { encoding: "utf8" }).stderr || "";
       facts.loudness = (loud.match(/I:\s*(-?[\d.]+) LUFS/g) || []).slice(-1)[0] ?? null;
+      // Calidad: tramos de imagen congelada (≥ 2 s casi sin cambio) y fotogramas cada 3 s para revisión humana (cifrados).
+      const fr = spawnSync("ffmpeg", ["-hide_banner", "-nostats", "-i", file, "-vf", "freezedetect=n=0.003:d=2", "-map", "0:v:0", "-f", "null", "-"], { encoding: "utf8" }).stderr || "";
+      facts.frozen = [...fr.matchAll(/freeze_start: ([\d.]+)[\s\S]*?freeze_duration: ([\d.]+)/g)].map((x) => ({ at: Number(x[1]), s: Number(x[2]) }));
+      spawnSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-i", file, "-vf", "fps=1/3,scale=640:-2", path.join(EVID, `${CASO}-frame-%03d.jpg`)]);
+      facts.frames = fs.readdirSync(EVID).filter((f) => f.startsWith(`${CASO}-frame-`)).length;
     }
   } catch (e) { ok("media probe", false, String(e).slice(0, 120)); }
 }
