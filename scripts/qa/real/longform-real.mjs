@@ -36,8 +36,10 @@ let R = REUSE;
 // «hash:<6>»: the request is named in reports by the sha256 prefix of its id (ids are not printed); resolve it among the
 // owner's own requests so a retry keeps the SAME request (and its paid script responses) instead of creating a new one.
 if (R.startsWith("hash:")) {
-  const want = R.slice(5); const { data: reqs } = await db.from("video_requests").select("id").eq("user_id", OWNER).order("created_at", { ascending: false }).limit(200);
-  const hits = (reqs || []).filter((x) => crypto.createHash("sha256").update(x.id).digest("hex").startsWith(want));
+  // Same table and hashing as the read-only diagnostics that named it (documentary_script_jobs.request_id).
+  const want = R.slice(5); const { data: jobs, error: je } = await db.from("documentary_script_jobs").select("request_id").eq("user_id", OWNER).order("created_at", { ascending: false }).limit(200);
+  if (je) console.log(`INFO script jobs lookup error: ${je.message}`);
+  const hits = [...new Set((jobs || []).map((x) => x.request_id).filter(Boolean))].filter((id) => crypto.createHash("sha256").update(id).digest("hex").startsWith(want)).map((id) => ({ id }));
   if (!ok("reuse: the referenced request exists in the owner's account (unique)", hits.length === 1, `${hits.length} match(es)`)) stop("request reference not unique");
   R = hits[0].id; facts.reusedRequest = R.slice(0, 8);
 }
