@@ -35,6 +35,11 @@ async function main() {
   if (process.env.ELEVENLABS_API_KEY) await probe("elevenlabs", () => elevenLabsSnapshot(fetch, process.env, 0, 0, at));
   if (process.env.HEYGEN_API_KEY) await probe("heygen", () => heygenApiSnapshot(fetch, process.env, at));
   if (falBillingKey(process.env)) await probe("recraft", () => falApiSnapshot(fetch, process.env, at));
-  console.log("LIVE", JSON.stringify(live));
+  console.log("LIVE", JSON.stringify(live), "falAdminKey", Boolean(falBillingKey(process.env)));
+  // Recraft sin clave de facturación: el saldo solo puede venir de una entrada manual. Qué hay guardado (sin escribir).
+  const { data: snaps } = await service.from("pi_capacity_snapshots").select("provider,available,unit,reliability,health,status,checked_at")
+    .eq("provider", "recraft").order("checked_at", { ascending: false }).limit(5);
+  const { data: st } = await service.rpc("pi_supply_state", { p_provider: "recraft" });
+  console.log("RECRAFT_SNAPSHOTS", JSON.stringify(snaps), "STATE", JSON.stringify(st));
 }
 main().catch((e) => { console.error(e instanceof Error ? e.message : "error"); process.exitCode = 1; });
