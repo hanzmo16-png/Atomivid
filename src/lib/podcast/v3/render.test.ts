@@ -5,6 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, stat, copyFile, rm } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -339,4 +340,19 @@ test("foto fija: con duraciones reales el plan puede añadir un oyente que el pr
   assert.equal(ledger.rows.size, 0);
   // Fuera de un diálogo de dos avatares nadie escucha: no hay comprobación.
   assert.deepEqual(stillListeners(StudioSpec.parse({ ...D, participants: [D.participants[0], { ...D.participants[1], avatar: { kind: "ninguno" } }] }), pf.plan), []);
+});
+
+test("encuadre: un clip de avatar en retrato conserva la cara (tercio superior) en sobre el hombro y primer plano — el recorte centrado la cortaba a la altura de los ojos (prueba real 2026-10-28)", { timeout: 300_000 }, async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "p30-crop-"));
+  // Retrato 720x1280 como los clips de HeyGen: «cara» roja entre el 8 % y el 25 % de la altura; el resto azul.
+  const clip = path.join(dir, "retrato.mp4"), still = path.join(dir, "oyente.png");
+  spawnSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=blue:s=720x1280:r=25:d=1", "-vf", "drawbox=x=0:y=102:w=720:h=218:c=red:t=fill", "-c:v", "libx264", "-pix_fmt", "yuv420p", clip]);
+  spawnSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=gray:s=480x640", "-frames:v", "1", still]);
+  const red = (f: string) => { const png = f.replace(/\.mp4$/, ".png"); spawnSync("ffmpeg", ["-y", "-v", "error", "-ss", "0.5", "-i", f, "-frames:v", "1", "-vf", "format=rgb24", "-f", "rawvideo", png]); const b = readFileSync(png); let n = 0; for (let i = 0; i + 2 < b.length; i += 3) if (b[i] > 150 && b[i + 1] < 90 && b[i + 2] < 90) n++; return n / (b.length / 3); };
+  const { renderShot, frameFor } = await import("./compose");
+  for (const kind of ["over_shoulder", "avatar_a", "two_shot"] as const) {
+    const out = await renderShot(dir, kind.length, { turn_id: "T001", speaker: "A", kind, start: 0, end: 1, reason: "", facing: "A" }, 25, { speakingClip: clip, listenerStill: still }, { set: "estudio_oscuro", frame: frameFor("16:9", true), swap: false, small: true, fade: false });
+    assert.ok(red(out) > 0.02, `${kind}: la cara del clip aparece en el plano (${(red(out) * 100).toFixed(1)} % de píxeles)`);
+  }
+  await rm(dir, { recursive: true, force: true });
 });
