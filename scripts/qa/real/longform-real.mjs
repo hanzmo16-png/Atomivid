@@ -131,9 +131,19 @@ ok("budget: script spend and authorization ceiling visible before confirming", N
 const overflow = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth); ok("configure page: no horizontal overflow", overflow <= 1, `${overflow}px`);
 if (blocked || !Number.isFinite(ceiling)) stop("cannot confirm (impediment or no ceiling)");
 if (base(scriptUsd) + ceiling > CAP + 1e-6) stop(`spent so far ${base(scriptUsd)} + production ceiling ${ceiling} exceed the case cap ${CAP}: not confirming`);
+// Responses of the confirm/start calls (status + error text only) so a refused confirmation is visible in the log.
+const apiCalls = [];
+p.on("response", async (res) => { const u = res.url(); if (!/\/api\/generate\/[^/]+\/(confirm-production|render)/.test(u)) return;
+  let body = ""; try { const j = await res.json(); body = String(j?.error ?? (j?.ok === false ? "ok:false" : "ok")).slice(0, 300); } catch { body = "(sin JSON)"; }
+  apiCalls.push({ path: u.replace(/^.*\/api\/generate\/[^/]+\//, ""), status: res.status(), body }); console.log("API", JSON.stringify(apiCalls.at(-1))); });
 await p.getByRole("button", { name: "Confirmar y generar video" }).click(); await sleep(6000); await shot(p, "C02-confirmado");
+const alertText = await p.locator('[role="alert"]').allInnerTexts().then((a) => a.join(" | ").slice(0, 400)).catch(() => "");
+if (alertText) console.log("ALERT", alertText);
+facts.confirmApi = apiCalls; facts.confirmAlert = alertText;
 let r; const t1 = Date.now();
-while (Date.now() - t1 < 150 * 60000) { const { data } = await db.from("video_requests").select("status,long_form_stage,video_path,error_message,duration_seconds,aspect_ratio").eq("id", R).single(); r = data; if (["completed", "failed"].includes(r?.status)) break; await sleep(30000); }
+while (Date.now() - t1 < 150 * 60000) {
+  if (Date.now() - t1 > 5 * 60000) { const { data: st } = await db.from("video_requests").select("status,long_form_confirmed_at").eq("id", R).single();
+    if (st?.status === "script_ready" && !st?.long_form_confirmed_at) { ok("confirmation took effect", false, JSON.stringify({ apiCalls, alertText })); stop("the confirmation did not take effect (status still script_ready after 5 min)"); } } const { data } = await db.from("video_requests").select("status,long_form_stage,video_path,error_message,duration_seconds,aspect_ratio").eq("id", R).single(); r = data; if (["completed", "failed"].includes(r?.status)) break; await sleep(30000); }
 facts.production = { status: r?.status, stage: r?.long_form_stage ?? null, minutes: Math.round((Date.now() - t1) / 6000) / 10, error: r?.error_message ?? null };
 ok("full video produced (status completed)", r?.status === "completed" && !!r?.video_path, JSON.stringify(facts.production));
 const s2 = await spent(R); facts.totalSpendUsd = s2.usd;
