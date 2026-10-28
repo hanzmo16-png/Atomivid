@@ -40,9 +40,9 @@ export function realAvatar(deps: { publishAudio: (file: string) => Promise<strin
 export function realImages(deps: { searchPhotos: (q: string) => Promise<{ id: string | number; url: string; credit?: string; description?: string }[]>; download: (url: string, dest: string) => Promise<void> }): ImageProvider {
   const urls = new Map<string, string>();
   return { name: "pexels", label: "real adapter (untested live)",
-    async search(query) {
+    async search(query, limit = 3) {
       const r = await deps.searchPhotos(query);
-      return r.slice(0, 3).map((x) => { const id = `px-${x.id}`; urls.set(id, x.url); return { id, query, kind: "foto" as const, tags: [...new Set([...query.split(" "), ...keywords(x.description ?? "")])], credit: x.credit } satisfies VisualAsset; });
+      return r.slice(0, limit).map((x) => { const id = `px-${x.id}`; urls.set(id, x.url); return { id, query, kind: "foto" as const, tags: [...new Set([...query.split(" "), ...keywords(x.description ?? "")])], credit: x.credit } satisfies VisualAsset; });
     },
     async fetch(asset, dest) { const u = urls.get(asset.id); if (!u) throw new Error("Imagen no encontrada"); await deps.download(u, dest); await readFile(dest); },
     // Recreaciones (Recraft) NO conectadas en este PR: sin `recreate`, el planificador no las ofrece en real.

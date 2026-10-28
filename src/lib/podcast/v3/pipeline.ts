@@ -35,7 +35,7 @@ export type AvatarProvider = { name: string; label: ProviderLabel;
    * libro de operaciones con su propia clave: un reintento reutiliza la referencia y no vuelve a subir/cobrar.
    */
   prepare?: (photoRef: string) => Promise<{ ref: string; actualUsd: number }>; prepareUsd?: number };
-export type ImageProvider = { name: string; label: ProviderLabel; search(query: string): Promise<VisualAsset[]>; fetch(asset: VisualAsset, dest: string): Promise<void>;
+export type ImageProvider = { name: string; label: ProviderLabel; search(query: string, limit?: number): Promise<VisualAsset[]>; fetch(asset: VisualAsset, dest: string): Promise<void>;
   /** Recreación generada (de pago). Ausente → no se ofrecen recreaciones. */
   recreate?: (prompt: string, dest: string) => Promise<{ actualUsd: number }>; recreateUsd?: number };
 /** Lo que el episodio necesita de cada proveedor antes de empezar (para verificar saldo sin gastar). */
@@ -83,13 +83,23 @@ export function turnsFor(spec: StudioSpec): StudioTurns {
 }
 
 export const INTRO_SECONDS = 3, OUTRO_SECONDS = 2.5;
+/** Imágenes del tema (búsqueda del ancla sola) disponibles para turnos sin imagen propia. */
+const TOPIC_POOL = 8;
 
 /** Activos candidatos por turno (búsqueda deduplicada por consulta). */
+/** Términos del tema del episodio (los mismos que anclan las búsquedas). */
+export function topicTermsFor(spec: StudioSpec, turns: Turn[]): string[] {
+  return salientTerms(spec.topic, turns.map((t) => t.text), 2, spec.title);
+}
+
 export async function gatherAssets(turns: Turn[], images: ImageProvider, title: string, recreations: boolean, topic = ""): Promise<VisualAsset[]> {
   const seen = new Map<string, VisualAsset>();
   const queries = new Set<string>();
   // Cada búsqueda lleva el ancla del tema + las palabras propias del turno (sin repetir el ancla).
   const anchor = salientTerms(topic, turns.map((t) => t.text), 2, title);
+  // Fondo del tema (P2 real 2026-10-28: cuatro turnos sin palabra propia del tema quedaron en planos vacíos de 2-5 s):
+  // la búsqueda del ancla sola trae más imágenes del tema, que el plan usa cuando un turno no tiene imagen propia.
+  if (anchor.length) for (const a of await images.search(anchor.join(" "), TOPIC_POOL).catch(() => [])) if (!seen.has(a.id)) seen.set(a.id, a);
   for (const t of turns) { const kw = keywords(t.text).filter((w) => !anchor.includes(w)).slice(0, anchor.length ? 2 : 3); if (kw.length || anchor.length) queries.add([...anchor, ...kw].join(" ")); }
   for (const q of queries) for (const a of await images.search(q).catch(() => [])) if (!seen.has(a.id)) seen.set(a.id, a);
   if (recreations && images.recreate) for (const t of turns.filter((x) => x.kind === "narracion" || x.kind === "respuesta").slice(0, 4)) {
@@ -106,7 +116,7 @@ export async function preflight(spec: StudioSpec, providers: Providers, rates?: 
   const { turns, names } = turnsFor(spec);
   const audioOnly = spec.output === "audio";
   const assets = audioOnly || spec.visual.provider === "solo_set" ? [] : await gatherAssets(turns, providers.images, spec.title, spec.visual.recreations, spec.topic);
-  const plan = planEpisode({ mode: spec.mode, turns, assets, avatarFrequency: spec.mode === "narracion" ? 0 : spec.visual.avatar_frequency, avatarMaxSeconds: spec.visual.avatar_max_seconds,
+  const plan = planEpisode({ mode: spec.mode, turns, assets, topicTerms: topicTermsFor(spec, turns), avatarFrequency: spec.mode === "narracion" ? 0 : spec.visual.avatar_frequency, avatarMaxSeconds: spec.visual.avatar_max_seconds,
     recreations: spec.visual.recreations, hasAvatar: { A: hasAvatar(spec, "A"), B: hasAvatar(spec, "B") }, introSeconds: INTRO_SECONDS });
   const ttsChars = turns.reduce((n, t) => n + t.text.length, 0);
   const seconds = INTRO_SECONDS + OUTRO_SECONDS + turns.reduce((n, t) => n + estimateSeconds(t.text) + 0.4, 0);
@@ -213,7 +223,7 @@ export async function runEpisode(spec: StudioSpec, ctx: { owner: string; episode
     const voice = await assembleVoice(ctx.dir, turnAudio, INTRO_SECONDS, OUTRO_SECONDS);
     // 2) Plan definitivo con duraciones reales.
     const realTurns = pf.turns.map((t, i) => ({ ...t, seconds: (i + 1 < voice.timeline.length ? voice.timeline[i + 1].start : voice.duration) - voice.timeline[i].start }));
-    const plan = planEpisode({ mode: spec.mode, turns: realTurns, assets: pf.assets, avatarFrequency: spec.mode === "narracion" ? 0 : spec.visual.avatar_frequency, avatarMaxSeconds: spec.visual.avatar_max_seconds,
+    const plan = planEpisode({ mode: spec.mode, turns: realTurns, assets: pf.assets, topicTerms: topicTermsFor(spec, pf.turns), avatarFrequency: spec.mode === "narracion" ? 0 : spec.visual.avatar_frequency, avatarMaxSeconds: spec.visual.avatar_max_seconds,
       recreations: spec.visual.recreations, hasAvatar: { A: hasAvatar(spec, "A"), B: hasAvatar(spec, "B") }, introSeconds: voice.timeline[0]?.start ?? INTRO_SECONDS });
     const issues = planIssues(plan);
     if (issues.length) throw new Error(`Plan editorial inválido: ${issues.join("; ")}`);
