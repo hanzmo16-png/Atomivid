@@ -440,12 +440,14 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     await W().getByLabel("Ambiente musical").selectOption(m.mood ?? "auto"); if (m.intensity) await W().getByLabel("Intensidad de la música").selectOption(m.intensity);
     await snap("paso06-musica"); await next();
     if (m.mode !== "Solo audio") {
+      // Recraft es el proveedor principal del estudio (con precio por imagen) y Pexels ya no se ofrece. La regla «nunca se
+      // sustituye un proveedor no disponible» la cubre studio.test (409 con PODCAST_STUDIO_RECRAFT=0). Este E2E no tiene
+      // fal.ai: sigue con «solo estudio» para no salir a la red.
       const rc = await W().getByTestId("proveedor-recraft").textContent();
-      ok(`${tag}: Recraft visible como no disponible con motivo`, /No disponible/.test(rc), rc.slice(0, 120));
-      ok(`${tag}: Recraft no está preseleccionado si no hay FAL ni adaptador`, !(await W().getByLabel("Ilustraciones Recraft (fal.ai)").isChecked()));
-      await W().getByLabel("Ilustraciones Recraft (fal.ai)").check(); await next();
-      ok(`${tag}: elegir un proveedor no disponible bloquea el avance (no se sustituye)`, /Paso 7/.test(await stepTitle()) && /no se cambia automáticamente/.test(await W().getByRole("alert").textContent()));
-      await W().getByLabel("Fotos de archivo (Pexels)").check();
+      ok(`${tag}: Recraft disponible, con precio por imagen`, !/No disponible/.test(rc) && /USD 0\.035\/imagen/.test(rc), rc.slice(0, 120));
+      ok(`${tag}: Recraft preseleccionado como proveedor principal`, await W().getByLabel("Ilustraciones Recraft").isChecked());
+      ok(`${tag}: Pexels ya no aparece en el estudio`, (await W().locator('[data-testid="proveedor-pexels"]').count()) === 0);
+      await W().getByLabel("Solo estudio y anfitriones (sin imágenes)").check();
     }
     if (m.swap) await W().getByLabel(/Invertir posiciones/).check();
     if (m.format) await W().getByLabel(m.format).check();
