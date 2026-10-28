@@ -11,7 +11,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { StudioSpec, STUDIO_VERSION } from "./spec";
 import { runEpisode, MemoryRunGuard, DuplicateRunError, preflight, PaidArtifactMissingError, stillListeners, type ArtifactStore } from "./pipeline";
-import { planEpisode } from "./editorial";
 import { MemoryLedger, UnauthorizedChargeError, UncertainChargeError } from "./cost";
 import { mockProviders } from "./mocks";
 import { ebur128, readPcm, rmsDb, ffprobeDuration } from "./ffmpeg";

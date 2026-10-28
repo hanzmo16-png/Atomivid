@@ -214,7 +214,7 @@ export function stillListeners(spec: StudioSpec, plan: EditorialPlan): ("A" | "B
   return spec.mode === "dialogo" && hasAvatar(spec, "A") && hasAvatar(spec, "B") && plan.shots.some((s) => isAv(s.kind)) ? ["A", "B"] : [];
 }
 const hasAvatar = (spec: StudioSpec, id: "A" | "B") => { const p = spec.participants.find((x) => x.id === id); return !!p && p.avatar.kind !== "ninguno"; };
-const avatarRef = (spec: StudioSpec, id: "A" | "B") => { const a = spec.participants.find((x) => x.id === id)?.avatar; return a?.kind === "existente" ? a.avatar_id : a?.kind === "foto" ? `foto:${a.photo_path}` : ""; };
+const avatarRef = (spec: StudioSpec, id: "A" | "B") => { const a = spec.participants.find((x) => x.id === id)?.avatar; return a?.kind === "existente" ? a.avatar_id : a?.kind === "foto" ? `foto:${a.photo_path}` : a?.kind === "catalogo" ? `catalogo:${a.host_id}` : ""; };
 
 export type RunResult = {
   /** null en «solo audio»: no se renderiza video. */
@@ -252,7 +252,7 @@ export async function runEpisode(spec: StudioSpec, ctx: { owner: string; episode
       // the photo preparations, minus those already settled.
       const count = (op: string) => settledRows.filter((r) => r.op === op).length;
       const onCamera = pf.plan.shots.filter((s) => s.kind === "avatar_a" || s.kind === "avatar_b" || s.kind === "two_shot" || s.kind === "over_shoulder");
-      const prepares = ctx.providers.avatar.prepare ? spec.participants.filter((p) => p.avatar.kind === "foto" && onCamera.some((s) => s.speaker === p.id)).length : 0;
+      const prepares = ctx.providers.avatar.prepare ? spec.participants.filter((p) => (p.avatar.kind === "foto" || p.avatar.kind === "catalogo") && onCamera.some((s) => s.speaker === p.id)).length : 0;
       const avatarCalls = spec.output === "audio" ? 0 : Math.max(0, onCamera.length - count("avatar_clip")) + Math.max(0, prepares - count("avatar_prepare"));
       const illustrations = pf.plan.shots.filter((x) => x.asset_id && assetKind(pf.assets, x.asset_id) === "ilustracion").length;
       const imagesCalls = spec.output === "audio" ? 0 : Math.max(0, illustrations + imageRetries(illustrations) - count("ilustracion"));
@@ -285,7 +285,7 @@ export async function runEpisode(spec: StudioSpec, ctx: { owner: string; episode
     // 0) Avatares desde foto: preparación idempotente (una vez por foto y episodio, registrada en el libro).
     const prepared: Partial<Record<"A" | "B", string>> = {};
     if (spec.output !== "audio") for (const p of spec.participants) {
-      if (p.avatar.kind !== "foto" || !pf.plan.shots.some((s) => s.speaker === p.id && (s.kind === "avatar_a" || s.kind === "avatar_b" || s.kind === "two_shot" || s.kind === "over_shoulder"))) continue;
+      if ((p.avatar.kind !== "foto" && p.avatar.kind !== "catalogo") || !pf.plan.shots.some((s) => s.speaker === p.id && (s.kind === "avatar_a" || s.kind === "avatar_b" || s.kind === "two_shot" || s.kind === "over_shoulder"))) continue;
       const prepare = ctx.providers.avatar.prepare;
       if (!prepare) continue;
       const ref = avatarRef(spec, p.id);

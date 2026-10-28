@@ -197,7 +197,8 @@ def main():
         rgb = warp_into(rgb, sign_rgba, sg["quad"], hex_rgb(cfg["brandColor"]), sg.get("spill", 0.35))
         Image.fromarray(rgb).save(os.path.join(out_dir, f"{st['id']}.jpg"), quality=92)
         fg = np.maximum(poly_mask(st.get("foreground", [])), extra_fg)
-        Image.fromarray(np.dstack([rgb, fg])).save(os.path.join(out_dir, f"{st['id']}-frente.png"), optimize=True)
+        front = rgb.copy(); front[fg == 0] = 0  # fuera de la mesa no hace falta color (PNG mucho más ligero)
+        Image.fromarray(np.dstack([front, fg])).save(os.path.join(out_dir, f"{st['id']}-frente.png"), optimize=True)
         Image.fromarray(rgb).resize((480, 270), Image.LANCZOS).save(os.path.join(out_dir, f"{st['id']}-mini.jpg"), quality=88)
         print(json.dumps({"studio": st["id"], "ok": True}))
 

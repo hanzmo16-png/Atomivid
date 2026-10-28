@@ -3,6 +3,7 @@
 import type { Mood, StudioMode, StudioSet } from "./spec";
 import { DURATION_TOLERANCE, OPEN_CLOSE_SECONDS, SPOKEN_CHARS_PER_SECOND, TURN_GAP_SECONDS } from "./script";
 import { STUDIO_IDS, legacyStudio } from "./studios";
+import { catalogHost, type CatalogHost } from "./catalog";
 
 export const WIZARD_STORAGE_KEY = "atomivid.podcast.asistente.v2";
 /** Tope por episodio que el servidor y la BD hacen cumplir (STUDIO_MAX_AUTHORIZED_USD en api.ts; CHECK ≤ 50 en 140000).
@@ -21,8 +22,9 @@ export const MODALITIES: readonly Modality[] = ["audio", "visual", "avatar", "di
 export const MODALITY_LABEL: Record<Modality, string> = { audio: "Solo audio", visual: "Narración con imágenes (video)", avatar: "Presentador con avatar", dialogo: "Conversación con dos avatares" };
 export const INTENSITY_DB = { suave: -28, media: -22, alta: -17 } as const;
 export const modalityToMode = (m: Modality): StudioMode => (m === "audio" || m === "visual" ? "narracion" : m);
-export type AvatarChoice = { kind: "ninguno" } | { kind: "existente"; avatar_id: string } | { kind: "foto"; photo_path: string; consent: boolean; consent_at: string | null };
-export type WizardParticipant = { name: string; role: string; gender: "femenino" | "masculino" | "neutro"; style: string; personality: string; voice_id: string; voice_kind: "sintetica" | "clonada"; avatar: AvatarChoice };
+export type AvatarChoice = { kind: "ninguno" } | { kind: "existente"; avatar_id: string } | { kind: "foto"; photo_path: string; consent: boolean; consent_at: string | null } | { kind: "catalogo"; host_id: CatalogHost["id"] };
+/** `host`: anfitrión del catálogo (su voz y su avatar vienen con él); null = personalizado (voz y avatar propios). */
+export type WizardParticipant = { name: string; role: string; gender: "femenino" | "masculino" | "neutro"; style: string; personality: string; voice_id: string; voice_kind: "sintetica" | "clonada"; avatar: AvatarChoice; host?: CatalogHost["id"] | null };
 export type WizardDraft = {
   step: number; modality: Modality | null; mode: StudioMode | null; language: "es" | "en"; provider: "recraft" | "solo_set";
   intensity: "suave" | "media" | "alta"; intro: boolean; outro: boolean; ducking: boolean; title: string; topic: string; script: string; minutes: number; count: 1 | 2;
@@ -31,7 +33,19 @@ export type WizardDraft = {
   musicEnabled: boolean; mood: Mood | "auto"; volumeDb: number; stings: boolean; ambient: "ninguno" | "lluvia" | "viento" | "noche";
   format: "16:9" | "9:16"; audioExport: "mp3" | "wav"; budgetUsd: number; authorized: boolean; episodeId: string | null; draftId?: string | null;
 };
-const P = (name: string): WizardParticipant => ({ name, role: "", gender: "neutro", style: "", personality: "", voice_id: "", voice_kind: "sintetica", avatar: { kind: "ninguno" } });
+const P = (name: string): WizardParticipant => ({ name, role: "", gender: "neutro", style: "", personality: "", voice_id: "", voice_kind: "sintetica", avatar: { kind: "ninguno" }, host: null });
+
+/** Elegir un anfitrión del catálogo carga su nombre, estilo, voz y avatar (no hay que escoger voz). */
+export function withHost(p: WizardParticipant, hostId: CatalogHost["id"]): WizardParticipant {
+  const h = catalogHost(hostId);
+  if (!h) return p;
+  return { ...p, host: h.id, name: h.name, role: h.role, gender: h.gender, style: h.style, personality: h.personality, voice_id: h.voiceId, voice_kind: "sintetica", avatar: { kind: "catalogo", host_id: h.id } };
+}
+/** Volver a «Personalizado»: se quitan la voz y el avatar del anfitrión (la configuración propia se elige aparte). */
+export function withoutHost(p: WizardParticipant): WizardParticipant {
+  if (!p.host) return p;
+  return { ...p, host: null, voice_id: "", voice_kind: "sintetica", avatar: { kind: "ninguno" } };
+}
 
 /** Clon privado concedido → «clonada»; catálogo o id vacío → «sintetica». La UI y el envío usan la misma regla. */
 export function voiceKindFor(voiceId: string, catalog: readonly { voiceId: string; kind?: "sintetica" | "clonada" }[]): "sintetica" | "clonada" {
@@ -82,6 +96,7 @@ export function stepErrors(d: WizardDraft, step: number, ctx: { unavailableVoice
   if (step === STEP.participantes) for (const p of active) if (!p.name.trim()) e.push("Cada participante necesita un nombre.");
   if (step === STEP.voces) {
     for (const p of active) {
+      if (p.host) continue; // la voz del anfitrión del catálogo ya viene con él
       if (!p.voice_id) e.push(`Elige una voz para ${p.name}.`);
       else if (ctx.unavailableVoices.includes(p.voice_id)) e.push(`La voz elegida para ${p.name} no está disponible; elige otra.`);
     }

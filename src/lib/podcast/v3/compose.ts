@@ -165,7 +165,6 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
   if (o.fade && frames > 2 * Math.round(FPS * 0.25)) post.push(`fade=t=in:st=0:d=0.25,fade=t=out:st=${(frames / FPS - 0.25).toFixed(3)}:d=0.25`);
   const tail = (label: string) => `${label}${post.length ? "," + post.join(",") : ""},format=yuv420p[v]`;
   let args: string[];
-  const bgIn = ["-loop", "1", "-t", secs, "-i", bg];
   // Una imagen rechazada por la verificación se muestra como tarjeta explícita (rama «default»).
   switch (src.card && !src.image ? "transicion" : shot.kind) {
     case "avatar_a": case "avatar_b": case "two_shot": case "over_shoulder": {

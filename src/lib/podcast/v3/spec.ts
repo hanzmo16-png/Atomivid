@@ -9,6 +9,7 @@
 import { z } from "zod";
 import { canUsePrivateVoice, isPrivateVoice, parsePrivateVoiceGrants, visibleVoices, type VoiceViewer } from "@/lib/voices/private-voices";
 import type { AccountVoice } from "@/lib/podcast/voices";
+import { catalogHost } from "./catalog";
 
 export const STUDIO_VERSION = "podcast-studio/3" as const;
 export const MODES = ["narracion", "avatar", "dialogo"] as const;
@@ -51,6 +52,8 @@ export const StudioParticipant = z.object({
   avatar: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("ninguno") }),
     z.object({ kind: z.literal("existente"), avatar_id: z.string().min(1).max(200) }),
+    /** Anfitrión del catálogo de Atomicvid (catalog.ts): rostro, voz y estilo fijos; personaje virtual, sin consentimiento de terceros. */
+    z.object({ kind: z.literal("catalogo"), host_id: z.enum(["valeria", "ximena", "victor"]) }),
     z.object({ kind: z.literal("foto"), photo_path: z.string().min(1).max(400).regex(/^[^.][^\0]*$/).refine((p) => !p.includes(".."), "Ruta inválida"), consent: z.object({ given: z.literal(true), at: z.string(), text: z.string().min(10) }) }),
   ]).default({ kind: "ninguno" }),
 });
@@ -112,6 +115,11 @@ export function validateSpec(spec: StudioSpec, voices: AccountVoice[], viewer: V
     else if (v && isPrivateVoice(v) && !canUsePrivateVoice(v.voiceId, viewer, env)) out.push({ field: `voice_${p.id}`, message: "Voz privada no autorizada." });
     if ((spec.mode === "avatar" || spec.mode === "dialogo") && p.avatar.kind === "ninguno") out.push({ field: `avatar_${p.id}`, message: `Elige un avatar para ${p.name}.` });
     if (p.avatar.kind === "foto" && !p.avatar.consent?.given) out.push({ field: `avatar_${p.id}`, message: "Falta el consentimiento explícito para crear el avatar desde la foto." });
+    if (p.avatar.kind === "catalogo") {
+      const host = catalogHost(p.avatar.host_id);
+      // La voz de un anfitrión del catálogo es la suya: elegirlo la carga y no se cambia por otra.
+      if (host && p.voice_id !== host.voiceId) out.push({ field: `voice_${p.id}`, message: `${host.name} habla con su propia voz; no se puede cambiar.` });
+    }
   }
   if (spec.mode === "dialogo" && spec.participants.length === 2 && spec.participants[0].voice_id === spec.participants[1].voice_id) out.push({ field: "voice_B", message: "Los dos participantes necesitan voces distintas." });
   return out;

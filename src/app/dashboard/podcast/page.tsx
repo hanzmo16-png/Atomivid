@@ -9,7 +9,8 @@ import { getPricingConfig } from "@/lib/billing/pricing";
 import { listAccountVoices, VoicesUnavailableError, type AccountVoice } from "@/lib/podcast/voices";
 import { PODCAST_MAX_CHARS, type PodcastEpisode } from "@/lib/podcast/episode";
 import { NewEpisode } from "./NewEpisode";
-import { PodcastWizard, type WizardAvatar } from "./PodcastWizard";
+import { PodcastWizard, type WizardAvatar, type WizardHost } from "./PodcastWizard";
+import { HOST_CATALOG } from "@/lib/podcast/v3/catalog";
 import { StudioEpisodeList } from "./StudioEpisodeList";
 import { voiceAvailability } from "@/lib/podcast/v3/spec";
 import { listStudioEpisodes } from "@/lib/podcast/v3/store";
@@ -43,6 +44,14 @@ export default async function PodcastPage() {
   const { data: avatarRows } = await service.from("avatars").select("id,name").eq("user_id", user.id).eq("status", "ready").order("created_at", { ascending: false }).limit(20);
   const avatars = (avatarRows ?? []) as WizardAvatar[];
   const wizardVoices = voicesError ? [] : voiceAvailability(voices, user);
+  // Catálogo de anfitriones: fotos, recortes y muestras en el almacenamiento privado → enlaces firmados (1 h).
+  const sign = async (p: string) => (await service.storage.from("videos").createSignedUrl(p, 3600)).data?.signedUrl ?? null;
+  const hosts: WizardHost[] = v3Enabled ? await Promise.all(HOST_CATALOG.map(async (h) => {
+    const [photoUrl, cutoutUrl, stored] = await Promise.all([sign(h.photo), sign(h.cutout), h.sample.kind === "storage" ? sign(h.sample.path) : Promise.resolve(null)]);
+    const sampleUrl = stored ?? voices.find((v) => v.voiceId === h.voiceId)?.previewUrl ?? null;
+    return { id: h.id, name: h.name, role: h.role, description: h.description, voiceName: h.voiceName, photoUrl, sampleUrl,
+      cutout: cutoutUrl ? { url: cutoutUrl, w: h.cutoutSize[0], h: h.cutoutSize[1], face: h.face } : null };
+  })) : [];
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-2xl">
@@ -63,7 +72,7 @@ export default async function PodcastPage() {
         </section>
       )}
       {voicesError && <p className="mt-3 text-sm text-danger">{voicesError}</p>}
-      <PodcastWizard voices={wizardVoices} avatars={avatars} v2Enabled={podcastV2Enabled()} v3Enabled={v3Enabled} generationEnabled={generationEnabled} providers={visualProviders()} previewNotice={previewNotice} />
+      <PodcastWizard voices={wizardVoices} avatars={avatars} v2Enabled={podcastV2Enabled()} v3Enabled={v3Enabled} generationEnabled={generationEnabled} providers={visualProviders()} previewNotice={previewNotice} hosts={hosts} />
       <details className="mt-4 rounded-lg border border-border p-3">
         <summary className="cursor-pointer text-sm font-medium text-ink">Formulario clásico (grabación propia, guion A/B)</summary>
         <NewEpisode voices={voices} voicesError={voicesError} usdPer1kChars={getPricingConfig().elevenLabsUsdPer1kChars} maxChars={PODCAST_MAX_CHARS} v2Enabled={podcastV2Enabled()} />
