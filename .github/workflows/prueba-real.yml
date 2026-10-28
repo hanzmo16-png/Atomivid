@@ -7,10 +7,10 @@ on:
   workflow_dispatch:
     inputs:
       caso:
-        description: "preflight (USD 0) | descargas (USD 0, MP4+MP3 de episodio_reintento) | p1 (≤ 1) | p2 (≤ 3) | lf (≤ 12, todo el caso) | lf-inspeccion (USD 0, video terminado de lf_request_id) | pod-diag (USD 0, episodio de estudio pod_episode_id)"
+        description: "preflight (USD 0) | descargas (USD 0, MP4+MP3 de episodio_reintento) | p1 (≤ 1) | p2 (≤ 3) | lf (≤ 12, todo el caso) | lf-inspeccion (USD 0, video terminado de lf_request_id) | pod-diag / pod-clips (USD 0, episodio de estudio pod_episode_id) | pod-assets (≤ 1, recursos de estudio con Recraft)"
         required: true
         type: choice
-        options: [preflight, descargas, p1, p2, lf, lf-inspeccion, pod-diag]
+        options: [preflight, descargas, p1, p2, lf, lf-inspeccion, pod-diag, pod-clips, pod-assets]
       presupuesto_usd:
         description: "Autorización por episodio (no supera el tope del caso)"
         required: true
@@ -60,7 +60,7 @@ jobs:
         with: { persist-credentials: false }
       - name: Tope del caso (antes de instalar nada)
         run: |
-          case "$CASO" in preflight|descargas|lf-inspeccion|pod-diag) MAX=0;; p1) MAX=1;; p2) MAX=3;; lf) MAX=12;; *) echo "::error::caso desconocido"; exit 1;; esac
+          case "$CASO" in preflight|descargas|lf-inspeccion|pod-diag|pod-clips) MAX=0;; pod-assets) MAX=1;; p1) MAX=1;; p2) MAX=3;; lf) MAX=12;; *) echo "::error::caso desconocido"; exit 1;; esac
           python3 -c "import sys; b=float(sys.argv[1]); m=float(sys.argv[2]); sys.exit(0 if 0 <= b <= m and (m == 0 or b > 0) else 1)" "$BUDGET_USD" "$MAX" \
             || { echo "::error::presupuesto $BUDGET_USD fuera del tope del caso $CASO (USD $MAX)"; exit 1; }
           echo "caso=$CASO presupuesto=USD $BUDGET_USD (tope del caso USD $MAX)"
@@ -90,8 +90,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           POD_EPISODE_ID: ${{ inputs.pod_episode_id }}
           ELEVENLABS_API_KEY: ${{ inputs.caso == 'pod-diag' && secrets.ELEVENLABS_API_KEY || '' }}
+          FAL_KEY: ${{ inputs.caso == 'pod-assets' && secrets.FAL_KEY || '' }}
         run: |
           if [ "$CASO" = pod-diag ]; then node scripts/qa/real/pod-diag.mjs; exit $?; fi
+          if [ "$CASO" = pod-clips ]; then node scripts/qa/real/pod-clips.mjs; exit $?; fi
+          if [ "$CASO" = pod-assets ]; then POD_ASSETS_MAX_USD="$BUDGET_USD" node scripts/qa/real/pod-assets.mjs; exit $?; fi
           if [ "$CASO" = lf-inspeccion ]; then rc=0; node scripts/qa/real/lf-inspect.mjs || rc=$?
             if [ -f "$RUNNER_TEMP/lf.wav" ]; then pip install -q faster-whisper==1.1.1 && python3 scripts/qa/real/lf-transcribe.py || rc=1; fi; exit $rc; fi
           if [ "$CASO" = lf ]; then node scripts/qa/real/longform-real.mjs; elif [ "$CASO" = descargas ]; then node scripts/qa/real/podcast-downloads.mjs; else node scripts/qa/real/podcast-real.mjs; fi
