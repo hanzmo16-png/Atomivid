@@ -77,6 +77,19 @@ const EQUIVALENT_TERMS: Record<string, string[]> = {
 };
 
 /**
+ * Category (hypernym) -> member names, matched on the provider's own words. ONE-WAY: a subject that names the category
+ * ("herbivores", "savanna") accepts a candidate that names a member ("african buffalo grazing", "open plains"); a subject
+ * that names a member never accepts another member ("zebra" vs "giraffe") nor the category. Phrases that use a member
+ * name for something else ("zebra crossing", "buffalo wings", "plain background") never count.
+ * Incident 2026-10-28 ("Un día en la sabana africana"): every herbivore and savanna scene was rejected on wording alone.
+ */
+const CATEGORY_MEMBERS: Record<string, RegExp> = {
+  herbivore: /\b(?:herbivorous|(?:african |cape |water )?buffalo(?:es|s)?(?! wings?\b| bills?\b|,? (?:ny|new york)\b)|zebras?(?! crossings?\b)|giraffes?|antelopes?|wildebeests?|gnus?|gazelles?|impalas?|elephants?|hippos?|hippopotam(?:us|uses|i)|rhinos?|rhinoceros(?:es)?|elands?|kudus?|warthogs?|okapis?|bison)\b/,
+  savanna: /\b(?:savannah?s?|grasslands?|(?:open |grassy |vast |african |serengeti )plains)\b/,
+  savannah: /\b(?:savannah?s?|grasslands?|(?:open |grassy |vast |african |serengeti )plains)\b/,
+};
+
+/**
  * Scenes set off Earth (Moon, Mars, orbit, deep space): their footage must not show an Earth-bound or festive context.
  * T-23 C1: decided ONLY from the declared `place`. A terrestrial documentary may name "planet Earth", a galaxy or an
  * astronaut in its subject or description without leaving Earth, so those fields never open this gate; a scene with no
@@ -163,7 +176,7 @@ export function assessRelevance(visual: BeatVisual, candidateText: string | unde
   weigh(englishTerms(visual.description), 1);
   // Every subject term (1-3 words) must appear, or an equivalent form: "lunar crater" needs both, so a
   // volcanic crater or a Lunar New Year photo no longer passes on one shared word.
-  const present = (t: string) => candidate.has(t) || (EQUIVALENT_TERMS[t] ?? []).some((e) => candidate.has(e));
+  const present = (t: string) => candidate.has(t) || (EQUIVALENT_TERMS[t] ?? []).some((e) => candidate.has(e)) || (CATEGORY_MEMBERS[t]?.test(text) ?? false);
   for (const t of subject) {
     if (!candidate.has(t) && present(t) && !matched.includes(t)) {
       matched.push(t);

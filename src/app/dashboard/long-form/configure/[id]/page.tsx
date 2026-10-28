@@ -12,7 +12,7 @@ import {
 import { ConfigureProduction } from "./ConfigureProduction";
 import { defaultPackaging, isOwnChannelAccount } from "@/lib/video/long-form/packaging";
 import { PRODUCT_DEFAULT_PLAN_VERSION, usesAnchoredVisuals } from "@/lib/video/long-form/production-plan-types";
-import { configurePlans } from "@/lib/video/long-form/product-plan";
+import { configurePlansWithMaterial, createMaterialSearchCache, materialCheckProviderWithDeadline, type MaterialPlanCheck } from "@/lib/video/long-form/material-plan";
 import { cinematicV6Enabled } from "@/lib/video/long-form/cinematic-v6-access";
 import { recraftAllowedFor } from "@/lib/video/recraft-access";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -20,6 +20,9 @@ import { canCurateAssets } from "@/lib/video/long-form/asset-curation";
 import type { ProductionPlanBeatInput } from "@/lib/video/long-form/production-plan";
 import { strategyPreflight, visualBlockMessage, visualCheck, type StrategyPreflight, type VisualCheck } from "@/lib/video/long-form/production-preflight";
 import { budgetsForPlans, loadScriptSpentUsd } from "@/lib/video/long-form/worker-budget-preview";
+
+/** Las búsquedas gratuitas de material (material-plan.ts) tienen su propio plazo, por debajo de este. */
+export const maxDuration = 120;
 
 
 /**
@@ -51,15 +54,25 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
   const beats = script.beats.map((b) => ({ id: b.id, type: b.type, purpose: b.purpose, narration: b.narration, visuals: b.visuals }));
   // Misma decisión de versión que confirm-production: v3 por defecto, v6 solo para cuentas habilitadas.
   const cinematicV6 = cinematicV6Enabled(user);
-  const results = configurePlans({ script, topic: data.topic, durationSeconds: data.duration_seconds, cinematicV6 });
+  // Material de archivo (incidente 2026-10-28): las MISMAS búsquedas gratuitas que el inicio, antes de confirmar. Una
+  // caché para todas las estrategias (y para Recraft); Equilibrado/Cinemático cubren las carencias con imágenes IA
+  // ya preciadas en su plan, Económico las muestra como impedimento.
+  const footageProvider = materialCheckProviderWithDeadline();
+  const searchCache = createMaterialSearchCache();
+  const planInput = { script, topic: data.topic, durationSeconds: data.duration_seconds, cinematicV6, footageProvider, searchCache };
+  const recraftAllowed = recraftAllowedFor(user);
+  const [withMaterial, recraftWithMaterial] = await Promise.all([
+    configurePlansWithMaterial(planInput),
+    recraftAllowed ? configurePlansWithMaterial({ ...planInput, imageProvider: "recraft" }) : Promise.resolve(undefined),
+  ]);
+  const results = withMaterial.results;
   const plans = Object.fromEntries(VISUAL_STRATEGIES.map((s) => [s, results[s].plan])) as Record<VisualStrategy, ProductionPlan>;
   const engine = results.balanced;
   // Pre-flight (read-only, server-side): same capacity rule as the start click and same visual gate as the worker.
   const service = createServiceClient();
   // «Imágenes IA con Recraft» (pilot account or general release): the same plans priced/pinned for Recraft, and their
   // own pre-flight (Recraft supply) — shown only when the creator picks it; confirm-production recomputes server-side.
-  const recraftAllowed = recraftAllowedFor(user);
-  const recraftPlans = recraftAllowed ? Object.fromEntries(Object.entries(configurePlans({ script, topic: data.topic, durationSeconds: data.duration_seconds, cinematicV6, imageProvider: "recraft" }))
+  const recraftPlans = recraftWithMaterial ? Object.fromEntries(Object.entries(recraftWithMaterial.results)
     .map(([s, r]) => [s, r.plan])) as Record<VisualStrategy, ProductionPlan> : undefined;
   let scriptSpent: number | { error: string };
   try {
@@ -67,12 +80,13 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
   } catch (error) {
     scriptSpent = { error: error instanceof Error ? error.message : "gasto del guion" };
   }
-  const check = async (set: Record<VisualStrategy, ProductionPlan>) => {
+  const check = async (set: Record<VisualStrategy, ProductionPlan>, material: Record<VisualStrategy, MaterialPlanCheck>) => {
     const budgets = await budgetsForPlans(service, set, scriptSpent);
     return Object.fromEntries(await Promise.all(VISUAL_STRATEGIES.map(async (strategy) =>
-      [strategy, await strategyPreflight(service, { strategy, plan: set[strategy], scriptJson: script, workerBudget: budgets[strategy] })]))) as Record<VisualStrategy, StrategyPreflight>;
+      [strategy, await strategyPreflight(service, { strategy, plan: set[strategy], scriptJson: script, workerBudget: budgets[strategy], material: material[strategy] })]))) as Record<VisualStrategy, StrategyPreflight>;
   };
-  const [preflight, recraftPreflight] = await Promise.all([check(plans), recraftPlans ? check(recraftPlans) : Promise.resolve(undefined)]);
+  const [preflight, recraftPreflight] = await Promise.all([check(plans, withMaterial.material),
+    recraftPlans && recraftWithMaterial ? check(recraftPlans, recraftWithMaterial.material) : Promise.resolve(undefined)]);
   const visual = await visualCheck(service, { requestId: id, plan: plans.balanced, beats: beats as ProductionPlanBeatInput[], topic: script.topic || data.topic })
     .catch((): VisualCheck => ({ applies: true, ready: false, codes: ["VISUAL_CHECK_UNAVAILABLE"], missingHeroIdentities: 0, missingHeroEvidence: 0, textCardRatio: null, maxTextCardRatio: 0.25, verifiedAssets: 0 }));
   const summary = {

@@ -30,6 +30,9 @@ import { datedEventBlockMessage, datedEventEvidenceBlockers } from "./dated-even
 import type { ProductionPlanBeatInput } from "./production-plan";
 import { visualBlockMessage, visualCheck, type VisualCheck } from "./production-preflight";
 import type { ReelRecraftStyle } from "@/lib/video/recraft-reel";
+import type { FootageProvider } from "@/lib/providers/types";
+import { materialAwarePlan, materialCheckFootageProvider, MATERIAL_CHECK_DEADLINE_MS, withSearchDeadline } from "./material-plan";
+import { materialBlockText } from "./material-gap-message";
 
 export function isVisualStrategyValue(value: unknown): value is VisualStrategy {
   return typeof value === "string" && (VISUAL_STRATEGIES as readonly string[]).includes(value);
@@ -45,6 +48,7 @@ type Row = {
   script_json: unknown;
   long_form_production_plan: unknown;
   long_form_confirmed_at: string | null;
+  reel_voice_id?: string | null;
 };
 
 export type ConfirmProductionResult =
@@ -80,6 +84,11 @@ export async function confirmLongFormProduction(
      * inputs produce.ts feeds to authorizeRequestBudget — and refuses when those stages do not fit.
      */
     budgetFacts?: { scriptSpentUsd: number; observed?: ObservedMax };
+    /**
+     * Proveedor de archivo para la comprobación de material (material-plan.ts). Ausente = el del entorno
+     * (null si es fixture / sin clave: la comprobación queda para el inicio). null = no comprobar (pruebas).
+     */
+    materialFootage?: FootageProvider | null;
   },
 ): Promise<ConfirmProductionResult> {
   if (!isVisualStrategyValue(input.strategy)) return { ok: false, status: 400, error: "Estrategia visual inválida" };
@@ -90,7 +99,7 @@ export async function confirmLongFormProduction(
 
   const { data, error: fetchError } = await service
     .from("video_requests")
-    .select("id, mode, user_id, status, topic, duration_seconds, script_json, long_form_production_plan, long_form_confirmed_at")
+    .select("id, mode, user_id, status, topic, duration_seconds, script_json, long_form_production_plan, long_form_confirmed_at, reel_voice_id")
     .eq("id", input.requestId)
     .maybeSingle<Row>();
   if (fetchError || !data) return { ok: false, status: 404, error: "Solicitud no encontrada" };
@@ -110,21 +119,43 @@ export async function confirmLongFormProduction(
   if (!isLongFormScriptJson(data.script_json)) {
     return { ok: false, status: 409, error: "El guion guardado no tiene la forma esperada para Long Form." };
   }
+  // A request reopened after a $0 material failure (reconfigure-production.ts) keeps the voice of its first
+  // confirmation: the column is immutable (DB trigger), so a different voice is refused here, never at the UPDATE.
+  if (data.reel_voice_id && input.voiceId && input.voiceId !== data.reel_voice_id) {
+    return { ok: false, status: 409, error: "Este documental ya tiene fijada la voz de su primera confirmación; elige esa misma voz o deja la predeterminada (se usará la ya fijada). No se confirmó ni se cobró nada." };
+  }
 
-  const { plan } = productPlan({
-    beats: data.script_json.beats.map((b) => ({
-      id: b.id,
-      type: b.type,
-      purpose: b.purpose,
-      narration: b.narration,
-      visuals: (b as { visuals?: unknown }).visuals,
-    })),
-    topic: data.script_json.topic || data.topic || "",
-    strategy,
-    providers: { ...getRealLongFormProviderNames(), ...(input.recraft ? { image: "recraft" } : {}) },
-    requestedDurationSeconds: data.duration_seconds ?? undefined,
-    cinematicV6: input.cinematicV6 === true,
+  const beats = data.script_json.beats.map((b) => ({
+    id: b.id,
+    type: b.type,
+    purpose: b.purpose,
+    narration: b.narration,
+    visuals: (b as { visuals?: unknown }).visuals,
+  }));
+  const topic = data.script_json.topic || data.topic || "";
+  // Same material check as the Configure page (and as produce() before spending): scenes without relevant, unique
+  // stock become AI images priced in THIS plan, or the plan is refused before it is locked.
+  const footage = input.materialFootage !== undefined ? input.materialFootage : materialCheckFootageProvider();
+  const { result: { plan }, material } = await materialAwarePlan({
+    beats: beats as ProductionPlanBeatInput[],
+    topic,
+    footageProvider: footage ? withSearchDeadline(footage, Date.now() + MATERIAL_CHECK_DEADLINE_MS) : null,
+    build: (materialGapImages) => productPlan({
+      beats,
+      topic,
+      strategy,
+      providers: { ...getRealLongFormProviderNames(), ...(input.recraft ? { image: "recraft" } : {}) },
+      requestedDurationSeconds: data.duration_seconds ?? undefined,
+      cinematicV6: input.cinematicV6 === true,
+      materialGapImages,
+    }),
   });
+  if (material.status === "unavoidable_gap") {
+    return { ok: false, status: 409, error: `No se puede confirmar: ${materialBlockText(material, strategy)} No se confirmó ni se cobró nada.` };
+  }
+  if (material.status === "temporary_error") {
+    return { ok: false, status: 503, error: `No se pudo comprobar el material de archivo ahora (${material.reason}). No se confirmó ni se cobró nada; vuelve a intentarlo en unos minutos.` };
+  }
   if (packagingCheck.packaging) plan.packaging = packagingCheck.packaging;
   const budget = getLongFormBudget();
   // Same formula as the worker (script already spent + conservative units + music + render worst case).

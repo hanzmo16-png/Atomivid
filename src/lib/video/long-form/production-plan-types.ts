@@ -123,7 +123,19 @@ export type ProductionPlan = {
    * ANTES de elegir recursos (roles + escala justificada). Ausente en v1–v4.
    */
   sequences?: import("./sequence-intent").SequenceIntent[];
+  /**
+   * Escenas de archivo SIN material pertinente y único (preflight de material al CONFIGURAR, material-plan.ts)
+   * promovidas a imagen IA. Ya están contadas en `aiImageCount`, `allocation` y el costo del plan: el worker las
+   * asigna igual (allocateShotTypes, `promoteToImage`) dentro de la misma allocation. Ausente = ciclo de la estrategia.
+   */
+  materialGapImages?: string[];
 };
+
+/** Escenas que el plan confirmado promovió a imagen IA por carencia de archivo (vacío = ninguna). */
+export function planMaterialPromotions(plan: Pick<ProductionPlan, "materialGapImages">): ReadonlySet<string> | undefined {
+  const ids = Array.isArray(plan.materialGapImages) ? plan.materialGapImages.filter((id): id is string => typeof id === "string") : [];
+  return ids.length > 0 ? new Set(ids) : undefined;
+}
 
 export function isProductionPlan(value: unknown): value is ProductionPlan {
   if (!value || typeof value !== "object") return false;

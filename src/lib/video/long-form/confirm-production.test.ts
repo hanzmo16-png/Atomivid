@@ -4,6 +4,7 @@ import { confirmLongFormProduction } from "./confirm-production";
 import { documentary180sFixture } from "./test-fixtures";
 import { editorialFixture, passingReview } from "./editorial.test-fixtures";
 import { editorialScriptHash } from "./editorial";
+import type { FootageCandidate, FootageProvider } from "@/lib/providers/types";
 
 type RowState = Record<string, unknown>;
 
@@ -300,4 +301,70 @@ test("sin voz elegida: la fila no recibe reel_voice_id (voz predeterminada como 
   const result = await confirmLongFormProduction(fake.client, { requestId: "req-1", userId: "user-1", strategy: "balanced" });
   assert.ok(result.ok);
   assert.equal("reel_voice_id" in fake.row, false);
+});
+
+/** Archivo sintético: cada consulta encuentra material pertinente y único, salvo las de mosquitos (no existe). */
+function footageWithout(word: string): FootageProvider {
+  let n = 0;
+  const found = (query: string, media: "image" | "video"): FootageCandidate[] => query.toLowerCase().includes(word) ? [] : Array.from({ length: 3 }, () => ({
+    url: `https://synthetic.invalid/${n}`, sourceId: `s${n++}`, description: query, durationSeconds: 30, mediaType: media,
+    mimeType: media === "video" ? "video/mp4" : "image/jpeg", extension: media === "video" ? "mp4" : "jpg" }));
+  return {
+    name: "synthetic",
+    async fetchFootage() { throw new Error("solo candidatos"); },
+    async downloadFootage() { throw new Error("sin descargas"); },
+    async searchVideoCandidates(query) { return found(query, "video"); },
+    async searchImageCandidates(query) { return found(query, "image"); },
+  };
+}
+
+test("material (2026-10-28): Económico con escenas sin archivo NO se confirma (409, número de escenas), USD 0", async () => {
+  const fake = fakeService(baseRow());
+  const result = await confirmLongFormProduction(fake.client, { requestId: "req-1", userId: "user-1", strategy: "economical", materialFootage: footageWithout("mosquito") });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.status, 409);
+    assert.match(result.error, /no hay material de archivo pertinente y único para \d+ escena\(s\)/);
+  }
+  assert.equal(fake.appliedUpdates(), 0);
+  assert.equal(fake.row.long_form_confirmed_at, null);
+});
+
+test("material: Equilibrado confirma el plan con las escenas sin archivo como imagen IA, ya preciadas", async () => {
+  const plain = fakeService(baseRow());
+  const without = await confirmLongFormProduction(plain.client, { requestId: "req-1", userId: "user-1", strategy: "balanced", materialFootage: null });
+  const fake = fakeService(baseRow());
+  const result = await confirmLongFormProduction(fake.client, { requestId: "req-1", userId: "user-1", strategy: "balanced", materialFootage: footageWithout("mosquito") });
+  assert.ok(result.ok && without.ok);
+  if (!result.ok || !without.ok) return;
+  const promoted = result.plan.materialGapImages ?? [];
+  assert.ok(promoted.length > 0);
+  assert.equal(result.plan.aiImageCount, without.plan.aiImageCount + promoted.length);
+  assert.equal(result.plan.allocation!.maxAiImageGenerations, without.plan.allocation!.maxAiImageGenerations + promoted.length);
+  assert.ok(result.plan.estimatedProviderCostUsd > without.plan.estimatedProviderCostUsd);
+  assert.deepEqual((fake.row.long_form_production_plan as { materialGapImages?: string[] }).materialGapImages, promoted);
+});
+
+test("material: con todo el archivo disponible el plan es idéntico al de antes (sin promociones)", async () => {
+  const a = await confirmLongFormProduction(fakeService(baseRow()).client, { requestId: "req-1", userId: "user-1", strategy: "balanced", materialFootage: footageWithout("no-such-word"), nowIso: "2026-10-28T10:00:00Z" });
+  const b = await confirmLongFormProduction(fakeService(baseRow()).client, { requestId: "req-1", userId: "user-1", strategy: "balanced", materialFootage: null, nowIso: "2026-10-28T10:00:00Z" });
+  assert.ok(a.ok && b.ok);
+  if (a.ok && b.ok) assert.deepEqual(a.plan, b.plan);
+});
+
+test("material: proveedor de archivo caído → 503, no se confirma nada", async () => {
+  const down: FootageProvider = { name: "down", async fetchFootage() { throw new Error("x"); }, async downloadFootage() { throw new Error("x"); },
+    async searchImageCandidates() { throw new Error("HTTP 503"); }, async searchVideoCandidates() { throw new Error("HTTP 503"); } };
+  const fake = fakeService(baseRow());
+  const result = await confirmLongFormProduction(fake.client, { requestId: "req-1", userId: "user-1", strategy: "balanced", materialFootage: down });
+  assert.ok(!result.ok && result.status === 503);
+  assert.equal(fake.appliedUpdates(), 0);
+});
+
+test("reconfiguración: la voz fijada en la primera confirmación no se cambia (trigger inmutable)", async () => {
+  const fake = fakeService(baseRow({ reel_voice_id: "CeFSZuaHs4SxcBxb9nCr" }));
+  const other = await confirmLongFormProduction(fake.client, { requestId: "req-1", userId: "user-1", strategy: "balanced", voiceId: "otraVoz12345", materialFootage: null });
+  assert.ok(!other.ok && other.status === 409);
+  const same = await confirmLongFormProduction(fake.client, { requestId: "req-1", userId: "user-1", strategy: "balanced", voiceId: "CeFSZuaHs4SxcBxb9nCr", materialFootage: null });
+  assert.ok(same.ok);
 });
