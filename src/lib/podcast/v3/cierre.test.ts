@@ -23,6 +23,10 @@ test("saldo y topes previos: la demanda del estudio usa la regla de producción 
   assert.equal(d.find((x) => x.provider === "elevenlabs")!.usd, 1.1);
   assert.equal(unsupportedSpend(needs({ imagesUsd: 0.4 }))?.includes("no está conectado"), true);
   assert.equal(unsupportedSpend(needs()), null);
+  // Daily call quotas: the calls still to make travel with the demand (only when there are any).
+  const withCalls = studioSupplyDemands({ ...needs({ avatarUsd: 2 }), ttsCalls: 8, avatarCalls: 0 }, {});
+  assert.equal(withCalls.find((x) => x.provider === "elevenlabs")!.calls, 8);
+  assert.equal("calls" in withCalls.find((x) => x.provider === "heygen")!, false);
 });
 
 test("quien escucha no queda congelado: movimiento de cámara sutil, continuo, del largo exacto del plano y sin animar labios", () => {

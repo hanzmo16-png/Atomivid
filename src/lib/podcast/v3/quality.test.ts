@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { planEpisode, salientTerms, type VisualAsset } from "./editorial";
+import { planEpisode, planIssues as planIssuesOf, salientTerms, type VisualAsset } from "./editorial";
 import { parseLabeledScript } from "./script";
 import { gatherAssets, type ImageProvider } from "./pipeline";
 
@@ -45,4 +45,26 @@ test("búsquedas ancladas: tema → título (sin cifras) → palabras repetidas 
   assert.ok(queries.length > 0 && queries.every((q) => q.startsWith("cometa interestelar")), JSON.stringify(queries));
   assert.ok(queries.some((q) => q.includes("salida")), "la palabra del turno sigue, pero acompañada del tema");
   assert.ok(!queries.includes("salida nunca regresara"), "la búsqueda literal que trajo el letrero de estacionamiento ya no existe");
+});
+
+test("turnos sin imagen propia usan una imagen NO usada del tema, no un plano vacío (P2 real: 4 planos vacíos de 2-5 s)", async () => {
+  // Imágenes como las que trae la búsqueda del ancla sola: etiquetadas con el tema, sin palabras de los turnos.
+  const pool: VisualAsset[] = Array.from({ length: 8 }, (_, i) => ({ id: `px-${i}`, query: "cometa interestelar", kind: "foto" as const, tags: ["cometa", "interestelar", "space"] }));
+  const at = (topicTerms?: string[]) => planEpisode({ mode: "dialogo", turns, assets: pool, topicTerms, avatarFrequency: 0.25, avatarMaxSeconds: 10, recreations: false, hasAvatar: { A: true, B: true }, introSeconds: 3 });
+  const withTopic = at(["cometa", "interestelar"]);
+  const nonAvatar = withTopic.shots.filter((s) => s.turn_id && !avatarKinds.has(s.kind));
+  assert.ok(nonAvatar.length >= 4, "con frecuencia 0.25 la mayoría de turnos no llevan avatar");
+  assert.equal(nonAvatar.filter((s) => s.kind === "transicion").length, 0, "ningún turno queda en plano vacío mientras haya imágenes del tema");
+  assert.equal(new Set(withTopic.assetsUsed).size, withTopic.assetsUsed.length, "sin repetir imágenes");
+  assert.deepEqual(planIssuesOf(withTopic), []);
+  // Sin términos del tema, el comportamiento anterior: nada ajeno, transición.
+  assert.ok(at(undefined).shots.some((s) => s.kind === "transicion"));
+  // Agotadas las imágenes del tema, el resto vuelve a transición (no repite).
+  const scarce = planEpisode({ mode: "dialogo", turns, assets: pool.slice(0, 1), topicTerms: ["cometa"], avatarFrequency: 0, avatarMaxSeconds: 10, recreations: false, hasAvatar: { A: true, B: true } });
+  assert.equal(scarce.assetsUsed.length, 1);
+  // La búsqueda del ancla sola pide el fondo del tema (8 imágenes).
+  const calls: { q: string; limit?: number }[] = [];
+  const images = { name: "x", label: "mock", async search(q: string, limit?: number) { calls.push({ q, limit }); return [] as VisualAsset[]; }, async fetch() {} } as unknown as ImageProvider;
+  await gatherAssets(turns, images, "Prueba real P2", false, "cometa interestelar");
+  assert.deepEqual(calls[0], { q: "cometa interestelar", limit: 8 });
 });
