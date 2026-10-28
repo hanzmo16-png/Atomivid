@@ -32,7 +32,9 @@ def extend(fg, a, ex, ey):
     """Prolonga primer plano y alfa por los lados y por abajo; el alfa añadido se desvanece (rampa suave)."""
     if ex <= 0 and ey <= 0:
         return fg, a
-    fg2 = cv2.copyMakeBorder(fg, 0, ey, ex, ex, cv2.BORDER_REPLICATE)
+    # Reflejo (no réplica): la réplica estiraba el último píxel en franjas horizontales visibles en el hombro de un
+    # retrato cerrado; el reflejo continúa la textura real de la ropa mientras el alfa se desvanece.
+    fg2 = cv2.copyMakeBorder(fg, 0, ey, ex, ex, cv2.BORDER_REFLECT_101)
     a2 = cv2.copyMakeBorder(a, 0, ey, ex, ex, cv2.BORDER_REPLICATE).astype(np.float32)
     h, w = a2.shape
     ramp = lambda n: (np.cos(np.linspace(0, np.pi, n)) * 0.5 + 0.5).astype(np.float32)  # 1 → 0, suave
