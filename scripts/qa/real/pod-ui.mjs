@@ -26,6 +26,8 @@ const SCRIPT = [
 const browser = await chromium.launch({ headless: true, channel: process.env.PW_CHANNEL || undefined });
 for (const [label, opts] of [["escritorio", { viewport: { width: 1366, height: 900 } }], ["movil", { ...devices["iPhone 13"] }]]) {
   const ctx = await browser.newContext({ ...opts, storageState: stateFor() });
+  // Como el E2E de CI: el recorrido de bienvenida ya visto (una sesión nueva del navegador lo mostraría encima del asistente).
+  await ctx.addInitScript(() => { try { localStorage.setItem("atomivid_onboarding_completed_v1", "1"); } catch {} });
   const p = await ctx.newPage();
   const shot = (n) => p.screenshot({ path: path.join(EVID, `${label}-${n}.png`), fullPage: true }).catch(() => {});
   const next = async () => { await p.getByRole("button", { name: "Siguiente", exact: true }).click(); await p.waitForTimeout(600); };
