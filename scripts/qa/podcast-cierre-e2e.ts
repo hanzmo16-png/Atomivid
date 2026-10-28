@@ -205,7 +205,10 @@ async function partB() {
       onProgress: (p) => { if (p.stage === "montaje" && p.done >= Math.ceil(p.total * 0.5)) { interrupted = true; throw new Error("RUNNER_PERDIDO (simulado)"); } } }); }
     catch (e) { ok(`B-${m.tag} interrupción simulada tras pagar voz/avatar`, interrupted, (e as Error).message.slice(0, 80)); }
     const s1 = await ledgerStats(id);
-    const calls = (p: ReturnType<typeof mockProviders>) => p.calls.tts.length + p.calls.avatar.length + p.calls.recreate.length + p.calls.prepare.length;
+    // Llamadas que pasan por el libro: voz, avatar, recreación, preparación, ilustración (Recraft), guion visual y cada
+    // lote de verificación de imágenes.
+    const calls = (p: ReturnType<typeof mockProviders>) => p.calls.tts.length + p.calls.avatar.length + p.calls.recreate.length + p.calls.prepare.length
+      + p.calls.images.length + p.calls.briefs + p.calls.verified.length;
     const paid1 = calls(p1);
     ok(`B-${m.tag} libro tras la interrupción: sin reservas abiertas ni inciertas`, Number(s1.reserved) === 0 && Number(s1.uncertain) === 0, JSON.stringify(s1));
     // 2) Recuperación: el worker marca «failed»; sin nueva autorización un worker rezagado NO lo regenera.

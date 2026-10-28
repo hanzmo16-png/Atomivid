@@ -48,7 +48,8 @@ test("API: Recraft apagado → 409 con motivo, sin crear; la estimación con Rec
   assert.equal(ok.status, 200);
   const e = ok.body.estimate as { byProvider: Record<string, number>; providers: { id: string }[]; lipTimeline: unknown[]; coverage: Record<string, boolean>; turnList: { speaker: string; kind: string }[]; lines: { concept: string; provider: string; usd: number }[] };
   assert.ok(e.byProvider.ElevenLabs > 0 && "HeyGen" in e.byProvider, "costo por proveedor antes de autorizar");
-  assert.ok(e.byProvider.Recraft > 0 && e.byProvider.Anthropic > 0, `Recraft y verificación en la estimación: ${JSON.stringify(e.byProvider)}`);
+  // La verificación de las imágenes es local (CLIP en el worker): aparece en la estimación con USD 0.
+  assert.ok(e.byProvider.Recraft > 0 && e.byProvider["Verificación local"] === 0, `Recraft y verificación en la estimación: ${JSON.stringify(e.byProvider)}`);
   assert.ok(e.lipTimeline.length > 0 && e.turnList.length > 0);
   assert.ok(e.coverage.general && (e.coverage.primerPlanoA || e.coverage.primerPlanoB), JSON.stringify(e.coverage));
 });
