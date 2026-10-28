@@ -14,16 +14,21 @@ import { createClient } from "@supabase/supabase-js";
 
 const ASSET = "dcf70e13d7b44cd2ad95836412120ab4";
 const SHA = "d1eb3a8361a7d833fabf46697a5b0d90dd62aabf4d1bb8ff538a08b268861e8a";
-const HANS_AVATAR_PREFIX = "083d574a";
+const OWNER_EMAIL_SHA256 = "8dcc0bfc5e69efb6c156c7972579693e10c2ff3c72ca363fc6d1fb79d58fdaac"; // misma identificación que studio-resources.ts
 const out = (t: string, v: unknown) => console.log(t, JSON.stringify(v));
 async function main() {
   const apply = process.env.MODO === "apply";
   const db = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
-  const { data: av, error } = await db.from("avatars").select("id,user_id,name,provider,provider_avatar_id,source_photo_path,status,consent_given,consent_policy_version").eq("provider", "heygen");
+  let owner = "";
+  for (let page = 1; page <= 50 && !owner; page++) {
+    const { data } = await db.auth.admin.listUsers({ page, perPage: 200 });
+    const hit = data?.users.find((u) => u.email && createHash("sha256").update(u.email.trim().toLowerCase()).digest("hex") === OWNER_EMAIL_SHA256);
+    if (hit) owner = hit.id;
+    if (!data?.users.length) break;
+  }
+  if (!owner) throw new Error("no se encontró la cuenta de Hans");
+  const { data: av, error } = await db.from("avatars").select("id,user_id,name,provider,provider_avatar_id,source_photo_path,status,consent_given,consent_policy_version").eq("user_id", owner);
   if (error) throw new Error(`avatars: ${error.message}`);
-  const hans = (av ?? []).find((a) => a.id.startsWith(HANS_AVATAR_PREFIX));
-  if (!hans) throw new Error("no se encontró el avatar de Hans");
-  const owner = hans.user_id as string;
   const shape = (a: Record<string, unknown>) => ({ id: a.id, name: a.name, ref: String(a.provider_avatar_id ?? "").replace(/^(asset:).{6}.*/, "$1…"), photoInOwnerFolder: String(a.source_photo_path ?? "").startsWith(`${owner}/`), status: a.status, consent: a.consent_given, policy: a.consent_policy_version });
   out("OWNER_AVATARS", (av ?? []).filter((a) => a.user_id === owner).map(shape));
   const existing = (av ?? []).find((a) => a.user_id === owner && a.provider_avatar_id === `asset:${ASSET}`);
