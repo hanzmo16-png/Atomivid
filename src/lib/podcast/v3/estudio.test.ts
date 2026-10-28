@@ -50,6 +50,9 @@ test("estudios: tres compartidos con asientos a cada lado; escenarios anteriores
     const P = placeInSeat(m, seat, vcam), cx = P.x + 360 * (P.w / 720);
     assert.ok(cx > 0 && cx < v.w, `las dos caras dentro del cuadro vertical (${cx})`);
   }
+  const vc = placeInSeat(m, st.seats.B, cameraFor("primer", st.seats.B, "derecha", v, span));
+  const vTop = vc.y + 200 * (vc.h / 1280), vFace = 360 * (vc.h / 1280);
+  assert.ok(vTop - vFace * 0.4 > 0 && vTop + vFace < v.h * 0.8, "9:16, primer plano: cabeza completa y por encima de los subtítulos");
 });
 
 test("duración: el guion se ajusta a la duración pedida al ritmo real de las voces (sin acelerar la voz)", () => {

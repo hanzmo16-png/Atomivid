@@ -69,7 +69,8 @@ export function cameraFor(kind: "general" | "primer", seat: Seat, side: "izquier
     return { zoom, ox, oy: -Math.round((fr.h - STUDIO_H * zoom) / 2), blur: 0, frontBlur: 0 };
   }
   const vertical = fr.h > fr.w;
-  const faceH = fr.h * (vertical ? 0.15 : 0.26);
+  // 9:16: cara algo mayor para que los hombros de un retrato cerrado salgan por los bordes (no se ve dónde termina).
+  const faceH = fr.h * (vertical ? 0.18 : 0.26);
   const zoom = faceH / seat.faceH;
   const cx = fr.w * (vertical ? 0.5 : side === "izquierda" ? 0.4 : 0.6), cy = fr.h * (vertical ? 0.34 : 0.38);
   // Sin salirse del fondo: el desplazamiento se limita al estudio ampliado (la persona se coloca con la MISMA cámara).
