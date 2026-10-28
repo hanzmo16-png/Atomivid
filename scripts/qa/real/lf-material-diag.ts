@@ -44,6 +44,13 @@ if (process.env.DIAG_SUPPLY) {
       console.log("avatar", redact(a.id), JSON.stringify({ hasPhotoPath: !!p, ownerPrefix: p.startsWith(`${process.env.OWNER_ID}/`), inAvatarUploads: await exists("avatar-uploads"), inVideos: await exists("videos"), hasProviderAvatar: !!a.provider_avatar_id }));
     }
   }
+  // Conciliación Long Form desde el 27-oct: gasto por solicitud (hash) y proveedor/estado; filas abiertas en todo el libro.
+  const { data: lfOps } = await sdb.from("pi_paid_operations").select("project_id,provider,status,reserved_usd,committed_usd,created_at").gte("created_at", "2026-10-27T00:00:00Z").not("project_id", "like", "podcast%");
+  const per: Record<string, Record<string, { n: number; reserved: number; committed: number }>> = {};
+  for (const o of lfOps ?? []) { const k = redact(String(o.project_id)).slice(0, 48); const ks = `${o.provider}/${o.status}`; per[k] ??= {}; per[k][ks] ??= { n: 0, reserved: 0, committed: 0 }; per[k][ks].n++; per[k][ks].reserved += Number(o.reserved_usd ?? 0); per[k][ks].committed += Number(o.committed_usd ?? 0); }
+  console.log("lf spend since 10-27 by project", JSON.stringify(per));
+  const { data: open } = await sdb.from("pi_paid_operations").select("project_id,provider,status,method,reserved_usd,committed_usd,created_at,updated_at").in("status", ["RECONCILIATION_REQUIRED", "SUBMITTED", "PROVIDER_JOB_RECORDED", "RESERVED"]);
+  for (const o of open ?? []) console.log("open op", redact(JSON.stringify(o)));
   const { data: eps } = await sdb.from("podcast_studio_episodes").select("id,title,status,authorized_usd,cost_usd,error,created_at,updated_at").gte("created_at", "2026-10-27T00:00:00Z").order("created_at");
   console.log("podcast studio episodes today", JSON.stringify((eps ?? []).map((e) => ({ ...e, title: String(e.title).slice(0, 34) }))));
   const { data: pops } = await sdb.from("podcast_studio_operations").select("episode_id,provider,op,state,reserved_usd,actual_usd,created_at").gte("created_at", "2026-10-27T00:00:00Z").order("created_at");
