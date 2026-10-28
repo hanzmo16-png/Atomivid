@@ -19,7 +19,7 @@ const { data: jobs } = await db.from("documentary_script_jobs").select("request_
 const hits = [...new Set((jobs || []).map((x) => x.request_id).filter(Boolean))].filter((id) => crypto.createHash("sha256").update(id).digest("hex").startsWith(REF.slice(5)));
 if (!ok("request found (unique) in the owner's account", hits.length === 1, `${hits.length}`)) done();
 const R = hits[0];
-const { data: r } = await db.from("video_requests").select("status,video_path,duration_seconds,aspect_ratio,script_json,completed_at,updated_at").eq("id", R).single();
+const { data: r, error: re } = await db.from("video_requests").select("status,video_path,duration_seconds,aspect_ratio,script_json").eq("id", R).single();
 facts.request = { status: r?.status, plannedSeconds: r?.duration_seconds, aspect: r?.aspect_ratio ?? null };
 if (!ok("request completed with a stored video", r?.status === "completed" && !!r?.video_path, r?.status)) done();
 
