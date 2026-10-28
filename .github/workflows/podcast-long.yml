@@ -1,0 +1,40 @@
+# Montaje de un episodio largo (~30 min) con proveedores SIMULADOS (USD 0, sin secretos) y ffmpeg real a resolución
+# completa, en ubuntu-latest como el worker. Código del estudio: la rama por defecto (o `ref_codigo`).
+name: podcast-long
+on:
+  workflow_dispatch:
+    inputs:
+      minutos: { description: "Duración objetivo", required: false, default: "30" }
+      ref_codigo: { description: "Rama/SHA del código del estudio", required: false, default: "claude/atomivid-mvp-setup-0079jv" }
+  push:
+    branches: [claude/puertas-merge]
+    paths: [".github/workflows/podcast-long.yml"]
+permissions:
+  contents: read
+jobs:
+  long:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false, path: harness }
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false, ref: "${{ inputs.ref_codigo }}", path: app }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: app/package-lock.json }
+      - run: sudo apt-get -o Acquire::Retries=3 update -q && sudo apt-get install -yq --no-install-recommends ffmpeg espeak-ng fonts-dejavu-core
+      - run: npm ci --no-audit --no-fund
+        working-directory: app
+      - name: Montaje largo (simulado)
+        working-directory: app
+        env: { LONG_MINUTES: "${{ inputs.minutos }}", OUT_DIR: "${{ runner.temp }}/long" }
+        run: mkdir -p scripts/qa/real && cp ../harness/scripts/qa/real/podcast-long-montage.ts scripts/qa/real/ && /usr/bin/time -v npx tsx scripts/qa/real/podcast-long-montage.ts 2>&1 | tee long.log; grep -q 'RESULT podcast-long-montage: 0 FAIL' long.log
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: podcast-long
+          retention-days: 7
+          path: |
+            app/long.log
+            ${{ runner.temp }}/long/facts.json
