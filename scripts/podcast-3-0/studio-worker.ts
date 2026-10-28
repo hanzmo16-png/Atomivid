@@ -83,11 +83,14 @@ export async function runStudioJob(episodeId: string) {
     const created = await heygenAvatarProvider.createAvatar({ photoBuffer: Buffer.from(await data.arrayBuffer()), mimeType: p.endsWith(".png") ? "image/png" : "image/jpeg", consentGiven: true } as never);
     return { ref: created.providerAvatarId, actualUsd: 0 };
   };
+  // Misma fuente que fetchStill (bucket y ruta del dueño); lectura gratuita antes de cualquier cargo.
+  const stillOf = async (ref: string) => stillSource(owner, ref, ref.startsWith("foto:") ? null : (await avatarRow(ref)).source_photo_path);
   const avatar = realAvatar({
+    checkStill: async (ref) => { const src = await stillOf(ref); const { data } = await service.storage.from(src.bucket).download(src.path); return !!data; },
     publishAudio: async (file) => { const p = await upload(`${base}/avatar-audio/${path.basename(file)}`, file, "audio/wav"); const { data } = await service.storage.from(BUCKET).createSignedUrl(p, 3600); if (!data?.signedUrl) throw new Error("SIGN"); return data.signedUrl; },
     fetchStill: async (ref, dest) => {
       // Wizard photo → «videos»; existing avatar → «avatar-uploads» (see still-source.ts). Owner-only path either way.
-      const src = stillSource(owner, ref, ref.startsWith("foto:") ? null : (await avatarRow(ref)).source_photo_path);
+      const src = await stillOf(ref);
       const { data } = await service.storage.from(src.bucket).download(src.path); if (!data) throw new Error("FOTO");
       const { writeFile } = await import("node:fs/promises"); await writeFile(dest, Buffer.from(await data.arrayBuffer()));
     },
