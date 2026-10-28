@@ -17,7 +17,9 @@ async function main() {
     const { rows: [fn] } = await client.query("select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='pi_supply_spend'");
     const original = await readFile("supabase/proposals/20261028100000_pi_supply_spend_committed.rollback.sql", "utf8").catch(() => "");
     const body = (src: string) => (/\$\$([\s\S]*?)\$\$/.exec(src)?.[1] ?? "");
-    console.log("FN", JSON.stringify({ present: !!fn, liveHash: fn ? h(fn.prosrc) : null, originalHash: original ? h(body(original)) : null, equalsOriginal: fn && original ? h(fn.prosrc) === h(body(original)) : null }));
+    const proposal = await readFile("supabase/proposals/20261028100000_pi_supply_spend_committed.sql", "utf8").catch(() => "");
+    console.log("FN", JSON.stringify({ present: !!fn, liveHash: fn ? h(fn.prosrc) : null, rollbackHash: original ? h(body(original)) : null, proposalHash: proposal ? h(body(proposal)) : null,
+      liveEqualsRollback: fn && original ? h(fn.prosrc) === h(body(original)) : null, liveEqualsProposal: fn && proposal ? h(fn.prosrc) === h(body(proposal)) : null }));
     const { rows: mig } = await client.query("select name from public._migrations_applied where name like '20261028%' or name like '%pi_supply_spend%'").catch(() => ({ rows: [{ name: "registry-unavailable" }] }));
     console.log("REGISTRY", JSON.stringify(mig));
     const day = "date_trunc('day', now() at time zone 'America/Cancun') at time zone 'America/Cancun'";
