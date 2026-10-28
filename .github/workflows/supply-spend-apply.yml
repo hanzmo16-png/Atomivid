@@ -1,0 +1,65 @@
+# Ejecución única de la migración 20261028100000 (pi_supply_spend al costo real, #234) en producción.
+# El código se toma del commit `sha_autorizado`, que debe estar ya integrado en la rama por defecto y contener la propuesta
+# y su rollback. Puerta previa (solo lectura): cuerpo vivo == rollback (definición de O8) y migración sin registrar.
+# Ejecución: la propuesta se copia a supabase/migrations/ y se aplica con scripts/apply-supabase-migration.ts (un solo
+# archivo; SQL + registro en una transacción). Verificación posterior: cuerpo vivo == propuesta, registro, permisos sin
+# cambios y valor de la función == recálculo. Contingencia solo si la verificación falla: rollback auditado + baja del
+# registro en una transacción (negado si el cuerpo vivo no es la propuesta). Una segunda ejecución no escribe (pre falla).
+name: supply-spend-apply
+on:
+  workflow_dispatch:
+    inputs:
+      sha_autorizado: { description: "Commit completo (40) de la rama por defecto con la propuesta", required: true }
+      pooler_host: { description: "Pooler de Supabase", required: false, default: "aws-0-us-west-2.pooler.supabase.com" }
+  push:
+    branches: [claude/puertas-merge]
+    paths: [".github/workflows/supply-spend-apply.yml"]
+permissions:
+  contents: read
+concurrency: { group: supply-spend-apply, cancel-in-progress: false }
+jobs:
+  apply:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || inputs.pooler_host }}
+      SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
+      SHA: ${{ inputs.sha_autorizado }}
+      F: 20261028100000_pi_supply_spend_committed
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false, path: harness }
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false, ref: "${{ inputs.sha_autorizado }}", path: pr, fetch-depth: 0 }
+      - name: "0. Commit autorizado: exacto, integrado en la rama por defecto, con propuesta y rollback"
+        working-directory: pr
+        run: |
+          set -euo pipefail
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] && [ "$(git rev-parse HEAD)" = "$SHA" ]
+          git merge-base --is-ancestor "$SHA" "origin/${{ github.event.repository.default_branch }}"
+          test -f "supabase/proposals/$F.sql" && test -f "supabase/proposals/$F.rollback.sql" && test ! -e "supabase/migrations/$F.sql"
+          sha256sum "supabase/proposals/$F.sql" "supabase/proposals/$F.rollback.sql"
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: pr/package-lock.json }
+      - run: npm ci --no-audit --no-fund
+        working-directory: pr
+      - name: "1. Puerta previa (solo lectura)"
+        working-directory: pr
+        run: mkdir -p scripts/qa/real && cp ../harness/scripts/qa/real/supply-spend-gate.ts scripts/qa/real/ && npx tsx scripts/qa/real/supply-spend-gate.ts pre
+      - name: "2. Aplicar (herramienta del repo, un solo archivo)"
+        id: exec
+        working-directory: pr
+        run: cp "supabase/proposals/$F.sql" "supabase/migrations/$F.sql" && npx tsx scripts/apply-supabase-migration.ts "$F.sql"
+      - name: "3. Verificación posterior (solo lectura)"
+        id: verify
+        working-directory: pr
+        run: npx tsx scripts/qa/real/supply-spend-gate.ts post
+      - name: "4. Contingencia (solo si se ejecutó y la verificación falla)"
+        if: failure() && steps.exec.outcome != 'skipped' && steps.verify.outcome != 'success'
+        working-directory: pr
+        run: npx tsx scripts/qa/real/supply-spend-gate.ts rollback; echo "::error::verificación fallida: se intentó el rollback (ver ROLLBACK)"; exit 1
