@@ -63,7 +63,7 @@ export function mockProviders(opts: { failAvatarTimes?: number; failTtsRejectTim
     async generate(req, dest) { calls.images.push(req.prompt); await card(dest, `ILUSTRACION SIMULADA\n${req.prompt.slice(0, 50)}`, hashNum(req.prompt)); return { actualUsd: 0.035 }; },
     async recreate(prompt, dest) { calls.recreate.push(prompt); await card(dest, `RECREACION SIMULADA\n${prompt.slice(0, 50)}`, hashNum(prompt)); return { actualUsd: 0.035 }; },
   };
-  const director: VisualDirector = { label: "mock", briefUsd: 0.04, verifyUsd: 0.002, verifyBatchUsd: 0.01,
+  const director: VisualDirector = { name: "director-mock", label: "mock", briefUsd: 0.04, verifyUsd: 0.002, verifyBatchUsd: 0.01,
     async brief(input) {
       calls.briefs++;
       return { briefs: input.turns.map((t) => ({ turn_id: t.id, prompt: `${input.topic || input.title}: ${t.text.slice(0, 60)}`, subject: t.text.split(/\s+/).slice(0, 4).join(" "), recreation: /historia|antigu/i.test(t.text) })), actualUsd: 0.03 };

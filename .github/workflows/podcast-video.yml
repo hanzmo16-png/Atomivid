@@ -57,8 +57,12 @@ jobs:
         if: steps.due.outputs.go == 'true'
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core > /dev/null
         if: steps.due.outputs.go == 'true' && github.event.client_payload.kind != 'notices'
-      # Estudio compartido: recorte de los participantes (RobustVideoMatting en CPU, sin coste). Versiones fijadas.
-      - run: python3 -m pip install -q --disable-pip-version-check "onnxruntime==1.31.1" "numpy==2.2.6" "opencv-python-headless==4.10.0.84"
+      # Estudio compartido: recorte de los participantes (RobustVideoMatting en CPU) y verificación visual de las
+      # ilustraciones (CLIP multilingüe en CPU). Modelos abiertos, sin coste. Versiones fijadas.
+      - run: |
+          python3 -m pip install -q --disable-pip-version-check "onnxruntime==1.31.1" "numpy==2.2.6" "opencv-python-headless==4.10.0.84" "pillow==11.0.0"
+          python3 -m pip install -q --disable-pip-version-check --index-url https://download.pytorch.org/whl/cpu "torch==2.5.1"
+          python3 -m pip install -q --disable-pip-version-check "sentence-transformers==3.3.1"
         if: steps.due.outputs.go == 'true' && (github.event.client_payload.kind == 'studio' || inputs.kind == 'studio')
       - name: Produce
         if: steps.due.outputs.go == 'true'

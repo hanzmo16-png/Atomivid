@@ -47,7 +47,7 @@ export async function runStudioJob(episodeId: string) {
   const { StudioSpec } = await import("../../src/lib/podcast/v3/spec");
   const { runEpisode, studioRunErrorFailsEpisode } = await import("../../src/lib/podcast/v3/pipeline");
   const { lipTimeline, lipViolations, shotCoverage } = await import("../../src/lib/podcast/v3/studio");
-  const { realTts, realAvatar, realRecraftImages, realDirector, realMatter, RVM_MODEL } = await import("../../src/lib/podcast/v3/adapters");
+  const { realTts, realAvatar, realRecraftImages, localDirector, realMatter, RVM_MODEL } = await import("../../src/lib/podcast/v3/adapters");
   const { progressRecord, stagesFor } = await import("../../src/lib/podcast/v3/progress");
   const { heygenAvatarProvider } = await import("../../src/lib/providers/avatar/heygen");
   const { stillSource } = await import("../../src/lib/podcast/v3/still-source");
@@ -170,7 +170,8 @@ export async function runStudioJob(episodeId: string) {
   const providers = simulated ? mockProviders(Number.isInteger(rejectTtsCall) && rejectTtsCall > 0 ? { rejectTtsCall } : {}) : { tts: realTts(spec.language, rates?.voiceUsdPer1kChars), avatar: wrapped, readiness,
     // Recraft como proveedor de las ilustraciones (Pexels quedó fuera del estudio: sus etiquetas incluían las palabras de
     // la búsqueda y daban por pertinentes fotos ajenas). La pertinencia la decide el director visual mirando cada imagen.
-    images: realRecraftImages({ styleRefs }), director: realDirector(owner, episodeId), matte: realMatter({ model: await matterModel() }) };
+    // Director visual local (CLIP, sin costo): la verificación mira cada imagen; no requiere un proveedor de pago.
+    images: realRecraftImages({ styleRefs }), director: localDirector({ dir }), matte: realMatter({ model: await matterModel() }) };
   console.log("STUDIO_PROVIDERS", simulated ? "mock" : "real adapter (untested live)");
   // Avance real (progress.ts) + latido: mientras un proveedor trabaja sin informar (un clip de avatar tarda minutos), el
   // último avance se reescribe con la hora actual para que la página distinga «trabajando» de «sin noticias».

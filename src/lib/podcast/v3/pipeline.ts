@@ -56,6 +56,8 @@ export type TurnBrief = { turn_id: string; prompt: string; subject: string; recr
  * Las palabras del prompt no prueban lo que muestra la imagen: el veredicto sale de la imagen misma.
  */
 export type VisualDirector = { label: ProviderLabel;
+  /** Nombre del proveedor en el libro de operaciones («clip» local sin costo, o un proveedor de pago). */
+  name: string;
   brief(input: { topic: string; title: string; language: "es" | "en"; turns: { id: string; text: string }[] }): Promise<{ briefs: TurnBrief[]; actualUsd: number }>;
   /** Verificación EN LOTE (una llamada para todas las imágenes: la cuota diaria de llamadas es pequeña). */
   verify(items: { image: string; brief: TurnBrief }[], topic: string): Promise<{ verdicts: { ok: boolean; reason: string }[]; actualUsd: number }>;
@@ -159,7 +161,7 @@ async function visualBriefs(spec: StudioSpec, turns: Turn[], providers: Provider
   const director = providers.director;
   if (!director || !turns.length) { for (const t of turns) out.set(t.id, fallbackBrief(spec, t.id, t.text)); return out; }
   const input = { topic: spec.topic, title: spec.title, language: spec.language, turns: turns.map((t) => ({ id: t.id, text: t.text })) };
-  const json = await pay("anthropic", "guion_visual", input, director.briefUsd, async () => { const r = await director.brief(input); return { result: JSON.stringify(r.briefs), actualUsd: r.actualUsd }; });
+  const json = await pay(director.name, "guion_visual", input, director.briefUsd, async () => { const r = await director.brief(input); return { result: JSON.stringify(r.briefs), actualUsd: r.actualUsd }; });
   let list: TurnBrief[] = [];
   try { list = JSON.parse(json) as TurnBrief[]; } catch { list = []; }
   for (const t of turns) out.set(t.id, list.find((b) => b.turn_id === t.id && b.prompt?.trim()) ?? fallbackBrief(spec, t.id, t.text));
@@ -171,7 +173,7 @@ async function verifyImages(providers: Providers, pay: Pay, items: { image: stri
   const director = providers.director;
   if (!director || !items.length) return items.map(() => ({ ok: true, reason: "" }));
   const usd = (director.verifyBatchUsd ?? 0) + items.length * director.verifyUsd;
-  const raw = await pay("anthropic", "verificacion", { images: items.map((x) => x.key), subjects: items.map((x) => x.brief.subject) }, usd, async () => {
+  const raw = await pay(director.name, "verificacion", { images: items.map((x) => x.key), subjects: items.map((x) => x.brief.subject) }, usd, async () => {
     const r = await director.verify(items.map(({ image, brief }) => ({ image, brief })), topic);
     return { result: JSON.stringify(r.verdicts.map((v) => ({ ok: v.ok, reason: v.reason }))), actualUsd: r.actualUsd };
   });

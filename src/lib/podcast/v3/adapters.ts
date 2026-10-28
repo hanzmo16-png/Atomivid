@@ -20,6 +20,7 @@ import { getPricingConfig } from "@/lib/billing/pricing";
 import { heygenAvatarProvider, estimateHeygenCost } from "@/lib/providers/avatar/heygen";
 import { ProviderRejectedError as StudioRejected } from "./cost";
 import type { AvatarProvider, ImageProvider, Matter, TtsProvider, TurnBrief, VisualDirector } from "./pipeline";
+import { keywords } from "./editorial";
 
 /** `rate`: tarifa de la estimación autorizada del episodio (si falta, la de la configuración). */
 export function realTts(language: "es" | "en", rate = getPricingConfig().elevenLabsUsdPer1kChars): TtsProvider {
@@ -95,7 +96,7 @@ export function realDirector(ownerId: string, episodeId: string): VisualDirector
     return { text: res.content.filter((c) => c.type === "text").map((c) => c.text ?? "").join("\n"), usd: Math.ceil(usd * 1e4) / 1e4 };
   };
   const json = <T,>(t: string): T => JSON.parse(t.slice(t.indexOf("["), t.lastIndexOf("]") + 1)) as T;
-  return { label: "real adapter (untested live)", briefUsd: 0.04, verifyUsd: 0.002, verifyBatchUsd: 0.01,
+  return { name: "anthropic", label: "real adapter (untested live)", briefUsd: 0.04, verifyUsd: 0.002, verifyBatchUsd: 0.01,
     async brief(input) {
       const prompt = [
         `Eres director de arte de un podcast documental sobre «${input.topic || input.title}».`,
@@ -120,6 +121,37 @@ export function realDirector(ownerId: string, episodeId: string): VisualDirector
       const r = await call(content, 1500);
       const list = json<{ n?: number; ok?: unknown; reason?: unknown }[]>(r.text);
       return { verdicts: items.map((_, i) => { const v = list.find((x) => Number(x.n) === i + 1) ?? list[i]; return { ok: v?.ok === true, reason: String(v?.reason ?? "sin veredicto").slice(0, 160) }; }), actualUsd: r.usd };
+    } };
+}
+
+/** Pistas de que un turno habla de una escena del pasado (su ilustración es una reconstrucción → «Recreación»). */
+const PAST = /\b(antigu|histori|siglo|milenio|civilizaci|imperio|mesopotam|sumer|babilon|asiri|egipci|fara[oó]n|roman|griego|maya|azteca|inca|medieval|prehist|tablilla|cuneiform|arqueol|ruina|templo|zigurat)/i;
+
+/**
+ * Director visual LOCAL (sin costo ni proveedor de pago): describe la imagen de cada turno a partir de su texto y del
+ * tema, y VERIFICA cada imagen generada con CLIP (scripts/podcast-3-0/verify-images.py): compara lo que se ve con lo que
+ * pide el turno y con una lista de cosas ajenas, y rechaza la imagen si gana una ajena. Es el director por defecto del
+ * estudio; uno con LLM necesitaría una autorización de gasto guardada por episodio de estudio.
+ */
+export function localDirector(deps: { python?: string; dir: string }): VisualDirector {
+  return { name: "clip", label: "real adapter (untested live)", briefUsd: 0, verifyUsd: 0, verifyBatchUsd: 0,
+    async brief(input) {
+      const topic = input.topic || input.title;
+      const briefs = input.turns.map((t) => {
+        const scene = (t.text.match(/[^.!?¿¡]+[.!?]?/g) ?? [t.text]).map((x) => x.trim()).filter((x) => x.length > 25).slice(0, 2).join(" ").slice(0, 260) || t.text.slice(0, 260);
+        const subject = `${topic}: ${keywords(t.text).slice(0, 4).join(", ")}`.slice(0, 120);
+        return { turn_id: t.id, subject, recreation: PAST.test(`${topic} ${t.text}`),
+          prompt: `Cinematic documentary illustration, realistic lighting, no text. Tema del episodio: ${topic}. Escena que acompaña a: «${scene}»` };
+      });
+      return { briefs, actualUsd: 0 };
+    },
+    async verify(items, topic) {
+      const inFile = `${deps.dir}/verificacion-${Date.now()}.json`, outFile = `${inFile}.salida.json`;
+      await writeFile(inFile, JSON.stringify({ topic, items: items.map((x) => ({ image: x.image, expected: x.brief.subject })) }));
+      const r = spawnSync(deps.python ?? "python3", ["scripts/podcast-3-0/verify-images.py", inFile, outFile], { encoding: "utf8", maxBuffer: 1 << 20 });
+      if (r.status !== 0) throw new Error(`VERIFICACION: ${(r.stderr ?? "").slice(-300)}`);
+      const out = JSON.parse(await readFile(outFile, "utf8")) as { verdicts: { ok: boolean; reason: string }[] };
+      return { verdicts: out.verdicts.map((v) => ({ ok: v.ok === true, reason: String(v.reason ?? "") })), actualUsd: 0 };
     } };
 }
 

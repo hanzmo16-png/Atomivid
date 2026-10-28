@@ -41,7 +41,10 @@ export function estimateEpisodeCost(input: {
     const n = il.count + il.retries;
     lines.push({ concept: "imagenes", detail: `${il.count} ilustraciones Recraft a USD ${il.usdPerImage} (+ estilo del episodio USD ${il.styleUsd}; margen de ${il.retries} regeneraciones si una imagen no pasa la verificación)`,
       usd: r4(n * il.usdPerImage + (il.count > 0 ? il.styleUsd : 0)), provider: "Recraft" });
-    if (input.director && il.count > 0) lines.push({ concept: "verificacion", detail: `Guion visual de las imágenes y verificación de cada imagen generada (${n} comprobaciones)`, usd: r4(input.director.briefUsd + 2 * (input.director.verifyBatchUsd ?? 0) + n * input.director.verifyUsd), provider: "Anthropic" });
+    if (input.director && il.count > 0) {
+      const usd = r4(input.director.briefUsd + 2 * (input.director.verifyBatchUsd ?? 0) + n * input.director.verifyUsd);
+      lines.push({ concept: "verificacion", detail: `Verificación visual de cada imagen generada (${n} comprobaciones${usd === 0 ? ", modelo local en el generador, sin costo" : ""})`, usd, provider: usd === 0 ? "Verificación local" : "Anthropic" });
+    }
   } else {
     const imgs = input.plan.shots.filter((s) => s.kind === "imagen" || s.kind === "archivo").length;
     const rec = input.recreationImages * RECRAFT_USD_PER_IMAGE;

@@ -20,7 +20,8 @@ export function planningProviders(): Providers {
   const rate = getPricingConfig().elevenLabsUsdPer1kChars;
   // Ilustraciones de Recraft (una por plano de imagen) y director visual: solo sus tarifas, nunca se llaman al estimar.
   const images: ImageProvider = { name: "plan", label: "mock", generateUsd: RECRAFT_USD_PER_IMAGE, styleUsd: RECRAFT_USD_STYLE_CREATION, async generate() { throw new Error("solo planificación"); } };
-  const director: VisualDirector = { label: "mock", briefUsd: 0.04, verifyUsd: 0.002, verifyBatchUsd: 0.01, async brief() { throw new Error("solo planificación"); }, async verify() { throw new Error("solo planificación"); } };
+  // Director visual local (CLIP en el generador): sin costo, pero su línea aparece en la estimación.
+  const director: VisualDirector = { name: "clip", label: "mock", briefUsd: 0, verifyUsd: 0, verifyBatchUsd: 0, async brief() { throw new Error("solo planificación"); }, async verify() { throw new Error("solo planificación"); } };
   return { images, director,
     tts: { name: "plan", label: "mock", model: "eleven_multilingual_v2", usdFor: (n) => Math.ceil(n / 1000 * rate * 1e4) / 1e4, async synth() { throw new Error("solo planificación"); } },
     avatar: { name: "plan", label: "mock", usdFor: (s) => estimateHeygenCost(Math.max(1, s)), async render() { throw new Error("solo planificación"); }, async still() { throw new Error("solo planificación"); } } };
