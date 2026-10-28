@@ -1,0 +1,29 @@
+# Registro persistente — cierre Podcast / Long Form (sin secretos)
+
+Formato: hora UTC · acción · resultado · gasto. Las evidencias cifradas están en la rama `claude/evidencias-cierre`.
+Clave de evidencia: se rota por sesión. La privada vive solo en el contenedor y no se guarda fuera de él (una copia en
+Drive fue bloqueada como fuga de credenciales). Cada evidencia se revisa en la misma sesión y aquí queda su resultado.
+Evidencias cifradas con claves anteriores (hasta el commit 6885d18) ya no se pueden descifrar. Sus resultados son los
+anotados abajo, revisados en su momento.
+
+## Estado de producción
+- 2026-10-28 10:44 · #239 (Podcast: cuota de llamadas + imágenes del tema) → c5ec682, Vercel OK.
+- 10:57 · #240 (LF: carrera reconfigurar/reintentar) → cb750b5, Vercel OK.
+- 11:02 · #241 (LF: palabras de encuadre + tarjeta del pasaje ≤ 15 %) → c7aca5f, Vercel OK.
+- 11:49 · PR #242 (LF: sujetos compuestos + categorías) abierta, CI en curso.
+
+## Cuotas internas (sin cambiar topes USD)
+- 09:53 · elevenlabs max_daily_calls 14→300; heygen 4→40 (run 40667685614).
+
+## Podcast (cerrado)
+- 10:02 · P2 3fcb1b37 (reintento) READY, USD 0.8618 total; 4 planos vacíos (corregido en #239).
+- 10:55 · P2 eb4dc21d READY: 38.1 s, 1080p, −16.1 LUFS, USD 0.8518; dos identidades; imágenes del tema en todos los turnos.
+- 11:03 · descargas MP4 + MP3 de eb4dc21d OK (run 40676581468, USD 0).
+- Gasto Podcast acumulado ≈ USD 3.08 / 4.
+
+## Long Form — sabana (solicitud hash:c14f1e)
+- Ledger LF desde 2026-10-27, leído a las 11:04 por el arnés: USD 1.2863 en 26 operaciones (incluye guion USD 0.37). Tope 12.
+- 09:52 · run 40667185349: Económico, parada a USD 0, 29 escenas sin material.
+- 11:06 · run 40676906308 (tras #241): parada a USD 0, 19 escenas sin material (límite 15 %).
+- 11:44 · diagnóstico 40677547477: 16 escenas sin candidato. 7 huecos reales (collar GPS ×4, calima, sol de mediodía,
+  terreno estacional); el resto corresponde al emparejador → #242.
