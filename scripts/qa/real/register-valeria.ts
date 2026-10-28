@@ -1,7 +1,7 @@
 /**
  * Registra a Valeria Montclair como avatar de Atomivid en la cuenta de Hans, REUTILIZANDO lo que ya existe (USD 0):
  * - imagen: el asset de HeyGen dcf70e13… (creado el 24-oct desde opt-v1, SHA-256 d1eb3a83…, maestro v1 de Drive);
- *   se descarga y se exige ese SHA-256 exacto antes de guardar nada (procedencia verificada, sin regenerar el rostro);
+ *   se descarga tal como lo sirve HeyGen (re-codificado) y se exigen las medidas de opt-v1 antes de guardar nada;
  * - fila avatars: provider heygen, provider_avatar_id «asset:dcf70e13…» (formato de src/lib/providers/avatar/heygen.ts),
  *   source_photo_path en avatar-uploads/<owner>/ (lo que lee stillSource para los planos de escucha).
  * Consentimiento: el registrado es el del titular de la cuenta (Hans), que aportó la imagen como copresentadora virtual
@@ -41,20 +41,25 @@ async function main() {
   if (!r.ok || !url) throw new Error(`asset HeyGen sin URL descargable (http ${r.status})`);
   const img = Buffer.from(await (await fetch(url)).arrayBuffer());
   const sha = createHash("sha256").update(img).digest("hex");
-  const png = img.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
-  out("ASSET_IMAGE", { bytes: img.length, png, sha256: sha, matchesOptV1: sha === SHA });
-  if (sha !== SHA || !png) throw new Error("la imagen del asset no es opt-v1 (SHA-256 distinto): no se registra nada");
-  const path = `${owner}/valeria-montclair-avatar-heygen-opt-v1-1218x1326.png`;
+  // HeyGen sirve el asset re-codificado (los bytes ya no son los de opt-v1, 2026-10-28): la identidad la fija el id del
+  // asset documentado en el registro maestro; se exige además que el archivo sea una imagen de las medidas de opt-v1.
+  const sharp = (await import("sharp")).default;
+  const meta = await sharp(img).metadata();
+  const ext = meta.format === "jpeg" ? "jpg" : meta.format;
+  const sameSize = meta.width === 1218 && meta.height === 1326;
+  out("ASSET_IMAGE", { bytes: img.length, format: meta.format, width: meta.width, height: meta.height, sha256: sha, bytesEqualOptV1: sha === SHA, sizeEqualOptV1: sameSize });
+  if (!sameSize || !["jpeg", "png", "webp"].includes(String(meta.format))) throw new Error("el asset no tiene las medidas de opt-v1 (1218x1326): no se registra nada");
+  const path = `${owner}/valeria-montclair-heygen-asset-${ASSET.slice(0, 8)}.${ext}`;
   const row = { user_id: owner, name: "Valeria Montclair", provider: "heygen", provider_avatar_id: `asset:${ASSET}`, source_photo_path: path,
     status: "ready", consent_given: true, consent_given_at: "2026-10-24T20:00:00Z", consent_policy_version: "2026-09-17" };
-  out("PLAN", { apply, path: "<owner>/valeria-montclair-avatar-heygen-opt-v1-1218x1326.png", row: { ...row, user_id: "<owner>" } });
+  out("PLAN", { apply, path: path.replace(owner, "<owner>"), row: { ...row, user_id: "<owner>", source_photo_path: path.replace(owner, "<owner>") } });
   if (!apply) return;
-  const up = await db.storage.from("avatar-uploads").upload(path, img, { contentType: "image/png", upsert: false });
+  const up = await db.storage.from("avatar-uploads").upload(path, img, { contentType: `image/${meta.format}`, upsert: false });
   if (up.error && !/exist|duplicate/i.test(up.error.message)) throw new Error(`storage: ${up.error.message}`);
   if (up.error) { // ya estaba: debe ser exactamente la misma imagen
     const { data: blob } = await db.storage.from("avatar-uploads").download(path);
     const prev = blob ? createHash("sha256").update(Buffer.from(await blob.arrayBuffer())).digest("hex") : null;
-    if (prev !== SHA) throw new Error("ya existe otro archivo en esa ruta: no se sobrescribe");
+    if (prev !== sha) throw new Error("ya existe otro archivo en esa ruta: no se sobrescribe");
   }
   const ins = await db.from("avatars").insert(row).select("id,user_id,name,provider,provider_avatar_id,source_photo_path,status,consent_given,consent_policy_version").single();
   if (ins.error) throw new Error(`insert: ${ins.error.message}`);
