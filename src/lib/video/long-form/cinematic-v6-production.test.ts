@@ -177,7 +177,9 @@ function fakeService(initial: Record<string, unknown>) {
     return { select: () => chain };
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return { client: { from: (table?: string) => table === "documentary_script_jobs" ? scriptJobs() : table === "pi_paid_operations" ? paidOps() : { select: () => builder("select"), update: (v: Record<string, unknown>) => builder("update", v) } } as any, row };
+  // No production budget file from an earlier confirmation (confirm-production clears an unused one left by a reopen).
+  const storage = { from: () => ({ list: async () => ({ data: [], error: null }) }) };
+  return { client: { storage, from: (table?: string) => table === "documentary_script_jobs" ? scriptJobs() : table === "pi_paid_operations" ? paidOps() : { select: () => builder("select"), update: (v: Record<string, unknown>) => builder("update", v) } } as any, row };
 }
 
 test("confirm-production: v6 solo con cinematicV6 del servidor; sin él, v3; una confirmación existente nunca cambia de versión", async () => {
