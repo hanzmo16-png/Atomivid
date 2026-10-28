@@ -54,7 +54,8 @@ async function main() {
   // Controles negativos: fotogramas del episodio ORIGINAL con fotos ajenas (avión, huevos de Pascua, plantas, ropa).
   // La verificación visual debe rechazarlos todos para este tema.
   const epMp4 = path.join(dir, "original.mp4"); fs.writeFileSync(epMp4, (await dl("videos", `${ep!.user_id}/podcast-studio/${ID}/episodio.mp4`))!);
-  const controls = [[128, "avion"], [62, "huevos"], [300, "plantas"], [376, "ropa"]] as const;
+  // Segundos verificados con pod-scan (40736971768): huevos de Pascua 86, avión 154, plantas de vivero 318, lencería 374.
+  const controls = [[154, "avion"], [86, "huevos"], [318, "plantas"], [374, "ropa"]] as const;
   const ctl: { image: string; brief: { turn_id: string; prompt: string; subject: string; recreation: boolean } }[] = [];
   for (const [t, n] of controls) { const f = path.join(dir, `control-${n}.jpg`); spawnSync("ffmpeg", ["-y", "-v", "error", "-ss", String(t), "-i", epMp4, "-frames:v", "1", f]); fs.copyFileSync(f, path.join(EVID, "fragmento", `control-${n}.jpg`)); ctl.push({ image: f, brief: { turn_id: n, prompt: "", subject: `${spec.topic}: Anunnaki, sumerios, tablillas cuneiformes`, recreation: false } }); }
   const cv = await director.verify(ctl, spec.topic);
