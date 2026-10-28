@@ -73,6 +73,15 @@ async function main() {
   };
   const rc = realRecraftImages({ styleRefs });
   let img: string | null = null, verdicts: { ok: boolean; reason: string }[] = [], spent = brief.actualUsd;
+  // Reutiliza la ilustración ya pagada (ejecución 40729682472: zigurat con tablillas, sin personas) si está en el
+  // repositorio: se vuelve a verificar, pero no se genera otra (USD 0).
+  const reuse = "scripts/qa/real/fixtures/ilustracion-zigurat.png";
+  if (fs.existsSync(reuse)) {
+    const f = path.join(dir, "ilustracion-reutilizada.png"); fs.copyFileSync(reuse, f);
+    const v = await director.verify([{ image: f, brief: b }], spec.topic);
+    out("IMAGE", { attempt: 0, reused: true, ok: v.verdicts[0].ok, reason: v.verdicts[0].reason, usd: v.actualUsd });
+    if (v.verdicts[0].ok) img = f; verdicts = v.verdicts;
+  }
   for (let attempt = 1; attempt <= 2 && !img; attempt++) {
     const f = path.join(dir, `ilustracion-${attempt}.png`);
     const prompt = attempt === 1 ? b.prompt : `${b.prompt}. The image must clearly show: ${b.subject}. Do not include: ${verdicts[0]?.reason}.`;
