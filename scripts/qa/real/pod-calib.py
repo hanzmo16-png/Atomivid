@@ -25,7 +25,7 @@ if os.environ.get("CALIB_VARIANTS") == "1":
     from sentence_transformers import SentenceTransformer, util
     m = SentenceTransformer("clip-ViT-B-32")
     ns = {}; exec(open("scripts/podcast-3-0/verify-images.py").read().split("def main")[0], ns)
-    OBJ = ns["OBJETOS"]
+    OBJ = list(ns["OBJETOS"])
     N1 = ["a painting or digital illustration of a scene", "an ancient artifact, ruin, statue, relief or monument", "a historical or documentary scene", "a scientific image or diagram"]
     N2 = N1 + ["a natural landscape with mountains, desert or sea"]
     N3 = N1 + ["a photograph of people or objects related to the story being told"]

@@ -22,7 +22,7 @@ async function main() {
   }
   items.push({ image: "scripts/qa/real/fixtures/ilustracion-zigurat.png", label: "ok", expected, topic: spec.topic, name: "recraft-zigurat" });
   fs.writeFileSync(path.join(dir, "items.json"), JSON.stringify(items));
-  const r = spawnSync("python3", ["scripts/qa/real/pod-calib.py", path.join(dir, "items.json")], { encoding: "utf8", maxBuffer: 1 << 24, env: { ...process.env, CALIB_VARIANTS: "1" } });
+  const r = spawnSync("python3", ["scripts/qa/real/pod-calib.py", path.join(dir, "items.json")], { encoding: "utf8", maxBuffer: 1 << 24, env: { ...process.env, CALIB_VARIANTS: process.env.CALIB_VARIANTS ?? "0" } });
   process.stdout.write(r.stdout); if (r.status !== 0) { console.log("FAILED", r.stderr.slice(-500)); process.exitCode = 1; }
 }
 main().catch((e) => { console.log("FAILED", e instanceof Error ? e.message : String(e)); process.exitCode = 1; });
