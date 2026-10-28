@@ -632,9 +632,72 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     await studioFlow(S12, "c12-samsung", { ...MODES.find((x) => x.tag === "c10d"), title: "E2E reintento samsung" }, { budgetCheck: true, failTtsCall: 2 });
     await S12.ctx.close();
   }
+  if (cases.includes("13")) {
+    // Anfitriones del catálogo + estudios compartidos + Recraft en el asistente REAL (escritorio y Samsung 390×844), sin
+    // generar: elegir anfitrión carga su voz y su rostro; vistas previas de los tres estudios; estimación con Recraft.
+    // Fotos/recortes del catálogo SINTÉTICOS (sin rostros reales) en el almacenamiento local.
+    const CAT = path.join(E2E, "storage/videos/podcast-catalog/hosts");
+    for (const [id, c] of [["valeria", "0x8a6a5a"], ["ximena", "0x9a8a6a"], ["victor", "0x5a6a8a"]]) {
+      fs.mkdirSync(path.join(CAT, id), { recursive: true });
+      execFileSync("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i", `color=c=${c}:s=640x480`, "-frames:v", "1", path.join(CAT, id, "foto.jpg")]);
+      execFileSync("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i", `color=c=${c}@1.0:s=400x380,format=rgba`, "-frames:v", "1", path.join(CAT, id, "recorte.png")]);
+    }
+    execFileSync("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i", "sine=f=330:d=2", "-c:a", "libmp3lame", "-b:a", "64k", path.join(CAT, "valeria", "muestra.mp3")]);
+    const SAMSUNG13 = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2.75, isMobile: true, hasTouch: true, userAgent: "Mozilla/5.0 (Linux; Android 14; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36" };
+    const SCRIPT = ["Valeria Montclair: Bienvenidos. Hoy hablamos de los sumerios y de la escritura cuneiforme.",
+      "Víctor Albarrán: Gracias, Valeria. Son de los textos escritos más antiguos que conocemos.",
+      "Valeria Montclair: ¿Qué contaban esas tablillas?", "Víctor Albarrán: Sobre todo cuentas, contratos y leyes.",
+      "Valeria Montclair: Gracias, Víctor. Nos escuchamos pronto."].join("\n");
+    for (const [dev, opt] of [["escritorio", { viewport: { width: 1440, height: 900 } }], ["samsung", SAMSUNG13]]) {
+      const t = `c13-${dev}`, S = await session(OWNER, t, opt);
+      const W = () => S.p.getByTestId("podcast-wizard"), next = async () => { await W().getByRole("button", { name: "Siguiente" }).click(); await S.p.waitForTimeout(400); };
+      const title = async () => (await W().getByTestId("wizard-step-title").textContent()) ?? "";
+      const wide = async (n) => { const o = await S.p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth); ok(`${t}: ${n} sin desbordamiento horizontal`, o <= 1, `${o}px`); };
+      await S.p.goto(`${BASE}/dashboard/podcast`); await S.p.evaluate(() => localStorage.removeItem("atomivid.podcast.asistente.v2")); await S.p.reload();
+      await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
+      await W().getByTestId("modalidad-dialogo").click(); await next();
+      await W().getByLabel("Título del episodio").fill(`E2E catálogo ${dev}`); await W().getByLabel("Tema", { exact: true }).fill("Los sumerios y la escritura cuneiforme");
+      await W().getByLabel("Guion").fill(SCRIPT); await next();
+      ok(`${t}: paso Participantes`, /Participantes/.test(await title()), await title());
+      const A = W().getByRole("radiogroup", { name: /Participante A/ }), B = W().getByRole("radiogroup", { name: /Participante B/ });
+      ok(`${t}: catálogo con 3 anfitriones (foto, nombre, descripción)`, (await A.locator('[data-testid^="anfitrion-"]').count()) === 3 && /Valeria Montclair/.test(await A.textContent()) && /Víctor Albarrán/.test(await A.textContent()));
+      const imgs = await A.locator("img").evaluateAll((els) => els.map((e) => e.complete && e.naturalWidth > 0));
+      ok(`${t}: fotos de los anfitriones cargan (enlaces firmados)`, imgs.length === 3 && imgs.every(Boolean), JSON.stringify(imgs));
+      ok(`${t}: muestra de voz de Valeria`, (await A.getByTestId("anfitrion-valeria").locator("audio").count()) === 1);
+      ok(`${t}: Víctor se presenta como personaje virtual (sin credenciales)`, /personaje virtual/i.test(await A.getByTestId("anfitrion-victor").textContent()));
+      await A.getByTestId("anfitrion-valeria").getByRole("radio").click();
+      ok(`${t}: Valeria no se puede elegir dos veces`, await B.getByTestId("anfitrion-valeria").getByRole("radio").isDisabled());
+      await B.getByTestId("anfitrion-victor").getByRole("radio").click();
+      await shot(S.p, `${t}-01-anfitriones`); await wide("anfitriones");
+      await next();
+      ok(`${t}: paso Voces`, /Voces/.test(await title()), await title());
+      const voces = await W().locator('[data-testid^="voz-incluida-"]').allTextContents();
+      ok(`${t}: voz cargada automáticamente con el anfitrión (Callie para Valeria), sin selector`, voces.length === 2 && /Callie/.test(voces[0]) && (await W().locator('select[aria-label^="Voz "]').count()) === 0, JSON.stringify(voces));
+      await shot(S.p, `${t}-02-voces`); await next();
+      ok(`${t}: avatares del catálogo incluidos`, (await W().locator('[data-testid^="avatar-incluido-"]').count()) === 2);
+      await next(); await next();
+      ok(`${t}: paso Visuales`, /Visuales/.test(await title()), await title());
+      ok(`${t}: Recraft preseleccionado y Pexels ausente`, await W().getByLabel("Ilustraciones Recraft").isChecked() && (await W().locator('[data-testid="proveedor-pexels"]').count()) === 0);
+      for (const st of ["moderno", "calido", "minimalista"]) {
+        await W().getByTestId(`estudio-${st}`).click(); await S.p.waitForTimeout(500);
+        const pv = W().getByTestId(`studio-preview-${st}`);
+        const ld = await pv.locator("img").evaluateAll((els) => els.map((e) => e.complete && e.naturalWidth > 0));
+        ok(`${t}: vista previa del estudio ${st} (estudio + 2 anfitriones + mesa)`, ld.length >= 4 && ld.every(Boolean), JSON.stringify(ld));
+        await pv.screenshot({ path: path.join(OUT, `${t}-03-estudio-${st}.png`) });
+      }
+      await shot(S.p, `${t}-03-visuales`); await wide("visuales");
+      await next();
+      await W().getByTestId("wizard-estimate").locator("table").waitFor();
+      const est = await W().getByTestId("wizard-estimate").textContent();
+      ok(`${t}: la estimación incluye Recraft (ilustraciones) antes de autorizar`, /Recraft/.test(est) && /ElevenLabs/.test(est) && /HeyGen/.test(est), est.slice(0, 200));
+      await shot(S.p, `${t}-04-presupuesto`); await wide("presupuesto");
+      await S.p.evaluate(() => localStorage.removeItem("atomivid.podcast.asistente.v2"));
+      await S.ctx.close();
+    }
+  }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
-  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40 };
+  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34 };
   const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[a-d]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name)) || (c === "12" && /^c12-/.test(r.name))).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));

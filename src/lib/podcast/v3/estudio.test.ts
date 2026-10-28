@@ -128,3 +128,16 @@ test("Recraft: autorización duradera (proyecto + autorización + transacción) 
     assert.equal(reads, 1);
   } finally { if (prevKey === undefined) delete process.env.FAL_KEY; else process.env.FAL_KEY = prevKey; }
 });
+
+test("texto en pantalla: subtítulos, tarjeta y título caben en el ancho del cuadro (16:9 y 9:16)", async () => {
+  const { lineChars, textLines } = await import("./compose");
+  const long = "Volviendo a eso: Pasemos a la historia. ¿Cuál fue el momento que cambió la forma en que entendemos Los Anunnaki y los sumerios?";
+  for (const [w, h] of [[1920, 1080], [1080, 1920]]) {
+    const fs = Math.round(h * (w > h ? 0.04 : 0.028));
+    for (const k of [1, 1.3, 1.6]) {
+      const size = Math.round(fs * k), n = lineChars(w, h, size, fs);
+      // DejaVu Sans Bold: ~0,6 em por carácter de media en texto en español.
+      for (const line of textLines(long, n)) assert.ok(line.length * 0.6 * size <= w * 0.97, `${w}x${h} ×${k}: «${line}» (${line.length} car.) cabe`);
+    }
+  }
+});

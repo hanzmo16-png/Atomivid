@@ -22,6 +22,8 @@ AJENOS = [
     # escritorio con papeles pasaban por «pertinentes» a un tema de historia antigua).
     "personas conversando en un restaurante o una reunión moderna", "un escritorio moderno con papeles, bolígrafos y una botella",
     "un campo de cultivo con plantas verdes", "una persona con ropa moderna",
+    # Imagen casi vacía (un cielo al atardecer sin nada reconocible) pasaba por pertinente en el episodio recompuesto.
+    "un cielo casi vacío al atardecer, sin objetos reconocibles",
 ]
 
 

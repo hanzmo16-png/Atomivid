@@ -136,7 +136,7 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
   // Un drawtext POR LÍNEA: con varias líneas en un textfile, el ffmpeg del runner (6.1) dibuja el salto de línea como «□»
   // (P1 real). `anchor` fija el borde superior ("top") o inferior ("bottom") del bloque en `y`.
   const textFilter = async (name: string, text: string, y: string, size: number, box = true, anchor: "top" | "bottom" = "top") => {
-    const lines = textLines(text, w > h ? 60 : 32);
+    const lines = textLines(text, lineChars(w, h, size, fs));
     const lineH = Math.round(size * 1.25) + (box ? 24 : 6);
     const parts: string[] = [];
     for (const [i, line] of lines.entries()) {
@@ -246,6 +246,15 @@ export function wrap(text: string, width: number): string {
 }
 
 /** Líneas ya ajustadas a `width`, sin saltos de línea dentro (cada una va en su propio drawtext). */
+/**
+ * Caracteres por línea para un tamaño de letra: 60 (horizontal) o 32 (vertical) al tamaño de los subtítulos, y menos
+ * cuanto mayor es la letra. Con un ancho fijo, la tarjeta (1,3×) y el título (1,6×) se salían por los bordes (episodio
+ * completo recompuesto, 2026-10-28).
+ */
+export function lineChars(w: number, h: number, size: number, fs: number): number {
+  return Math.max(12, Math.floor((w > h ? 60 : 32) * fs / Math.max(1, size)));
+}
+
 export function textLines(text: string, width: number): string[] {
   return wrap(text, width).split("\n").map((l) => l.trim()).filter(Boolean);
 }
