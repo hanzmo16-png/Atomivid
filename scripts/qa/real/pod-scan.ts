@@ -29,13 +29,7 @@ async function main() {
   // verde = aceptada, rojo = rechazada (sin texto: el ffmpeg del runner no trae fuentes).
   rows.forEach((r, i) => spawnSync("ffmpeg", ["-y", "-v", "error", "-i", items[i].image, "-vf",
     `scale=480:270,setsar=1,drawbox=x=0:y=0:w=480:h=270:color=${r.ok ? "lime" : "red"}:t=10`, path.join(dir, `l${String(i).padStart(3, "0")}.jpg`)]));
-  for (let p = 0; p * 16 < rows.length; p++) {
-    const files = rows.slice(p * 16, p * 16 + 16).map((_, k) => path.join(dir, `l${String(p * 16 + k).padStart(3, "0")}.jpg`));
-    const args = files.flatMap((f) => ["-i", f]);
-    const n = files.length, layout = files.map((_, k) => `${(k % 4) * 480}_${Math.floor(k / 4) * 270}`).join("|");
-    const pre = files.map((_, k) => `[${k}]scale=480:270,setsar=1[v${k}]`).join(";");
-    spawnSync("ffmpeg", ["-y", "-v", "error", ...args, "-filter_complex", `${pre};${files.map((_, k) => `[v${k}]`).join("")}xstack=inputs=${n}:layout=${layout}:fill=black`, path.join(EVID, "scan", `hoja-${p + 1}.jpg`)]);
-  }
+  spawnSync("ffmpeg", ["-y", "-v", "error", "-framerate", "1", "-i", path.join(dir, "l%03d.jpg"), "-vf", "tile=4x4", path.join(EVID, "scan", "hoja-%d.jpg")]);
   console.log("SCAN_SUMMARY", JSON.stringify({ frames: rows.length, rejected: rows.filter((r) => !r.ok).length }));
 }
 main().catch((e) => { console.error(e instanceof Error ? e.message : "error"); process.exitCode = 1; });
