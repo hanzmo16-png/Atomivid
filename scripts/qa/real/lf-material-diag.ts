@@ -57,8 +57,16 @@ if (process.env.DIAG_SUPPLY) {
   console.log("podcast studio ops today", JSON.stringify(pops));
   return;
 }
-const id = process.env.LF_REQUEST_ID!, max = Number(process.env.DIAG_SHOTS || 6);
+const max = Number(process.env.DIAG_SHOTS || 6);
 const db = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
+let id = process.env.LF_REQUEST_ID!;
+if (id.startsWith("hash:")) { // same hashing as the reports (sha256 of documentary_script_jobs.request_id)
+  const { createHash } = await import("node:crypto");
+  const { data: jobs } = await db.from("documentary_script_jobs").select("request_id").order("created_at", { ascending: false }).limit(300);
+  const hits = [...new Set((jobs ?? []).map((j) => j.request_id as string).filter(Boolean))].filter((r) => createHash("sha256").update(r).digest("hex").startsWith(id.slice(5)));
+  if (hits.length !== 1) throw new Error(`hash reference matched ${hits.length} requests`);
+  id = hits[0];
+}
 const { data: row } = await db.from("video_requests").select("script_json,long_form_production_plan,language").eq("id", id).single();
 const plan = row!.long_form_production_plan as ProductionPlan; const script = row!.script_json as { topic: string; beats: never[] };
 console.log("plan", { version: plan.version, strategy: plan.strategy, anchored: usesAnchoredVisuals(plan), language: row!.language });
