@@ -11,10 +11,7 @@ const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
 let img = 0, ttsN = 0, falN = 0; const falJobs = new Map();
 // Catálogo SINTÉTICO de voces (GET /v1/voices): un clon privado con el id de «El Duro» y una voz estándar. Solo metadatos.
 const VOICES = [{ voice_id: "CeFSZuaHs4SxcBxb9nCr", name: "El Duro (simulado)", category: "cloned", is_owner: true, preview_url: null, labels: { language: "es", accent: "latin american" }, high_quality_base_model_ids: ["eleven_multilingual_v2"] },
-  { voice_id: "uYlzyj2kIZo3HfBB21vF", name: "Predeterminada (simulada)", category: "premade", is_owner: false, preview_url: null, labels: { language: "es" }, high_quality_base_model_ids: ["eleven_multilingual_v2"] },
-  // Voces de los anfitriones del catálogo de Podcast Studio (Callie para Valeria, Ximena, Víctor): solo metadatos simulados.
-  ...[["7YaUDeaStRuoYg3FKsmU", "Callie (simulada)"], ["fuVibWsnIUtzBVjB2PCa", "Ximena (simulada)"], ["TbvhqFC7AApJv7hnNvmY", "Víctor (simulada)"]].map(([voice_id, name]) =>
-    ({ voice_id, name, category: "premade", is_owner: false, preview_url: null, labels: { language: "es" }, high_quality_base_model_ids: ["eleven_multilingual_v2"] }))];
+  { voice_id: "uYlzyj2kIZo3HfBB21vF", name: "Predeterminada (simulada)", category: "premade", is_owner: false, preview_url: null, labels: { language: "es" }, high_quality_base_model_ids: ["eleven_multilingual_v2"] }];
 function fault(k) { if (!FAULTS) return null; try { const a = JSON.parse(fs.readFileSync(FAULTS, "utf8")); if (a[k]?.remaining > 0) { a[k].remaining--; fs.writeFileSync(FAULTS, JSON.stringify(a)); return a[k].mode; } } catch {} return null; }
 function tts(text) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tts-")); const wav = path.join(dir, "a.wav"), mp3 = path.join(dir, "a.mp3");
