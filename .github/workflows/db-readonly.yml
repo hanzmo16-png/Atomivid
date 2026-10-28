@@ -1,0 +1,39 @@
+# Lectura de Postgres en solo lectura (transacción read only), sin escribir nada. Usa las mismas credenciales que
+# apply-supabase-migration.yml. Ejecuta el script desde el checkout del código a evaluar (pr_ref).
+name: db-readonly
+on:
+  workflow_dispatch:
+    inputs:
+      pr_ref: { description: "Rama o SHA cuyo repositorio se usa (migraciones/propuestas)", required: true }
+      pooler_host: { description: "Pooler de Supabase", required: false, default: "aws-0-us-west-2.pooler.supabase.com" }
+  push:
+    branches: [claude/puertas-merge]
+    paths: [".github/workflows/db-readonly.yml"]
+permissions:
+  contents: read
+jobs:
+  check:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false, path: harness }
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false, ref: "${{ inputs.pr_ref }}", path: pr }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: pr/package-lock.json }
+      - run: npm ci --no-audit --no-fund
+        working-directory: pr
+      - name: Lectura (read only)
+        working-directory: pr
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || inputs.pooler_host }}
+          SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
+        run: |
+          mkdir -p scripts/qa/real && cp ../harness/scripts/qa/real/db-readonly-check.ts scripts/qa/real/db-readonly-check.ts
+          npx tsx scripts/qa/real/db-readonly-check.ts
