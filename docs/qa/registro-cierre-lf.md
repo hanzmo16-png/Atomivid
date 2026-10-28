@@ -44,3 +44,12 @@ anotados abajo, revisados en su momento.
   tiene (los subtítulos se queman en el video desde los tiempos de la voz) → se verifica en fotogramas.
   La evidencia cifrada no subió (incluía el MP4 de 126 MB > 100 MB de GitHub); corregido para próximas ejecuciones.
 - 14:5x · run 40709436978 (caso lf-inspeccion, USD 0): fotogramas, silencios, congelados y transcripción whisper frente al guion.
+- 15:1x · inspección USD 0, runs 40709728581 y 40710199243 (evidencia cifrada descifrada y revisada en esta sesión):
+  archivo guardado 1920×1080 30 fps H.264 + AAC 48 kHz, 272.1 s (plan 300 s, −9 %, dentro de ±15 %); pistas de audio y video
+  terminan juntas (272.03 / 272.09 s); 0 negros ≥ 1 s, 0 congelados ≥ 12 s, 0 silencios ≥ 2.5 s; whisper-small: 99.3 % de las
+  724 palabras del guion oídas en orden, final 92 %, voz de 0.0 a 272.0 s; subtítulos quemados coinciden con el audio en los
+  10 instantes muestreados. 34 fotogramas (uno cada 8 s): fauna y paisaje de sabana pertinentes al texto narrado; 3 tarjetas de texto
+  del pasaje narrado (fallback ≤ 15 %). Defecto menor: un plano (~36 s) muestra jirafas y antílopes en un recinto con cobertizos
+  (aparentemente cautivos), marcado «Imagen ilustrativa».
+- Gasto LF acumulado: USD 1.2863 (antes de la run 4) + 0.858 (producción, 5 ops ElevenLabs) = **USD 2.1443 / 12**. Inspecciones: USD 0.
+- No se publicó nada en YouTube.
