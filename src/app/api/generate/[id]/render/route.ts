@@ -27,7 +27,8 @@ import { isInternalProductionOwner } from "@/lib/billing/internal-production";
 import { checkHttpStatus, checkProductionForRequest, checkResponseBody, costIncrease } from "@/lib/supply/production-check";
 import { loadAvatarRecovery } from "@/lib/video/avatar/recovery";
 import { avatarRenderDurationError } from "@/lib/video/avatar/duration";
-import { evaluateRenderStart, isExhaustedStaleAttempt } from "@/lib/video/render-guard";
+import { evaluateRenderStart, isExhaustedStaleAttempt, zeroSpendRestartCandidate } from "@/lib/video/render-guard";
+import { defaultReconfigureDeps, proveNoProductionSpend } from "@/lib/video/long-form/reconfigure-production";
 import { closeExhaustedStaleAttempt } from "@/lib/video/exhausted-attempt";
 import {
   classifyRenderError,
@@ -187,7 +188,10 @@ export async function POST(
         await closeExhaustedStaleAttempt(service, { ...videoRequest, id }).catch((error) => { throw new RenderStageError("mark_processing", error); });
         return NextResponse.json({ error: EXHAUSTED_ATTEMPT_CLOSED }, { status: 409 });
       }
-      return NextResponse.json({ error: decision.error }, { status: decision.status });
+      // Plan reconfigurado tras paradas de material sin gasto: solo con la prueba del ledger (render-guard.ts).
+      const zeroSpend = zeroSpendRestartCandidate(videoRequest)
+        && (await proveNoProductionSpend(id, defaultReconfigureDeps(service))).ok;
+      if (!zeroSpend) return NextResponse.json({ error: decision.error }, { status: decision.status });
     }
     // «Usar mi propio guion»: the draft has the narration but not yet the visuals of each scene (a paid step
     // of its own, POST /script). Rendering it would search stock footage with empty queries.

@@ -55,6 +55,20 @@ export function evaluateRenderStart(
 }
 
 /**
+ * Long Form detenido por falta de material ANTES de gastar y reabierto con «Volver a configurar»: cada parada consumió
+ * un intento sin ejecutar producción, así que tras tres paradas el plan reconfigurado quedaba bloqueado para siempre
+ * (incidente 2026-10-28, sabana: USD 0 de producción y «máximo de 3 intentos»). Un plan así puede iniciarse si la ruta
+ * prueba con el ledger que el pedido no tiene gasto de producción (proveNoProductionSpend); el tope duro acota los
+ * reinicios aunque cada uno sea gratuito.
+ */
+export const MAX_ZERO_SPEND_RESTARTS = 3;
+
+export function zeroSpendRestartCandidate(row: RenderStartRow & { long_form_confirmed_at?: string | null }): boolean {
+  return row.mode === "long_form" && row.status === "script_ready" && Boolean(row.long_form_confirmed_at)
+    && row.render_attempts >= MAX_RENDER_ATTEMPTS && row.render_attempts < MAX_RENDER_ATTEMPTS + MAX_ZERO_SPEND_RESTARTS;
+}
+
+/**
  * Intento colgado (sin latido) cuando ya no quedan intentos: evaluateRenderStart lo rechaza por «máximo de
  * intentos», y el cierre de intentos colgados de la ruta nunca se alcanzaba, así que la solicitud quedaba en
  * «processing» para siempre, sin estado final ni botón. La ruta lo cierra como fallo terminal antes de responder.

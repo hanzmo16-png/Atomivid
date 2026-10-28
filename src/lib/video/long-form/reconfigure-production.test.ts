@@ -4,7 +4,7 @@ import type { PaidOperation } from "@/lib/production-intelligence/ledger";
 import { encodeStoredFailure } from "@/lib/video/failure-action";
 import { LongFormMaterialUnavailableError } from "./material-preflight";
 import type { ProductionBudgetState } from "./production-budget";
-import { isMaterialUnavailableFailure, reopenLongFormAfterMaterialGap, type ReconfigureDeps } from "./reconfigure-production";
+import { isMaterialUnavailableFailure, proveNoProductionSpend, reopenLongFormAfterMaterialGap, type ReconfigureDeps } from "./reconfigure-production";
 
 /**
  * Reconfiguración tras un impedimento de material SIN gasto (2026-10-28). Fake de Supabase con UPDATE condicional
@@ -202,4 +202,15 @@ test("el presupuesto se borra solo DESPUÉS de ganar la transición, y solo si s
   const racing: ReconfigureDeps = { ...d, loadBudget: async () => (reads++ === 0 ? unusedBudget : { ...unusedBudget, used: { ...unusedBudget.used, aiImageGenerations: 1, generativeUsd: 0.04 } }), removeBudget: async (id) => { removed2.push(id); } };
   assert.equal((await reopenLongFormAfterMaterialGap(fake2.client, { requestId: "req-1", userId: "owner" }, racing)).ok, true);
   assert.deepEqual(removed2, []);
+});
+
+test("proveNoProductionSpend: solo el guion o reembolsos → sin gasto; cualquier operación abierta, uso o autorización → no", async () => {
+  const req = (x: ReturnType<typeof deps>) => x.d as Required<ReconfigureDeps>;
+  assert.equal((await proveNoProductionSpend("req-1", req(deps({ ops: [op({ provider: "anthropic", method: "generate_script", status: "COMMITTED", committedUsd: 0.37 })] })))).ok, true);
+  assert.equal((await proveNoProductionSpend("req-1", req(deps({ ops: [op({ status: "REFUNDED", reservedUsd: 0 })] })))).ok, true);
+  assert.equal((await proveNoProductionSpend("req-1", req(deps({ ops: [op({})] })))).ok, false);
+  assert.equal((await proveNoProductionSpend("req-1", req(deps({ budget: { ...unusedBudget, used: { ...unusedBudget.used, spentUsd: 0.1 } } })))).ok, false);
+  assert.equal((await proveNoProductionSpend("req-1", req(deps({ authorized: true })))).ok, false);
+  const unreadable = deps(); unreadable.d.listOperations = async () => { throw new Error("x"); };
+  assert.deepEqual(await proveNoProductionSpend("req-1", req(unreadable)), { ok: false, status: 503, error: "No se pudo comprobar el gasto de producción de este documental. No se cambió nada; inténtalo de nuevo." });
 });
