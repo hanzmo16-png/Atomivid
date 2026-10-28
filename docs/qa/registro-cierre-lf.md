@@ -36,3 +36,11 @@ anotados abajo, revisados en su momento.
 - Evidencias: clave de cifrado rotada por sesión (6885d18); la privada no se persiste (Drive bloqueado por política); cada evidencia se descifra y revisa en la misma sesión y su resultado queda aquí.
 - 13:15 · run 40693990357: /render → 409 «máximo de 3 intentos». Causa raíz: las tres paradas de material a USD 0 consumieron un intento cada una y «Volver a configurar» no lo devuelve. Gasto: sin cambios (ledger LF USD 1.2863, 26 ops).
 - 13:55 · PR #243: el inicio de un plan reconfigurado con intentos agotados se permite solo con prueba del ledger de gasto de producción 0 (tope duro +3). Pruebas unitarias 2428/0, typecheck y lint OK.
+- 14:23 · #243 fusionado → da9c495 (CI completa en verde en 8fb2f13); Vercel producción OK a las 14:24:17.
+- 14:24 · run 40705615986 (arnés, inicio desde la página del video): /render 200; worker 40705793534 OK; solicitud **completed** en 16.7 min.
+  Gasto de producción USD 0.858 (5 ops ElevenLabs COMMITTED, sin duplicados ni cargos inciertos) → ledger LF ≈ USD 2.1443 / 12.
+  Arnés: reproduce en escritorio, móvil emulado y sesión nueva; descarga = archivo guardado (sha256, 130 645 168 B); 1920×1080 H.264 + AAC;
+  272 s (plan 300 s, dentro de ±15 %); −16 LUFS; 0 huecos negros ≥ 2 s. FAIL del arnés «subtitles»: busca una columna que Long Form no
+  tiene (los subtítulos se queman en el video desde los tiempos de la voz) → se verifica en fotogramas.
+  La evidencia cifrada no subió (incluía el MP4 de 126 MB > 100 MB de GitHub); corregido para próximas ejecuciones.
+- 14:5x · run 40709436978 (caso lf-inspeccion, USD 0): fotogramas, silencios, congelados y transcripción whisper frente al guion.
