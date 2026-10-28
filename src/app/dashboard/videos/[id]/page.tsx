@@ -18,6 +18,8 @@ import { AutoRefresh } from "@/app/dashboard/AutoRefresh";
 import { cinematicDirectorRenderEnabled } from "@/lib/video/director/flag";
 import { loadDirectorApplied, loadDirectorRequested } from "@/lib/video/director-applied";
 import { DirectorAppliedPanel } from "@/components/video/DirectorAppliedPanel";
+import { ReconfigureAfterMaterialGap } from "@/components/video/ReconfigureAfterMaterialGap";
+import { isMaterialUnavailableFailure } from "@/lib/video/long-form/reconfigure-production";
 
 export default async function VideoResultPage({
   params,
@@ -114,6 +116,10 @@ export default async function VideoResultPage({
           supportRequired={request.status === "failed" && Boolean(request.error_message) && describeStoredFailure(request.error_message!).action === "support"} />
         <ResultView request={request} videoUrl={videoUrl} thumbnailUrl={thumbnailUrl} thumbnailRequested={thumbnailRequested} nowMs={nowMs} avatarRecovery={avatarRecovery} />
       </StartOutcomeProvider>
+      {/* Long Form stopped for missing material before any spend: offer Configure again (the server re-checks spend). */}
+      {request.mode === "long_form" && request.status === "failed" && isMaterialUnavailableFailure(request.error_message) && (
+        <ReconfigureAfterMaterialGap requestId={request.id} />
+      )}
       {directorRows && directorRows.length > 0 && <DirectorAppliedPanel rows={directorRows} />}
       {directorRequested && (!directorRows || directorRows.length === 0) && (
         <p role="status" className="my-4 rounded-lg border border-border bg-surface p-4 text-sm text-ink-muted" data-testid="director-no-evidence">

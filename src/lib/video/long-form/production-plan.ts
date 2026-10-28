@@ -148,7 +148,15 @@ export type AllocationLimits = {
    * asciende un shot ni añade movimiento. Ausente = v1-v3 sin cambios.
    */
   cinematic?: boolean;
+  /**
+   * Escenas de archivo sin material pertinente y único (plan.materialGapImages, decidido y PRECIADO al configurar):
+   * se asignan como imagen IA, con las MISMAS reglas que una ranura de imagen IA del ciclo (topes de imágenes y USD,
+   * reglas del Director en v4). Sin capacidad, vuelven a archivo como cualquier otra imagen. Ausente = sin cambios.
+   */
+  promoteToImage?: ReadonlySet<string>;
 };
+
+const STOCK_SHOT_TYPES: readonly ShotType[] = ["stock_video", "stock_image", "ken_burns_image"];
 
 /** Topes por estrategia (antes de aplicar el snapshot confirmado). */
 export function strategyLimits(
@@ -232,7 +240,10 @@ export function allocateShotTypes(shots: Shot[], totalDurationSec: number, limit
   const heroSeconds = Math.min(HERO_END_SEC, totalDurationSec);
   let heroReconstruction = 0;
 
-  for (const shot of shots) {
+  for (const planned of shots) {
+    const shot: Shot = limits.promoteToImage?.has(planned.id) && STOCK_SHOT_TYPES.includes(planned.type)
+      ? { ...planned, type: "generated_placeholder", source: "generated", motion: "ken_burns" }
+      : planned;
     if (limits.cinematic) {
       const visual = shot.anchoredVisual;
       if (requiresSchematic(visual) && shot.type !== "text") {
@@ -372,6 +383,12 @@ export function computeProductionPlan(input: {
   sequences?: SequenceIntent[];
   /** Versión sin secuencias (v3 o v4). El producto pide PRODUCT_DEFAULT_PLAN_VERSION; por omisión PRODUCTION_PLAN_VERSION. */
   version?: number;
+  /**
+   * Escenas de archivo sin material pertinente y único según el preflight de material (material-plan.ts): se
+   * planean como imagen IA y su costo entra en el plan. Ignorado en Económico (sin imágenes IA) y en planes con
+   * secuencias. Solo se registran los ids de escenas de archivo de ESTE plan.
+   */
+  materialGapImages?: string[];
 }): ProductionPlan {
   const topic = input.topic ?? "";
   if (input.version !== undefined && input.sequences) throw new LongFormPlanNotExecutableError("version y sequences son excluyentes");
@@ -389,9 +406,14 @@ export function computeProductionPlan(input: {
   const voiceCharacters = input.beats.reduce((sum, b) => sum + b.narration.length, 0);
   const voiceCostUsd = round4((voiceCharacters / 1000) * getPricingConfig().elevenLabsUsdPer1kChars);
   const aiVideoAvailable = input.aiVideoEnabled ?? isLongFormAiVideoConfigured();
+  const stockIds = new Set(shots.filter((s) => STOCK_SHOT_TYPES.includes(s.type)).map((s) => s.id));
+  const materialGapImages = input.strategy === "economical" || input.sequences
+    ? []
+    : [...new Set(input.materialGapImages ?? [])].filter((id) => stockIds.has(id));
   const limits = {
     ...strategyLimits(input.strategy, voiceCostUsd, { aiVideoEnabled: aiVideoAvailable, units: getGenerativeUnitCosts(input.providers.aiVideo, input.providers.image) }),
     cinematic: usesVisualIdentity({ version }),
+    ...(materialGapImages.length > 0 ? { promoteToImage: new Set(materialGapImages) } : {}),
   };
   // Recraft-first (image-priority.ts): original images go to the opening and the key moments first, within the approved
   // image budget at Recraft's price and the Director's rules, with a regeneration reserve. Economical stays archive-only.
@@ -445,6 +467,7 @@ export function computeProductionPlan(input: {
       maxAiVideoClips: allocation.aiVideoClipCount,
       maxGenerativeUsd: generativeUsd,
     },
+    ...(materialGapImages.length > 0 ? { materialGapImages } : {}),
     estimatedCredits: null,
     confirmedAt: null,
   };

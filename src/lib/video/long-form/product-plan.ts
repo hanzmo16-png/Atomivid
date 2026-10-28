@@ -19,8 +19,11 @@ export function productPlan(input: {
   providers: Parameters<typeof computeProductionPlan>[0]["providers"];
   requestedDurationSeconds?: number;
   cinematicV6: boolean;
+  /** Escenas de archivo sin material, promovidas a imagen IA (material-plan.ts). Solo planes sin secuencias. */
+  materialGapImages?: string[];
 }): ProductPlanResult {
   const base = { beats: input.beats, topic: input.topic, strategy: input.strategy, providers: input.providers, requestedDurationSeconds: input.requestedDurationSeconds };
+  const gap = input.materialGapImages?.length ? { materialGapImages: input.materialGapImages } : {};
   if (input.cinematicV6) {
     // Densidad de planos por estrategia (cinematográfica: ≤ 8 s por plano; ninguna: > 20 s).
     const sequences = sequencesFromScript(input.beats, { maxShotSec: SHOT_DENSITY_MAX_SEC[input.strategy], aiVideoCandidates: input.strategy === "cinematic" });
@@ -28,22 +31,25 @@ export function productPlan(input: {
       try {
         return { plan: computeProductionPlan({ ...base, sequences }), engine: "cinematic-v6", reason: "guion con impacto narrativo declarado en todas sus escenas" };
       } catch (err) {
-        return { plan: computeProductionPlan({ ...base, version: PRODUCT_DEFAULT_PLAN_VERSION }), engine: "default", reason: `contrato de secuencia inválido: ${err instanceof Error ? err.message.slice(0, 160) : "error"}` };
+        return { plan: computeProductionPlan({ ...base, ...gap, version: PRODUCT_DEFAULT_PLAN_VERSION }), engine: "default", reason: `contrato de secuencia inválido: ${err instanceof Error ? err.message.slice(0, 160) : "error"}` };
       }
     }
-    return { plan: computeProductionPlan({ ...base, version: PRODUCT_DEFAULT_PLAN_VERSION }), engine: "default", reason: "el guion no declara impacto en todas sus escenas (guion anterior a V6)" };
+    return { plan: computeProductionPlan({ ...base, ...gap, version: PRODUCT_DEFAULT_PLAN_VERSION }), engine: "default", reason: "el guion no declara impacto en todas sus escenas (guion anterior a V6)" };
   }
-  return { plan: computeProductionPlan({ ...base, version: PRODUCT_DEFAULT_PLAN_VERSION }), engine: "default", reason: "Cinematic V6 no está habilitado para esta cuenta" };
+  return { plan: computeProductionPlan({ ...base, ...gap, version: PRODUCT_DEFAULT_PLAN_VERSION }), engine: "default", reason: "Cinematic V6 no está habilitado para esta cuenta" };
 }
 
 /** The three plans Configure shows (and the refresh route re-checks), computed exactly as the page does. */
 export function configurePlans(input: { script: { topic?: string; beats: (ProductionPlanBeatInput & { purpose?: string })[] }; topic: string; durationSeconds: number | null; cinematicV6: boolean;
   /** "recraft": the same plans priced and pinned for Recraft images (same engine confirm-production uses). */
-  imageProvider?: "openai" | "recraft" }): Record<VisualStrategy, ProductPlanResult> {
+  imageProvider?: "openai" | "recraft";
+  /** Por estrategia: escenas promovidas a imagen IA por carencia de archivo (material-plan.ts). */
+  materialGapImages?: Partial<Record<VisualStrategy, string[]>> }): Record<VisualStrategy, ProductPlanResult> {
   const beats = input.script.beats.map((b) => ({ id: b.id, type: b.type, purpose: b.purpose, narration: b.narration, visuals: b.visuals }));
   const providers = { ...getRealLongFormProviderNames(), ...(input.imageProvider === "recraft" ? { image: "recraft" } : {}) };
   return Object.fromEntries(VISUAL_STRATEGIES.map((strategy) => [strategy, productPlan({
     beats, topic: input.script.topic || input.topic, strategy, providers,
     requestedDurationSeconds: input.durationSeconds ?? undefined, cinematicV6: input.cinematicV6,
+    materialGapImages: input.materialGapImages?.[strategy],
   })])) as Record<VisualStrategy, ProductPlanResult>;
 }

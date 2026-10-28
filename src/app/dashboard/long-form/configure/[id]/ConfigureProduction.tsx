@@ -19,6 +19,8 @@ import { LONG_FORM_DURATION_TOLERANCE } from "@/lib/video/long-form/duration-bud
 import type { LongFormPackaging } from "@/lib/video/long-form/packaging";
 import { PackagingOptions } from "./PackagingOptions";
 import type { StrategyPreflight, VisualCheck } from "@/lib/video/long-form/production-preflight";
+import type { MaterialPlanCheck } from "@/lib/video/long-form/material-plan";
+import { materialBlockText } from "@/lib/video/long-form/material-gap-message";
 import { rememberStartError } from "@/components/video/StartErrorNotice";
 import { parseStartOutcome } from "@/lib/video/start-outcome";
 
@@ -80,6 +82,12 @@ export function PreflightPanel({ summary, preflight, visual, visualBlockText, re
           {refresh.error && <p role="alert" className="w-full text-xs text-danger">{refresh.error}</p>}
         </div>
       )}
+      {preflight.material && preflight.material.status !== "not_applicable" && (
+        <>
+          <h3 className="mt-3 text-xs font-medium uppercase tracking-wide text-ink-muted">Material de archivo</h3>
+          <MaterialStatus material={preflight.material} strategy={preflight.strategy} />
+        </>
+      )}
       {visual.applies && (
         <>
           <h3 className="mt-3 text-xs font-medium uppercase tracking-wide text-ink-muted">Material visual verificado</h3>
@@ -97,6 +105,25 @@ export function PreflightPanel({ summary, preflight, visual, visualBlockText, re
       )}
     </div>
   );
+}
+
+function MaterialStatus({ material, strategy }: { material: MaterialPlanCheck; strategy: VisualStrategy }) {
+  if (material.status === "ok") {
+    return (
+      <p className="mt-1 text-success">
+        {material.promoted > 0
+          ? `Listo: ${material.promoted} escena(s) sin archivo pertinente se cubren con imágenes IA, ya incluidas en el plan y en el techo.`
+          : "Listo: hay material de archivo pertinente y único para cada escena de archivo."}
+      </p>
+    );
+  }
+  if (material.status === "temporary_error") {
+    return <p className="mt-1 text-warning">No se pudo comprobar el material de archivo ahora ({material.reason}). Se comprobará al confirmar; si no responde, no se confirma ni se cobra nada.</p>;
+  }
+  if (material.status === "unavoidable_gap") {
+    return <p className="mt-1 text-danger" role="alert">Impedimento: {materialBlockText(material, strategy)}</p>;
+  }
+  return null;
 }
 
 export type RefreshControl = { onRefresh: () => void; loading: boolean; cooldownSeconds: number; checkedAt: string | null; error: string | null };
@@ -224,7 +251,9 @@ export function ConfigureProduction({
   const [imageSource, setImageSource] = useState<"default" | "recraft">(recraftPlans ? "recraft" : "default");
   const [voiceId, setVoiceId] = useState("");
   const useRecraft = imageSource === "recraft" && !!recraftPlans;
-  const plans = useRecraft ? recraftPlans : defaultPlans;
+  const [liveDefaultPlans, setLiveDefaultPlans] = useState(defaultPlans);
+  const [liveRecraftPlans, setLiveRecraftPlans] = useState(recraftPlans);
+  const plans = (useRecraft ? liveRecraftPlans : undefined) ?? liveDefaultPlans;
   const imageForm = useRef<HTMLFormElement>(null);
   const [strategy, setStrategy] = useState<VisualStrategy>("balanced");
   const [loading, setLoading] = useState(false);
@@ -257,10 +286,14 @@ export function ConfigureProduction({
     setNowMs(started);
     try {
       const res = await fetch(`/api/generate/${requestId}/refresh-capacity`, { method: "POST" });
-      const result = await safeParseJsonResponse<{ preflight: Record<VisualStrategy, StrategyPreflight>; recraftPreflight?: Record<VisualStrategy, StrategyPreflight>; checkedAt: string }>(res);
+      const result = await safeParseJsonResponse<{ preflight: Record<VisualStrategy, StrategyPreflight>; recraftPreflight?: Record<VisualStrategy, StrategyPreflight>; checkedAt: string;
+        plans?: Record<VisualStrategy, ProductionPlan>; recraftPlans?: Record<VisualStrategy, ProductionPlan> }>(res);
       if (!result.ok) throw new Error(result.error);
       setLiveDefault(result.data.preflight);
       if (result.data.recraftPreflight) setLiveRecraft(result.data.recraftPreflight);
+      // The material check can change a plan (scenes promoted to AI images): show the plan the ceiling belongs to.
+      if (result.data.plans) setLiveDefaultPlans(result.data.plans);
+      if (result.data.recraftPlans) setLiveRecraftPlans(result.data.recraftPlans);
       setCheckedAt(result.data.checkedAt);
     } catch (err) {
       setRefreshError(`No se pudo actualizar la disponibilidad: ${classifyClientFetchError(err)}`);
@@ -275,6 +308,7 @@ export function ConfigureProduction({
     : !selectedPreflight.withinLimit ? (selectedPreflight.authorization?.userMessage ?? "El costo estimado supera el límite autorizado.")
     : visual && !visual.ready ? "Falta material visual verificado (ver Comprobación previa)."
     : selectedPreflight.providers.some((p) => p.verdict === "Insuficiente") ? "Un proveedor no tiene capacidad suficiente (ver Comprobación previa)."
+    : selectedPreflight.material?.status === "unavoidable_gap" ? `Material de archivo: ${materialBlockText(selectedPreflight.material, strategy)}`
     : null;
 
   async function handleConfirm() {

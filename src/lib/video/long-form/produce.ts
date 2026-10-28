@@ -76,7 +76,7 @@ import { assertVisualQuality, buildVisualReport, LongFormVisualQualityError, typ
 import { VerifiedAssetRegistry } from "./verified-assets";
 import { MAX_TEXT_FALLBACK_RATIO, visualReleasePreflight } from "./visual-release-preflight";
 import { datedEventEvidenceBlockers, LongFormDatedEventEvidenceError } from "./dated-event-preflight";
-import { usesImpactDirection } from "./production-plan-types";
+import { planMaterialPromotions, usesImpactDirection } from "./production-plan-types";
 import { authorizeRequestBudget, requestSpend, storageAuthorizationStore, withRequestBudget, type AuthorizationStore, type RequestBudgetAuthorization, type RequestSpend } from "./request-budget";
 import type { PilotStageEstimate } from "./pilot-budget-envelope";
 import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
@@ -504,6 +504,8 @@ export async function generateLongFormVideoFromScript({
     ...limitsWithinAllocation(strategyLimits(plan.strategy, plan.estimatedVoiceCostUsd ?? 0, { aiVideoEnabled, units }), allocation),
     // v4: el asignador no pide lo que el Director prohíbe (mismas reglas que al calcular el plan).
     cinematic: usesVisualIdentity(plan),
+    // Escenas sin archivo promovidas a imagen IA al configurar (ya dentro de la allocation confirmada).
+    promoteToImage: planMaterialPromotions(plan),
   };
   const allShots = timeline.beats.flatMap((b) => b.shots);
   // Recraft-first plans (image-priority.ts): the worker re-applies the SAME prioritization to the real-duration shots,
