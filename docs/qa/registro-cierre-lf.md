@@ -34,3 +34,5 @@ anotados abajo, revisados en su momento.
 - 12:54 · run 40691139761: falla en ~4 min sin gasto. Causa: la página de configuración redirige a la del video (plan confirmado, sin iniciar), que ofrece «Iniciar producción»; ConfigureProduction llama confirm-production y luego /render, y fue esa segunda llamada la que no inició.
 - 13:2x · arnés 2cf0134: inicia el plan confirmado desde la página del video y registra la respuesta de /render. Run 40693990357 en curso.
 - Evidencias: clave de cifrado rotada por sesión (6885d18); la privada no se persiste (Drive bloqueado por política); cada evidencia se descifra y revisa en la misma sesión y su resultado queda aquí.
+- 13:15 · run 40693990357: /render → 409 «máximo de 3 intentos». Causa raíz: las tres paradas de material a USD 0 consumieron un intento cada una y «Volver a configurar» no lo devuelve. Gasto: sin cambios (ledger LF USD 1.2863, 26 ops).
+- 13:55 · PR #243: el inicio de un plan reconfigurado con intentos agotados se permite solo con prueba del ledger de gasto de producción 0 (tope duro +3). Pruebas unitarias 2428/0, typecheck y lint OK.
