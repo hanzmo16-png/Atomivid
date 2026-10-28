@@ -7,11 +7,10 @@ import { planEpisode, planIssues, pickAsset, type VisualAsset } from "./editoria
 import { estimateEpisodeCost, MemoryLedger, paidOnce, opKey, committedUsd, releaseUndelivered, ProviderRejectedError, BudgetExceededError, UnauthorizedChargeError, UncertainChargeError } from "./cost";
 import { mixGraph, transitionTimes } from "./audio";
 import { shotFrames, wrap, subtitlePages, textLines, FPS } from "./compose";
-import { realImages } from "./adapters";
 import { autoMood, trackExpression, BUNDLED_TRACKS, licenseManifest, V2_MOOD_MAP } from "./music-library";
 import { defaultDraft, loadDraft, stepErrors, draftToSpec, draftToV2, withVoiceKinds, STEP } from "./wizard";
 import { studioAction, authorizeAction, episodeAction, type ApiDeps } from "./api";
-import { turnsFor } from "./pipeline";
+import { gatherAssets, turnsFor } from "./pipeline";
 import type { AccountVoice } from "@/lib/podcast/voices";
 
 const V = (voiceId: string, name: string, extra: Partial<AccountVoice> = {}): AccountVoice => ({ voiceId, name, category: "premade", language: "es", accent: null, gender: null, previewUrl: null, ...extra } as AccountVoice);
@@ -96,10 +95,16 @@ test("guion: un párrafo largo de narración se divide en segmentos de oraciones
   assert.deepEqual(narrationSegments("Una sola oración sin punto final"), ["Una sola oración sin punto final"]);
 });
 
-test("imágenes reales: la descripción de la foto entra en las etiquetas de pertinencia", async () => {
-  const imgs = realImages({ searchPhotos: async () => [{ id: 7, url: "u", description: "Comet over a night sky" }], download: async () => {} });
-  const [a] = await imgs.search("cometa interestelar");
-  assert.ok(a.tags.includes("comet") && a.tags.includes("cometa"), a.tags.join(","));
+test("imágenes del estudio: Recraft genera UNA ilustración por turno; la pertinencia no sale de las palabras de la búsqueda", async () => {
+  // P1 real (2026-10-28, episodio b9c6784d): las etiquetas de Pexels incluían las palabras de la propia búsqueda, así que
+  // un avión, huevos de Pascua o ropa «coincidían» con el turno. Con Recraft no hay búsqueda: cada turno tiene su
+  // ilustración y la decide la verificación de la imagen (pipeline.ts), no unas etiquetas.
+  const turns = [{ id: "T001", speaker: "A" as const, kind: "pregunta" as const, text: "¿Qué dicen las tablillas cuneiformes de los Anunnaki?" }, { id: "T002", speaker: "B" as const, kind: "respuesta" as const, text: "Hablan de dioses sumerios del cielo y la tierra." }];
+  const recraft = { name: "recraft", label: "mock" as const, generateUsd: 0.035, styleUsd: 0.005, async generate() { return { actualUsd: 0.035 }; } };
+  const assets = await gatherAssets(turns, recraft, "Anunnaki", false, "Anunnaki y sumerios");
+  assert.deepEqual(assets.map((a) => [a.forTurn, a.kind]), [["T001", "ilustracion"], ["T002", "ilustracion"]]);
+  const plan = planEpisode({ mode: "narracion", turns: turns.map((t) => ({ ...t, seconds: 5 })), assets, avatarFrequency: 0, avatarMaxSeconds: 20, recreations: false, hasAvatar: { A: false, B: false } });
+  assert.deepEqual(plan.shots.map((x) => x.asset_id), ["rc-T001", "rc-T002"], "cada turno usa su propia ilustración");
 });
 
 test("generador: LLM simulado coherente se usa; si falla o es incoherente, plantilla determinista", async () => {
@@ -149,13 +154,13 @@ test("editorial: frecuencia y duración máxima del avatar controlan apariciones
   assert.deepEqual(planIssues(p), []);
 });
 
-test("editorial: conversación usa sobre el hombro, two-shot y primeros planos sin saltos entre primeros planos", () => {
+test("editorial: conversación con plano general y primeros planos en el estudio compartido; sin «sobre el hombro»", () => {
   const { turns } = turnsFor(spec());
   const p = planEpisode({ mode: "dialogo", turns: turns.map((t) => ({ ...t, seconds: 4 })), assets, avatarFrequency: 1, avatarMaxSeconds: 30, recreations: true, hasAvatar: { A: true, B: true } });
   const kinds = p.shots.map((s) => s.kind);
-  assert.ok(kinds.includes("over_shoulder") && kinds.includes("two_shot"), kinds.join());
-  for (let i = 1; i < kinds.length; i++) assert.ok(!(/avatar_/.test(kinds[i]) && /avatar_/.test(kinds[i - 1]) && kinds[i] !== kinds[i - 1]), `salto ${kinds[i - 1]}→${kinds[i]}`);
-  assert.ok(p.shots.filter((s) => s.kind === "over_shoulder").every((s) => s.facing === s.speaker), "habla quien mira a cámara");
+  assert.ok(kinds.includes("two_shot") && (kinds.includes("avatar_a") || kinds.includes("avatar_b")), kinds.join());
+  assert.ok(!kinds.includes("over_shoulder"), "el oyente oscuro superpuesto se retiró");
+  for (const s of p.shots.filter((x) => x.kind === "avatar_a" || x.kind === "avatar_b")) assert.equal(s.kind, s.speaker === "A" ? "avatar_a" : "avatar_b", "el primer plano es de quien habla");
 });
 
 test("costos: desglose voz/avatar/imágenes/video/render con tarifas del código", () => {

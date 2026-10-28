@@ -15,7 +15,8 @@ export const MODES = ["narracion", "avatar", "dialogo"] as const;
 export type StudioMode = (typeof MODES)[number];
 export const MOODS = ["misterio", "suspenso", "epico", "documental", "relajante", "inspirador", "tension", "nostalgico"] as const;
 export type Mood = (typeof MOODS)[number];
-export const SETS = ["estudio_oscuro", "estudio_calido", "biblioteca", "neon", "minimalista"] as const;
+/** Estudios compartidos (studios.ts) y, al final, los escenarios anteriores (solo para leer episodios ya guardados). */
+export const SETS = ["moderno", "calido", "minimalista", "estudio_oscuro", "estudio_calido", "biblioteca", "neon"] as const;
 export type StudioSet = (typeof SETS)[number];
 export const AMBIENTS = ["ninguno", "lluvia", "viento", "noche"] as const;
 /** Voz privada El Duro (clon del dueño): nunca se sustituye por otra. */
@@ -31,7 +32,8 @@ export const MOOD_LABEL: Record<Mood, string> = {
   inspirador: "Inspirador", tension: "Tensión", nostalgico: "Nostálgico",
 };
 export const SET_LABEL: Record<StudioSet, string> = {
-  estudio_oscuro: "Estudio oscuro", estudio_calido: "Estudio cálido", biblioteca: "Biblioteca", neon: "Neón", minimalista: "Minimalista",
+  moderno: "Moderno", calido: "Cálido", minimalista: "Minimalista",
+  estudio_oscuro: "Estudio oscuro", estudio_calido: "Estudio cálido", biblioteca: "Biblioteca", neon: "Neón",
 };
 
 const VoiceId = z.string().regex(/^[A-Za-z0-9_-]{4,64}$/);
@@ -64,15 +66,15 @@ export const StudioSpec = z.object({
   target_minutes: z.number().min(1).max(60),
   participants: z.array(StudioParticipant).min(1).max(2),
   visual: z.object({
-    set: z.enum(SETS).default("estudio_oscuro"),
+    set: z.enum(SETS).default("moderno"),
     swap_sides: z.boolean().default(false),
     subtitles: z.boolean().default(true),
     /** Proporción de turnos en que aparece el avatar (B/C) y máximo de segundos por aparición: controlan el costo. */
     avatar_frequency: z.number().min(0).max(1).default(0.5),
     avatar_max_seconds: z.number().min(3).max(120).default(20),
     recreations: z.boolean().default(true),
-    /** Proveedor visual elegido: nunca se sustituye en silencio (ver providers.ts). */
-    provider: z.enum(["pexels", "recraft", "solo_set"]).default("pexels"),
+    /** Proveedor visual elegido: nunca se sustituye en silencio (ver studio.ts). «pexels» solo para leer episodios anteriores. */
+    provider: z.enum(["pexels", "recraft", "solo_set"]).default("recraft"),
   }),
   music: z.object({
     enabled: z.boolean().default(true),

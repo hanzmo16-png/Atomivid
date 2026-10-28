@@ -6,16 +6,17 @@ import { spawnSync } from "node:child_process";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ffmpeg } from "./ffmpeg";
-import type { VisualAsset } from "./editorial";
-import type { AvatarProvider, ImageProvider, Providers, TtsProvider } from "./pipeline";
+import type { AvatarProvider, ImageProvider, Providers, TtsProvider, VisualDirector } from "./pipeline";
 import { fontFile } from "./compose";
 
 const hasEspeak = () => spawnSync("espeak-ng", ["--version"]).status === 0;
 const hashNum = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 
-export type MockCalls = { tts: string[]; avatar: string[]; images: string[]; recreate: string[]; prepare: string[] };
-export function mockProviders(opts: { failAvatarTimes?: number; failTtsRejectTimes?: number; rejectTtsCall?: number; usdPer1k?: number; tonesOnly?: boolean; ttsStretch?: number } = {}): Providers & { calls: MockCalls } {
-  const calls: MockCalls = { tts: [], avatar: [], images: [], recreate: [], prepare: [] };
+export type MockCalls = { tts: string[]; avatar: string[]; images: string[]; recreate: string[]; prepare: string[]; briefs: number; verified: number[] };
+export function mockProviders(opts: { failAvatarTimes?: number; failTtsRejectTimes?: number; rejectTtsCall?: number; usdPer1k?: number; tonesOnly?: boolean; ttsStretch?: number;
+  /** Director simulado: rechaza en la verificación las imágenes cuyo prompt contiene alguna de estas palabras. */
+  rejectImagesWith?: string[]; noDirector?: boolean } = {}): Providers & { calls: MockCalls } {
+  const calls: MockCalls = { tts: [], avatar: [], images: [], recreate: [], prepare: [], briefs: 0, verified: [] };
   let avatarFails = opts.failAvatarTimes ?? 0, ttsRejects = opts.failTtsRejectTimes ?? 0;
   const usdPer1k = opts.usdPer1k ?? 0.2;
   const tts: TtsProvider = {
@@ -56,17 +57,23 @@ export function mockProviders(opts: { failAvatarTimes?: number; failTtsRejectTim
       return { actualUsd: avatar.usdFor(seconds) };
     },
   };
+  // Ilustraciones simuladas (como Recraft): una por turno, con el prompt escrito en la imagen.
   const images: ImageProvider = {
-    name: "pexels-mock", label: "mock", recreateUsd: 0.035,
-    async search(query) {
-      calls.images.push(query);
-      const kw = query.split(" ");
-      return [0, 1].map((k) => ({ id: `px-${hashNum(query + k)}`, query, kind: k === 1 && hashNum(query) % 3 === 0 ? "archivo" as const : "foto" as const, tags: kw, credit: "Simulado (Pexels mock)" } satisfies VisualAsset));
-    },
-    async fetch(asset, dest) { await card(dest, `IMAGEN SIMULADA\n${asset.query}`, hashNum(asset.id)); },
+    name: "recraft-mock", label: "mock", generateUsd: 0.035, styleUsd: 0.005, recreateUsd: 0.035,
+    async generate(req, dest) { calls.images.push(req.prompt); await card(dest, `ILUSTRACION SIMULADA\n${req.prompt.slice(0, 50)}`, hashNum(req.prompt)); return { actualUsd: 0.035 }; },
     async recreate(prompt, dest) { calls.recreate.push(prompt); await card(dest, `RECREACION SIMULADA\n${prompt.slice(0, 50)}`, hashNum(prompt)); return { actualUsd: 0.035 }; },
   };
-  return { tts, avatar, images, calls };
+  const director: VisualDirector = { label: "mock", briefUsd: 0.04, verifyUsd: 0.002, verifyBatchUsd: 0.01,
+    async brief(input) {
+      calls.briefs++;
+      return { briefs: input.turns.map((t) => ({ turn_id: t.id, prompt: `${input.topic || input.title}: ${t.text.slice(0, 60)}`, subject: t.text.split(/\s+/).slice(0, 4).join(" "), recreation: /historia|antigu/i.test(t.text) })), actualUsd: 0.03 };
+    },
+    async verify(items) {
+      calls.verified.push(items.length);
+      const bad = opts.rejectImagesWith ?? [];
+      return { verdicts: items.map(({ brief }) => bad.some((w) => brief.prompt.includes(w)) ? { ok: false, reason: "SIMULADO: no muestra lo pedido" } : { ok: true, reason: "" }), actualUsd: 0.006 };
+    } };
+  return { tts, avatar, images, ...(opts.noDirector ? {} : { director }), calls };
 }
 
 async function card(dest: string, text: string, seed: number) {

@@ -17,7 +17,7 @@ on:
         description: "podcast_episodes.id"
         required: true
       kind:
-        description: "video | narration"
+        description: "video | narration | studio"
         required: true
         default: video
 permissions:
@@ -57,6 +57,9 @@ jobs:
         if: steps.due.outputs.go == 'true'
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core > /dev/null
         if: steps.due.outputs.go == 'true' && github.event.client_payload.kind != 'notices'
+      # Estudio compartido: recorte de los participantes (RobustVideoMatting en CPU, sin coste). Versiones fijadas.
+      - run: python3 -m pip install -q --disable-pip-version-check "onnxruntime==1.31.1" "numpy==2.2.6" "opencv-python-headless==4.10.0.84"
+        if: steps.due.outputs.go == 'true' && (github.event.client_payload.kind == 'studio' || inputs.kind == 'studio')
       - name: Produce
         if: steps.due.outputs.go == 'true'
         timeout-minutes: 185
@@ -88,6 +91,10 @@ jobs:
           # Interruptor del piloto también en el generador (variable del repositorio PODCAST_V3_OWNER_PILOT=0 lo apaga aquí).
           PODCAST_V3_OWNER_PILOT: ${{ vars.PODCAST_V3_OWNER_PILOT }}
           HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
+          # Estudio: ilustraciones Recraft (fal.ai; FAL_ADMIN_KEY solo lee el saldo) y director visual (Anthropic).
+          FAL_KEY: ${{ secrets.FAL_KEY }}
+          FAL_ADMIN_KEY: ${{ secrets.FAL_ADMIN_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # Same allocation rate as the production app and the render worker.
           PRICING_ELEVENLABS_USD_PER_1K_CHARS: '0.2'
       - name: Mark failed if the step died

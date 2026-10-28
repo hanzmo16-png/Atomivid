@@ -47,9 +47,8 @@ export async function runStudioJob(episodeId: string) {
   const { StudioSpec } = await import("../../src/lib/podcast/v3/spec");
   const { runEpisode, studioRunErrorFailsEpisode } = await import("../../src/lib/podcast/v3/pipeline");
   const { lipTimeline, lipViolations, shotCoverage } = await import("../../src/lib/podcast/v3/studio");
-  const { realTts, realAvatar, realImages } = await import("../../src/lib/podcast/v3/adapters");
-  const { searchScenePhotos } = await import("../../src/lib/ai/footage");
-  const { downloadToFile } = await import("../../src/lib/podcast/visual-assets");
+  const { realTts, realAvatar, realRecraftImages, realDirector, realMatter, RVM_MODEL } = await import("../../src/lib/podcast/v3/adapters");
+  const { progressRecord, stagesFor } = await import("../../src/lib/podcast/v3/progress");
   const { heygenAvatarProvider } = await import("../../src/lib/providers/avatar/heygen");
   const { stillSource } = await import("../../src/lib/podcast/v3/still-source");
   const service = createServiceClient();
@@ -101,7 +100,7 @@ export async function runStudioJob(episodeId: string) {
   // global), ANTES de cualquier cargo. Lo que el estudio gastó en 24 h se suma a la demanda (su libro no está en pi_*).
   const readiness = async (needs: import("../../src/lib/podcast/v3/pipeline").ProviderNeeds) => {
     const [{ ensureJobSupplyReady }, { studioSupplyDemands, studioSpendByProvider, unsupportedSpend }] = await Promise.all([import("../../src/lib/supply/readiness"), import("../../src/lib/podcast/v3/readiness")]);
-    const blocked = unsupportedSpend(needs); if (blocked) return blocked;
+    const blocked = unsupportedSpend(needs, true); if (blocked) return blocked;
     const { data: recent, error: recentError } = await service.from(STUDIO_OPS_TABLE).select("provider,state,reserved_usd,actual_usd").gte("created_at", new Date(Date.now() - 24 * 3600_000).toISOString());
     if (recentError) return "No se pudo leer el gasto reciente del estudio.";
     const demands = studioSupplyDemands(needs, studioSpendByProvider(recent ?? []));
@@ -130,22 +129,58 @@ export async function runStudioJob(episodeId: string) {
   };
   // Arnés: inyección de un rechazo (sin cargo) en la N-ésima voz; solo con proveedores simulados, nunca en producción.
   const rejectTtsCall = Number(process.env.PODCAST_V3_MOCK_TTS_REJECT_CALL || 0);
+  // Referencias del estilo de las ilustraciones (public/podcast/estilo/, sin personas): se suben a la carpeta del catálogo
+  // y se firman; Recraft solo acepta URLs HTTPS. Solo se usan si el episodio todavía no tiene un estilo creado.
+  const styleRefs = async () => {
+    const dirRef = path.resolve("public/podcast/estilo");
+    const { readdir } = await import("node:fs/promises");
+    const urls: string[] = [];
+    for (const f of (await readdir(dirRef)).filter((x) => /\.(jpe?g|png|webp)$/i.test(x)).slice(0, 4)) {
+      const p = `podcast-catalog/estilo/${f}`;
+      await service.storage.from(BUCKET).upload(p, await readFile(path.join(dirRef, f)), { contentType: f.endsWith(".png") ? "image/png" : f.endsWith(".webp") ? "image/webp" : "image/jpeg", upsert: true });
+      const { data } = await service.storage.from(BUCKET).createSignedUrl(p, 3600);
+      if (data?.signedUrl) urls.push(data.signedUrl);
+    }
+    if (!urls.length) throw new Error("Sin referencias de estilo para Recraft.");
+    return urls;
+  };
+  // Modelo de recorte de personas (gratuito): se descarga y se comprueba su huella antes de usarlo.
+  const matterModel = async () => {
+    const f = path.join(os.tmpdir(), "rvm_mobilenetv3_fp32.onnx");
+    const { createHash } = await import("node:crypto");
+    const { existsSync } = await import("node:fs");
+    const { writeFile } = await import("node:fs/promises");
+    if (!existsSync(f)) { const r = await fetch(RVM_MODEL.url); if (!r.ok) throw new Error(`RECORTE_MODELO ${r.status}`); await writeFile(f, Buffer.from(await r.arrayBuffer())); }
+    if (createHash("sha256").update(await readFile(f)).digest("hex") !== RVM_MODEL.sha256) throw new Error("RECORTE_MODELO_HUELLA");
+    return f;
+  };
   const providers = simulated ? mockProviders(Number.isInteger(rejectTtsCall) && rejectTtsCall > 0 ? { rejectTtsCall } : {}) : { tts: realTts(spec.language, rates?.voiceUsdPer1kChars), avatar: wrapped, readiness,
-    // Pexels espera una región completa («es-ES»); con «es» la búsqueda en español no se interpreta (P1 real: un solo paisaje costero
-    // para un episodio sobre un cometa). La descripción de la foto se usa como etiqueta real de pertinencia.
-    images: realImages({ searchPhotos: async (q) => (await searchScenePhotos(q, spec.format === "9:16" ? "portrait" : "landscape", spec.language === "en" ? "en-US" : "es-ES")).map((c) => ({ id: c.sourceId, url: c.url, credit: c.photographer, description: c.description })), download: downloadToFile }) };
+    // Recraft como proveedor de las ilustraciones (Pexels quedó fuera del estudio: sus etiquetas incluían las palabras de
+    // la búsqueda y daban por pertinentes fotos ajenas). La pertinencia la decide el director visual mirando cada imagen.
+    images: realRecraftImages({ styleRefs }), director: realDirector(owner, episodeId), matte: realMatter({ model: await matterModel() }) };
   console.log("STUDIO_PROVIDERS", simulated ? "mock" : "real adapter (untested live)");
-  const progress = (stage: string, pct: number) => { void service.from(STUDIO_TABLE).update({ progress: { stage, pct }, updated_at: new Date().toISOString() }).eq("id", episodeId); };
+  // Avance real (progress.ts) + latido: mientras un proveedor trabaja sin informar (un clip de avatar tarda minutos), el
+  // último avance se reescribe con la hora actual para que la página distinga «trabajando» de «sin noticias».
+  let last: import("../../src/lib/podcast/v3/progress").StudioProgress | null = null;
+  const write = (p: import("../../src/lib/podcast/v3/progress").StudioProgress) => { last = p; void service.from(STUDIO_TABLE).update({ progress: p, updated_at: new Date().toISOString() }).eq("id", episodeId).eq("status", "generating"); };
+  const progress = (p: import("../../src/lib/podcast/v3/progress").StudioProgress) => write(p);
+  const beat = setInterval(() => { if (last) write({ ...last, updatedAt: new Date().toISOString() }); }, 45_000);
   try {
     const r = await runEpisode(spec, { owner, episode: episodeId, dir, providers, small: simulated, ledger: supabaseStudioLedger(service, owner), guard: supabaseRunGuard(service), authorizedUsd: Number(row.authorized_usd), onProgress: progress, artifacts, rates });
+    // Guardado: la última etapa; el 100 % solo llega con «ready», cuando el archivo ya está en el almacenamiento.
+    const stages = stagesFor({ video: !!r.mp4, images: r.plan.shots.some((x) => !!x.asset_id), avatars: r.plan.shots.some((x) => /avatar|two_shot|over_shoulder/.test(x.kind)) });
+    write(progressRecord(stages, "guardado", 0, r.mp4 ? 2 : 1));
     const video = r.mp4 ? await upload(`${base}/episodio.mp4`, r.mp4, "video/mp4") : null; // solo audio: sin MP4
+    if (r.mp4) write(progressRecord(stages, "guardado", 1, 2));
     const audio = await upload(`${base}/episodio.${spec.audio_export}`, r.audio, spec.audio_export === "mp3" ? "audio/mpeg" : "audio/wav");
-    await service.from(STUDIO_TABLE).update({ status: "ready", video_path: video, audio_path: audio, cost_usd: r.spentUsd, progress: { stage: "listo", pct: 100 },
+    clearInterval(beat);
+    await service.from(STUDIO_TABLE).update({ status: "ready", video_path: video, audio_path: audio, cost_usd: r.spentUsd, progress: { stage: "guardado", pct: 100, done: 1, total: 1, estimate: true, updatedAt: new Date().toISOString() },
       result: { duration: r.durationSeconds, lufs: r.lufs, true_peak: r.truePeak, music: r.musicTrack, mood: r.mood, shots: r.plan.shots.map((s) => ({ kind: s.kind, speaker: s.speaker, start: s.start, end: s.end, label: s.label ?? null })), providers: r.providers,
         // Podcast 2.1: línea de tiempo de labios por segmento y su verificación contra la voz real (nadie habla fuera de su turno).
         lips: lipTimeline(r.plan).map((x) => ({ start: x.start, end: x.end, shot: x.shot, A: x.lips.A, B: x.lips.B })), lip_violations: lipViolations(lipTimeline(r.plan), r.timeline), coverage: shotCoverage(r.plan) }, error: null, updated_at: new Date().toISOString() }).eq("id", episodeId);
     console.log("STUDIO_READY", JSON.stringify({ usd: r.spentUsd, paid: r.paidOps, reused: r.reusedOps }));
   } catch (e) {
+    clearInterval(beat);
     if (!studioRunErrorFailsEpisode(e)) { console.log("STUDIO_DUPLICATE"); return; }
     const msg = e instanceof Error ? e.message.slice(0, 400) : "Error";
     await service.from(STUDIO_TABLE).update({ status: "failed", error: msg, updated_at: new Date().toISOString() }).eq("id", episodeId);

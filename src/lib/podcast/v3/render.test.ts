@@ -87,11 +87,12 @@ test("modo B: avatar por segmento con tope de duración y frecuencia; reintento 
   assert.equal(again.r.spentUsd, spent, "sin doble cobro");
 });
 
-test("modo C: dos voces, two-shot/sobre el hombro compuestos, 9:16; fallo incierto del avatar bloquea reintento sin doble cobro", { timeout: 600_000 }, async () => {
+test("modo C: dos voces, plano general + primeros planos en el estudio compartido, 9:16; fallo incierto del avatar bloquea reintento sin doble cobro", { timeout: 600_000 }, async () => {
   const { r, providers } = await render(C);
   assert.deepEqual([...new Set(providers.calls.tts.map((c) => c.split(":")[0]))].sort(), ["vozAnaHost", "vozLuisInv"]);
   const kinds = new Set(r.plan.shots.map((s) => s.kind));
-  assert.ok(kinds.has("two_shot") && kinds.has("over_shoulder"), [...kinds].join());
+  assert.ok(kinds.has("two_shot") && (kinds.has("avatar_a") || kinds.has("avatar_b")), [...kinds].join());
+  assert.ok(!kinds.has("over_shoulder"), "sin plano «sobre el hombro» (oyente superpuesto)");
   const v = probe(r.mp4!).streams.find((s: { codec_type: string }) => s.codec_type === "video");
   assert.deepEqual([v.width, v.height], [360, 640]);
   assert.ok((await stat(r.mp4!)).size > 10_000);
@@ -109,7 +110,9 @@ test("control de costos: sin autorización suficiente no hay ninguna llamada; ej
   await assert.rejects(render(B, { providers: p0, authorizedUsd: 0.001 }), UnauthorizedChargeError);
   assert.equal(p0.calls.tts.length + p0.calls.avatar.length, 0);
   const pf = await preflight(B, mockProviders({ tonesOnly: true }));
-  assert.ok(pf.estimate.totalUsd > 0 && pf.estimate.lines.length === 5);
+  // voz, avatar, imágenes (Recraft), verificación (Anthropic), video y render.
+  assert.ok(pf.estimate.totalUsd > 0 && pf.estimate.lines.length === 6, pf.estimate.lines.map((l) => l.concept).join());
+  assert.ok(pf.estimate.lines.some((l) => l.concept === "imagenes" && l.provider === "Recraft" && l.usd > 0), "la estimación incluye Recraft");
   const guard = new MemoryRunGuard();
   const [x, y] = await Promise.allSettled([render(A, { guard, episode: "dup" }), render(A, { guard, episode: "dup" })]);
   assert.equal([x, y].filter((s) => s.status === "rejected" && s.reason instanceof DuplicateRunError).length, 1);
@@ -208,7 +211,9 @@ test("reintento en OTRO runner: lo pagado (voz y clips) se recupera del almacén
   const ledger = new MemoryLedger(), providers = mockProviders({ tonesOnly: true }), artifacts = await diskArtifacts();
   const first = await render(B, { ledger, providers, artifacts, episode: "ep-runner" });
   const calls = providers.calls.tts.length + providers.calls.avatar.length;
-  assert.equal(artifacts.puts, first.r.paidOps - 0, "todo lo pagado con archivo queda en el almacén");
+  // Guion visual y verificación son pagos SIN archivo (su resultado es el veredicto, guardado en el libro).
+  const noFile = [...ledger.rows.values()].filter((x) => x.op === "guion_visual" || x.op === "verificacion").length;
+  assert.equal(artifacts.puts, first.r.paidOps - noFile, "todo lo pagado con archivo queda en el almacén");
   await rm(path.dirname(first.r.mp4!), { recursive: true, force: true }); // el runner anterior desaparece
   const second = await render(B, { ledger, providers, artifacts, episode: "ep-runner" });
   assert.equal(second.r.paidOps, 0); assert.equal(providers.calls.tts.length + providers.calls.avatar.length, calls, "sin llamadas nuevas");
@@ -335,18 +340,12 @@ test("foto fija: un avatar que nunca escucha (sin planos de conversación) no se
   assert.equal(checked.length, 0);
 });
 
-test("foto fija: con duraciones reales el plan puede añadir un oyente que el preliminar no tiene → en diálogo con dos avatares se comprueban LOS DOS antes de pagar", { timeout: 900_000 }, async () => {
+test("foto fija: en diálogo con dos avatares se comprueban LOS DOS antes de pagar (quién escucha depende del plan definitivo)", { timeout: 900_000 }, async () => {
   const D = StudioSpec.parse({ ...base, mode: "dialogo", title: "Dos avatares", script: "Ana: El cometa viene de otra estrella, eso ya está medido por varios observatorios.\nLuis: Su velocidad lo confirma: ningún objeto ligado al Sol va tan rápido.\nAna: Y su brillo cambió de una forma que nadie esperaba.\nLuis: Por eso sigue abierto el debate sobre su forma.\nAna: Y ya se aleja para siempre de nosotros.",
     participants: [{ id: "A", name: "Ana", voice_id: "CeFSZuaHs4SxcBxb9nCr", avatar: { kind: "existente", avatar_id: "av-ana" } }, { id: "B", name: "Luis", voice_id: "vozLuisInv", avatar: { kind: "existente", avatar_id: "av-luis" } }],
     visual: { avatar_frequency: 1, avatar_max_seconds: 6, recreations: false }, music: { enabled: false, mood: "auto" } });
   const pf = await preflight(D, mockProviders({ tonesOnly: true }));
-  const listenersOf = (seconds: number[]) => { const plan = planEpisode({ mode: "dialogo", turns: pf.turns.map((t, i) => ({ ...t, seconds: seconds[i] })), assets: [], avatarFrequency: 1, avatarMaxSeconds: 6, recreations: false, hasAvatar: { A: true, B: true }, introSeconds: 1 });
-    return [...new Set(plan.shots.filter((s) => (s.kind === "two_shot" || s.kind === "over_shoulder") && s.speaker).map((s) => (s.speaker === "A" ? "B" : "A")))].sort().join(""); };
-  // Mismo guion: turnos cortos → los primeros planos encadenados pasan a «sobre el hombro» (hay oyentes); un turno real más
-  // largo que el máximo de avatar deja una imagen en medio y ese oyente desaparece. El oyente depende de la duración REAL.
-  const short = listenersOf(pf.turns.map(() => 3)), long = listenersOf(pf.turns.map((_, i) => (i === 1 ? 9 : 3)));
-  assert.notEqual(short, long, `oyentes con duraciones distintas: ${short} vs ${long}`);
-  // Por eso la comprobación previa no depende del plan preliminar: en diálogo con dos avatares cubre a A y a B.
+  // La comprobación previa no depende del plan preliminar: en diálogo con dos avatares cubre a A y a B.
   assert.deepEqual(stillListeners(D, pf.plan), ["A", "B"]);
   const providers = mockProviders({ tonesOnly: true }), checked: string[] = [];
   providers.avatar.checkStill = async (ref) => { checked.push(ref); return ref !== "av-luis"; };
@@ -359,17 +358,65 @@ test("foto fija: con duraciones reales el plan puede añadir un oyente que el pr
   assert.deepEqual(stillListeners(StudioSpec.parse({ ...D, participants: [D.participants[0], { ...D.participants[1], avatar: { kind: "ninguno" } }] }), pf.plan), []);
 });
 
-test("encuadre: un clip de avatar en retrato conserva la cara (tercio superior) en sobre el hombro y primer plano — el recorte centrado la cortaba a la altura de los ojos (prueba real 2026-10-28)", { timeout: 300_000 }, async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "p30-crop-"));
-  // Retrato 720x1280 como los clips de HeyGen: «cara» roja entre el 8 % y el 25 % de la altura; el resto azul.
-  const clip = path.join(dir, "retrato.mp4"), still = path.join(dir, "oyente.png");
-  spawnSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=blue:s=720x1280:r=25:d=1", "-vf", "drawbox=x=0:y=102:w=720:h=218:c=red:t=fill", "-c:v", "libx264", "-pix_fmt", "yuv420p", clip]);
-  spawnSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=gray:s=480x640", "-frames:v", "1", still]);
-  const red = (f: string) => { const png = f.replace(/\.mp4$/, ".png"); spawnSync("ffmpeg", ["-y", "-v", "error", "-ss", "0.5", "-i", f, "-frames:v", "1", "-vf", "format=rgb24", "-f", "rawvideo", png]); const b = readFileSync(png); let n = 0; for (let i = 0; i + 2 < b.length; i += 3) if (b[i] > 150 && b[i + 1] < 90 && b[i + 2] < 90) n++; return n / (b.length / 3); };
+test("estudio compartido: los dos sentados en el MISMO estudio, cada uno en su lado; primer plano en su asiento; la cabeza entera en cuadro", { timeout: 300_000 }, async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "p30-estudio-"));
+  // Dos «personas» recortadas: cuerpo gris, cara magenta (A, clip) y cian (B, foto fija), con su alfa (blanco = persona).
+  const mk = async (name: string, color: string, video: boolean) => {
+    const fg = path.join(dir, `${name}-fg.${video ? "mp4" : "png"}`), a = path.join(dir, `${name}-a.${video ? "mp4" : "png"}`);
+    const src = (c: string) => video ? ["-f", "lavfi", "-i", `color=c=${c}:s=720x1280:r=25:d=1`] : ["-f", "lavfi", "-i", `color=c=${c}:s=720x1280`];
+    const out = (f: string) => video ? ["-c:v", "libx264", "-pix_fmt", "yuv420p", f] : ["-frames:v", "1", f];
+    spawnSync("ffmpeg", ["-y", "-v", "error", ...src("gray"), "-vf", `drawbox=x=260:y=200:w=200:h=200:c=${color}:t=fill`, ...out(fg)]);
+    spawnSync("ffmpeg", ["-y", "-v", "error", ...src("black"), "-vf", "drawbox=x=160:y=150:w=400:h=1130:c=white:t=fill", ...out(a)]);
+    return { fg, alpha: a, w: 720, h: 1280, face: [260, 200, 200, 200] as [number, number, number, number], still: !video };
+  };
+  const A = await mk("a", "magenta", true), B = await mk("b", "cyan", false);
+  const share = (f: string, test: (r: number, g: number, b: number) => boolean) => {
+    const raw = f + ".rgb"; spawnSync("ffmpeg", ["-y", "-v", "error", "-ss", "0.5", "-i", f, "-frames:v", "1", "-vf", "format=rgb24", "-f", "rawvideo", raw]);
+    const b = readFileSync(raw), w = 640, h = b.length / 3 / w; let left = 0, right = 0, top = h;
+    for (let i = 0; i + 2 < b.length; i += 3) if (test(b[i], b[i + 1], b[i + 2])) { const px = i / 3; const x = px % w, y = Math.floor(px / w); if (x < w / 2) left++; else right++; top = Math.min(top, y); }
+    return { left, right, top };
+  };
+  // Colores que el estudio no tiene (magenta y cian), para no confundir la cara con la madera o las luces.
+  const isRed = (r: number, g: number, b: number) => r > 170 && b > 170 && g < 90, isGreen = (r: number, g: number, b: number) => g > 170 && b > 170 && r < 90;
   const { renderShot, frameFor } = await import("./compose");
-  for (const kind of ["over_shoulder", "avatar_a", "two_shot"] as const) {
-    const out = await renderShot(dir, kind.length, { turn_id: "T001", speaker: "A", kind, start: 0, end: 1, reason: "", facing: "A" }, 25, { speakingClip: clip, listenerStill: still }, { set: "estudio_oscuro", frame: frameFor("16:9", true), swap: false, small: true, fade: false });
-    assert.ok(red(out) > 0.02, `${kind}: la cara del clip aparece en el plano (${(red(out) * 100).toFixed(1)} % de píxeles)`);
-  }
+  const o = { set: "calido" as const, frame: frameFor("16:9", true), swap: false, small: true, fade: false };
+  const general = await renderShot(dir, 1, { turn_id: "T001", speaker: "A", kind: "two_shot", start: 0, end: 1, reason: "" }, 25, { speakerMatte: A, listenerMatte: B }, o);
+  const red = share(general, isRed), green = share(general, isGreen);
+  assert.ok(red.left > 50 && red.right === 0, `A (magenta) a la izquierda: ${JSON.stringify(red)}`);
+  assert.ok(green.right > 50 && green.left === 0, `B (cian) a la derecha: ${JSON.stringify(green)}`);
+  // El fondo original de cada persona NO entra: fuera de su alfa solo se ve el estudio (gris del cuerpo limitado al alfa).
+  const primer = await renderShot(dir, 2, { turn_id: "T002", speaker: "A", kind: "avatar_a", start: 0, end: 1, reason: "" }, 25, { speakerMatte: A }, o);
+  const pr = share(primer, isRed);
+  assert.ok(pr.left > red.left * 3, `primer plano de A: cara mayor y en su lado (${JSON.stringify(pr)} vs ${red.left})`);
+  assert.ok(pr.top > 2, "la cabeza no queda cortada por arriba");
+  const swapped = await renderShot(dir, 3, { turn_id: "T003", speaker: "A", kind: "two_shot", start: 0, end: 1, reason: "" }, 25, { speakerMatte: A, listenerMatte: B }, { ...o, swap: true });
+  assert.ok(share(swapped, isRed).right > 50, "invertir posiciones: A pasa a la derecha");
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("Recraft: una ilustración por turno, verificada mirando la imagen; la rechazada se regenera UNA vez y, si sigue mal, queda una tarjeta explícita (nunca una foto de banco); avance por etapas reales", { timeout: 600_000 }, async () => {
+  // El director simulado rechaza las imágenes del turno sobre «Ehman» (también al regenerarlas): debe quedar la tarjeta.
+  const providers = mockProviders({ tonesOnly: true, rejectImagesWith: ["Ehman"] });
+  const ledger = new MemoryLedger(), seen: { stage: string; pct: number }[] = [];
+  const dir = await mkdtemp(path.join(tmpdir(), "p30-recraft-"));
+  const r = await runEpisode(A, { owner: "u1", episode: "ep-rc", dir, providers, ledger, guard: new MemoryRunGuard(), authorizedUsd: 5, small: true, musicDir: MUSIC, onProgress: (p) => seen.push({ stage: p.stage, pct: p.pct }) });
+  const imageShots = r.plan.shots.filter((s) => s.asset_id);
+  assert.ok(imageShots.length >= 2 && imageShots.every((s) => s.asset_id!.startsWith("rc-")), "cada imagen es la ilustración de SU turno");
+  assert.equal(providers.calls.briefs, 1, "un solo guion visual por episodio");
+  assert.deepEqual(providers.calls.verified, [imageShots.length, 1], "un lote con todas y otro con la regenerada");
+  const card = imageShots.filter((s) => s.card);
+  assert.equal(card.length, 1, "la imagen que no pasa ni regenerada queda como tarjeta");
+  assert.match(card[0].reason, /rechazada por la verificación/);
+  assert.equal(providers.calls.images.length, imageShots.length + 1, "solo una regeneración");
+  assert.equal([...ledger.rows.values()].filter((x) => x.op === "ilustracion").length, imageShots.length + 1);
+  // Avance: etapas en orden, porcentaje que nunca retrocede y nunca llega a 100 antes de «ready».
+  const order = ["preparacion", "voces", "imagenes", "montaje", "guardado"];
+  assert.deepEqual([...new Set(seen.map((x) => x.stage))], order);
+  for (let i = 1; i < seen.length; i++) assert.ok(seen[i].pct >= seen[i - 1].pct, `retroceso ${seen[i - 1].pct}→${seen[i].pct}`);
+  assert.ok(seen.every((x) => x.pct < 100));
+  // Un reintento del episodio reutiliza guion visual, imágenes y veredictos: cero llamadas nuevas.
+  const before = { b: providers.calls.briefs, v: providers.calls.verified.length, i: providers.calls.images.length };
+  await runEpisode(A, { owner: "u1", episode: "ep-rc", dir, providers, ledger, guard: new MemoryRunGuard(), authorizedUsd: 5, small: true, musicDir: MUSIC });
+  assert.deepEqual({ b: providers.calls.briefs, v: providers.calls.verified.length, i: providers.calls.images.length }, before);
   await rm(dir, { recursive: true, force: true });
 });

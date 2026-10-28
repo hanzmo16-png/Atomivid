@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { safeParseJsonResponse } from "@/lib/http/safe-json";
 import { classifyClientFetchError } from "@/lib/http/client-error";
 import { MODE_LABEL, MOODS, MOOD_LABEL, SETS, SET_LABEL } from "@/lib/podcast/v3/spec";
-import { CONSENT_TEXT, INTENSITY_DB, MODALITIES, MODALITY_LABEL, STEP, STEPS, STUDIO_BUDGET_MAX_USD, WIZARD_STORAGE_KEY, defaultDraft, draftToSpec, draftToV2, estimateMinutes, loadDraft, modalityToMode, stepErrors, voiceKindFor, withVoiceKinds, type Modality, type WizardDraft } from "@/lib/podcast/v3/wizard";
+import { CONSENT_TEXT, INTENSITY_DB, MODALITIES, MODALITY_LABEL, STEP, STEPS, STUDIO_BUDGET_MAX_USD, WIZARD_STORAGE_KEY, defaultDraft, draftToSpec, draftToV2, durationFit, estimateMinutes, loadDraft, modalityToMode, stepErrors, voiceKindFor, withVoiceKinds, type Modality, type WizardDraft } from "@/lib/podcast/v3/wizard";
 import type { VisualProvider } from "@/lib/podcast/v3/studio";
 
 export type WizardVoice = { voiceId: string; name: string; available: boolean; note: string | null; kind: "sintetica" | "clonada" };
@@ -144,7 +144,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
           {d.mode === "dialogo" && <Button type="button" variant="secondary" size="sm" onClick={generateScript} loading={busy} disabled={d.topic.trim().length < 3}>Generar conversación desde el tema</Button>}
           <label>{d.mode === "dialogo" ? "Guion (una línea por turno: «Nombre: texto»)" : "Texto del episodio (un párrafo por idea)"}
             <textarea aria-label="Guion" value={d.script} rows={8} onChange={(e) => set({ script: e.target.value })} className={input} /></label>
-          <p className="text-xs text-ink-muted">{d.script.trim().length.toLocaleString("es-MX")} caracteres · ~{estimateMinutes(d.script).toFixed(1)} min de voz{estimateMinutes(d.script) < d.minutes * 0.7 ? " · más corto que la duración elegida" : ""}</p>
+          <p className="text-xs text-ink-muted">{d.script.trim().length.toLocaleString("es-MX")} caracteres · ~{estimateMinutes(d.script).toFixed(1)} min de episodio (objetivo {d.minutes} min){durationFit(d.script, d.minutes) === "corto" ? " · más corto que la duración elegida" : durationFit(d.script, d.minutes) === "largo" ? " · más largo que la duración elegida: acórtalo" : ""}</p>
         </div>
       )}
 

@@ -1,6 +1,8 @@
 /** Podcast 2.1 Estudio — estado del asistente de 10 pasos (puro: cliente y pruebas). Borrador persistido en localStorage
  * (y el episodio creado, en el servidor): volver atrás o recargar no pierde la configuración. */
 import type { Mood, StudioMode, StudioSet } from "./spec";
+import { DURATION_TOLERANCE, OPEN_CLOSE_SECONDS, SPOKEN_CHARS_PER_SECOND, TURN_GAP_SECONDS } from "./script";
+import { STUDIO_IDS, legacyStudio } from "./studios";
 
 export const WIZARD_STORAGE_KEY = "atomivid.podcast.asistente.v2";
 /** Tope por episodio que el servidor y la BD hacen cumplir (STUDIO_MAX_AUTHORIZED_USD en api.ts; CHECK ≤ 50 en 140000).
@@ -22,7 +24,7 @@ export const modalityToMode = (m: Modality): StudioMode => (m === "audio" || m =
 export type AvatarChoice = { kind: "ninguno" } | { kind: "existente"; avatar_id: string } | { kind: "foto"; photo_path: string; consent: boolean; consent_at: string | null };
 export type WizardParticipant = { name: string; role: string; gender: "femenino" | "masculino" | "neutro"; style: string; personality: string; voice_id: string; voice_kind: "sintetica" | "clonada"; avatar: AvatarChoice };
 export type WizardDraft = {
-  step: number; modality: Modality | null; mode: StudioMode | null; language: "es" | "en"; provider: "pexels" | "recraft" | "solo_set";
+  step: number; modality: Modality | null; mode: StudioMode | null; language: "es" | "en"; provider: "recraft" | "solo_set";
   intensity: "suave" | "media" | "alta"; intro: boolean; outro: boolean; ducking: boolean; title: string; topic: string; script: string; minutes: number; count: 1 | 2;
   participants: [WizardParticipant, WizardParticipant];
   set: StudioSet; swap: boolean; subtitles: boolean; avatarFrequency: number; avatarMaxSeconds: number; recreations: boolean;
@@ -49,14 +51,21 @@ export function withVoiceKinds(d: WizardDraft, catalog: readonly { voiceId: stri
   if (participants.every((p, i) => p === d.participants[i])) return d;
   return { ...d, participants };
 }
-export const defaultDraft = (): WizardDraft => ({ step: 0, modality: null, mode: null, language: "es", provider: "pexels", intensity: "media", intro: true, outro: true, ducking: true, title: "", topic: "", script: "", minutes: 5, count: 1, participants: [P("Anfitrión"), P("Invitado")],
-  set: "estudio_oscuro", swap: false, subtitles: true, avatarFrequency: 0.5, avatarMaxSeconds: 20, recreations: true,
+export const defaultDraft = (): WizardDraft => ({ step: 0, modality: null, mode: null, language: "es", provider: "recraft", intensity: "media", intro: true, outro: true, ducking: true, title: "", topic: "", script: "", minutes: 5, count: 1, participants: [P("Anfitrión"), P("Invitado")],
+  set: "moderno", swap: false, subtitles: true, avatarFrequency: 0.5, avatarMaxSeconds: 20, recreations: true,
   musicEnabled: true, mood: "auto", volumeDb: -22, stings: true, ambient: "ninguno", format: "16:9", audioExport: "mp3", budgetUsd: 10, authorized: false, episodeId: null });
 
 /** Carga tolerante: un borrador viejo o corrupto nunca rompe la página (se mezclan con los valores por defecto). */
 export function loadDraft(raw: string | null): WizardDraft {
   if (!raw) return defaultDraft();
-  try { const d = JSON.parse(raw); const base = defaultDraft(); return { ...base, ...d, participants: [{ ...base.participants[0], ...(d.participants?.[0] ?? {}) }, { ...base.participants[1], ...(d.participants?.[1] ?? {}) }] }; }
+  try {
+    const d = JSON.parse(raw); const base = defaultDraft();
+    const out: WizardDraft = { ...base, ...d, participants: [{ ...base.participants[0], ...(d.participants?.[0] ?? {}) }, { ...base.participants[1], ...(d.participants?.[1] ?? {}) }] };
+    // Borradores anteriores: Pexels ya no está en el estudio (→ Recraft) y los escenarios de color pasan a su estudio compartido.
+    if ((out.provider as string) === "pexels") out.provider = "recraft";
+    if (!(STUDIO_IDS as readonly string[]).includes(out.set)) out.set = legacyStudio(out.set);
+    return out;
+  }
   catch { return defaultDraft(); }
 }
 
@@ -68,6 +77,7 @@ export function stepErrors(d: WizardDraft, step: number, ctx: { unavailableVoice
   if (step === STEP.tema) {
     if (!d.title.trim()) e.push("Escribe un título.");
     if (d.script.trim().length < 20) e.push(d.mode === "dialogo" ? "Pega un guion con nombres (por ejemplo «Ana: …») o genera la conversación desde el tema." : "Escribe o pega el texto del episodio (mínimo 20 caracteres).");
+    else if (durationFit(d.script, d.minutes) === "largo") e.push(`El guion dura unos ${estimateMinutes(d.script).toFixed(1)} min y el objetivo es ${d.minutes} min: acórtalo o sube la duración (la voz no se acelera para que quepa).`);
   }
   if (step === STEP.participantes) for (const p of active) if (!p.name.trim()) e.push("Cada participante necesita un nombre.");
   if (step === STEP.voces) {
@@ -118,4 +128,14 @@ export function draftToV2(d: WizardDraft, v2Enabled: boolean) {
       participants: [{ id: "A", name: a.name, voiceId: a.voice_id }, ...(two ? [{ id: "B", name: b.name, role: b.role, voiceId: b.voice_id }] : [])] } : null };
 }
 
-export const estimateMinutes = (script: string) => Math.max(0.1, script.trim().length / 15 / 60);
+/** Minutos de episodio que dará el guion al ritmo real de las voces (cortinas y pausas entre turnos incluidas). */
+export function estimateMinutes(script: string): number {
+  const lines = script.trim().split(/\n+/).filter((l) => l.trim());
+  const chars = lines.reduce((n, l) => n + l.replace(/^\s*[^:]{1,40}:\s*/, "").trim().length, 0);
+  return Math.max(0.1, (OPEN_CLOSE_SECONDS + chars / SPOKEN_CHARS_PER_SECOND + lines.length * TURN_GAP_SECONDS) / 60);
+}
+/** «largo» si el guion pasa de la duración pedida más la tolerancia; «corto» si queda por debajo. */
+export function durationFit(script: string, minutes: number): "ok" | "largo" | "corto" {
+  const m = estimateMinutes(script);
+  return m > minutes * (1 + DURATION_TOLERANCE) ? "largo" : m < minutes * (1 - DURATION_TOLERANCE) ? "corto" : "ok";
+}

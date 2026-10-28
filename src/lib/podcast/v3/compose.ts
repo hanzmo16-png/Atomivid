@@ -1,8 +1,8 @@
 /**
  * Podcast 3.0 — composición de video con FFmpeg (sin Remotion para estos planos: cada plano es un filtro simple).
- * LÍMITE HONESTO: HeyGen genera cada avatar hablando POR SEPARADO. El two-shot y el «sobre el hombro» se COMPONEN:
- * quien habla = su clip con lip-sync; quien escucha = un fotograma fijo (o clip en reposo) de su avatar. No hay
- * interacción física ni lip-sync simultáneo de dos avatares en un mismo render del proveedor.
+ * LÍMITE HONESTO: HeyGen genera cada avatar hablando POR SEPARADO. Los planos de conversación se COMPONEN en un estudio
+ * compartido (studios.ts): cada persona se recorta de su fondo original (matte.py) y se sienta en su lado de la mesa;
+ * quien habla = su clip con lip-sync; quien escucha = su foto fija recortada. No hay lip-sync simultáneo de dos avatares.
  */
 import { copyFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -11,19 +11,12 @@ import path from "node:path";
 import { ffmpeg } from "./ffmpeg";
 import type { Shot } from "./editorial";
 import type { StudioSet } from "./spec";
+import { STUDIO_H, STUDIO_W, cameraFor, gradeFilter, legacyStudio, placeInSeat, seatOf, studioDef, studioFrontPath, studioPlatePath, type Camera, type Matte, type StudioDef } from "./studios";
 
 export const FPS = 25;
 export type Frame = { w: number; h: number };
 export const frameFor = (format: "16:9" | "9:16", small = false): Frame =>
   format === "9:16" ? (small ? { w: 360, h: 640 } : { w: 1080, h: 1920 }) : (small ? { w: 640, h: 360 } : { w: 1920, h: 1080 });
-
-const SET_COLORS: Record<StudioSet, [string, string, string]> = {
-  estudio_oscuro: ["0x0b1020", "0x1d2a4a", "0x3a2f1f"],
-  estudio_calido: ["0x2a1810", "0x5a3420", "0x6b4a2a"],
-  biblioteca: ["0x1b140c", "0x3b2a18", "0x4a3520"],
-  neon: ["0x0a0418", "0x3a0a5a", "0x0a3a5a"],
-  minimalista: ["0xd8d8d8", "0xf2f2f2", "0x9a9a9a"],
-};
 
 const ENC = (small: boolean) => ["-c:v", "libx264", "-preset", small ? "ultrafast" : "veryfast", "-crf", small ? "30" : "22", "-pix_fmt", "yuv420p", "-r", String(FPS), "-an"];
 
@@ -40,13 +33,44 @@ export async function fontFile(dir: string): Promise<string> {
   return (fontCache = dst);
 }
 
-/** Fondo del set virtual (degradado + mesa + luces), generado una vez por set y formato. */
+/** Ruta absoluta de un recurso del estudio (el worker y las pruebas se ejecutan desde la raíz del repositorio). */
+const asset = (p: string) => path.resolve(process.cwd(), p);
+
+/**
+ * Fondo y primer término de una cámara, renderizados UNA vez por estudio, cámara y formato (PNG): el fondo recortado,
+ * escalado y desenfocado según el acercamiento; en vertical, el plano general va en una franja sobre el propio estudio
+ * muy desenfocado. Así cada plano solo mueve a las personas (rápido y sin recalcular el fondo en cada fotograma).
+ */
+export async function cameraPlates(dir: string, st: StudioDef, cam: Camera, fr: Frame): Promise<{ bg: string; front: string }> {
+  const key = `${st.id}-${fr.w}x${fr.h}-${cam.zoom.toFixed(4)}-${cam.ox}-${cam.oy}`;
+  const bg = path.join(dir, `cam-${key}-fondo.png`), front = path.join(dir, `cam-${key}-frente.png`);
+  if (existsSync(bg) && existsSync(front)) return { bg, front };
+  const sw = Math.round(STUDIO_W * cam.zoom), sh = Math.round(STUDIO_H * cam.zoom);
+  // Recorte en coordenadas del estudio ANTES de escalar (un acercamiento ×3 no escala el estudio entero).
+  const view = (blur: number) => {
+    if (cam.oy < 0) return `scale=${sw}:${sh}${blur ? `,gblur=sigma=${blur.toFixed(2)}` : ""}`;
+    const cw = Math.min(STUDIO_W, fr.w / cam.zoom), ch = Math.min(STUDIO_H, fr.h / cam.zoom);
+    return `crop=${cw.toFixed(2)}:${ch.toFixed(2)}:${(cam.ox / cam.zoom).toFixed(2)}:${(cam.oy / cam.zoom).toFixed(2)},scale=${fr.w}:${fr.h}${blur ? `,gblur=sigma=${blur.toFixed(2)}` : ""}`;
+  };
+  if (cam.oy < 0) {
+    // Vertical, plano general: relleno con el estudio desenfocado y oscurecido + la franja nítida en el centro.
+    await ffmpeg(["-y", "-v", "error", "-i", asset(studioPlatePath(st.id)), "-filter_complex",
+      `[0:v]split[a][b];[a]scale=-2:${fr.h},crop=${fr.w}:${fr.h},gblur=sigma=24,eq=brightness=-0.18[f];[b]${view(0)}[m];[f][m]overlay=0:${-cam.oy}`, "-frames:v", "1", bg]);
+    await ffmpeg(["-y", "-v", "error", "-i", asset(studioFrontPath(st.id)), "-filter_complex",
+      `color=c=black@0:s=${fr.w}x${fr.h},format=rgba[c];[0:v]${view(0)},format=rgba[m];[c][m]overlay=0:${-cam.oy}:format=auto`, "-frames:v", "1", front]);
+  } else {
+    await ffmpeg(["-y", "-v", "error", "-i", asset(studioPlatePath(st.id)), "-vf", view(cam.blur), "-frames:v", "1", bg]);
+    await ffmpeg(["-y", "-v", "error", "-i", asset(studioFrontPath(st.id)), "-vf", `format=rgba,${view(cam.frontBlur)}`, "-frames:v", "1", "-pix_fmt", "rgba", front]);
+  }
+  return { bg, front };
+}
+
+/** Fondo del estudio para títulos y transiciones (el estudio elegido, ligeramente desenfocado). */
 export async function setBackground(dir: string, set: StudioSet, fr: Frame): Promise<string> {
-  const out = path.join(dir, `set-${set}-${fr.w}x${fr.h}.png`);
+  const st = studioDef(legacyStudio(set));
+  const out = path.join(dir, `set-${st.id}-${fr.w}x${fr.h}.png`);
   if (existsSync(out)) return out;
-  const [c0, c1, desk] = SET_COLORS[set];
-  const vf = `drawbox=x=0:y=ih*0.78:w=iw:h=ih*0.22:c=${desk}@0.95:t=fill,drawbox=x=iw*0.08:y=ih*0.08:w=iw*0.02:h=ih*0.5:c=white@0.10:t=fill,drawbox=x=iw*0.9:y=ih*0.08:w=iw*0.02:h=ih*0.5:c=white@0.10:t=fill`;
-  await ffmpeg(["-y", "-v", "error", "-f", "lavfi", "-i", `gradients=s=${fr.w}x${fr.h}:c0=${c0}:c1=${c1}:x0=0:y0=0:x1=${fr.w}:y1=${fr.h}:d=1`, "-vf", vf, "-frames:v", "1", out]);
+  await ffmpeg(["-y", "-v", "error", "-i", asset(studioPlatePath(st.id)), "-vf", `scale=${fr.w}:${fr.h}:force_original_aspect_ratio=increase,crop=${fr.w}:${fr.h},gblur=sigma=2`, "-frames:v", "1", out]);
   return out;
 }
 
@@ -55,10 +79,37 @@ export type ShotSources = {
   speakingClip?: string | null;
   /** Fotograma fijo del interlocutor (para two-shot / sobre el hombro). */
   listenerStill?: string | null;
+  /** Recortes (persona sin su fondo original) de quien habla y de quien escucha, para el estudio compartido. */
+  speakerMatte?: Matte | null;
+  listenerMatte?: Matte | null;
   image?: string | null;
   title?: string;
   subtitle?: string | null;
+  /** Palabras del turno con sus tiempos (s desde el inicio del PLANO): subtítulos sincronizados con la voz. */
+  words?: SubtitleWord[];
+  /** Tarjeta explícita (idea del turno) cuando su imagen no superó la verificación. */
+  card?: string | null;
 };
+export type SubtitleWord = { text: string; start: number; end: number };
+
+/**
+ * Páginas de subtítulos (≤ 2 líneas) a partir de las palabras con tiempo: cada página aparece cuando se dice su primera
+ * palabra y se queda hasta la siguiente (o el final del plano). Sin tiempos, reparto proporcional a los caracteres.
+ */
+export function timedPages(words: SubtitleWord[], width: number, shotSeconds: number): { text: string; start: number; end: number }[] {
+  const pages: { text: string; start: number; end: number }[] = [];
+  let lines: string[] = [""], start = Math.max(0, words[0]?.start ?? 0);
+  for (const w of words) {
+    const cur = lines[lines.length - 1];
+    if ((cur + " " + w.text).trim().length > width) {
+      if (lines.length === 2) { pages.push({ text: lines.join("\n").trim(), start, end: Math.max(start, w.start) }); lines = [w.text]; start = Math.max(0, w.start); continue; }
+      lines.push(w.text);
+    } else lines[lines.length - 1] = (cur + " " + w.text).trim();
+  }
+  if (lines.join("").trim()) pages.push({ text: lines.join("\n").trim(), start, end: shotSeconds });
+  for (let i = 0; i < pages.length - 1; i++) pages[i].end = pages[i + 1].start;
+  return pages.filter((p) => p.end > p.start + 0.05);
+}
 
 /**
  * Movimiento de cámara sutil para una imagen fija (quien escucha, fondos de transición): empuje lento + deriva
@@ -98,52 +149,58 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
   };
   const post: string[] = [];
   if (shot.label) post.push(...(await textFilter("tag", shot.label, "h*0.05", Math.round(fs * 0.9))).map((f) => f.replace("x=(w-text_w)/2", "x=w*0.04")));
-  if (src.subtitle) {
+  if (src.words?.length) {
+    for (const [k, page] of timedPages(src.words, w > h ? 60 : 32, frames / FPS).entries())
+      post.push(...(await textFilter(`sub${k}`, page.text, "h*0.93", fs, true, "bottom")).map((f) => f + `:enable='between(t,${page.start.toFixed(3)},${page.end.toFixed(3)})'`));
+  } else if (src.subtitle) {
     // Subtítulos paginados: bloques de ≤2 líneas repartidos en el plano en proporción a sus caracteres.
     const pages = subtitlePages(src.subtitle, w > h ? 60 : 32);
     const totalChars = pages.reduce((n, p) => n + p.length, 0) || 1;
     let acc = 0;
     for (const [k, page] of pages.entries()) {
       const a = acc / totalChars * (frames / FPS), b = (acc + page.length) / totalChars * (frames / FPS); acc += page.length;
-      post.push(...(await textFilter(`sub${k}`, page, "h*0.9", fs, true, "bottom")).map((f) => f + `:enable='between(t,${a.toFixed(3)},${b.toFixed(3)})'`));
+      post.push(...(await textFilter(`sub${k}`, page, "h*0.93", fs, true, "bottom")).map((f) => f + `:enable='between(t,${a.toFixed(3)},${b.toFixed(3)})'`));
     }
   }
   if (o.fade && frames > 2 * Math.round(FPS * 0.25)) post.push(`fade=t=in:st=0:d=0.25,fade=t=out:st=${(frames / FPS - 0.25).toFixed(3)}:d=0.25`);
   const tail = (label: string) => `${label}${post.length ? "," + post.join(",") : ""},format=yuv420p[v]`;
   let args: string[];
   const bgIn = ["-loop", "1", "-t", secs, "-i", bg];
-  // Lugar de cada participante en el set (invertible).
-  const leftIsA = !o.swap;
-  switch (shot.kind) {
-    case "avatar_a": case "avatar_b": {
-      if (!src.speakingClip) throw new Error(`Plano de avatar sin clip (${shot.turn_id}).`);
-      const bw = Math.round(w * (w > h ? 0.62 : 0.9)), bh = Math.round(h * (w > h ? 0.8 : 0.62));
-      args = [...bgIn, "-i", src.speakingClip, "-filter_complex",
-        `[1:v]scale=${bw}:${bh}:force_original_aspect_ratio=increase,crop=${bw}:${bh}:${FACE_CROP},setsar=1[a];[0:v][a]overlay=(W-w)/2:(H-h)*0.45:shortest=0,${tail("trim=end_frame=" + frames)}`];
-      break;
-    }
-    case "two_shot": {
-      if (!src.speakingClip || !src.listenerStill) throw new Error(`Two-shot sin fuentes (${shot.turn_id}).`);
-      const vertical = h > w;
-      const bw = Math.round(vertical ? w * 0.84 : w * 0.42), bh = Math.round(vertical ? h * 0.38 : h * 0.66);
-      const speakerFirst = (shot.speaker === "A") === leftIsA;
-      const [p1, p2] = vertical ? [`(W-w)/2:H*0.08`, `(W-w)/2:H*0.5`] : [`W*0.06:(H-h)*0.42`, `W*0.52:(H-h)*0.42`];
-      // Quien escucha: fotograma fijo de su avatar con movimiento de cámara sutil (no queda congelado; sin mover labios).
-      args = [...bgIn, "-i", src.speakingClip, "-i", src.listenerStill, "-filter_complex",
-        `[1:v]scale=${bw}:${bh}:force_original_aspect_ratio=increase,crop=${bw}:${bh}:${FACE_CROP},setsar=1[s];[2:v]${stillMotion(bw, bh, frames, idx)},setsar=1,eq=brightness=-0.04[l];` +
-        `[0:v][s]overlay=${speakerFirst ? p1 : p2}[x];[x][l]overlay=${speakerFirst ? p2 : p1},${tail("trim=end_frame=" + frames)}`];
-      break;
-    }
-    case "over_shoulder": {
-      if (!src.speakingClip || !src.listenerStill) throw new Error(`Sobre el hombro sin fuentes (${shot.turn_id}).`);
-      // Quien escucha: primer término, oscurecido, desenfocado y espejado (silueta de espaldas aproximada).
-      const fw = Math.round(w * (w > h ? 0.55 : 0.8)), fh = Math.round(h * (w > h ? 0.75 : 0.5));
-      const lw = Math.round(w * 0.5), lh = Math.round(h * 0.7);
-      const speakerRight = (shot.speaker === "A") === leftIsA ? false : true;
-      args = [...bgIn, "-i", src.speakingClip, "-i", src.listenerStill, "-filter_complex",
-        `[1:v]scale=${fw}:${fh}:force_original_aspect_ratio=increase,crop=${fw}:${fh}:${FACE_CROP},setsar=1[s];` +
-        `[2:v]${stillMotion(lw, lh, frames, idx)},hflip,boxblur=12:2,eq=brightness=-0.35:saturation=0.3,setsar=1[l];` +
-        `[0:v][s]overlay=${speakerRight ? "W*0.40" : "W*0.05"}:(H-h)*0.35[x];[x][l]overlay=${speakerRight ? "-W*0.08" : "W*0.58"}:H-h*0.85,${tail("trim=end_frame=" + frames)}`];
+  // Una imagen rechazada por la verificación se muestra como tarjeta explícita (rama «default»).
+  switch (src.card && !src.image ? "transicion" : shot.kind) {
+    case "avatar_a": case "avatar_b": case "two_shot": case "over_shoulder": {
+      // Estudio compartido: plano general (los dos a la mesa) o primer plano de quien habla en SU asiento. Un plano
+      // «sobre el hombro» de un plan anterior se compone como primer plano (el oyente encima se retiró).
+      const sp = shot.speaker;
+      if (!sp || !src.speakerMatte) throw new Error(`Plano de conversación sin recorte de quien habla (${shot.turn_id}).`);
+      const general = shot.kind === "two_shot";
+      if (general && !src.listenerMatte) throw new Error(`Plano general sin recorte de quien escucha (${shot.turn_id}).`);
+      const st = studioDef(legacyStudio(o.set));
+      const seat = seatOf(st, sp, o.swap);
+      const cam = cameraFor(general ? "general" : "primer", seat, seat === st.seats.A ? "izquierda" : "derecha", o.frame);
+      const plates = await cameraPlates(dir, st, cam, o.frame);
+      const people: { m: Matte; seat: typeof seat }[] = [{ m: src.speakerMatte, seat }];
+      if (general) people.push({ m: src.listenerMatte!, seat: seatOf(st, sp === "A" ? "B" : "A", o.swap) });
+      const ins = ["-loop", "1", "-t", secs, "-i", plates.bg, "-loop", "1", "-t", secs, "-i", plates.front];
+      const parts: string[] = [];
+      let base = "[0:v]";
+      people.forEach(({ m, seat: s }, k) => {
+        const L = placeInSeat(m, s, cam);
+        const fi = 2 + k * 2, ai = fi + 1;
+        // Foto fija (quien escucha): un fotograma repetido; clip (quien habla): se alarga con su último fotograma si
+        // termina antes que el plano.
+        // Sin recorte (alfa null, solo pruebas) la persona entra opaca con su encuadre.
+        const alpha = m.alpha ?? m.fg;
+        if (m.still) ins.push("-loop", "1", "-t", secs, "-i", m.fg, "-loop", "1", "-t", secs, "-i", alpha);
+        else ins.push("-i", m.fg, "-i", alpha);
+        const pad = m.still ? "" : `,tpad=stop_mode=clone:stop_duration=${secs}`;
+        const merge = m.alpha ? `[${fi}:v]format=rgb24${pad}[f${k}];[${ai}:v]format=gray${pad}[a${k}];[f${k}][a${k}]alphamerge` : `[${fi}:v]format=rgba${pad}`;
+        parts.push(`${merge},scale=${L.w}:${L.h},${gradeFilter(st)}[p${k}]`);
+        parts.push(`${base}[p${k}]overlay=${L.x}:${L.y}:format=auto:eof_action=repeat[b${k}]`);
+        base = `[b${k}]`;
+      });
+      parts.push(`${base}[1:v]overlay=0:0:format=auto,${tail("trim=end_frame=" + frames)}`);
+      args = [...ins, "-filter_complex", parts.join(";")];
       break;
     }
     case "imagen": case "archivo": case "recreacion": {
@@ -159,6 +216,12 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
       break;
     }
     default: {
+      if (src.card) {
+        // Alternativa explícita: la idea del turno sobre el estudio desenfocado (su imagen no superó la verificación).
+        const t = (await textFilter("card", src.card, "(h-text_h)/2-h*0.08", Math.round(fs * 1.3), false)).join(",");
+        args = ["-i", bg, "-filter_complex", `[0:v]${stillMotion(w, h, frames, idx)},gblur=sigma=8,eq=brightness=-0.22,${t},${tail("trim=end_frame=" + frames)}`];
+        break;
+      }
       // Transición: el set con un movimiento lento de cámara (un fondo fijo durante todo un turno parecería congelado).
       args = ["-i", bg, "-filter_complex", `[0:v]${stillMotion(w, h, frames, idx)},eq=brightness=-0.1,${tail("trim=end_frame=" + frames)}`];
     }

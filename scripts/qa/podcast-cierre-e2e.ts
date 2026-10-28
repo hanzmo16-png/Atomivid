@@ -202,7 +202,7 @@ async function partB() {
     const p1 = mockProviders();
     let interrupted = false;
     try { await runEpisode(m.spec, { owner: A, episode: id, dir, providers: p1, ledger: pgLedger(A), guard: pgGuard, authorizedUsd: Number(await one("select authorized_usd from public.podcast_studio_episodes where id=$1", [id])), small: true, musicDir: path.join(OUT, "music"),
-      onProgress: (stage, pct) => { if (stage === "video" && pct >= 80) { interrupted = true; throw new Error("RUNNER_PERDIDO (simulado)"); } } }); }
+      onProgress: (p) => { if (p.stage === "montaje" && p.done >= Math.ceil(p.total * 0.5)) { interrupted = true; throw new Error("RUNNER_PERDIDO (simulado)"); } } }); }
     catch (e) { ok(`B-${m.tag} interrupción simulada tras pagar voz/avatar`, interrupted, (e as Error).message.slice(0, 80)); }
     const s1 = await ledgerStats(id);
     const calls = (p: ReturnType<typeof mockProviders>) => p.calls.tts.length + p.calls.avatar.length + p.calls.recreate.length + p.calls.prepare.length;

@@ -7,9 +7,9 @@ import type { AccountVoice } from "@/lib/podcast/voices";
 import type { VoiceViewer } from "@/lib/voices/private-voices";
 import { StudioSpec, validateSpec, STUDIO_VERSION, type StudioSpec as Spec } from "./spec";
 import { isPrivateVoice } from "@/lib/voices/private-voices";
-import { preflight, type ImageProvider, type Providers } from "./pipeline";
+import { preflight, type ImageProvider, type Providers, type VisualDirector } from "./pipeline";
+import { RECRAFT_USD_PER_IMAGE, RECRAFT_USD_STYLE_CREATION } from "@/lib/providers/image/recraft";
 import { generateConversation, type LlmFn } from "./script";
-import { keywords, type VisualAsset } from "./editorial";
 import { estimateHeygenCost } from "@/lib/providers/avatar/heygen";
 import { getPricingConfig } from "@/lib/billing/pricing";
 import type { StudioEpisodeRow } from "./store";
@@ -18,8 +18,10 @@ import { requireProvider, ProviderUnavailableError, visualProviders, lipTimeline
 /** Proveedores de PLANIFICACIÓN (sin red, sin costo): solo para estimar; nunca generan medios. */
 export function planningProviders(): Providers {
   const rate = getPricingConfig().elevenLabsUsdPer1kChars;
-  const images: ImageProvider = { name: "plan", label: "mock", async search(q) { return [{ id: `plan-${q}`, query: q, kind: "foto", tags: keywords(q) } satisfies VisualAsset]; }, async fetch() { throw new Error("solo planificación"); } };
-  return { images,
+  // Ilustraciones de Recraft (una por plano de imagen) y director visual: solo sus tarifas, nunca se llaman al estimar.
+  const images: ImageProvider = { name: "plan", label: "mock", generateUsd: RECRAFT_USD_PER_IMAGE, styleUsd: RECRAFT_USD_STYLE_CREATION, async generate() { throw new Error("solo planificación"); } };
+  const director: VisualDirector = { label: "mock", briefUsd: 0.04, verifyUsd: 0.002, verifyBatchUsd: 0.01, async brief() { throw new Error("solo planificación"); }, async verify() { throw new Error("solo planificación"); } };
+  return { images, director,
     tts: { name: "plan", label: "mock", model: "eleven_multilingual_v2", usdFor: (n) => Math.ceil(n / 1000 * rate * 1e4) / 1e4, async synth() { throw new Error("solo planificación"); } },
     avatar: { name: "plan", label: "mock", usdFor: (s) => estimateHeygenCost(Math.max(1, s)), async render() { throw new Error("solo planificación"); }, async still() { throw new Error("solo planificación"); } } };
 }
