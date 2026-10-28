@@ -29,16 +29,22 @@ const B = [
 // ~15 caracteres/s (la misma regla de duración del TTS simulado): se agregan turnos hasta cubrir MIN minutos.
 const lines: string[] = []; let chars = 0, i = 0;
 while (chars / 15 < MIN * 60) { const a = `Hans: (${i + 1}) ${A[i % 4]}`, b = `Valeria: ${B[i % 4]}`; lines.push(a, b); chars += a.length + b.length; i++; }
-const spec = StudioSpec.parse({ version: STUDIO_VERSION, language: "es", format: "16:9", audio_export: "mp3", budget_usd: 50, mode: "dialogo",
+const mkSpec = (freq: number) => StudioSpec.parse({ version: STUDIO_VERSION, language: "es", format: "16:9", audio_export: "mp3", budget_usd: 50, mode: "dialogo",
   title: "Prueba de montaje largo (simulada)", topic: "montaje largo", target_minutes: MIN, script: lines.join("\n"),
   participants: [{ id: "A", name: "Hans", voice_id: "voiceHansSim01", avatar: { kind: "existente", avatar_id: "avatar-hans-sim" } },
     { id: "B", name: "Valeria", voice_id: "voiceValeriaSim", avatar: { kind: "existente", avatar_id: "avatar-valeria-sim" } }],
-  visual: { set: "biblioteca", subtitles: true, avatar_frequency: 0.8, avatar_max_seconds: 10, recreations: true, swap_sides: false },
+  visual: { set: "biblioteca", subtitles: true, avatar_frequency: freq, avatar_max_seconds: 10, recreations: true, swap_sides: false },
   music: { enabled: true, mood: "auto", volume_db: -22, stings: true, ambient: "ninguno" } });
 
 async function main() {
   const providers = mockProviders();
-  const pf = await preflight(spec, providers);
+  // Límite real: la autorización máxima del estudio es USD 50. Se registra la estimación con la frecuencia de avatar por
+  // defecto del diálogo (0.8) y se baja la frecuencia en pasos de 0.1 hasta que la estimación cabe (lo que exigiría el asistente).
+  const estimates: Record<string, number> = {};
+  let freq = 0.8, spec = mkSpec(freq), pf = await preflight(spec, providers);
+  estimates[freq.toFixed(1)] = pf.estimate.totalUsd;
+  while (pf.estimate.totalUsd > 50 && freq > 0.05) { freq = Math.round((freq - 0.1) * 10) / 10; spec = mkSpec(freq); pf = await preflight(spec, providers); estimates[freq.toFixed(1)] = pf.estimate.totalUsd; }
+  console.log("ESTIMATES_BY_AVATAR_FREQUENCY", JSON.stringify(estimates), "chosen", freq);
   const stages: Record<string, number> = {}; const t0 = Date.now();
   const r = await runEpisode(spec, { owner: "owner-sim", episode: "long-sim", dir: OUT, providers, ledger: new MemoryLedger(), guard: new MemoryRunGuard(),
     authorizedUsd: 50, small: false, onProgress: (s) => { stages[s] ??= Math.round((Date.now() - t0) / 1000); } });
@@ -51,7 +57,7 @@ async function main() {
   const shots = r.plan.shots ?? [];
   const kinds = shots.reduce((a: Record<string, number>, s: { kind?: string; type?: string }) => { const k = String(s.kind ?? s.type ?? "?"); a[k] = (a[k] || 0) + 1; return a; }, {});
   const facts = {
-    targetMinutes: MIN, turns: lines.length, chars, renderSeconds: secs, workerTimeoutSeconds: 185 * 60, stages,
+    targetMinutes: MIN, avatarFrequency: freq, estimatesByAvatarFrequency: estimates, turns: lines.length, chars, renderSeconds: secs, workerTimeoutSeconds: 185 * 60, stages,
     maxRssMb: Math.round(process.resourceUsage().maxRSS / 1024),
     mp4: { ...probe(r.mp4!).format, streams: probe(r.mp4!).streams, mb: Math.round(statSync(r.mp4!).size / 1e5) / 10 },
     mp3: { ...probe(r.audio).format, mb: Math.round(statSync(r.audio).size / 1e5) / 10 },
@@ -68,7 +74,7 @@ async function main() {
     ["mp3 duration ≈ mp4 duration (±2 s)", Math.abs(Number(facts.mp3.duration) - Number(facts.mp4.duration)) <= 2],
     ["loudness near −16 LUFS (±2), no clipping", Math.abs(r.lufs + 16) <= 2 && r.clipped === 0],
     ["no long silences (≥ 3 s) in the audio", silences === 0],
-    ["estimate ≤ studio max authorization (USD 50)", pf.estimate.totalUsd <= 50],
+    ["estimate ≤ studio max authorization (USD 50) at the chosen avatar frequency", pf.estimate.totalUsd <= 50],
   ];
   for (const [n, c] of checks) console.log(`${c ? "PASS" : "FAIL"} ${n}`);
   console.log(`INFO frozen video segments ≥ 2 s: ${frozen.length} (max ${facts.frozenMaxS} s) — simulated stills/plates; judged with the real-provider sample`);
