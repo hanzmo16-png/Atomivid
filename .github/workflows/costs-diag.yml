@@ -40,3 +40,14 @@ jobs:
           HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
         run: npx tsx scripts/qa/real/valeria-probe.ts
+      - name: ¿Puede arrancar un episodio ilustrado? (código de producción, solo lectura)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
+          FAL_ADMIN_KEY: ${{ secrets.FAL_ADMIN_KEY }}
+          ATOMIVID_RUNTIME: production
+        run: |
+          git fetch -q https://github.com/${{ github.repository }}.git claude/atomivid-mvp-setup-0079jv && git checkout FETCH_HEAD -- src
+          npx tsx scripts/qa/real/pod-ready.ts
