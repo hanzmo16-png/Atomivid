@@ -1,0 +1,29 @@
+# Registro de Valeria Montclair como avatar de Atomivid (USD 0: reutiliza el asset de HeyGen ya pagado; verifica el
+# SHA-256 de opt-v1 antes de escribir). modo=dry no escribe nada.
+name: studio-register
+on:
+  workflow_dispatch:
+    inputs:
+      modo: { description: "dry | apply", required: true, default: "dry" }
+  push:
+    branches: [claude/puertas-merge]
+    paths: [".github/workflows/studio-register.yml"]
+permissions:
+  contents: read
+jobs:
+  register:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
+          MODO: ${{ inputs.modo }}
+        run: npx tsx scripts/qa/real/register-valeria.ts
