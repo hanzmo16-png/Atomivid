@@ -154,6 +154,11 @@ export type AllocationLimits = {
    * reglas del Director en v4). Sin capacidad, vuelven a archivo como cualquier otra imagen. Ausente = sin cambios.
    */
   promoteToImage?: ReadonlySet<string>;
+  /**
+   * Escenas de archivo sin material pertinente y único que el worker cubre con la tarjeta del pasaje narrado (material
+   * preflight de produce(), dentro de MAX_MATERIAL_TEXT_RATIO): gratis y determinista, nunca una imagen ajena.
+   */
+  promoteToText?: ReadonlySet<string>;
 };
 
 const STOCK_SHOT_TYPES: readonly ShotType[] = ["stock_video", "stock_image", "ken_burns_image"];
@@ -241,6 +246,11 @@ export function allocateShotTypes(shots: Shot[], totalDurationSec: number, limit
   let heroReconstruction = 0;
 
   for (const planned of shots) {
+    if (limits.promoteToText?.has(planned.id) && STOCK_SHOT_TYPES.includes(planned.type)) {
+      out.push({ ...planned, type: "text", source: "local", motion: "static", plannedType: planned.type,
+        degradeReason: "sin material de archivo pertinente y único: tarjeta con el pasaje narrado" });
+      continue;
+    }
     const shot: Shot = limits.promoteToImage?.has(planned.id) && STOCK_SHOT_TYPES.includes(planned.type)
       ? { ...planned, type: "generated_placeholder", source: "generated", motion: "ken_burns" }
       : planned;

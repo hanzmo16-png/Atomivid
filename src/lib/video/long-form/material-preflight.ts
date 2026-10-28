@@ -181,6 +181,24 @@ export async function materialAvailabilityPreflight(input: {
   };
 }
 
+/**
+ * Proporción máxima de escenas de archivo que el worker puede cubrir con la tarjeta del pasaje narrado cuando no hay
+ * material pertinente y único (prueba real 2026-10-28, «Un día en la sabana africana»: escenas de «collar GPS» sin archivo
+ * honesto paraban toda la producción). Muy por debajo del tope de calidad de entrega (MAX_TEXT_FALLBACK_RATIO = 0.25).
+ */
+export const MAX_MATERIAL_TEXT_RATIO = 0.15;
+
+/**
+ * Escenas a cubrir con la tarjeta del pasaje: solo si TODAS las carencias admiten sustitución (no identidad ni prueba
+ * sin contrato) y caben en MAX_MATERIAL_TEXT_RATIO de las escenas de archivo. Si no, null (la producción se detiene).
+ */
+export function materialTextFallback(pre: MaterialPreflight, ratio = MAX_MATERIAL_TEXT_RATIO): Set<string> | null {
+  if (pre.status !== "unavoidable_gap" || pre.missing.some((m) => !m.promotable)) return null;
+  const stock = pre.shots.filter((v) => STOCK_TYPES.has(v.plannedType)).length;
+  if (pre.missing.length > Math.floor(stock * ratio)) return null;
+  return new Set(pre.missing.map((m) => m.shotId));
+}
+
 /** Inicio estable del mensaje de LongFormMaterialUnavailableError (lo reconoce la reconfiguración, reconfigure-production.ts). */
 export const MATERIAL_UNAVAILABLE_PREFIX = "IMPEDIMENTO ANTES DE GASTAR: no existe material pertinente y único";
 

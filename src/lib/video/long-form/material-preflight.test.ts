@@ -7,6 +7,7 @@ import path from "node:path";
 import type { FootageCandidate, FootageProvider } from "@/lib/providers/types";
 import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
 import { memoryResultStore } from "@/lib/paid-calls/result-store";
+import type { MaterialPreflight } from "./material-preflight";
 import { computeProductionPlan, REAL_LONG_FORM_PROVIDER_NAMES, type ProductionPlan, type ProductionPlanBeatInput } from "./production-plan";
 import { countingProviders, makeStorage } from "./cinematic-simulation";
 import { memoryShotAssetStore } from "./durable-shot-assets";
@@ -114,7 +115,7 @@ function newShared() {
   return { storage, out, ledger: memoryLedgerStore(), results: memoryResultStore(), store: memoryShotAssetStore().store, budgetStore: memoryBudgetStore() };
 }
 
-async function run(beats: ProductionPlanBeatInput[], plan: ProductionPlan, opts: { footage?: FootageProvider; shared?: Shared } = {}) {
+async function run(beats: ProductionPlanBeatInput[], plan: ProductionPlan, opts: { footage?: FootageProvider; shared?: Shared; materialTextRatio?: number; onMaterial?: (m: MaterialPreflight) => void } = {}) {
   const events: string[] = [];
   const sh = opts.shared ?? newShared();
   const base = countingProviders(events);
@@ -130,6 +131,8 @@ async function run(beats: ProductionPlanBeatInput[], plan: ProductionPlan, opts:
     aiVideoEnabled: false,
     recordCosts: false,
     resumeBackoffMs: 0,
+    ...(opts.materialTextRatio !== undefined ? { materialTextRatio: opts.materialTextRatio } : {}),
+    ...(opts.onMaterial ? { onMaterialPreflight: opts.onMaterial } : {}),
     output: sh.out.deps,
     uploadArtifact: async (p) => (events.push(`upload:${p.split("/").pop()}`), { path: p, url: `memory://${p}` }),
     identify: async (b) => ({ sha256: createHash("sha256").update(b).digest("hex"), dhashUnavailable: "test" }),
@@ -192,7 +195,7 @@ const v3 = (b: ProductionPlanBeatInput[]) => planOf(b, 3);
 test("A1-1 carencia inevitable (catálogo sin material pertinente y único) → se detiene ANTES de voz/imágenes: 0 llamadas pagadas", async () => {
   const beats = auroraBeats({ dated: true });
   const plan = planOf(beats);
-  const r = await run(beats, plan, { footage: syntheticCatalog() });
+  const r = await run(beats, plan, { footage: syntheticCatalog(), materialTextRatio: 0 });
   assert.ok(r.error, "debe negarse");
   assert.equal(r.error!.name, "LongFormMaterialUnavailableError", `nombre: ${r.error!.name}: ${r.error!.message.slice(0, 200)}`);
   assert.equal(r.voice, 0, "0 llamadas de voz");
@@ -200,6 +203,21 @@ test("A1-1 carencia inevitable (catálogo sin material pertinente y único) → 
   assert.equal(r.render, 0, "sin render");
   assert.equal(r.sh.ledger.ops.size, 0, "0 operaciones en el ledger");
   assert.match(r.error!.message, /no existe material/i);
+});
+
+test("A1-1b pocas carencias sustituibles (≤ 15 % del archivo) → tarjeta del pasaje, registrada; más → se detiene a USD 0", async () => {
+  const beats = auroraBeats({ dated: true });
+  const plan = planOf(beats);
+  let seen: MaterialPreflight | undefined;
+  const r = await run(beats, plan, { footage: syntheticCatalog(), onMaterial: (m) => { seen = m; } });
+  assert.ok(seen && seen.status === "unavoidable_gap");
+  const stock = seen.shots.filter((v) => ["stock_video", "stock_image", "ken_burns_image"].includes(v.plannedType)).length;
+  const fits = seen.missing.every((m) => m.promotable) && seen.missing.length <= Math.floor(stock * 0.15);
+  if (fits) assert.notEqual(r.error?.name, "LongFormMaterialUnavailableError", "dentro del límite no se detiene por material");
+  else {
+    assert.equal(r.error?.name, "LongFormMaterialUnavailableError");
+    assert.equal(r.voice, 0); assert.equal(r.sh.ledger.ops.size, 0, "0 operaciones en el ledger");
+  }
 });
 
 test("A1-2 plan válido con material disponible → continúa y renderiza", async () => {
@@ -284,4 +302,18 @@ test("A1-5 reintento tras una carencia sobrevenida → reutiliza lo pagado (0 vo
   assert.deepEqual(opsAfterSecond.filter((k) => !opsAfterFirst.includes(k)).filter((k) => /voice|tts|eleven/i.test(k)), [], "sin operaciones de voz nuevas");
   assert.equal(new Set(opsAfterSecond).size, opsAfterSecond.length);
   assert.equal(events.filter((e) => e === "render").length, 1);
+});
+
+test("tarjeta del pasaje: pocas carencias sustituibles (≤ 15 % del archivo) se cubren; más, o una de identidad, detienen", async () => {
+  const { materialTextFallback, MAX_MATERIAL_TEXT_RATIO } = await import("./material-preflight");
+  assert.equal(MAX_MATERIAL_TEXT_RATIO, 0.15);
+  const shots = Array.from({ length: 20 }, (_, i) => ({ shotId: `s${i}`, plannedType: "stock_video", status: "available" as const, reason: "ok" }));
+  const gap = (ids: number[], promotable = true) => {
+    const missing = ids.map((i) => ({ shotId: `s${i}`, plannedType: "stock_video", status: "nonexistent" as const, reason: "no existe", promotable }));
+    return { status: "unavoidable_gap" as const, shots: [...shots.filter((_, i) => !ids.includes(i)), ...missing], missing, temporary: [], searches: 1 };
+  };
+  assert.deepEqual([...materialTextFallback(gap([1, 2, 3]))!], ["s1", "s2", "s3"], "3 de 20 = 15 %");
+  assert.equal(materialTextFallback(gap([1, 2, 3, 4])), null, "4 de 20 supera el 15 %");
+  assert.equal(materialTextFallback(gap([1], false)), null, "una escena de identidad/prueba sin contrato nunca se sustituye");
+  assert.equal(materialTextFallback({ status: "ok", shots, missing: [], temporary: [], searches: 1 }), null);
 });

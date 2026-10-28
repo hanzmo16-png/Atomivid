@@ -72,9 +72,18 @@ function stem(word: string): string {
 
 /** Adjective ↔ noun forms providers use interchangeably ("lunar crater" ↔ "crater on the moon"). */
 const EQUIVALENT_TERMS: Record<string, string[]> = {
-  lunar: ["moon"], moon: ["lunar"], solar: ["sun"], sun: ["solar"], martian: ["mars"], mars: ["martian"],
+  lunar: ["moon"], moon: ["lunar"], solar: ["sun"], sun: ["solar", "sunlight", "sunshine", "sunny"], martian: ["mars"], mars: ["martian"],
   terrestrial: ["earth"], stellar: ["star"], star: ["stellar"],
 };
+
+/**
+ * Framing and modifier words in a subject ("savanna HORIZON", "buffalo SKIN", "herbivore SPECIES", "savanna PANORAMA"):
+ * they describe how to frame the thing, not what it is. They still score when present, but are not required, so
+ * "close up shot of a buffalo" illustrates "buffalo skin". Only when the subject has another term (a subject made only of
+ * framing words keeps them all required). Incident 2026-10-28 ("Un día en la sabana africana").
+ */
+const FRAMING_TERMS = new Set(["horizon", "panorama", "panoramic", "view", "vista", "scene", "shot", "landscape", "species", "variety",
+  "mix", "mixed", "various", "different", "close", "closeup", "detail", "skin", "texture", "silhouette", "footage", "background"].map(stem));
 
 /**
  * Category (hypernym) -> member names, matched on the provider's own words. ONE-WAY: a subject that names the category
@@ -183,7 +192,9 @@ export function assessRelevance(visual: BeatVisual, candidateText: string | unde
       score += 3;
     }
   }
-  const hasCore = subject.length > 0 ? subject.every(present) : matched.length > 0;
+  const core = subject.filter((t) => !FRAMING_TERMS.has(t));
+  const required = core.length > 0 ? core : subject;
+  const hasCore = required.length > 0 ? required.every(present) : matched.length > 0;
   const relevance: Relevance = conflicts.length === 0 && hasCore && score >= 2 ? "keyword_match" : "irrelevant";
   return { relevance, score, matchedTerms: matched, conflicts };
 }
