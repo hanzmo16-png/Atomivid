@@ -622,3 +622,15 @@ test("QA bloquea el render SOLO por violaciones de verdad (identidad / falso arc
   fabricated.cinematic!.qa.findings.push({ code: "IDENTITY_VISUAL_VIOLATION", severity: "BLOCK", shots: ["b"], detail: "y" });
   assert.throws(() => assertVisualQuality(fabricated), LongFormVisualQualityError);
 });
+
+test("promoteToText: las escenas de archivo sin material pasan a la tarjeta del pasaje (gratis); el resto no cambia", () => {
+  const { shots, narrationSeconds } = planShotsFromScript(gucciBeats, GUCCI_TOPIC, "economical");
+  const base = allocateShotTypes(shots, narrationSeconds, limitsFor("economical", false));
+  const stockIds = base.shots.filter((s) => ["stock_video", "stock_image", "ken_burns_image"].includes(s.type)).map((s) => s.id).slice(0, 2);
+  const withCards = allocateShotTypes(shots, narrationSeconds, { ...limitsFor("economical", false), promoteToText: new Set(stockIds) });
+  for (const [i, s] of withCards.shots.entries()) {
+    if (stockIds.includes(s.id)) { assert.equal(s.type, "text"); assert.equal(s.source, "local"); assert.match(s.degradeReason ?? "", /pasaje narrado/); }
+    else assert.equal(s.type, base.shots[i].type, s.id);
+  }
+  assert.equal(withCards.aiImageCount, base.aiImageCount, "nunca añade generación");
+});

@@ -15,8 +15,8 @@ export const START_SUPPLY_UNAVAILABLE = "No pudimos confirmar en este momento la
 export const RESUME_SUPPLY_UNAVAILABLE = "No pudimos confirmar en este momento la capacidad de los proveedores de Atomicvid. No se hizo ninguna llamada de pago nueva y tus avances se conservan; no tienes que recargar nada. Vuelve a intentarlo en unos minutos.";
 export type ProviderReadiness = { provider: string; refreshed: boolean; level: string | null; reason: string | null; free: number | null; units: number | null; usd: number; ok: boolean; failure?: string };
 export type SupplyReadiness = { ready: boolean; providers: ProviderReadiness[]; failure?: { provider: string; reason: string } };
-type Policy = { provider: string; enabled: boolean; unit: string; unit_cost_usd: number; daily_cap_usd: number; monthly_cap_usd: number; timezone: string; evidence?: string };
-type State = { level?: string; reason?: string; free?: number | null };
+type Policy = { provider: string; enabled: boolean; unit: string; unit_cost_usd: number; daily_cap_usd: number; monthly_cap_usd: number; max_daily_calls?: number; timezone: string; evidence?: string };
+type State = { level?: string; reason?: string; free?: number | null; todayCalls?: number };
 
 /** Local midnight / first-of-month in the policy timezone, as an absolute instant. */
 export function periodStart(timeZone: string, period: "day" | "month", now: Date): Date {
@@ -38,7 +38,7 @@ export async function ensureJobSupplyReady(service: SupabaseClient, demands: Job
 } = {}): Promise<SupplyReadiness> {
   const now = opts.now ?? Date.now, refresh = opts.refresh ?? true;
   const providers = [...new Set(demands.map(d => d.provider))].sort();
-  const { data: policyRows, error } = await service.from("pi_supply_policies").select("provider,enabled,unit,unit_cost_usd,daily_cap_usd,monthly_cap_usd,timezone,evidence")
+  const { data: policyRows, error } = await service.from("pi_supply_policies").select("provider,enabled,unit,unit_cost_usd,daily_cap_usd,monthly_cap_usd,max_daily_calls,timezone,evidence")
     .in("provider", ["__global__", ...providers]);
   if (error || !policyRows) return { ready: false, providers: [], failure: { provider: "production", reason: "supply policies unavailable" } };
   const policies = new Map((policyRows as Policy[]).map(p => [p.provider, p]));
@@ -70,6 +70,14 @@ export async function ensureJobSupplyReady(service: SupabaseClient, demands: Job
     }
     row.level = s.level ?? "UNKNOWN"; row.reason = s.reason ?? null; row.free = typeof s.free === "number" ? s.free : null;
     if (row.level === "RED" || row.level === "UNKNOWN" || row.free === null || row.units > row.free) { row.failure = "supplier balance unavailable"; continue; }
+    // Daily call quota (same rule as pi_submit_with_supply and the studio cap trigger: a call is refused once today's
+    // calls reach max_daily_calls). Checked only when the job states how many new calls it makes, so a job that would
+    // run out of calls halfway is refused before its first charge instead of failing after paying part of it.
+    if (d.calls !== undefined && d.calls > 0) {
+      const max = Number(p.max_daily_calls), today = Number(s.todayCalls);
+      if (!Number.isFinite(max) || !Number.isFinite(today)) { row.failure = "daily request quota unavailable"; continue; }
+      if (today + d.calls > max) { row.failure = "daily request quota"; continue; }
+    }
     const tz = p.timezone || "America/Cancun", at = new Date(now());
     const day = await spend(provider, periodStart(tz, "day", at)), month = await spend(provider, periodStart(tz, "month", at));
     if (day === null || month === null) { row.failure = "spend unavailable"; continue; }

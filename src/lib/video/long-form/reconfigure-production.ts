@@ -14,21 +14,15 @@
  * transición; repetirla después devuelve «ya reabierto».
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { decodeStoredFailure } from "@/lib/video/failure-action";
 import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
 import type { PaidOperation } from "@/lib/production-intelligence/ledger";
-import { MATERIAL_UNAVAILABLE_PREFIX } from "./material-preflight";
-import { productionBudgetPath, type ProductionBudgetState } from "./production-budget";
+import { isMaterialUnavailableFailure } from "./material-failure";
+import { budgetUsed, productionBudgetPath, type ProductionBudgetState } from "./production-budget";
 import { requestSpend } from "./request-budget";
 
 const BUCKET = "videos";
 
-/** True when the stored failure is the material-unavailable stop (never a support-tagged failure). */
-export function isMaterialUnavailableFailure(errorMessage: string | null | undefined): boolean {
-  if (!errorMessage) return false;
-  const decoded = decodeStoredFailure(errorMessage);
-  return decoded.action !== "support" && decoded.message.startsWith(MATERIAL_UNAVAILABLE_PREFIX);
-}
+export { isMaterialUnavailableFailure };
 
 /** Paid operations that are production spend (the documentary script is billed in its own ledger scope). */
 function productionOps(ops: PaidOperation[]): PaidOperation[] {
@@ -121,25 +115,17 @@ export async function reopenLongFormAfterMaterialGap(
   if (production.some((op) => op.status !== "REFUNDED") || requestSpend(production).totalUsd > 0) {
     return { ok: false, status: 409, error: "Este documental ya tiene operaciones de producción registradas; no puede volver a configurarse. Contacta al soporte. No se cambió nada." };
   }
-  const used = budget?.used;
-  if (used && (used.aiImageGenerations > 0 || used.aiVideoSubmits > 0 || used.generativeUsd > 0 || (used.spentUsd ?? 0) > 0)) {
+  if (budget && budgetUsed(budget)) {
     return { ok: false, status: 409, error: "El presupuesto de producción de este documental registra uso; no puede volver a configurarse. Contacta al soporte. No se cambió nada." };
   }
   if (authorized) {
     return { ok: false, status: 409, error: "Este documental ya tiene un presupuesto total autorizado; no puede volver a configurarse desde aquí. Contacta al soporte. No se cambió nada." };
   }
 
-  // The stored production budget only holds the old allocation (unused). ProductionBudget.open never widens it, so a
-  // new plan with more AI images would be clamped to the old one: remove it BEFORE the transition (a lost race leaves
-  // a failed request without an unused file, which the next attempt recreates from its confirmed plan).
-  if (budget) {
-    try {
-      await d.removeBudget(input.requestId);
-    } catch {
-      return { ok: false, status: 503, error: "No se pudo preparar el documental para volver a configurarlo. No se cambió nada; inténtalo de nuevo." };
-    }
-  }
-
+  // Transition FIRST (compare-and-swap on the state read above), the budget file only after winning it (audit of #238:
+  // deleting before the CAS let a concurrent retry lose its durable budget while the reconfiguration lost the race).
+  // The render route refuses a retry of this failure, so no worker can start for it; after the transition the request
+  // is «script_ready» and no worker runs until a new confirmation.
   const { data: updated, error: updateError } = await service.from("video_requests")
     .update({ status: "script_ready", long_form_confirmed_at: null, long_form_production_plan: null, error_message: null,
       progress_stage: null, long_form_stage: null, long_form_progress: null })
@@ -151,7 +137,20 @@ export async function reopenLongFormAfterMaterialGap(
     .select("id")
     .maybeSingle<{ id: string }>();
   if (updateError) return { ok: false, status: 503, error: "No se pudo volver a configurar el documental. No se cambió nada; inténtalo de nuevo." };
-  if (updated) return { ok: true, alreadyReopened: false };
+  if (updated) {
+    // The stored production budget only holds the old allocation. ProductionBudget.open never widens it, so a new plan
+    // with more AI images would be clamped to the old one: remove it, re-checked unused. If this fails, the next
+    // confirmation removes it (confirm-production.ts), and refuses if it ever shows use.
+    if (budget) {
+      try {
+        const now = await d.loadBudget(input.requestId);
+        if (now && !budgetUsed(now)) await d.removeBudget(input.requestId);
+      } catch {
+        // Left for confirm-production; the request is reopened either way.
+      }
+    }
+    return { ok: true, alreadyReopened: false };
+  }
   // Lost the race: either another click already reopened it (idempotent) or the state changed (e.g. a retry started).
   const { data: now } = await service.from("video_requests").select("status, long_form_confirmed_at").eq("id", input.requestId)
     .maybeSingle<{ status: string; long_form_confirmed_at: string | null }>();

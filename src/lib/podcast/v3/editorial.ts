@@ -23,6 +23,8 @@ export type PlanInput = {
   mode: StudioMode; turns: (Turn & { seconds?: number })[]; assets: VisualAsset[];
   avatarFrequency: number; avatarMaxSeconds: number; recreations: boolean; hasAvatar: { A: boolean; B: boolean };
   introSeconds?: number;
+  /** Términos del tema: un turno sin imagen propia usa una imagen NO usada del tema antes que un plano vacío. */
+  topicTerms?: string[];
 };
 export type EditorialPlan = { shots: Shot[]; issues: string[]; avatarSeconds: { A: number; B: number }; assetsUsed: string[] };
 
@@ -78,6 +80,17 @@ export function planEpisode(input: PlanInput): EditorialPlan {
         used.add(pick.asset.id);
         const kind: ShotKind = pick.asset.kind === "recreacion" ? "recreacion" : pick.asset.kind === "archivo" ? "archivo" : "imagen";
         return { kind, asset_id: pick.asset.id, ...(kind === "recreacion" ? { label: "Recreación" as const } : kind === "archivo" ? { label: "Archivo" as const } : {}), reason: `Imagen relacionada con el turno (${pick.score.toFixed(0)} coincidencias).` };
+      }
+      // Sin imagen propia del turno: una imagen del TEMA aún no usada (encontrada por la búsqueda del tema), nunca una
+      // ajena. Solo si tampoco la hay, el plano queda en transición.
+      const topic = new Set((input.topicTerms ?? []).map((w) => w.toLowerCase()));
+      const onTopic = topic.size === 0 ? undefined : input.assets
+        .filter((a) => a.kind !== "recreacion" && !used.has(a.id) && a.tags.some((tag) => topic.has(tag.toLowerCase())))
+        .sort((x, y) => x.id.localeCompare(y.id))[0];
+      if (onTopic) {
+        used.add(onTopic.id);
+        const kind: ShotKind = onTopic.kind === "archivo" ? "archivo" : "imagen";
+        return { kind, asset_id: onTopic.id, ...(kind === "archivo" ? { label: "Archivo" as const } : {}), reason: "Imagen del tema del episodio (el turno no tiene imagen propia)." };
       }
       return null;
     };

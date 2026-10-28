@@ -179,6 +179,23 @@ test("barreras previas: saldo insuficiente o presupuesto menor que la estimació
   assert.equal(p2.calls.tts.length + p2.calls.avatar.length, 0);
 });
 
+test("cuota diaria de llamadas: la verificación previa recibe solo las llamadas que faltan (lo liquidado se reutiliza)", { timeout: 600_000 }, async () => {
+  // P2 real 2026-10-28: la cuota de voz se agotó en el 7.º de 14 turnos, después de pagar 6. La verificación previa
+  // ahora cuenta las llamadas nuevas por proveedor; en un reintento descuenta las ya liquidadas.
+  const { ProviderNotReadyError } = await import("./pipeline");
+  const ledger = new MemoryLedger();
+  const seen: { ttsCalls?: number; avatarCalls?: number }[] = [];
+  const capture = (p: ReturnType<typeof mockProviders>) => ({ ...p, readiness: async (n: { ttsCalls?: number; avatarCalls?: number }) => { seen.push(n); return "elevenlabs: daily request quota"; } });
+  await assert.rejects(render(B, { providers: capture(mockProviders({ tonesOnly: true })) as never, ledger, episode: "ep-cuota" }), ProviderNotReadyError);
+  const turns = seen[0].ttsCalls!;
+  assert.ok(turns > 2, `una llamada por turno (${turns})`); assert.ok(seen[0].avatarCalls! > 0, "los clips de avatar cuentan");
+  assert.equal(ledger.rows.size, 0, "rechazado antes del primer cargo");
+  // Un intento que paga 2 voces y se corta en la 3.ª: el reintento solo pide cupo para las que faltan.
+  await assert.rejects(render(B, { providers: mockProviders({ tonesOnly: true, rejectTtsCall: 3 }), ledger, episode: "ep-cuota" }));
+  await assert.rejects(render(B, { providers: capture(mockProviders({ tonesOnly: true })) as never, ledger, episode: "ep-cuota" }), ProviderNotReadyError);
+  assert.equal(seen[1].ttsCalls, turns - 2);
+});
+
 /** Almacén de lo pagado en disco (en el worker real: Supabase Storage). Simula que el runner siguiente es OTRA máquina. */
 async function diskArtifacts(): Promise<ArtifactStore & { puts: number }> {
   const root = await mkdtemp(path.join(tmpdir(), "p30-paid-"));

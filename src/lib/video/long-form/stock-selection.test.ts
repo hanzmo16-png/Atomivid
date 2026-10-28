@@ -455,3 +455,19 @@ test("[REGRESIÓN ensayo Marco Aurelio] una tablilla de cera romana no es una «
   for (const text of ["woman reading on a tablet beside a lamp", "digital tablet showing a wax seal", "wax tablet next to a laptop"])
     assert.ok(assessRelevance(visual, text).conflicts.some(c => c.startsWith("época")), text);
 });
+
+// Prueba real 2026-10-28 («Un día en la sabana africana»): material obviamente pertinente rechazado porque faltaba una
+// palabra de encuadre del sujeto («horizon», «skin», «species», «panorama»). Los encuadres puntúan pero no se exigen.
+test("encuadre del sujeto: «savanna horizon», «buffalo skin», «savanna panorama» aceptan el material del núcleo", () => {
+  const v = (subject: string, description: string) => ({ subject, place: "Africa", description, motion: false }) as never;
+  assert.equal(assessRelevance(v("savanna horizon", "Dawn breaks over African savanna horizon"), "serene african savanna sunrise reflection").relevance, "keyword_match");
+  assert.equal(assessRelevance(v("buffalo skin", "Close-up of buffalo skin radiating heat"), "close up shot of a buffalo").relevance, "keyword_match");
+  assert.equal(assessRelevance(v("savanna panorama", "Wide panoramic view of savanna at midday"), "exploring the vast open plains on a cloudy day").relevance, "keyword_match");
+  assert.equal(assessRelevance(v("savanna sun", "Blazing sun over open African savanna"), "bright sunlight over the african savanna").relevance, "keyword_match");
+  // El núcleo sigue siendo obligatorio: un búfalo no es un collar GPS, un ciervo no es un herbívoro africano listado,
+  // y una escena hecha solo de palabras de encuadre las exige todas.
+  assert.equal(assessRelevance(v("GPS collar", "GPS tracking collar on ungulate neck"), "giraffe strolling in african savannah landscape").relevance, "irrelevant");
+  assert.equal(assessRelevance(v("herbivore species", "Three herbivore species across the savanna"), "deer are eating grass").relevance, "irrelevant");
+  assert.equal(assessRelevance(v("heat haze", "Heat haze rippling over dry grass"), "aerial view of smoke over african savanna").relevance, "irrelevant");
+  assert.equal(assessRelevance(v("landscape view", "A landscape"), "city skyline at night").relevance, "irrelevant");
+});

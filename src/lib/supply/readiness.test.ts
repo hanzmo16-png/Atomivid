@@ -11,10 +11,10 @@ type Snap = { provider: string; available: number | null; reliability: string; c
 
 /** In-memory supply store. pi_supply_state applies the production freshness rule:
  * provider_api readings older than 5 minutes (or unverified) are UNKNOWN; manual_entry does not expire. */
-function fakeSupply(snaps: Snap[], opts: { spentToday?: Record<string, number> } = {}) {
+function fakeSupply(snaps: Snap[], opts: { spentToday?: Record<string, number>; todayCalls?: Record<string, number> } = {}) {
   const policies = [
     { provider: "__global__", enabled: true, unit: "usd", unit_cost_usd: 0, daily_cap_usd: 40, monthly_cap_usd: 300, timezone: "America/Cancun", evidence: "owner-funded" },
-    { provider: "elevenlabs", enabled: true, unit: "character", unit_cost_usd: 0.0002, daily_cap_usd: 20, monthly_cap_usd: 150, timezone: "America/Cancun" },
+    { provider: "elevenlabs", enabled: true, unit: "character", unit_cost_usd: 0.0002, daily_cap_usd: 20, monthly_cap_usd: 150, max_daily_calls: 14, timezone: "America/Cancun" },
     { provider: "openai", enabled: true, unit: "usd", unit_cost_usd: 1, daily_cap_usd: 20, monthly_cap_usd: 150, timezone: "America/Cancun" },
     { provider: "runway", enabled: true, unit: "credit", unit_cost_usd: 0.01, daily_cap_usd: 20, monthly_cap_usd: 150, timezone: "America/Cancun" },
   ];
@@ -33,7 +33,7 @@ function fakeSupply(snaps: Snap[], opts: { spentToday?: Record<string, number> }
         const s = snaps.filter(x => x.provider === args.p_provider).sort((a, b) => b.checked_at.localeCompare(a.checked_at))[0];
         const fresh = s && s.available !== null && (s.reliability === "manual_entry" || (s.reliability === "provider_api" && Date.parse(s.checked_at) >= NOW - 300_000));
         if (!fresh) return { data: { level: "UNKNOWN", reason: "balance unverified or stale", free: null }, error: null };
-        return { data: { level: s.available! > 0 ? "GREEN" : "RED", reason: "fresh", free: s.available }, error: null };
+        return { data: { level: s.available! > 0 ? "GREEN" : "RED", reason: "fresh", free: s.available, todayCalls: opts.todayCalls?.[args.p_provider!] ?? 0 }, error: null };
       }
       throw new Error(`unexpected rpc ${name}`);
     },
@@ -156,4 +156,18 @@ test("F: refresh mode off (preflight before the click) reports stale providers w
 test("period starts follow the policy timezone", () => {
   assert.equal(periodStart("America/Cancun", "day", new Date("2026-10-07T03:00:00Z")).toISOString(), "2026-10-06T05:00:00.000Z");
   assert.equal(periodStart("America/Cancun", "month", new Date("2026-10-07T14:40:00Z")).toISOString(), "2026-10-01T05:00:00.000Z");
+});
+
+// P2 real 2026-10-28: 8 voice calls earlier that day + 14 turns > 14/day. The episode paid 6 turns and failed at the
+// 7th (STUDIO_CAP: daily request quota). With the call count in the demand it is refused before the first charge.
+test("daily call quota: a job that would run out of calls halfway is refused before its first charge", async () => {
+  const fresh = [{ provider: "elevenlabs", available: 100000, reliability: "provider_api", checked_at: at(1) }];
+  const demand = { provider: "elevenlabs", unit: "character" as const, units: 9000, usd: 0.9 };
+  const busy = fakeSupply(structuredClone(fresh), { todayCalls: { elevenlabs: 8 } }) as unknown as SupabaseClient;
+  const refused = await ensureJobSupplyReady(busy, [{ ...demand, calls: 14 }], { refresh: false, now: () => NOW });
+  assert.deepEqual(refused.failure, { provider: "elevenlabs", reason: "daily request quota" });
+  const fits = await ensureJobSupplyReady(busy, [{ ...demand, calls: 6 }], { refresh: false, now: () => NOW });
+  assert.equal(fits.ready, true, "8 + 6 = 14 calls fit a quota of 14");
+  const noCount = await ensureJobSupplyReady(busy, [demand], { refresh: false, now: () => NOW });
+  assert.equal(noCount.ready, true, "jobs that do not state their calls keep the previous rule");
 });

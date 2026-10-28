@@ -57,6 +57,8 @@ function fakeService(initial: RowState) {
   }
 
   const client = {
+    // Production budget files (confirm-production clears an unused one left by a reopened request): none by default.
+    storage: { from: () => ({ list: async () => ({ data: [], error: null }) }) },
     from(table?: string) {
       if (table === "documentary_script_jobs") {
         return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }) };
@@ -367,4 +369,19 @@ test("reconfiguración: la voz fijada en la primera confirmación no se cambia (
   assert.ok(!other.ok && other.status === 409);
   const same = await confirmLongFormProduction(fake.client, { requestId: "req-1", userId: "user-1", strategy: "balanced", voiceId: "CeFSZuaHs4SxcBxb9nCr", materialFootage: null });
   assert.ok(same.ok);
+});
+
+test("reconfirmación: un presupuesto anterior SIN uso se elimina antes de fijar el plan; con uso, no se confirma", async () => {
+  const unused = { version: 1 as const, allocation: { maxAiImageGenerations: 0, maxAiVideoClips: 0, maxGenerativeUsd: 0 }, used: { aiImageGenerations: 0, aiVideoSubmits: 0, generativeUsd: 0, spentUsd: 0 }, deviations: [], updatedAtIso: "x" };
+  let removed = 0;
+  const fake = fakeService(baseRow());
+  const ok = await confirmLongFormProduction(fake.client, { requestId: "req-1", userId: "user-1", strategy: "balanced",
+    staleBudget: { load: async () => unused, remove: async () => { removed++; } } });
+  assert.equal(ok.ok, true); assert.equal(removed, 1);
+  const fake2 = fakeService(baseRow());
+  const used = { ...unused, used: { ...unused.used, aiImageGenerations: 2, generativeUsd: 0.08, spentUsd: 0.08 } };
+  const refused = await confirmLongFormProduction(fake2.client, { requestId: "req-1", userId: "user-1", strategy: "balanced",
+    staleBudget: { load: async () => used, remove: async () => { removed++; } } });
+  assert.equal(refused.ok, false); assert.equal(removed, 1, "nunca se borra un presupuesto con uso");
+  assert.equal(fake2.row.long_form_confirmed_at ?? null, null, "no se confirmó");
 });
