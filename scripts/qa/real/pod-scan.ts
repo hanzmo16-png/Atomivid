@@ -25,9 +25,10 @@ async function main() {
   const v = await localDirector({ dir }).verify(items, spec.topic);
   const rows = items.map((it, i) => ({ s: Number(it.brief.turn_id), ok: v.verdicts[i].ok, reason: v.verdicts[i].reason }));
   for (const r of rows) console.log("SCAN", JSON.stringify(r));
-  // Hojas de contacto de 4×4 con el segundo y el veredicto rotulados.
+  // Hojas de contacto de 4×4 en orden (fila a fila, 4 s por celda; hoja N empieza en el segundo (N-1)·64+2), marco
+  // verde = aceptada, rojo = rechazada (sin texto: el ffmpeg del runner no trae fuentes).
   rows.forEach((r, i) => spawnSync("ffmpeg", ["-y", "-v", "error", "-i", items[i].image, "-vf",
-    `drawbox=x=0:y=0:w=200:h=40:color=${r.ok ? "green" : "red"}@0.85:t=fill,drawtext=text='${r.s}s ${r.ok ? "OK" : "NO"}':x=8:y=8:fontsize=26:fontcolor=white`, path.join(dir, `l${String(i).padStart(3, "0")}.jpg`)]));
+    `scale=480:270,setsar=1,drawbox=x=0:y=0:w=480:h=270:color=${r.ok ? "lime" : "red"}:t=10`, path.join(dir, `l${String(i).padStart(3, "0")}.jpg`)]));
   for (let p = 0; p * 16 < rows.length; p++) {
     const files = rows.slice(p * 16, p * 16 + 16).map((_, k) => path.join(dir, `l${String(p * 16 + k).padStart(3, "0")}.jpg`));
     const args = files.flatMap((f) => ["-i", f]);
