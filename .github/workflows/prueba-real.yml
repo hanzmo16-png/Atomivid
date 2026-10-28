@@ -10,7 +10,7 @@ on:
         description: "preflight (USD 0) | descargas (USD 0, MP4+MP3 de episodio_reintento) | p1 (≤ 1) | p2 (≤ 3) | lf (≤ 12, todo el caso) | lf-inspeccion (USD 0, video terminado de lf_request_id) | pod-diag / pod-clips (USD 0, episodio de estudio pod_episode_id) | pod-assets (≤ 1, recursos de estudio con Recraft)"
         required: true
         type: choice
-        options: [preflight, descargas, p1, p2, lf, lf-inspeccion, pod-diag, pod-clips, pod-assets, pod-catalog, pod-fragment, pod-scan, pod-ui, pod-remaster]
+        options: [preflight, descargas, p1, p2, lf, lf-inspeccion, pod-diag, pod-clips, pod-assets, pod-catalog, pod-fragment, pod-scan, pod-ui, pod-remaster, pod-calib]
       presupuesto_usd:
         description: "Autorización por episodio (no supera el tope del caso)"
         required: true
@@ -60,7 +60,7 @@ jobs:
         with: { persist-credentials: false }
       - name: Tope del caso (antes de instalar nada)
         run: |
-          case "$CASO" in preflight|descargas|lf-inspeccion|pod-diag|pod-clips|pod-catalog|pod-scan|pod-ui|pod-remaster) MAX=0;; pod-assets) MAX=1;; pod-fragment) MAX=0.2;; p1) MAX=1;; p2) MAX=3;; lf) MAX=12;; *) echo "::error::caso desconocido"; exit 1;; esac
+          case "$CASO" in preflight|descargas|lf-inspeccion|pod-diag|pod-clips|pod-catalog|pod-scan|pod-ui|pod-remaster|pod-calib) MAX=0;; pod-assets) MAX=1;; pod-fragment) MAX=0.2;; p1) MAX=1;; p2) MAX=3;; lf) MAX=12;; *) echo "::error::caso desconocido"; exit 1;; esac
           python3 -c "import sys; b=float(sys.argv[1]); m=float(sys.argv[2]); sys.exit(0 if 0 <= b <= m and (m == 0 or b > 0) else 1)" "$BUDGET_USD" "$MAX" \
             || { echo "::error::presupuesto $BUDGET_USD fuera del tope del caso $CASO (USD $MAX)"; exit 1; }
           echo "caso=$CASO presupuesto=USD $BUDGET_USD (tope del caso USD $MAX)"
@@ -95,7 +95,7 @@ jobs:
           if [ "$CASO" = pod-diag ]; then node scripts/qa/real/pod-diag.mjs; exit $?; fi
           if [ "$CASO" = pod-ui ]; then node scripts/qa/real/pod-ui.mjs; exit $?; fi
           if [ "$CASO" = pod-clips ]; then node scripts/qa/real/pod-clips.mjs; exit $?; fi
-          if [ "$CASO" = pod-fragment ] || [ "$CASO" = pod-scan ] || [ "$CASO" = pod-remaster ]; then
+          if [ "$CASO" = pod-fragment ] || [ "$CASO" = pod-scan ] || [ "$CASO" = pod-remaster ] || [ "$CASO" = pod-calib ]; then
             # Código del estudio nuevo (rama de trabajo, repositorio público) sobre las dependencias ya instaladas.
             git fetch -q https://github.com/${{ github.repository }}.git claude/podcast-estudios && git checkout FETCH_HEAD -- src public scripts/podcast-3-0
             python3 -m pip install -q "onnxruntime==1.31.1" "numpy==2.2.6" "opencv-python-headless==4.10.0.84" "pillow==11.0.0"
