@@ -184,7 +184,7 @@ async function result(page, tag) {
 const pd = await result(p, "escritorio");
 const dl = await Promise.all([pd.waitForEvent("download", { timeout: 300000 }), pd.getByText("Descargar video").first().click()]).then(([d]) => d).catch(() => null);
 if (ok("download offered from the account", !!dl)) {
-  const file = path.join(EVID, "..", "descarga-lf.mp4"); await dl.saveAs(file);
+  const file = path.join(EVID, "..", "..", "descarga-lf.mp4"); // outside the evidence folder: GitHub rejects > 100 MB await dl.saveAs(file);
   const buf = fs.readFileSync(file), sha = crypto.createHash("sha256").update(buf).digest("hex");
   const { data: blob } = await db.storage.from("videos").download(r.video_path);
   const sha2 = blob ? crypto.createHash("sha256").update(Buffer.from(await blob.arrayBuffer())).digest("hex") : null;
