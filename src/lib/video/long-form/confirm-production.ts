@@ -33,6 +33,27 @@ import type { ReelRecraftStyle } from "@/lib/video/recraft-reel";
 import type { FootageProvider } from "@/lib/providers/types";
 import { materialAwarePlan, materialCheckFootageProvider, MATERIAL_CHECK_DEADLINE_MS, withSearchDeadline } from "./material-plan";
 import { materialBlockText } from "./material-gap-message";
+import { budgetUsed, productionBudgetPath, type ProductionBudgetState } from "./production-budget";
+
+function defaultStaleBudget(service: SupabaseClient, requestId: string) {
+  const path = productionBudgetPath(requestId);
+  return {
+    async load(): Promise<ProductionBudgetState | null> {
+      // Existence first (the usual first confirmation has no file); a listed file that cannot be read fails closed.
+      const { data: listed, error: listError } = await service.storage.from("videos").list(`${requestId}/state`, { search: "production-budget.json" });
+      if (listError) throw new Error(listError.message);
+      if (!listed?.some((f) => f.name === "production-budget.json")) return null;
+      const { data, error } = await service.storage.from("videos").download(path);
+      if (error || !data) throw new Error(error?.message ?? "presupuesto no legible");
+      const text = await data.text();
+      return text ? (JSON.parse(text) as ProductionBudgetState) : null;
+    },
+    async remove() {
+      const { error } = await service.storage.from("videos").remove([path]);
+      if (error) throw new Error(error.message);
+    },
+  };
+}
 
 export function isVisualStrategyValue(value: unknown): value is VisualStrategy {
   return typeof value === "string" && (VISUAL_STRATEGIES as readonly string[]).includes(value);
@@ -89,6 +110,11 @@ export async function confirmLongFormProduction(
      * (null si es fixture / sin clave: la comprobación queda para el inicio). null = no comprobar (pruebas).
      */
     materialFootage?: FootageProvider | null;
+    /**
+     * Tests only: the stored production budget of an earlier confirmation (a request reopened after a $0 material
+     * stop). Production reads and removes `<id>/state/production-budget.json` in the videos bucket.
+     */
+    staleBudget?: { load(): Promise<ProductionBudgetState | null>; remove(): Promise<void> };
   },
 ): Promise<ConfirmProductionResult> {
   if (!isVisualStrategyValue(input.strategy)) return { ok: false, status: 400, error: "Estrategia visual inválida" };
@@ -182,6 +208,20 @@ export async function confirmLongFormProduction(
     const script = data.script_json as unknown as { beats: ProductionPlanBeatInput[] };
     const dated = datedEventEvidenceBlockers(script.beats ?? []);
     if (dated.length > 0) return { ok: false, status: 409, error: datedEventBlockMessage(dated.length) };
+  }
+
+  // A request reopened after a $0 material stop may still hold the earlier confirmation's production budget (its
+  // removal after the reopen is best effort). ProductionBudget.open never widens it, so the new plan would be clamped
+  // to the old allocation: remove it while it is unused; with any recorded use, never confirm over it.
+  const stale = input.staleBudget ?? defaultStaleBudget(service, input.requestId);
+  try {
+    const previous = await stale.load();
+    if (previous && budgetUsed(previous)) {
+      return { ok: false, status: 409, error: "Este documental conserva un presupuesto de producción con uso registrado; no se puede confirmar un plan nuevo. Contacta al soporte. No se confirmó ni se cobró nada." };
+    }
+    if (previous) await stale.remove();
+  } catch {
+    return { ok: false, status: 503, error: "No se pudo comprobar el presupuesto de producción anterior. No se confirmó ni se cobró nada; inténtalo de nuevo." };
   }
 
   const confirmedAt = input.nowIso ?? new Date().toISOString();

@@ -146,6 +146,12 @@ export class ProductionBudget {
   }
 }
 
+/** True when a production budget records any reservation or spend. */
+export function budgetUsed(state: ProductionBudgetState): boolean {
+  const used = state.used;
+  return used.aiImageGenerations > 0 || used.aiVideoSubmits > 0 || used.generativeUsd > 0 || (used.spentUsd ?? 0) > 0;
+}
+
 export function productionBudgetPath(requestId: string): string {
   return `${requestId}/state/production-budget.json`;
 }
