@@ -40,3 +40,19 @@ Sin secretos. Gasto en USD; «aprox.» = tarifa publicada × solicitudes enviada
   contaba ilustración/guion visual/verificación como llamadas del libro (78/81). Corregidos; local: unit 2436/0,
   podcast3 95/0, E2E cierre 81/81 (PostgreSQL 16 desechable).
 - Acumulado de esta tarea: recursos ≈ USD 0,80 + ilustración del fragmento USD 0,04 = **≈ USD 0,84**.
+
+## Misión de cierre (USD 0 adicional; horas UTC del 2026-10-28)
+- P0 autorización duradera de Recraft (6602fac): cada llamada de pago del estudio lleva un comprobante (episodio +
+  `authorized_at` + clave de la reserva); el adaptador real lo verifica en la BD antes de tocar FAL_KEY o la red. E2E de
+  cierre contra PostgreSQL 16 desechable: 89/89 (E0: con la política `recraft` apagada la BD ni deja reservar).
+  CI completa en verde en 6602fac.
+- Anfitriones del catálogo de punta a punta (c39c318): validación (voz propia), preparación desde el catálogo, voces,
+  planos, reanudación sin cobros duplicados.
+- 19:22–20:00 · run 40755371207 (pod-remaster, USD 0): episodio de referencia COMPLETO (6:19) recompuesto en el estudio
+  Moderno con el material ya pagado (máster + 13 clips HeyGen): guion alineado 99,4 %, 13/13 clips con su hablante,
+  9 imágenes conservadas y 8 sustituidas por tarjeta, 378,64 s vs máster 378,62 s, 0 errores de decodificación, MP3 extraído.
+  Defectos vistos → corregidos en 8d7a630: texto de tarjeta/título salía del cuadro; cielo casi vacío aceptado.
+- 20:08 · run 40761072816 (pod-remaster tras la corrección): tarjetas dentro del cuadro. Limitación que queda: una silueta
+  parcial de bicicleta (recorte del arnés) sigue pasando la verificación.
+- run 40755817801 (pod-ui en la vista previa de la rama): bloqueado por la protección SSO de Vercel (redirige a
+  vercel.com/login). Cambiar esa configuración no está autorizado; la interfaz se prueba en el E2E de CI (caso 13).
