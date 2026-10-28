@@ -62,4 +62,5 @@ jobs:
       - name: "4. Contingencia (solo si se ejecutó y la verificación falla)"
         if: failure() && steps.exec.outcome != 'skipped' && steps.verify.outcome != 'success'
         working-directory: pr
-        run: npx tsx scripts/qa/real/supply-spend-gate.ts rollback; echo "::error::verificación fallida: se intentó el rollback (ver ROLLBACK)"; exit 1
+        run: |
+          npx tsx scripts/qa/real/supply-spend-gate.ts rollback; echo "::error::verificación fallida: se intentó el rollback (ver ROLLBACK)"; exit 1
