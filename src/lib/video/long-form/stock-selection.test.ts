@@ -471,3 +471,21 @@ test("encuadre del sujeto: «savanna horizon», «buffalo skin», «savanna pano
   assert.equal(assessRelevance(v("heat haze", "Heat haze rippling over dry grass"), "aerial view of smoke over african savanna").relevance, "irrelevant");
   assert.equal(assessRelevance(v("landscape view", "A landscape"), "city skyline at night").relevance, "irrelevant");
 });
+
+// Diagnóstico completo de la prueba real 2026-10-28 (16 escenas sin candidato tras #241): sujetos compuestos («X and Y»),
+// categorías faltantes (depredadores, ungulados, ganado, reserva) y palabras de encuadre («wild», «terrain», «ecosystem»).
+test("sujetos compuestos y categorías: una parte completa ilustra la escena; el núcleo de esa parte sigue obligatorio", () => {
+  const v = (subject: string, description: string, place = "Africa") => ({ subject, place, description, motion: false }) as never;
+  const ok = (vis: never, text: string) => assert.equal(assessRelevance(vis, text).relevance, "keyword_match", text);
+  const no = (vis: never, text: string) => assert.equal(assessRelevance(vis, text).relevance, "irrelevant", text);
+  const hp = v("herbivores and predators", "Herbivores grazing in golden daylight, predators resting in shade", "South Africa");
+  ok(hp, "zebras grazing in golden light on the savanna");
+  ok(hp, "lioness resting in the shade of an acacia");
+  no(hp, "serene pasture at golden hour with horse grazing");
+  ok(v("predator and herd", "Daytime herd grazing fades into nocturnal predator hunting"), "african wild dogs roaming near water");
+  ok(v("wildlife and livestock", "Wildlife and livestock sharing grassland at dusk"), "cattle grazing near zebras in kenya");
+  ok(v("wild ungulates", "Wildlife moving at the margins of daylight"), "herd of impalas at dusk in the bush");
+  no(v("wild ungulates", "Wildlife moving at the margins of daylight"), "black backed jackals in nairobi national park");
+  ok(v("game reserve", "Game reserve vehicle near a bushveld trail", "South Africa"), "wildlife safari at kruger national park");
+  no(v("GPS collar", "GPS tracking collar on ungulate neck"), "zebras and wildebeests grazing");
+});
