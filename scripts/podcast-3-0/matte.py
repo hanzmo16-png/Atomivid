@@ -67,7 +67,9 @@ def main():
                 yield f
         frames = gen()
     w2, h2 = w - w % 2, h - h % 2
-    ex, ey = int(round(w2 * ext)), int(round(h2 * ext / 2))
+    # Abajo se prolonga tanto como a los lados: un retrato muy cerrado se desvanecía por encima de la mesa (busto
+    # «flotando» en la vista previa del estudio Cálido, 2026-10-28).
+    ex, ey = int(round(w2 * ext)), int(round(h2 * ext))
     ex -= ex % 2; ey -= ey % 2
     W2, H2 = w2 + 2 * ex, h2 + ey
     ratio = np.array([min(1.0, 512 / max(w, h))], dtype=np.float32)
