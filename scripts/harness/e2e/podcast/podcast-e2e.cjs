@@ -680,7 +680,8 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       ok(`${t}: Recraft preseleccionado y Pexels ausente`, await W().getByLabel("Ilustraciones Recraft").isChecked() && (await W().locator('[data-testid="proveedor-pexels"]').count()) === 0);
       for (const st of ["moderno", "calido", "minimalista"]) {
         await W().getByTestId(`estudio-${st}`).click(); await S.p.waitForTimeout(500);
-        const pv = W().getByTestId(`studio-preview-${st}`);
+        // La tarjeta del estudio lleva su miniatura y debajo va la vista previa grande del elegido: se mira la grande.
+        const pv = W().getByTestId(`studio-preview-${st}`).last();
         const ld = await pv.locator("img").evaluateAll((els) => els.map((e) => e.complete && e.naturalWidth > 0));
         ok(`${t}: vista previa del estudio ${st} (estudio + 2 anfitriones + mesa)`, ld.length >= 4 && ld.every(Boolean), JSON.stringify(ld));
         await pv.screenshot({ path: path.join(OUT, `${t}-03-estudio-${st}.png`) });
