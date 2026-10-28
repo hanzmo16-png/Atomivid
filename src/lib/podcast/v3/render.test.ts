@@ -434,3 +434,44 @@ test("Recraft: una ilustración por turno, verificada mirando la imagen; la rech
   assert.deepEqual({ b: providers.calls.briefs, v: providers.calls.verified.length, i: providers.calls.images.length }, before);
   await rm(dir, { recursive: true, force: true });
 });
+
+test("anfitriones del catálogo: Valeria y Víctor con SU voz y SU rostro de principio a fin (validación, preparación, voces, planos, sin doble cobro al reanudar)", { timeout: 600_000 }, async () => {
+  const { HOST_CATALOG } = await import("./catalog");
+  const { validateSpec } = await import("./spec");
+  const [val, vic] = [HOST_CATALOG.find((h) => h.id === "valeria")!, HOST_CATALOG.find((h) => h.id === "victor")!];
+  const spec = StudioSpec.parse({ ...base, mode: "dialogo", title: "Sumerios y tablillas", topic: "los sumerios y la escritura cuneiforme", target_minutes: 1,
+    script: [
+      `${val.name}: Bienvenidos. Hoy hablamos de los sumerios y de la escritura cuneiforme.`,
+      `${vic.name}: Gracias, Valeria. Son de los textos escritos más antiguos que conocemos.`,
+      `${val.name}: ¿Qué contaban exactamente esas tablillas?`,
+      `${vic.name}: Sobre todo cuentas, contratos y leyes; los mitos son una parte pequeña.`,
+      `${val.name}: Gracias, Víctor. Nos escuchamos pronto.`,
+    ].join("\n"),
+    participants: [
+      { id: "A", name: val.name, voice_id: val.voiceId, avatar: { kind: "catalogo", host_id: "valeria" } },
+      { id: "B", name: vic.name, role: vic.role, voice_id: vic.voiceId, avatar: { kind: "catalogo", host_id: "victor" } },
+    ],
+    visual: { set: "calido", provider: "recraft", subtitles: true, avatar_frequency: 1, avatar_max_seconds: 10, recreations: false, swap_sides: false }, music: { enabled: false, mood: "auto", volume_db: -22, stings: false, ambient: "ninguno" } });
+  // Validación: cada anfitrión habla con su propia voz; cambiarla se rechaza (no se sustituye en silencio).
+  const voices = [val, vic].map((h) => ({ voiceId: h.voiceId, name: h.voiceName, category: "premade" }));
+  const viewer = { id: "u1", email: "dueno@example.com", emailConfirmed: true };
+  assert.deepEqual(validateSpec(spec, voices as never, viewer as never, {}), [], "Valeria y Víctor del catálogo son válidos");
+  const swapped = { ...spec, participants: [{ ...spec.participants[0], voice_id: vic.voiceId }, spec.participants[1]] } as StudioSpec;
+  assert.ok(validateSpec(swapped, voices as never, viewer as never, {}).some((i) => /propia voz/.test(i.message)), "otra voz para Valeria se rechaza");
+
+  const providers = mockProviders({ tonesOnly: true }), ledger = new MemoryLedger();
+  const dir = await mkdtemp(path.join(tmpdir(), "p30-catalogo-"));
+  const r = await runEpisode(spec, { owner: "u1", episode: "ep-cat", dir, providers, ledger, guard: new MemoryRunGuard(), authorizedUsd: 10, authorizationRef: "2026-10-28T18:00:00Z", small: true, musicDir: MUSIC });
+  assert.deepEqual([...providers.calls.prepare].sort(), ["catalogo:valeria", "catalogo:victor"], "el rostro de cada anfitrión sale del catálogo (una preparación por anfitrión)");
+  const byVoice = (v: string) => providers.calls.tts.filter((c) => c.startsWith(`${v}:`)).length;
+  assert.equal(byVoice(val.voiceId), 3, "Valeria: sus 3 turnos con Callie"); assert.equal(byVoice(vic.voiceId), 2, "Víctor: sus 2 turnos con su voz");
+  const kinds = new Set(r.plan.shots.map((s) => s.kind));
+  assert.ok(kinds.has("two_shot") && (kinds.has("avatar_a") || kinds.has("avatar_b")), `plano general y primeros planos: ${[...kinds]}`);
+  assert.ok(r.plan.shots.filter((s) => s.kind === "avatar_a").every((s) => s.speaker === "A") && r.plan.shots.filter((s) => s.kind === "avatar_b").every((s) => s.speaker === "B"), "cada primer plano es de quien habla");
+  assert.ok(r.mp4 && (await stat(r.mp4)).size > 0 && (await stat(r.audio)).size > 0, "MP4 y audio generados");
+  // Reanudar el mismo episodio: todo se reutiliza del libro, ninguna llamada de pago nueva.
+  const again = mockProviders({ tonesOnly: true });
+  await runEpisode(spec, { owner: "u1", episode: "ep-cat", dir, providers: again, ledger, guard: new MemoryRunGuard(), authorizedUsd: 10, authorizationRef: "2026-10-28T18:00:00Z", small: true, musicDir: MUSIC });
+  assert.equal(again.calls.tts.length + again.calls.avatar.length + again.calls.prepare.length + again.calls.images.length, 0, "reanudación sin cobros duplicados");
+  await rm(dir, { recursive: true, force: true });
+});
