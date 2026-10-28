@@ -83,7 +83,8 @@ const EQUIVALENT_TERMS: Record<string, string[]> = {
  * framing words keeps them all required). Incident 2026-10-28 ("Un día en la sabana africana").
  */
 const FRAMING_TERMS = new Set(["horizon", "panorama", "panoramic", "view", "vista", "scene", "shot", "landscape", "species", "variety",
-  "mix", "mixed", "various", "different", "close", "closeup", "detail", "skin", "texture", "silhouette", "footage", "background"].map(stem));
+  "mix", "mixed", "various", "different", "close", "closeup", "detail", "skin", "texture", "silhouette", "footage", "background",
+  "wild", "terrain", "ecosystem"].map(stem));
 
 /**
  * Category (hypernym) -> member names, matched on the provider's own words. ONE-WAY: a subject that names the category
@@ -92,8 +93,17 @@ const FRAMING_TERMS = new Set(["horizon", "panorama", "panoramic", "view", "vist
  * name for something else ("zebra crossing", "buffalo wings", "plain background") never count.
  * Incident 2026-10-28 ("Un día en la sabana africana"): every herbivore and savanna scene was rejected on wording alone.
  */
+const UNGULATES = "(?:african |cape |water )?buffalo(?:es|s)?(?! wings?\\b| bills?\\b|,? (?:ny|new york)\\b)|zebras?(?! crossings?\\b)|giraffes?|antelopes?|wildebeests?|gnus?|gazelles?|impalas?|hippos?|hippopotam(?:us|uses|i)|rhinos?|rhinoceros(?:es)?|elands?|kudus?|warthogs?|okapis?|bison";
+const PREDATORS = "lions?|lioness(?:es)?|leopards?|cheetahs?|hyenas?|hyaenas?|(?:african )?wild dogs?|jackals?|crocodiles?";
 const CATEGORY_MEMBERS: Record<string, RegExp> = {
-  herbivore: /\b(?:herbivorous|(?:african |cape |water )?buffalo(?:es|s)?(?! wings?\b| bills?\b|,? (?:ny|new york)\b)|zebras?(?! crossings?\b)|giraffes?|antelopes?|wildebeests?|gnus?|gazelles?|impalas?|elephants?|hippos?|hippopotam(?:us|uses|i)|rhinos?|rhinoceros(?:es)?|elands?|kudus?|warthogs?|okapis?|bison)\b/,
+  herbivore: new RegExp(`\\b(?:herbivorous|elephants?|${UNGULATES})\\b`),
+  ungulate: new RegExp(`\\b(?:${UNGULATES})\\b`),
+  predator: new RegExp(`\\b(?:predators?|${PREDATORS})\\b`),
+  wildlife: new RegExp(`\\b(?:wildlife|wild animals?|safari animals?|elephants?|${UNGULATES}|${PREDATORS})\\b`),
+  livestock: /\b(?:livestock|cattle|cows?|sheep|goats?)\b/,
+  herd: /\b(?:herds?|zebras|wildebeests|antelopes|gazelles|impalas|buffaloes|elephants|cattle)\b/,
+  game: /\b(?:game reserves?|game drives?|safaris?|wildlife)\b/,
+  reserve: /\b(?:reserves?|national parks?|safari parks?|kruger|serengeti|ma(?:a)?sai mara)\b/,
   savanna: /\b(?:savannah?s?|grasslands?|(?:open |grassy |vast |african |serengeti )plains)\b/,
   savannah: /\b(?:savannah?s?|grasslands?|(?:open |grassy |vast |african |serengeti )plains)\b/,
 };
@@ -192,9 +202,13 @@ export function assessRelevance(visual: BeatVisual, candidateText: string | unde
       score += 3;
     }
   }
-  const core = subject.filter((t) => !FRAMING_TERMS.has(t));
-  const required = core.length > 0 ? core : subject;
-  const hasCore = required.length > 0 ? required.every(present) : matched.length > 0;
+  const requiredOf = (terms: string[]) => { const core = terms.filter((t) => !FRAMING_TERMS.has(t)); return core.length > 0 ? core : terms; };
+  // Compound subject ("herbivores and predators", "wildlife and livestock"): a candidate that fully shows ONE of the
+  // parts illustrates the scene; within a part every core term is still required.
+  const parts = (visual.subject ?? "").split(/\s+(?:and|&)\s+|\s*,\s*/i).map(englishTerms).filter((p) => p.length > 0);
+  const hasCore = parts.length > 1
+    ? parts.some((p) => requiredOf(p).every(present))
+    : subject.length > 0 ? requiredOf(subject).every(present) : matched.length > 0;
   const relevance: Relevance = conflicts.length === 0 && hasCore && score >= 2 ? "keyword_match" : "irrelevant";
   return { relevance, score, matchedTerms: matched, conflicts };
 }
