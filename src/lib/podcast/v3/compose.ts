@@ -193,8 +193,11 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
         if (m.still) ins.push("-loop", "1", "-t", secs, "-i", m.fg, "-loop", "1", "-t", secs, "-i", alpha);
         else ins.push("-i", m.fg, "-i", alpha);
         const pad = m.still ? "" : `,tpad=stop_mode=clone:stop_duration=${secs}`;
-        const merge = m.alpha ? `[${fi}:v]format=rgb24${pad}[f${k}];[${ai}:v]format=gray${pad}[a${k}];[f${k}][a${k}]alphamerge` : `[${fi}:v]format=rgba${pad}`;
-        parts.push(`${merge},scale=${L.w}:${L.h},${gradeFilter(st)}[p${k}]`);
+        // La corrección de color va ANTES del alfa: «eq» solo admite YUV sin alfa y lo descartaba en silencio (prueba
+        // real 2026-10-28: cada persona salía como un rectángulo opaco con su fondo original).
+        const grade = `${gradeFilter(st)},format=rgb24`;
+        const merge = m.alpha ? `[${fi}:v]format=rgb24${pad},${grade}[f${k}];[${ai}:v]format=gray${pad}[a${k}];[f${k}][a${k}]alphamerge` : `[${fi}:v]format=rgb24${pad},${grade}`;
+        parts.push(`${merge},format=rgba,scale=${L.w}:${L.h}[p${k}]`);
         parts.push(`${base}[p${k}]overlay=${L.x}:${L.y}:format=auto:eof_action=repeat[b${k}]`);
         base = `[b${k}]`;
       });

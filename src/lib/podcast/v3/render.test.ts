@@ -364,7 +364,8 @@ test("estudio compartido: los dos sentados en el MISMO estudio, cada uno en su l
     const fg = path.join(dir, `${name}-fg.${video ? "mp4" : "png"}`), a = path.join(dir, `${name}-a.${video ? "mp4" : "png"}`);
     const src = (c: string) => video ? ["-f", "lavfi", "-i", `color=c=${c}:s=720x1280:r=25:d=1`] : ["-f", "lavfi", "-i", `color=c=${c}:s=720x1280`];
     const out = (f: string) => video ? ["-c:v", "libx264", "-pix_fmt", "yuv420p", f] : ["-frames:v", "1", f];
-    spawnSync("ffmpeg", ["-y", "-v", "error", ...src("gray"), "-vf", `drawbox=x=260:y=200:w=200:h=200:c=${color}:t=fill`, ...out(fg)]);
+    // Fuera del alfa, el «fondo original» de la persona es verde puro: no debe verse en ningún plano.
+    spawnSync("ffmpeg", ["-y", "-v", "error", ...src("lime"), "-vf", `drawbox=x=160:y=150:w=400:h=1130:c=gray:t=fill,drawbox=x=260:y=200:w=200:h=200:c=${color}:t=fill`, ...out(fg)]);
     spawnSync("ffmpeg", ["-y", "-v", "error", ...src("black"), "-vf", "drawbox=x=160:y=150:w=400:h=1130:c=white:t=fill", ...out(a)]);
     return { fg, alpha: a, w: 720, h: 1280, face: [260, 200, 200, 200] as [number, number, number, number], still: !video };
   };
@@ -383,11 +384,15 @@ test("estudio compartido: los dos sentados en el MISMO estudio, cada uno en su l
   const red = share(general, isRed), green = share(general, isGreen);
   assert.ok(red.left > 50 && red.right === 0, `A (magenta) a la izquierda: ${JSON.stringify(red)}`);
   assert.ok(green.right > 50 && green.left === 0, `B (cian) a la derecha: ${JSON.stringify(green)}`);
+  const isLime = (r: number, g: number, b: number) => g > 200 && r < 80 && b < 80;
+  const lime = (f: string) => { const s = share(f, isLime); return s.left + s.right; };
+  assert.ok(lime(general) < 20, `el fondo original (verde) no entra en el plano general: ${lime(general)} px`);
   // El fondo original de cada persona NO entra: fuera de su alfa solo se ve el estudio (gris del cuerpo limitado al alfa).
   const primer = await renderShot(dir, 2, { turn_id: "T002", speaker: "A", kind: "avatar_a", start: 0, end: 1, reason: "" }, 25, { speakerMatte: A }, o);
   const pr = share(primer, isRed);
   assert.ok(pr.left > red.left * 3, `primer plano de A: cara mayor y en su lado (${JSON.stringify(pr)} vs ${red.left})`);
   assert.ok(pr.top > 2, "la cabeza no queda cortada por arriba");
+  assert.ok(lime(primer) < 20, `el fondo original (verde) no entra en el primer plano: ${lime(primer)} px`);
   const swapped = await renderShot(dir, 3, { turn_id: "T003", speaker: "A", kind: "two_shot", start: 0, end: 1, reason: "" }, 25, { speakerMatte: A, listenerMatte: B }, { ...o, swap: true });
   assert.ok(share(swapped, isRed).right > 50, "invertir posiciones: A pasa a la derecha");
   await rm(dir, { recursive: true, force: true });
