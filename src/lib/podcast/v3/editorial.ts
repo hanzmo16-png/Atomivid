@@ -29,6 +29,17 @@ export type EditorialPlan = { shots: Shot[]; issues: string[]; avatarSeconds: { 
 const STOP = new Set("de la el los las un una y o que en a por para con se su sus es son lo al del como más pero sus este esta eso esa muy ya no sí si le les me te nos hay fue era ser hace hoy aquí allí the of and to in is".split(" "));
 export const keywords = (text: string) => [...new Set(text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/[^a-z0-9ñ]+/).filter((w) => w.length > 3 && !STOP.has(w)))];
 
+/** Términos que anclan las búsquedas de imágenes al tema del episodio: los del tema si lo hay; si no, las palabras clave
+ *  las del título (sin cifras ni fechas); si tampoco, las palabras clave repetidas del guion (empate → primera aparición). Sin ancla, una frase como «Va de salida» buscaba
+ *  «salida» y traía un letrero de salida de un estacionamiento (prueba real 2026-10-28). */
+export function salientTerms(topic: string, texts: string[], n = 2, title = ""): string[] {
+  const words = (t: string) => keywords(t).filter((w) => !/^\d+$/.test(w));
+  for (const head of [topic, title]) { const w = words(head); if (w.length) return w.slice(0, n); }
+  const count = new Map<string, number>();
+  for (const t of texts) for (const w of keywords(t)) count.set(w, (count.get(w) ?? 0) + 1);
+  return [...count.entries()].filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1]).slice(0, n).map(([w]) => w);
+}
+
 /** Mejor recurso NO usado para el turno; puntuación = coincidencias de palabras clave; empate → id (estable). */
 export function pickAsset(text: string, assets: VisualAsset[], used: Set<string>, allowRecreation: boolean): { asset: VisualAsset; score: number } | null {
   const kw = new Set(keywords(text));
@@ -48,16 +59,19 @@ export function planEpisode(input: PlanInput): EditorialPlan {
   let t = input.introSeconds ?? 0;
   if (t > 0) shots.push({ turn_id: null, speaker: null, kind: "titulo", start: 0, end: t, reason: "Apertura con título y cortina musical." });
   const n = input.turns.length;
-  // Frecuencia: el avatar aparece en ~freq de los turnos, repartido de forma uniforme (acumulador determinista).
-  // Arranca de modo que el primer turno lo presente el avatar (B/C).
-  let acc = 1 - input.avatarFrequency;
+  // Frecuencia: el avatar aparece en ~freq de los turnos DE CADA PARTICIPANTE, repartido de forma uniforme (un acumulador
+  // determinista por hablante). Con un único acumulador, una conversación que alterna A/B con freq 0.5 daba TODAS las
+  // apariciones al mismo hablante (prueba real 2026-10-28, episodio 0a482791: Valeria nunca habló a cámara).
+  // Arranca de modo que el primer turno de cada uno lo presente su avatar.
+  const acc = { A: 1 - input.avatarFrequency, B: 1 - input.avatarFrequency };
   let lastKind: ShotKind | null = null;
   input.turns.forEach((turn, i) => {
     const dur = turn.seconds ?? estimateSeconds(turn.text);
     const start = t, end = t + dur;
-    acc += input.avatarFrequency;
-    const wantsAvatar = input.mode !== "narracion" && acc >= 1 - 1e-9 && input.hasAvatar[turn.speaker];
-    if (wantsAvatar) acc -= 1;
+    acc[turn.speaker] += input.avatarFrequency;
+    // Frecuencia 0 = sin avatar (el acumulador arranca en 1 y daba igualmente el primer turno).
+    const wantsAvatar = input.mode !== "narracion" && input.avatarFrequency > 0 && acc[turn.speaker] >= 1 - 1e-9 && input.hasAvatar[turn.speaker];
+    if (wantsAvatar) acc[turn.speaker] -= 1;
     const visual = () => {
       const pick = pickAsset(turn.text, input.assets, used, input.recreations);
       if (pick) {
