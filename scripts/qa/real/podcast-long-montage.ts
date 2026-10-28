@@ -43,7 +43,7 @@ async function main() {
   const estimates: Record<string, number> = {};
   let freq = 0.8, spec = mkSpec(freq), pf = await preflight(spec, providers);
   estimates[freq.toFixed(1)] = pf.estimate.totalUsd;
-  while (pf.estimate.totalUsd > 50 && freq > 0.05) { freq = Math.round((freq - 0.1) * 10) / 10; spec = mkSpec(freq); pf = await preflight(spec, providers); estimates[freq.toFixed(1)] = pf.estimate.totalUsd; }
+  while (pf.estimate.totalUsd > 40 && freq > 0.05) { freq = Math.round((freq - 0.1) * 10) / 10; spec = mkSpec(freq); pf = await preflight(spec, providers); estimates[freq.toFixed(1)] = pf.estimate.totalUsd; }
   console.log("ESTIMATES_BY_AVATAR_FREQUENCY", JSON.stringify(estimates), "chosen", freq);
   const stages: Record<string, number> = {}; const t0 = Date.now();
   const r = await runEpisode(spec, { owner: "owner-sim", episode: "long-sim", dir: OUT, providers, ledger: new MemoryLedger(), guard: new MemoryRunGuard(),
