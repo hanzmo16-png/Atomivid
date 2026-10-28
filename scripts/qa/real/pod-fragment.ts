@@ -22,7 +22,7 @@ fs.mkdirSync(path.join(EVID, "estudios"), { recursive: true });
 
 async function main() {
   const { renderShot, muxEpisode, shotFrames, FPS } = await import("../../../src/lib/podcast/v3/compose");
-  const { realMatter, realDirector, realRecraftImages, RVM_MODEL } = await import("../../../src/lib/podcast/v3/adapters");
+  const { realMatter, localDirector, realRecraftImages, RVM_MODEL } = await import("../../../src/lib/podcast/v3/adapters");
   const { NEGATIVE_IMAGE } = await import("../../../src/lib/podcast/v3/pipeline");
   const { HOST_CATALOG } = await import("../../../src/lib/podcast/v3/catalog");
   const { STUDIO_IDS } = await import("../../../src/lib/podcast/v3/studios");
@@ -50,7 +50,15 @@ async function main() {
 
   // Ilustración real del turno 1 (Hans): guion visual → Recraft → verificación (lote).
   const t1 = spec.script.split("\n").find((l) => /\S/.test(l))!.replace(/^[^:]{1,60}:\s*/, "");
-  const director = realDirector(ep!.user_id, `frag-${ID.slice(0, 8)}`);
+  const director = localDirector({ dir });
+  // Controles negativos: fotogramas del episodio ORIGINAL con fotos ajenas (avión, huevos de Pascua, plantas, ropa).
+  // La verificación visual debe rechazarlos todos para este tema.
+  const epMp4 = path.join(dir, "original.mp4"); fs.writeFileSync(epMp4, (await dl("videos", `${ep!.user_id}/podcast-studio/${ID}/episodio.mp4`))!);
+  const controls = [[128, "avion"], [62, "huevos"], [300, "plantas"], [376, "ropa"]] as const;
+  const ctl: { image: string; brief: { turn_id: string; prompt: string; subject: string; recreation: boolean } }[] = [];
+  for (const [t, n] of controls) { const f = path.join(dir, `control-${n}.jpg`); spawnSync("ffmpeg", ["-y", "-v", "error", "-ss", String(t), "-i", epMp4, "-frames:v", "1", f]); fs.copyFileSync(f, path.join(EVID, "fragmento", `control-${n}.jpg`)); ctl.push({ image: f, brief: { turn_id: n, prompt: "", subject: `${spec.topic}: Anunnaki, sumerios, tablillas cuneiformes`, recreation: false } }); }
+  const cv = await director.verify(ctl, spec.topic);
+  out("NEGATIVE_CONTROLS", controls.map(([, n], i) => ({ n, ok: cv.verdicts[i].ok, reason: cv.verdicts[i].reason })));
   const brief = await director.brief({ topic: spec.topic, title: spec.title, language: "es", turns: [{ id: "T001", text: t1 }] });
   const b = brief.briefs[0];
   out("BRIEF", { usd: brief.actualUsd, subject: b?.subject, recreation: b?.recreation, prompt: b?.prompt?.slice(0, 160) });

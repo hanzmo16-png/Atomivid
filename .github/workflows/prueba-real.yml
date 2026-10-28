@@ -91,14 +91,15 @@ jobs:
           POD_EPISODE_ID: ${{ inputs.pod_episode_id }}
           ELEVENLABS_API_KEY: ${{ inputs.caso == 'pod-diag' && secrets.ELEVENLABS_API_KEY || '' }}
           FAL_KEY: ${{ (inputs.caso == 'pod-assets' || inputs.caso == 'pod-fragment') && secrets.FAL_KEY || '' }}
-          ANTHROPIC_API_KEY: ${{ inputs.caso == 'pod-fragment' && secrets.ANTHROPIC_API_KEY || '' }}
         run: |
           if [ "$CASO" = pod-diag ]; then node scripts/qa/real/pod-diag.mjs; exit $?; fi
           if [ "$CASO" = pod-clips ]; then node scripts/qa/real/pod-clips.mjs; exit $?; fi
           if [ "$CASO" = pod-fragment ]; then
             # Código del estudio nuevo (rama de trabajo, repositorio público) sobre las dependencias ya instaladas.
             git fetch -q https://github.com/${{ github.repository }}.git claude/podcast-estudios && git checkout FETCH_HEAD -- src public scripts/podcast-3-0
-            python3 -m pip install -q "onnxruntime==1.31.1" "numpy==2.2.6" "opencv-python-headless==4.10.0.84"
+            python3 -m pip install -q "onnxruntime==1.31.1" "numpy==2.2.6" "opencv-python-headless==4.10.0.84" "pillow==11.0.0"
+            python3 -m pip install -q --index-url https://download.pytorch.org/whl/cpu "torch==2.5.1"
+            python3 -m pip install -q "sentence-transformers==3.3.1"
             NEXT_PUBLIC_SUPABASE_URL="$SUPABASE_URL" ATOMIVID_RUNTIME=production npx tsx scripts/qa/real/pod-fragment.ts; exit $?
           fi
           if [ "$CASO" = pod-catalog ]; then python3 -m pip install -q "onnxruntime==1.31.1" "numpy==2.2.6" "opencv-python-headless==4.10.0.84" && node scripts/qa/real/pod-catalog.mjs; exit $?; fi
