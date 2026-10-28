@@ -12,7 +12,6 @@ escala de CLIP) es al menos 0,35; si no, se rechaza nombrando la alternativa que
 """
 import json, sys
 from PIL import Image
-import torch
 from sentence_transformers import SentenceTransformer, util
 
 AJENOS = [
@@ -27,15 +26,27 @@ AJENOS = [
     "un cielo casi vacío al atardecer, sin objetos reconocibles",
 ]
 
-# Segunda regla (calibrada el 2026-10-28 con 35 imágenes etiquetadas a mano, run 40770470472): detector de objetos
-# ajenos con el codificador de texto NATIVO de CLIP (en inglés, más preciso que el multilingüe para objetos) frente a lo
-# que debe mostrar el turno. Una silueta de bicicleta recortada contra el cielo pasaba la primera regla (p=0,91) y aquí da
-# «an empty sky at dusk» 0,52 / «a bicycle» 0,99. Umbral: ajenas ≥ 0,51, pertinentes ≤ 0,27 → 0,40.
-OBJETOS = ["a bicycle", "an airplane", "easter eggs", "potted plants in a nursery", "a crop field with green plants", "clothes in a shop",
-           "a gift box with a welcome note", "people talking in a modern restaurant or meeting", "a modern office desk with papers and a bottle",
-           "a woman posing in lingerie", "a person wearing modern clothes", "a car on a street", "a mobile phone", "food on a plate",
-           "a sign with text", "an empty sky at dusk"]
-OBJETO_MAX = 0.40
+# Segunda regla (calibrada el 2026-10-28 con 35 imágenes etiquetadas a mano, runs 40770470472/40771551917): detector de
+# objetos ajenos con el codificador de texto NATIVO de CLIP (inglés, más preciso que el multilingüe para objetos), frente
+# a etiquetas NEUTRAS genéricas (sin depender del tema). Una silueta de bicicleta recortada contra el cielo pasaba la
+# primera regla (p=0,91); aquí «an empty sky at dusk» da 0,49. Pertinentes ≤ 0,22 · ajenas ≥ 0,49 → umbral 0,35.
+# Un objeto que el propio tema o turno menciona (p. ej. un episodio sobre bicicletas) no cuenta como ajeno.
+OBJETOS = {"a bicycle": ["bicicleta", "ciclismo"], "an airplane": ["avion", "aviacion", "aeropuerto", "vuelo"], "easter eggs": ["pascua", "huevo"],
+           "potted plants in a nursery": ["planta", "vivero", "jardin"], "a crop field with green plants": ["cultivo", "agricult", "cosecha", "campo"],
+           "clothes in a shop": ["ropa", "moda", "tienda"], "a gift box with a welcome note": ["regalo"],
+           "people talking in a modern restaurant or meeting": ["restaurante", "reunion", "negocio", "empresa"],
+           "a modern office desk with papers and a bottle": ["oficina", "escritorio"], "a woman posing in lingerie": ["lenceria", "moda"],
+           "a person wearing modern clothes": ["moda", "ropa"], "a car on a street": ["coche", "auto", "automovil", "calle"],
+           "a mobile phone": ["telefono", "celular", "movil", "smartphone"], "food on a plate": ["comida", "cocina", "receta", "gastronom"],
+           "a sign with text": ["cartel", "letrero", "tipografia"], "an empty sky at dusk": ["cielo", "atardecer", "anochecer", "meteor", "astronom"]}
+NEUTRAS = ["a painting or digital illustration of a scene", "an ancient artifact, ruin, statue, relief or monument",
+           "a historical or documentary scene", "a scientific image or diagram"]
+OBJETO_MAX = 0.35
+
+
+def _plain(t):
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFKD", t.lower()) if not unicodedata.combining(c))
 
 
 def main():
@@ -44,7 +55,8 @@ def main():
     img_model = SentenceTransformer("clip-ViT-B-32")
     txt_model = SentenceTransformer("sentence-transformers/clip-ViT-B-32-multilingual-v1")
     imgs = img_model.encode([Image.open(i["image"]).convert("RGB") for i in items], convert_to_tensor=True, normalize_embeddings=True)
-    obj_txt = img_model.encode(OBJETOS, convert_to_tensor=True, normalize_embeddings=True)
+    obj_names = list(OBJETOS)
+    obj_txt = img_model.encode(obj_names + NEUTRAS, convert_to_tensor=True, normalize_embeddings=True)
     verdicts = []
     for k, it in enumerate(items):
         own = [it["expected"]] + ([topic] if topic else [])
@@ -56,15 +68,16 @@ def main():
         rival = max(range(len(own), len(labels)), key=lambda j: float(sims[j]))
         own_p = float(probs[: len(own)].sum())
         first = float(sims[best_own]) > float(sims[rival]) and own_p >= 0.35
-        # Detector: lo esperado (multilingüe, mismo espacio de CLIP) contra los objetos ajenos (codificador nativo).
-        obj_sims = util.cos_sim(imgs[k:k + 1], obj_txt)[0]
-        mixed = (torch.cat([sims[: len(own)], obj_sims]) * 100).softmax(dim=0)
-        oi = max(range(len(OBJETOS)), key=lambda j: float(mixed[len(own) + j]))
-        obj_p = float(mixed[len(own) + oi])
+        # Detector: objetos ajenos frente a etiquetas neutras (codificador nativo); se ignoran los que el tema menciona.
+        context = _plain(" ".join(own))
+        allowed = [j for j, n in enumerate(obj_names) if not any(w in context for w in OBJETOS[n])]
+        op = (util.cos_sim(imgs[k:k + 1], obj_txt)[0] * 100).softmax(dim=0)
+        oi = max(allowed, key=lambda j: float(op[j])) if allowed else 0
+        obj_p = float(op[oi]) if allowed else 0.0
         ok = first and obj_p < OBJETO_MAX
         reason = "" if ok else (f"la imagen se parece más a «{labels[rival]}» que a lo pedido (p={own_p:.2f})" if not first
-                                else f"se reconoce un objeto ajeno al tema: «{OBJETOS[oi]}» (p={obj_p:.2f})")
-        verdicts.append({"ok": ok, "score": round(own_p, 3), "rival": labels[rival], "object": OBJETOS[oi], "objectP": round(obj_p, 3), "reason": reason})
+                                else f"se reconoce un objeto ajeno al tema: «{obj_names[oi]}» (p={obj_p:.2f})")
+        verdicts.append({"ok": ok, "score": round(own_p, 3), "rival": labels[rival], "object": obj_names[oi], "objectP": round(obj_p, 3), "reason": reason})
     json.dump({"verdicts": verdicts}, open(sys.argv[2], "w"), ensure_ascii=False)
     print(json.dumps({"n": len(items), "ok": sum(v["ok"] for v in verdicts)}))
 
