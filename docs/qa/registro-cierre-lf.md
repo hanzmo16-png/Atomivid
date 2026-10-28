@@ -27,3 +27,6 @@ anotados abajo, revisados en su momento.
 - 11:06 · run 40676906308 (tras #241): parada a USD 0, 19 escenas sin material (límite 15 %).
 - 11:44 · diagnóstico 40677547477: 16 escenas sin candidato. 7 huecos reales (collar GPS ×4, calima, sol de mediodía,
   terreno estacional); el resto corresponde al emparejador → #242.
+- 12:15 · #242 fusionado → 2d20b92 (CI completa en verde en 3b40338). Vercel producción OK a las 12:16:20.
+- 12:17 · LF relanzado (prueba-real caso=lf, presupuesto 12, reconfigurar → Económico), run 40686457952. Techo autorizable 8.61 (incluye guion 0.37); peor caso acumulado ≈ USD 9.53 / 12.
+- 12:07 · Rutina Drive: sin pendientes (auditoría 06:11 de ChatGPT = HITO_VERIFICADO; no se escribió nada).
