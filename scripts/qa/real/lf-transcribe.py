@@ -1,13 +1,16 @@
 # Free local transcription (faster-whisper, CPU) of the finished Long Form, compared with the script narration:
 # coverage = share of the script's words heard in order; the tail check proves the ending is not cut. Prints ratios only.
-import json, os, re, sys, difflib, unicodedata
+import json, os, re, sys, difflib, unicodedata, wave
+import numpy as np
 from faster_whisper import WhisperModel
 evid, work = os.environ["EVID"], os.environ.get("RUNNER_TEMP", "/tmp")
 def words(t):
     t = unicodedata.normalize("NFKD", t.lower()); t = "".join(c for c in t if not unicodedata.combining(c))
     return re.findall(r"[a-z0-9ñ]+", t)
 model = WhisperModel("small", device="cpu", compute_type="int8")
-segs, info = model.transcribe(os.path.join(work, "lf.wav"), language="es", word_timestamps=False, vad_filter=False)
+w = wave.open(os.path.join(work, "lf.wav"))  # 16 kHz mono s16 from ffmpeg; avoids PyAV decoding
+audio = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16).astype(np.float32) / 32768.0
+segs, info = model.transcribe(audio, language="es", word_timestamps=False, vad_filter=False)
 segs = [{"start": round(s.start, 1), "end": round(s.end, 1), "text": s.text.strip()} for s in segs]
 json.dump(segs, open(os.path.join(evid, "transcript.json"), "w"), ensure_ascii=False, indent=1)
 script = words(open(os.path.join(evid, "narration.txt")).read()); heard = words(" ".join(s["text"] for s in segs))
