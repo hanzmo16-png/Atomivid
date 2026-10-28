@@ -1,4 +1,5 @@
 import { scriptLengthReview } from "@/lib/video/script-length-review";
+import { isMaterialUnavailableFailure } from "@/lib/video/long-form/material-failure";
 import { usesAnchoredVisuals, type ProductionPlan } from "@/lib/video/long-form/production-plan-types";
 import type { ProductionPlanBeatInput } from "@/lib/video/long-form/production-plan";
 import { providerCheck, visualBlockMessage, visualCheck } from "@/lib/video/long-form/production-preflight";
@@ -165,6 +166,13 @@ export async function POST(
         { error: "Todavía no se confirmó el plan de producción para este video." },
         { status: 409 },
       );
+    }
+
+    // Detenido por falta de material antes de gastar: el mismo plan se detendría otra vez. La salida es «Volver a
+    // configurar la producción» (reconfigure-production.ts); rechazar aquí evita que ambas acciones compitan.
+    if (videoRequest.mode === "long_form" && videoRequest.status === "failed" && isMaterialUnavailableFailure(videoRequest.error_message)) {
+      return NextResponse.json({ error: "Este documental se detuvo antes de gastar porque faltaba material para algunas escenas. Usa «Volver a configurar la producción» para elegir otra estrategia; no se inició nada ni se cobró.",
+        outcome: nothingStarted(videoRequest) }, { status: 409 });
     }
 
     // Primera línea de defensa contra doble render (solicitud duplicada,

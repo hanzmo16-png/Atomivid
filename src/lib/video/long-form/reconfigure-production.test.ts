@@ -170,3 +170,36 @@ test("isMaterialUnavailableFailure reconoce solo el impedimento de material", ()
   assert.equal(isMaterialUnavailableFailure(null), false);
   assert.equal(isMaterialUnavailableFailure("No se pudo comprobar el material"), false);
 });
+
+// Auditoría de #238 (2026-10-28): carrera entre «Reintentar» y «Volver a configurar». La reconfiguración leía la fila
+// «failed», comprobaba gasto, BORRABA el presupuesto y solo después intentaba el compare-and-swap.
+test("carrera: un reintento cambia el estado entre la lectura y la transición → 0 borrados, 0 cambios de reconfigure", async () => {
+  const fake = fakeService(failedRow());
+  const { d, removed } = deps();
+  // El reintento arranca justo después de las comprobaciones de gasto de la reconfiguración (y crea su presupuesto).
+  const interleaved: ReconfigureDeps = { ...d, authorizationExists: async () => { Object.assign(fake.row, { status: "processing", error_message: null }); return false; } };
+  const result = await reopenLongFormAfterMaterialGap(fake.client, { requestId: "req-1", userId: "owner" }, interleaved);
+  assert.equal(result.ok, false);
+  assert.deepEqual(removed, [], "el presupuesto durable del reintento no se borra");
+  assert.equal(fake.updates(), 0, "la reconfiguración no cambia el estado");
+  assert.equal(fake.row.status, "processing");
+  assert.equal(fake.row.long_form_confirmed_at, "2026-10-28T10:00:00Z", "la confirmación (y su plan) se conservan");
+});
+
+test("el presupuesto se borra solo DESPUÉS de ganar la transición, y solo si sigue sin uso", async () => {
+  const order: string[] = [];
+  const fake = fakeService(failedRow());
+  const { d } = deps();
+  const update = fake.client.from;
+  fake.client.from = () => { const t = update(); return { ...t, update: (v: RowState) => { order.push("transition"); return t.update(v); } }; };
+  const tracked: ReconfigureDeps = { ...d, removeBudget: async () => { order.push("remove"); } };
+  assert.deepEqual(await reopenLongFormAfterMaterialGap(fake.client, { requestId: "req-1", userId: "owner" }, tracked), { ok: true, alreadyReopened: false });
+  assert.deepEqual(order, ["transition", "remove"]);
+  // Un presupuesto que gana uso entre la comprobación y el borrado no se borra (lo rechazará la confirmación).
+  const fake2 = fakeService(failedRow());
+  let reads = 0;
+  const removed2: string[] = [];
+  const racing: ReconfigureDeps = { ...d, loadBudget: async () => (reads++ === 0 ? unusedBudget : { ...unusedBudget, used: { ...unusedBudget.used, aiImageGenerations: 1, generativeUsd: 0.04 } }), removeBudget: async (id) => { removed2.push(id); } };
+  assert.equal((await reopenLongFormAfterMaterialGap(fake2.client, { requestId: "req-1", userId: "owner" }, racing)).ok, true);
+  assert.deepEqual(removed2, []);
+});

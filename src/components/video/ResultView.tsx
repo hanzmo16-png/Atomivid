@@ -1,4 +1,5 @@
 import { renderFailureMessage } from "@/lib/video/job-error";
+import { isMaterialUnavailableFailure } from "@/lib/video/long-form/material-failure";
 import { ProductionReadinessNotice } from "./ProductionReadinessNotice";
 import { asDownloadUrl } from "@/lib/storage/download-url";
 import { Card } from "@/components/ui/Card";
@@ -59,8 +60,10 @@ export function ResultView({
   // plan, attempts left, and a failed or stalled attempt. Already paid results are reused by the ledger.
   const waitingForSupply = request.status === "processing" && Boolean(request.supply_wait_started_at);
   const stalled = isRenderStale(request, nowMs);
+  // A $0 material stop is resolved by «Volver a configurar la producción» (the same plan would stop again); the render
+  // route refuses that retry too, so the two actions never compete for the same request.
   const longFormRetry = isLongForm && Boolean(request.long_form_confirmed_at) && request.render_attempts < MAX_RENDER_ATTEMPTS
-    && (request.status === "failed" || stalled);
+    && (request.status === "failed" || stalled) && !(request.status === "failed" && isMaterialUnavailableFailure(request.error_message));
   // A failure only an operator can fix (configuration, credentials, dispatch target): no immediate retry invitation.
   // Typed action stored by the server with the failure (failure-action.ts), never read from the wording.
   const needsSupport = request.status === "failed" && Boolean(request.error_message)
