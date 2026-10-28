@@ -164,7 +164,13 @@ if (RETRY) {
   facts.retryNewOps = newOps.reduce((a0, o) => { const k = `${o.provider}/${o.op}/${o.state}`; a0[k] = (a0[k] || 0) + 1; return a0; }, {});
   facts.retryNewSettledUsd = Math.round(newOps.reduce((s0, o) => s0 + (o.state === "settled" ? Number(o.actual_usd ?? o.reserved_usd) : 0), 0) * 10000) / 10000;
   ok("retry: every operation paid before the failure is reused (no second row, same key)", opsBefore.every((o) => (ops || []).filter((x) => x.key === o.key).length === 1), `${opsBefore.length} reused`);
-  ok("retry: no new voice call for turns already narrated", !newOps.some((o) => o.provider === "elevenlabs"), JSON.stringify(facts.retryNewOps));
+  // Turns narrated before the failure are reused; only the turns that were never narrated are called now.
+  const tts = (ops || []).filter((o) => o.provider === "elevenlabs" && o.op === "tts");
+  const ttsBefore = opsBefore.filter((o) => o.provider === "elevenlabs" && o.op === "tts");
+  const newTts = newOps.filter((o) => o.provider === "elevenlabs" && o.op === "tts");
+  ok("retry: only the turns not narrated before are narrated now (each turn once)",
+    ttsBefore.every((o) => tts.some((x) => x.key === o.key)) && newTts.length === tts.length - ttsBefore.length && new Set(tts.map((o) => o.key)).size === tts.length,
+    `${ttsBefore.length} reused + ${newTts.length} new = ${tts.length} turns`);
 }
 ok("no uncertain or still-reserved charge left", !(ops || []).some((o) => o.state === "uncertain" || o.state === "reserved"), JSON.stringify(facts.ops));
 ok("spend within the authorization (ledger and episode cost)", settled <= facts.authorizedUsd + 1e-6 && (Number.isNaN(facts.costUsd) || facts.costUsd <= facts.authorizedUsd + 1e-6), `ledger ${facts.settledUsd} / episode ${facts.costUsd} / authorized ${facts.authorizedUsd}`);
