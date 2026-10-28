@@ -6,7 +6,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { chromium, devices } from "playwright";
 
-const APP = process.env.APP_URL || "https://atomivid.vercel.app", EVID = process.env.EVID;
+// El código nuevo aún no está en producción (fusión/despliegue sin autorizar): se prueba en la vista previa de la rama,
+// con la sesión del dueño copiada a ese dominio (mismo proyecto de Supabase). Solo lectura: nunca se genera nada.
+const APP = process.env.POD_UI_URL || "https://atomivid-git-claude-podcast-estudios-atomivid.vercel.app", EVID = process.env.EVID;
+const HOST = new URL(APP).hostname;
+const stateFor = () => { const st = JSON.parse(fs.readFileSync(process.env.STATE_FILE, "utf8")); st.cookies = (st.cookies ?? []).map((c) => ({ ...c, domain: HOST })); st.origins = []; return st; };
 fs.mkdirSync(EVID, { recursive: true });
 let fails = 0;
 const ok = (name, cond, info = "") => { console.log(`${cond ? "PASS" : "FAIL"} ${name}${info ? ` — ${info}` : ""}`); if (!cond) fails++; return cond; };
@@ -21,14 +25,16 @@ const SCRIPT = [
 
 const browser = await chromium.launch({ headless: true, channel: process.env.PW_CHANNEL || undefined });
 for (const [label, opts] of [["escritorio", { viewport: { width: 1366, height: 900 } }], ["movil", { ...devices["iPhone 13"] }]]) {
-  const ctx = await browser.newContext({ ...opts, storageState: process.env.STATE_FILE });
+  const ctx = await browser.newContext({ ...opts, storageState: stateFor() });
   const p = await ctx.newPage();
   const shot = (n) => p.screenshot({ path: path.join(EVID, `${label}-${n}.png`), fullPage: true }).catch(() => {});
   const next = async () => { await p.getByRole("button", { name: "Siguiente", exact: true }).click(); await p.waitForTimeout(600); };
   const title = () => p.getByTestId("wizard-step-title").innerText();
   const noHScroll = async (n) => { const [sw, iw] = await p.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]); ok(`${label}: sin desplazamiento horizontal (${n})`, sw <= iw + 1, `${sw}/${iw}`); };
   try {
-    await p.goto(`${APP}/dashboard/podcast`);
+    const resp = await p.goto(`${APP}/dashboard/podcast`);
+    console.log(`OPEN ${label} ${JSON.stringify({ status: resp?.status() ?? null, path: new URL(p.url()).pathname, host: new URL(p.url()).hostname })}`);
+    if (!ok(`${label}: la vista previa abre el estudio con la sesión del dueño`, new URL(p.url()).hostname === HOST && /\/dashboard\/podcast/.test(p.url()), p.url().slice(0, 80))) { await shot("acceso"); await ctx.close(); continue; }
     await p.evaluate(() => { try { for (const k of Object.keys(localStorage)) if (/podcast/i.test(k)) localStorage.removeItem(k); } catch {} });
     await p.reload();
     await p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor({ timeout: 60000 });
