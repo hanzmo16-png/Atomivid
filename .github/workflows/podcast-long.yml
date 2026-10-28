@@ -30,7 +30,7 @@ jobs:
         working-directory: app
         env: { LONG_MINUTES: "${{ inputs.minutos }}", OUT_DIR: "${{ runner.temp }}/long" }
         run: |
-          mkdir -p scripts/qa/real && cp ../harness/scripts/qa/real/podcast-long-montage.ts scripts/qa/real/ && /usr/bin/time -v npx tsx scripts/qa/real/podcast-long-montage.ts 2>&1 | tee long.log; grep -q 'RESULT podcast-long-montage: 0 FAIL' long.log
+          mkdir -p scripts/qa/real && cp ../harness/scripts/qa/real/podcast-long-montage.ts scripts/qa/real/ && npx tsx scripts/qa/real/podcast-long-montage.ts 2>&1 | tee long.log; grep -q 'RESULT podcast-long-montage: 0 FAIL' long.log
       - if: always()
         uses: actions/upload-artifact@v4
         with:
