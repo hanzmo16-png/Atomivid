@@ -37,7 +37,9 @@ export class JobEnvelopeExhaustedError extends Error {
   }
 }
 
-export type JobSupplyDemand = { provider: string; unit: "usd" | "character"; units: number; usd: number };
+export type JobSupplyDemand = { provider: string; unit: "usd" | "character"; units: number; usd: number;
+  /** New provider calls this job will make. When given, the provider's daily call quota must have room for all of them. */
+  calls?: number };
 export type SupplyJobInput = { mode: string | null; script_json: unknown; recorded_audio_path: string | null; long_form_production_plan: ProductionPlan | null };
 
 /** Conservative envelopes, not an account balance or a quote. Runtime rates must be verified. */

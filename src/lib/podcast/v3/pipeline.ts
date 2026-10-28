@@ -39,7 +39,9 @@ export type ImageProvider = { name: string; label: ProviderLabel; search(query: 
   /** Recreación generada (de pago). Ausente → no se ofrecen recreaciones. */
   recreate?: (prompt: string, dest: string) => Promise<{ actualUsd: number }>; recreateUsd?: number };
 /** Lo que el episodio necesita de cada proveedor antes de empezar (para verificar saldo sin gastar). */
-export type ProviderNeeds = { ttsChars: number; ttsUsd: number; avatarUsd: number; imagesUsd: number };
+export type ProviderNeeds = { ttsChars: number; ttsUsd: number; avatarUsd: number; imagesUsd: number;
+  /** New (not yet settled) paid calls per provider, for the providers' daily call quotas. */
+  ttsCalls?: number; avatarCalls?: number };
 export type Providers = { tts: TtsProvider; avatar: AvatarProvider; images: ImageProvider;
   /** Verificación GRATUITA previa (credenciales y saldo). Devuelve el motivo del bloqueo o null. Sin ella no se verifica saldo. */
   readiness?: (needs: ProviderNeeds) => Promise<string | null> };
@@ -147,7 +149,20 @@ export async function runEpisode(spec: StudioSpec, ctx: { owner: string; episode
     if (providerUsd > budget + 1e-9) throw new BudgetExceededError(providerUsd, budget);
     // Saldo/credenciales de los proveedores ANTES de la primera llamada de pago (verificación gratuita).
     if (ctx.providers.readiness) {
-      const why = await ctx.providers.readiness({ ttsChars: pf.ttsChars, ttsUsd: line("voz"), avatarUsd: line("avatar"), imagesUsd: line("imagenes") });
+      // Calls still to make: what is already settled in the ledger is reused, never called again (P2 real 2026-10-28: the
+      // voice quota ran out after 6 of 14 turns and the episode failed after paying them).
+      const settledRows = (await ctx.ledger.byEpisode(ctx.episode)).filter((r) => r.state === "settled");
+      const settled = new Set(settledRows.map((r) => r.key));
+      const voiceFor = (s: "A" | "B") => spec.participants.find((p) => p.id === s)?.voice_id ?? spec.participants[0].voice_id;
+      const ttsCalls = pf.turns.filter((t) => !settled.has(opKey({ owner: ctx.owner, episode: ctx.episode, provider: ctx.providers.tts.name, op: "tts",
+        payload: { voice: voiceFor(t.speaker), model: ctx.providers.tts.model, text: t.text } }))).length;
+      // Avatar clips of the preliminary plan (the definitive plan is re-checked by the cap trigger before each call) plus
+      // the photo preparations, minus those already settled.
+      const count = (op: string) => settledRows.filter((r) => r.op === op).length;
+      const onCamera = pf.plan.shots.filter((s) => s.kind === "avatar_a" || s.kind === "avatar_b" || s.kind === "two_shot" || s.kind === "over_shoulder");
+      const prepares = ctx.providers.avatar.prepare ? spec.participants.filter((p) => p.avatar.kind === "foto" && onCamera.some((s) => s.speaker === p.id)).length : 0;
+      const avatarCalls = spec.output === "audio" ? 0 : Math.max(0, onCamera.length - count("avatar_clip")) + Math.max(0, prepares - count("avatar_prepare"));
+      const why = await ctx.providers.readiness({ ttsChars: pf.ttsChars, ttsUsd: line("voz"), avatarUsd: line("avatar"), imagesUsd: line("imagenes"), ttsCalls, avatarCalls });
       if (why) throw new ProviderNotReadyError(why);
     }
     // Foto fija de quien escucha en los planos de conversación: se comprueba ANTES del primer cargo (P2 real: se leía
