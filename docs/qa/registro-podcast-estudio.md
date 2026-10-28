@@ -19,3 +19,24 @@ Sin secretos. Gasto en USD; «aprox.» = tarifa publicada × solicitudes enviada
 - 16:25 · run 40720734715: 2 solicitudes (1 sin imagen) ≈ USD 0,08.
 - Acumulado recursos ≈ **USD 0,80** (contando las solicitudes sin imagen). Quedan ≈ USD 0,12 del tope de Podcast.
 - 17:3x · run 40726077959 (pod-catalog, USD 0): catálogo en almacenamiento privado (fotos, recortes, muestra de Valeria).
+
+## Verificación previa con material ya pagado (horas UTC del 2026-10-28)
+- 16:50 · run 40729682472 (pod-fragment): 1 ilustración Recraft (zigurat con tablillas, rotulada «Recreación») aceptada
+  por la verificación visual local; **USD 0,04** (llamada directa del arnés con tope de caso USD 0,2, fuera del libro del
+  estudio). Fragmento de 44,28 s. **Defecto visto:** cada persona salía como rectángulo opaco con su fondo original.
+  Causa: `eq` del ffmpeg estático 2018 (el del arnés) descarta el alfa; corrección: color antes de `alphamerge` + prueba
+  que pinta de verde el exterior del recorte y exige 0 píxeles verdes (falla con el ffmpeg viejo sin la corrección).
+  El worker de producción usa ffmpeg 6.1 (apt), que no tenía el problema.
+- 17:07 · run 40732619819: mismo fragmento reutilizando la ilustración (USD 0). Recorte correcto; Cálido/Minimalista con
+  busto «flotando» sobre la mesa en retratos cerrados → prolongación inferior del recorte igual a la lateral.
+- 17:00–17:38 · runs 40731420479 / 40732298023 / 40734704295 / 40736971768 (pod-scan, USD 0): verificación visual sobre
+  un fotograma cada 4 s del episodio original. Rechazados todos los recursos ajenos señalados (regalo de bienvenida 34 s,
+  huevos de Pascua 86–90 s, avión 154–158 s, bicicleta 162 s, plantas 314–350 s, lencería 370–378 s). Falsos positivos
+  hallados en la 3.ª pasada (restaurante moderno, escritorio con papeles) → nuevos rivales genéricos; 4.ª pasada: 71/95
+  rechazados y ningún recurso ajeno aceptado (los planos de avatar con subtítulos no cuentan: no se verifican).
+- 17:44 · run 40736976343 (pod-fragment, USD 0): con los rivales nuevos la ilustración sigue aceptada; plano general 9:16
+  recortado a los dos asientos (personas ~1,4× más grandes). Primer plano 9:16 algo más cercano (19:00 aprox.).
+- CI de #244: el test de estimación esperaba verificación con Anthropic (ahora es local, USD 0) y el E2E de cierre no
+  contaba ilustración/guion visual/verificación como llamadas del libro (78/81). Corregidos; local: unit 2436/0,
+  podcast3 95/0, E2E cierre 81/81 (PostgreSQL 16 desechable).
+- Acumulado de esta tarea: recursos ≈ USD 0,80 + ilustración del fragmento USD 0,04 = **≈ USD 0,84**.
