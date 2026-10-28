@@ -6,6 +6,7 @@ on:
     inputs:
       pr_ref: { description: "Rama o SHA cuyo repositorio se usa (migraciones/propuestas)", required: true }
       pooler_host: { description: "Pooler de Supabase", required: false, default: "aws-0-us-west-2.pooler.supabase.com" }
+      show: { description: "Imprimir el cuerpo de esta función", required: false, default: "" }
   push:
     branches: [claude/puertas-merge]
     paths: [".github/workflows/db-readonly.yml"]
@@ -37,3 +38,4 @@ jobs:
         run: |
           mkdir -p scripts/qa/real && cp ../harness/scripts/qa/real/db-readonly-check.ts scripts/qa/real/db-readonly-check.ts
           npx tsx scripts/qa/real/db-readonly-check.ts
+          cp ../harness/scripts/qa/real/fn-audit.ts scripts/qa/real/fn-audit.ts && SHOW="${{ inputs.show }}" npx tsx scripts/qa/real/fn-audit.ts
