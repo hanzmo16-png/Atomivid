@@ -5,6 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       modo: { description: "dry | apply", required: true, default: "dry" }
+      script: { description: "register-valeria | quota-adjust", required: false, default: "register-valeria" }
   push:
     branches: [claude/puertas-merge]
     paths: [".github/workflows/studio-register.yml"]
@@ -26,4 +27,4 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
           MODO: ${{ inputs.modo }}
-        run: npx tsx scripts/qa/real/register-valeria.ts
+        run: npx tsx "scripts/qa/real/${{ inputs.script }}.ts"
