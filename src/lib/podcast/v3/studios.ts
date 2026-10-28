@@ -54,14 +54,19 @@ export function seatOf(st: StudioDef, who: "A" | "B", swap: boolean): Seat {
 
 /**
  * Cámara del plano: zoom y desplazamiento del espacio virtual al cuadro de salida.
- *  - general 16:9: el estudio entero; 9:16: el estudio entero centrado (franja) — el relleno lo pone la composición;
+ *  - general 16:9: el estudio entero; 9:16: una franja centrada que abarca los dos asientos — el relleno lo pone la
+ *    composición;
  *  - primer plano: la cara del asiento queda en (0,40·w | 0,60·w, 0,38·h) con la altura de cara pedida; el fondo se
  *    desenfoca en proporción al acercamiento (profundidad de campo) y el primer término todavía más (está más cerca).
  */
-export function cameraFor(kind: "general" | "primer", seat: Seat, side: "izquierda" | "derecha", fr: Frame): Camera {
+export function cameraFor(kind: "general" | "primer", seat: Seat, side: "izquierda" | "derecha", fr: Frame, span?: [number, number]): Camera {
   if (kind === "general") {
-    const zoom = fr.w / STUDIO_W;
-    return { zoom, ox: 0, oy: -Math.round((fr.h - STUDIO_H * zoom) / 2), blur: 0, frontBlur: 0 };
+    // 9:16 con los dos asientos (span): la franja recorta los lados del estudio y abarca solo a los dos con margen de
+    // hombros; las personas salen ~1,4× más grandes que con el estudio entero (prueba real 2026-10-28: se veían diminutas).
+    const fit = fr.h > fr.w && span ? fr.w / Math.min(STUDIO_W, span[1] - span[0] + 2 * 2.4 * seat.faceH) : fr.w / STUDIO_W;
+    const zoom = Math.max(fr.w / STUDIO_W, fit);
+    const ox = span ? Math.round(Math.min(Math.max(((span[0] + span[1]) / 2) * zoom - fr.w / 2, 0), STUDIO_W * zoom - fr.w)) : 0;
+    return { zoom, ox, oy: -Math.round((fr.h - STUDIO_H * zoom) / 2), blur: 0, frontBlur: 0 };
   }
   const vertical = fr.h > fr.w;
   const faceH = fr.h * (vertical ? 0.15 : 0.26);

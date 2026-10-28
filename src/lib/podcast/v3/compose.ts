@@ -45,10 +45,10 @@ export async function cameraPlates(dir: string, st: StudioDef, cam: Camera, fr: 
   const key = `${st.id}-${fr.w}x${fr.h}-${cam.zoom.toFixed(4)}-${cam.ox}-${cam.oy}`;
   const bg = path.join(dir, `cam-${key}-fondo.png`), front = path.join(dir, `cam-${key}-frente.png`);
   if (existsSync(bg) && existsSync(front)) return { bg, front };
-  const sw = Math.round(STUDIO_W * cam.zoom), sh = Math.round(STUDIO_H * cam.zoom);
+  const sh = Math.round(STUDIO_H * cam.zoom);
   // Recorte en coordenadas del estudio ANTES de escalar (un acercamiento ×3 no escala el estudio entero).
   const view = (blur: number) => {
-    if (cam.oy < 0) return `scale=${sw}:${sh}${blur ? `,gblur=sigma=${blur.toFixed(2)}` : ""}`;
+    if (cam.oy < 0) return `crop=${Math.min(STUDIO_W, fr.w / cam.zoom).toFixed(2)}:${STUDIO_H}:${(cam.ox / cam.zoom).toFixed(2)}:0,scale=${fr.w}:${sh}${blur ? `,gblur=sigma=${blur.toFixed(2)}` : ""}`;
     const cw = Math.min(STUDIO_W, fr.w / cam.zoom), ch = Math.min(STUDIO_H, fr.h / cam.zoom);
     return `crop=${cw.toFixed(2)}:${ch.toFixed(2)}:${(cam.ox / cam.zoom).toFixed(2)}:${(cam.oy / cam.zoom).toFixed(2)},scale=${fr.w}:${fr.h}${blur ? `,gblur=sigma=${blur.toFixed(2)}` : ""}`;
   };
@@ -176,7 +176,8 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
       if (general && !src.listenerMatte) throw new Error(`Plano general sin recorte de quien escucha (${shot.turn_id}).`);
       const st = studioDef(legacyStudio(o.set));
       const seat = seatOf(st, sp, o.swap);
-      const cam = cameraFor(general ? "general" : "primer", seat, seat === st.seats.A ? "izquierda" : "derecha", o.frame);
+      const span: [number, number] = [Math.min(st.seats.A.x, st.seats.B.x), Math.max(st.seats.A.x, st.seats.B.x)];
+      const cam = cameraFor(general ? "general" : "primer", seat, seat === st.seats.A ? "izquierda" : "derecha", o.frame, span);
       const plates = await cameraPlates(dir, st, cam, o.frame);
       const people: { m: Matte; seat: typeof seat }[] = [{ m: src.speakerMatte, seat }];
       if (general) people.push({ m: src.listenerMatte!, seat: seatOf(st, sp === "A" ? "B" : "A", o.swap) });

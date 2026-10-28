@@ -18,6 +18,10 @@ AJENOS = [
     "un avión comercial en un aeropuerto", "huevos de Pascua decorados", "una bicicleta", "plantas en macetas de un vivero",
     "ropa en una tienda", "una caja de regalo con un letrero de bienvenida", "una oficina moderna con computadoras",
     "un coche en una calle", "un teléfono móvil", "comida en un plato", "una persona posando en lencería", "un cartel con texto",
+    # Escenas actuales genéricas (escaneo del episodio original, 2026-10-28: dos hombres en un restaurante moderno y un
+    # escritorio con papeles pasaban por «pertinentes» a un tema de historia antigua).
+    "personas conversando en un restaurante o una reunión moderna", "un escritorio moderno con papeles, bolígrafos y una botella",
+    "un campo de cultivo con plantas verdes", "una persona con ropa moderna",
 ]
 
 

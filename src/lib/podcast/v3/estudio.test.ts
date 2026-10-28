@@ -42,6 +42,14 @@ test("estudios: tres compartidos con asientos a cada lado; escenarios anteriores
   assert.ok(faceTop - faceH * 0.4 > 0, "la cabeza (con pelo) entra completa en el primer plano");
   assert.ok(faceTop + faceH < fr.h * 0.8, "los subtítulos (abajo) no tapan la cara");
   assert.ok(close.blur > 0 && close.frontBlur > close.blur, "fondo desenfocado y primer término aún más");
+  // 9:16, plano general: la franja abarca los dos asientos (más grandes que con el estudio entero) y ninguno se sale.
+  const v = { w: 1080, h: 1920 }, span: [number, number] = [st.seats.A.x, st.seats.B.x];
+  const vcam = cameraFor("general", st.seats.A, "izquierda", v, span);
+  assert.ok(vcam.zoom > (v.w / 1920) * 1.3, `la franja vertical acerca a los dos (zoom ${vcam.zoom.toFixed(3)})`);
+  for (const seat of [st.seats.A, st.seats.B]) {
+    const P = placeInSeat(m, seat, vcam), cx = P.x + 360 * (P.w / 720);
+    assert.ok(cx > 0 && cx < v.w, `las dos caras dentro del cuadro vertical (${cx})`);
+  }
 });
 
 test("duración: el guion se ajusta a la duración pedida al ritmo real de las voces (sin acelerar la voz)", () => {
