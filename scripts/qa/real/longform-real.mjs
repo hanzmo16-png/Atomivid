@@ -56,6 +56,21 @@ if (!R) {
   R = job.request_id;
 }
 facts.request = R;
+// A reused request that stopped before spending for lack of stock (#238): reopen it from the account with the
+// app's own button («Volver a configurar la producción»); the server proves $0 production spend first.
+if (REUSE) {
+  const { data: vr } = await db.from("video_requests").select("status,error_message").eq("id", R).single();
+  if (vr?.status === "failed") {
+    await p.goto(`${APP}/dashboard/videos/${R}`, { timeout: 180000 }); await skipTour(p); await shot(p, "R0-fallido");
+    const btn = p.getByRole("button", { name: "Volver a configurar la producción" });
+    const shown = await btn.waitFor({ timeout: 60000 }).then(() => true, () => false);
+    if (!ok("reconfigure offered on the failed request (material stop, $0)", shown, (vr.error_message || "").slice(0, 80))) stop("no reconfigure button");
+    await btn.click(); await p.waitForURL(/long-form\/configure\//, { timeout: 120000 }).catch(() => {});
+    const { data: after } = await db.from("video_requests").select("status,long_form_confirmed_at").eq("id", R).single();
+    ok("request back to script_ready, confirmation cleared, paid script kept", after?.status === "script_ready" && !after?.long_form_confirmed_at, JSON.stringify(after));
+    facts.reopened = true;
+  }
+}
 // A reused request whose script job is QUEUED (waiting for the provider's next period) is woken with the same event the
 // app sends (prepare-documentary-script + jobId): no requeue, no state change; the worker replays saved paid responses.
 if (REUSE) {
@@ -85,7 +100,7 @@ if (AUTO_PRIOR) {
   console.log(`INFO Long Form ledger since 2026-10-27: USD ${lfTotal} over ${mine.length} paid operations (case cap ${CAP})`);
 }
 const base = (pageScript) => (lfTotal ?? PRIOR + pageScript);
-await p.goto(`${APP}/dashboard/long-form/configure/${R}`); await skipTour(p);
+await p.goto(`${APP}/dashboard/long-form/configure/${R}`, { timeout: 180000 }); await skipTour(p);
 for (const t of ["Ver estructura narrativa", "Ver referencias recuperadas"]) await p.getByText(t).first().click().catch(() => {});
 await p.getByText(/Revisar el guion \(/).first().click().catch(() => {});
 let txt = await main(); await shot(p, "C01-configurar");
@@ -96,7 +111,7 @@ ok("nothing is generated or charged before confirming (stated)", /Nada se genera
 // Imágenes del proveedor actual (Recraft es opcional y no debe condicionar la prueba); estrategia: la primera que pase la
 // comprobación previa sin tocar ningún control (Equilibrado → Económico → Cinemático).
 await p.getByLabel(/Proveedor actual/).check().catch(() => {}); await sleep(1500);
-const isBlocked = (t) => /IMPEDIMENTO DE ENTREGA|No se puede iniciar todavía|no puede iniciar todavía/.test(t);
+const isBlocked = (t) => /IMPEDIMENTO DE ENTREGA|No se puede iniciar todavía|no puede iniciar todavía|Impedimento: |Material de archivo: /.test(t);
 let blocked = true; facts.strategies = {};
 const usdOf = (re) => Number(((txt.match(re) || [])[1] || "NaN").replace(",", "."));
 const money = () => ({ script: usdOf(/Guion ya gastado\s*USD\s*([0-9]+[.,][0-9]+)/), ceiling: usdOf(/Techo que se autorizaría\s*USD\s*([0-9]+[.,][0-9]+)/), limit: usdOf(/Límite autorizado por producción\s*USD\s*([0-9]+[.,][0-9]+)/) });
