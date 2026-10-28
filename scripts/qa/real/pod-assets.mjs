@@ -36,7 +36,15 @@ const round2 = [
   { name: "anfitriona-4", kind: "portrait", size: "portrait_4_3", style: "realistic_image", prompt: HEADSHOT("a very attractive, elegant and natural Latina woman around 30 years old, shoulder-length softly layered honey-blonde hair, light warm makeup, small pearl earrings, ivory silk blouse under a tailored light camel blazer") },
   { name: "anfitrion-4", kind: "portrait", size: "portrait_4_3", style: "realistic_image", prompt: HEADSHOT("a Hispanic man around 38 years old with the look of a friendly science communicator, short dark hair with a few gray strands, neatly trimmed short beard, thin dark rectangular glasses, navy crewneck sweater over a light blue collared shirt") },
 ];
+// Tercera tanda (POD_ASSETS_ROUND=3): la misma estructura de prompt que dio el estudio Cálido (mesa ancha paralela a la
+// cámara con dos micrófonos de mesa), sin pantallas ni letreros (Recraft escribió texto sin sentido en uno).
+const CLEAN = "no screens, no televisions, no whiteboards, no exit signs, no posters, " + NO;
+const round3 = [
+  { name: "estudio-moderno-4", kind: "plate", size: "landscape_16_9", style: "realistic_image", prompt: STUDIO("Contemporary design: dark charcoal fabric acoustic wall panels, slim vertical warm LED light strips, subtle cool blue accent light along the base of the walls, polished dark walnut table, elegant premium lighting.").replace(NO, CLEAN) },
+  { name: "estudio-minimalista-4", kind: "plate", size: "landscape_16_9", style: "realistic_image", prompt: STUDIO("Minimalist design: smooth warm white walls and light beige tones, very few elements, one small potted plant at each far side, light oak table, soft diffuse daylight, clean uncluttered composition.").replace(NO, CLEAN) },
+];
 if (process.env.POD_ASSETS_ROUND === "2") jobs.splice(0, jobs.length, ...round2);
+if (process.env.POD_ASSETS_ROUND === "3") jobs.splice(0, jobs.length, ...round3);
 const est = Math.round(jobs.length * USD_PER_IMAGE * 100) / 100;
 out("PLAN", { images: jobs.length, estimatedUsd: est, capUsd: MAX });
 if (!KEY) { out("STOP", "FAL_KEY missing"); process.exit(1); }
