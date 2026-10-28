@@ -16,7 +16,7 @@ import { ffmpeg, ffprobeDuration } from "./ffmpeg";
 import { assembleVoice, exportAudio, mixAndMaster, transitionTimes, type TimelineEntry } from "./audio";
 import { FPS, frameFor, muxEpisode, renderShot, shotFrames } from "./compose";
 import { estimateEpisodeCost, opKey, paidOnce, releaseUndelivered, committedUsd, BudgetExceededError, UnauthorizedChargeError, type CostEstimate, type StudioLedger } from "./cost";
-import { keywords, planEpisode, planIssues, type EditorialPlan, type VisualAsset } from "./editorial";
+import { keywords, salientTerms, planEpisode, planIssues, type EditorialPlan, type VisualAsset } from "./editorial";
 import { autoMood, ensureBundledMusic } from "./music-library";
 import { estimateSeconds, narrationTurns, parseLabeledScript, type Turn } from "./script";
 import type { Mood, StudioSpec } from "./spec";
@@ -83,10 +83,12 @@ export function turnsFor(spec: StudioSpec): StudioTurns {
 export const INTRO_SECONDS = 3, OUTRO_SECONDS = 2.5;
 
 /** Activos candidatos por turno (búsqueda deduplicada por consulta). */
-export async function gatherAssets(turns: Turn[], images: ImageProvider, title: string, recreations: boolean): Promise<VisualAsset[]> {
+export async function gatherAssets(turns: Turn[], images: ImageProvider, title: string, recreations: boolean, topic = ""): Promise<VisualAsset[]> {
   const seen = new Map<string, VisualAsset>();
   const queries = new Set<string>();
-  for (const t of turns) { const kw = keywords(t.text).slice(0, 3); if (kw.length) queries.add(kw.join(" ")); }
+  // Cada búsqueda lleva el ancla del tema + las palabras propias del turno (sin repetir el ancla).
+  const anchor = salientTerms(topic, turns.map((t) => t.text), 2, title);
+  for (const t of turns) { const kw = keywords(t.text).filter((w) => !anchor.includes(w)).slice(0, anchor.length ? 2 : 3); if (kw.length || anchor.length) queries.add([...anchor, ...kw].join(" ")); }
   for (const q of queries) for (const a of await images.search(q).catch(() => [])) if (!seen.has(a.id)) seen.set(a.id, a);
   if (recreations && images.recreate) for (const t of turns.filter((x) => x.kind === "narracion" || x.kind === "respuesta").slice(0, 4)) {
     const kw = keywords(t.text).slice(0, 4);
@@ -101,7 +103,7 @@ export type Preflight = { turns: Turn[]; names: Record<"A" | "B", string>; plan:
 export async function preflight(spec: StudioSpec, providers: Providers, rates?: StudioRates): Promise<Preflight> {
   const { turns, names } = turnsFor(spec);
   const audioOnly = spec.output === "audio";
-  const assets = audioOnly || spec.visual.provider === "solo_set" ? [] : await gatherAssets(turns, providers.images, spec.title, spec.visual.recreations);
+  const assets = audioOnly || spec.visual.provider === "solo_set" ? [] : await gatherAssets(turns, providers.images, spec.title, spec.visual.recreations, spec.topic);
   const plan = planEpisode({ mode: spec.mode, turns, assets, avatarFrequency: spec.mode === "narracion" ? 0 : spec.visual.avatar_frequency, avatarMaxSeconds: spec.visual.avatar_max_seconds,
     recreations: spec.visual.recreations, hasAvatar: { A: hasAvatar(spec, "A"), B: hasAvatar(spec, "B") }, introSeconds: INTRO_SECONDS });
   const ttsChars = turns.reduce((n, t) => n + t.text.length, 0);

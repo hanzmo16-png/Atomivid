@@ -119,7 +119,7 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
       if (!src.speakingClip) throw new Error(`Plano de avatar sin clip (${shot.turn_id}).`);
       const bw = Math.round(w * (w > h ? 0.62 : 0.9)), bh = Math.round(h * (w > h ? 0.8 : 0.62));
       args = [...bgIn, "-i", src.speakingClip, "-filter_complex",
-        `[1:v]scale=${bw}:${bh}:force_original_aspect_ratio=increase,crop=${bw}:${bh},setsar=1[a];[0:v][a]overlay=(W-w)/2:(H-h)*0.45:shortest=0,${tail("trim=end_frame=" + frames)}`];
+        `[1:v]scale=${bw}:${bh}:force_original_aspect_ratio=increase,crop=${bw}:${bh}:${FACE_CROP},setsar=1[a];[0:v][a]overlay=(W-w)/2:(H-h)*0.45:shortest=0,${tail("trim=end_frame=" + frames)}`];
       break;
     }
     case "two_shot": {
@@ -130,7 +130,7 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
       const [p1, p2] = vertical ? [`(W-w)/2:H*0.08`, `(W-w)/2:H*0.5`] : [`W*0.06:(H-h)*0.42`, `W*0.52:(H-h)*0.42`];
       // Quien escucha: fotograma fijo de su avatar con movimiento de cámara sutil (no queda congelado; sin mover labios).
       args = [...bgIn, "-i", src.speakingClip, "-i", src.listenerStill, "-filter_complex",
-        `[1:v]scale=${bw}:${bh}:force_original_aspect_ratio=increase,crop=${bw}:${bh},setsar=1[s];[2:v]${stillMotion(bw, bh, frames, idx)},setsar=1,eq=brightness=-0.04[l];` +
+        `[1:v]scale=${bw}:${bh}:force_original_aspect_ratio=increase,crop=${bw}:${bh}:${FACE_CROP},setsar=1[s];[2:v]${stillMotion(bw, bh, frames, idx)},setsar=1,eq=brightness=-0.04[l];` +
         `[0:v][s]overlay=${speakerFirst ? p1 : p2}[x];[x][l]overlay=${speakerFirst ? p2 : p1},${tail("trim=end_frame=" + frames)}`];
       break;
     }
@@ -141,7 +141,7 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
       const lw = Math.round(w * 0.5), lh = Math.round(h * 0.7);
       const speakerRight = (shot.speaker === "A") === leftIsA ? false : true;
       args = [...bgIn, "-i", src.speakingClip, "-i", src.listenerStill, "-filter_complex",
-        `[1:v]scale=${fw}:${fh}:force_original_aspect_ratio=increase,crop=${fw}:${fh},setsar=1[s];` +
+        `[1:v]scale=${fw}:${fh}:force_original_aspect_ratio=increase,crop=${fw}:${fh}:${FACE_CROP},setsar=1[s];` +
         `[2:v]${stillMotion(lw, lh, frames, idx)},hflip,boxblur=12:2,eq=brightness=-0.35:saturation=0.3,setsar=1[l];` +
         `[0:v][s]overlay=${speakerRight ? "W*0.40" : "W*0.05"}:(H-h)*0.35[x];[x][l]overlay=${speakerRight ? "-W*0.08" : "W*0.58"}:H-h*0.85,${tail("trim=end_frame=" + frames)}`];
       break;
@@ -166,6 +166,10 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
   await ffmpeg(["-y", "-v", "error", ...args, "-map", "[v]", "-frames:v", String(frames), ...ENC(o.small), out]);
   return out;
 }
+
+/** Recorte de los clips de avatar: centrado en horizontal y anclado arriba (la cara está en el tercio superior de un
+ *  retrato). El recorte centrado cortaba la cara a la altura de los ojos (prueba real 2026-10-28, sobre el hombro). */
+export const FACE_CROP = "(iw-ow)/2:(ih-oh)*0.15";
 
 export function wrap(text: string, width: number): string {
   const words = text.replace(/\s+/g, " ").trim().split(" ");
