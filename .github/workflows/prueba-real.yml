@@ -94,7 +94,7 @@ jobs:
         run: |
           if [ "$CASO" = pod-diag ]; then node scripts/qa/real/pod-diag.mjs; exit $?; fi
           if [ "$CASO" = pod-clips ]; then node scripts/qa/real/pod-clips.mjs; exit $?; fi
-          if [ "$CASO" = pod-assets ]; then POD_ASSETS_MAX_USD="$BUDGET_USD" node scripts/qa/real/pod-assets.mjs; exit $?; fi
+          if [ "$CASO" = pod-assets ]; then POD_ASSETS_ROUND="${{ inputs.pod_episode_id == 'round2' && '2' || '1' }}" POD_ASSETS_MAX_USD="$BUDGET_USD" node scripts/qa/real/pod-assets.mjs; exit $?; fi
           if [ "$CASO" = lf-inspeccion ]; then rc=0; node scripts/qa/real/lf-inspect.mjs || rc=$?
             if [ -f "$RUNNER_TEMP/lf.wav" ]; then pip install -q faster-whisper==1.1.1 && python3 scripts/qa/real/lf-transcribe.py || rc=1; fi; exit $rc; fi
           if [ "$CASO" = lf ]; then node scripts/qa/real/longform-real.mjs; elif [ "$CASO" = descargas ]; then node scripts/qa/real/podcast-downloads.mjs; else node scripts/qa/real/podcast-real.mjs; fi

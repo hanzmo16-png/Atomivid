@@ -26,6 +26,17 @@ const jobs = [
   { name: "estilo-1", kind: "style", size: "landscape_16_9", style: "digital_illustration", prompt: `Cinematic documentary digital painting of an ancient Mesopotamian ziggurat at golden hour seen from a distance, painterly yet realistic, muted earthy palette with warm highlights, atmospheric haze, ${NO}.` },
   { name: "estilo-2", kind: "style", size: "landscape_16_9", style: "digital_illustration", prompt: `Cinematic documentary digital painting of a museum display of an ancient clay artifact lit by a single warm spotlight, painterly yet realistic, muted earthy palette with warm highlights, ${NO}.` },
 ];
+// Segunda tanda (POD_ASSETS_ROUND=2): los retratos de la primera miraban de lado (HeyGen anima mejor una cara de frente) y
+// los estudios Moderno/Minimalista salieron en ángulo; una imagen por elemento con encuadre frontal estricto.
+const FRONT = (desc) => STUDIO(desc).replace("Wide interior photograph", "Straight-on frontal wide interior photograph with perfectly symmetric one-point perspective") .replace("A long podcast table runs horizontally across the lower foreground of the frame, its front edge near the bottom third,", "A wide rectangular podcast table parallel to the camera spans most of the frame width in the foreground, its front edge in the lower third,");
+const HEADSHOT = (desc) => `Photorealistic front-facing studio headshot of ${desc}, head straight and facing the camera directly, eyes looking straight into the camera lens like a television presenter, symmetrical shoulders, gentle closed-mouth smile, head and upper torso, soft even studio key light, plain uniform light gray seamless background, sharp focus, centered with space above the head, natural skin texture.`;
+const round2 = [
+  { name: "estudio-moderno-3", kind: "plate", size: "landscape_16_9", style: "realistic_image", prompt: FRONT("Contemporary design: dark charcoal acoustic wall panels, slim vertical warm LED light strips on both sides, a few elegant spot lights, polished dark walnut table, subtle cool blue and warm amber accent lighting, elegant and premium.") },
+  { name: "estudio-minimalista-3", kind: "plate", size: "landscape_16_9", style: "realistic_image", prompt: FRONT("Minimalist design: neutral warm white walls and light beige tones, very few elements, one small plant on each far side, light oak table, soft diffuse daylight, clean uncluttered composition.") },
+  { name: "anfitriona-4", kind: "portrait", size: "portrait_4_3", style: "realistic_image", prompt: HEADSHOT("a very attractive, elegant and natural Latina woman around 30 years old, shoulder-length softly layered honey-blonde hair, light warm makeup, small pearl earrings, ivory silk blouse under a tailored light camel blazer") },
+  { name: "anfitrion-4", kind: "portrait", size: "portrait_4_3", style: "realistic_image", prompt: HEADSHOT("a Hispanic man around 38 years old with the look of a friendly science communicator, short dark hair with a few gray strands, neatly trimmed short beard, thin dark rectangular glasses, navy crewneck sweater over a light blue collared shirt") },
+];
+if (process.env.POD_ASSETS_ROUND === "2") jobs.splice(0, jobs.length, ...round2);
 const est = Math.round(jobs.length * USD_PER_IMAGE * 100) / 100;
 out("PLAN", { images: jobs.length, estimatedUsd: est, capUsd: MAX });
 if (!KEY) { out("STOP", "FAL_KEY missing"); process.exit(1); }
