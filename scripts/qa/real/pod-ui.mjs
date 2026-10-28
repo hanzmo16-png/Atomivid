@@ -71,7 +71,9 @@ for (const [label, opts] of [["escritorio", { viewport: { width: 1366, height: 9
     ok(`${label}: Recraft es el proveedor y Pexels no aparece`, provs.includes("proveedor-recraft") && !provs.some((x) => /pexels/.test(x)), JSON.stringify(provs));
     for (const s of ["moderno", "calido", "minimalista"]) {
       await W().getByTestId(`estudio-${s}`).click(); await p.waitForTimeout(800);
-      const imgs = await W().getByTestId(`studio-preview-${s}`).last().locator("img").evaluateAll((els) => els.map((e) => e.complete && e.naturalWidth > 0));
+      const pv = W().getByTestId(`studio-preview-${s}`).last().locator("img");
+      await pv.evaluateAll((els) => Promise.all(els.map((e) => e.complete ? 0 : new Promise((r) => { e.onload = e.onerror = r; setTimeout(r, 30000); }))));
+      const imgs = await pv.evaluateAll((els) => els.map((e) => e.complete && e.naturalWidth > 0));
       ok(`${label}: vista previa ${s} (estudio + 2 personas + mesa)`, imgs.length >= 4 && imgs.every(Boolean), JSON.stringify(imgs));
       await W().getByTestId(`studio-preview-${s}`).last().screenshot({ path: path.join(EVID, `${label}-3-estudio-${s}.png`) }).catch(() => {});
     }
