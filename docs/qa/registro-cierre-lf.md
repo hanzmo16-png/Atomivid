@@ -30,3 +30,7 @@ anotados abajo, revisados en su momento.
 - 12:15 · #242 fusionado → 2d20b92 (CI completa en verde en 3b40338). Vercel producción OK a las 12:16:20.
 - 12:17 · LF relanzado (prueba-real caso=lf, presupuesto 12, reconfigurar → Económico), run 40686457952. Techo autorizable 8.61 (incluye guion 0.37); peor caso acumulado ≈ USD 9.53 / 12.
 - 12:07 · Rutina Drive: sin pendientes (auditoría 06:11 de ChatGPT = HITO_VERIFICADO; no se escribió nada).
+- 12:50 · run 40686457952 cancelado: el plan quedó confirmado (long_form_confirmed_at) pero la producción nunca se inició; el arnés esperaba sin límite. Arnés 91bc107: captura de respuestas confirm/render y parada a los 5 min.
+- 12:54 · run 40691139761: falla en ~4 min sin gasto. Causa: la página de configuración redirige a la del video (plan confirmado, sin iniciar), que ofrece «Iniciar producción»; ConfigureProduction llama confirm-production y luego /render, y fue esa segunda llamada la que no inició.
+- 13:2x · arnés 2cf0134: inicia el plan confirmado desde la página del video y registra la respuesta de /render. Run 40693990357 en curso.
+- Evidencias: clave de cifrado rotada por sesión (6885d18); la privada no se persiste (Drive bloqueado por política); cada evidencia se descifra y revisa en la misma sesión y su resultado queda aquí.
