@@ -40,7 +40,7 @@ test("búsquedas ancladas: tema → título (sin cifras) → palabras repetidas 
   assert.deepEqual(salientTerms("", [], 2, "El cometa 3I/ATLAS 2026"), ["cometa", "atlas"], "sin tema: el título, sin cifras");
   assert.deepEqual(salientTerms("", ["la luna y el cometa", "la luna llena"]), ["luna"], "sin tema ni título: palabras repetidas del guion");
   const queries: string[] = [];
-  const images: ImageProvider = { name: "x", label: "mock", recreateUsd: 0, async search(q) { queries.push(q); return [] as VisualAsset[]; }, async fetch() {} } as unknown as ImageProvider;
+  const images: ImageProvider = { name: "x", label: "mock", recreateUsd: 0, async search(q: string) { queries.push(q); return [] as VisualAsset[]; }, async fetch() {} } as unknown as ImageProvider;
   await gatherAssets(turns, images, "Prueba real P2", false, "cometa interestelar");
   assert.ok(queries.length > 0 && queries.every((q) => q.startsWith("cometa interestelar")), JSON.stringify(queries));
   assert.ok(queries.some((q) => q.includes("salida")), "la palabra del turno sigue, pero acompañada del tema");
