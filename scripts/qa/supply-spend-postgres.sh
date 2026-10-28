@@ -10,12 +10,14 @@ eq() { if [ "$1" = "$2" ]; then ok "$3 ($1)"; else bad "$3 (got $1, want $2)"; f
 op() { $Q -c "insert into public.pi_paid_operations(idempotency_key,project_id,shot_id,provider,model,method,attempt_kind,reserved_usd,committed_usd,status,supply_reconciled,created_at)
  values ('$1','documentary:p','script:$1','anthropic','m','generate_script','initial',$2,${3:-null},'$4',${5:-false},now())" >/dev/null; }
 spend() { $Q -c "select round(public.pi_supply_spend('anthropic', now() - interval '1 day'),4)"; }
+# The base schema already includes the migration: restore the ORIGINAL definition first (via the rollback).
+$Q -f "$R/supabase/proposals/20261028100000_pi_supply_spend_committed.rollback.sql" >/dev/null
 op c1 4.09 0.0508 COMMITTED
 op c2 0.2289 0.134 COMMITTED
 op r1 0.1706 "" RESERVED
 eq "$(spend)" "4.3189" "S01 original: COMMITTED rows count their whole reservation (4.09 + 0.2289), RESERVED not counted"
-$Q -f "$R/supabase/proposals/20261028100000_pi_supply_spend_committed.sql" >/dev/null
-eq "$(spend)" "0.1848" "S02 proposal: COMMITTED rows count what they cost (0.0508 + 0.134)"
+$Q -f "$R/supabase/migrations/20261028100000_pi_supply_spend_committed.sql" >/dev/null
+eq "$(spend)" "0.1848" "S02 migration: COMMITTED rows count what they cost (0.0508 + 0.134)"
 # Stale RESERVED released by the app (releaseStaleReservations): REFUNDED, committed 0, reconciled → not spend.
 $Q -c "update public.pi_paid_operations set status='REFUNDED',committed_usd=0,supply_reconciled=true where idempotency_key='r1'" >/dev/null
 eq "$(spend)" "0.1848" "S03 released never-submitted hold (supply_reconciled) is not counted"

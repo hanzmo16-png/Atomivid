@@ -1,4 +1,4 @@
--- PROPOSAL (not applied): pi_supply_spend counts a COMMITTED call at what it really cost.
+-- pi_supply_spend counts a COMMITTED call at what it really cost (rollback: supabase/proposals/20261028100000_pi_supply_spend_committed.rollback.sql).
 -- Before: every row counted greatest(reserved_usd, committed_usd), so a settled call kept its whole upper-bound
 -- reservation as spend. Real case 2026-10-27 (Anthropic, daily window): 20 COMMITTED calls with USD 14.5496 reserved
 -- and USD 1.1009 committed → the day showed USD 14.55 spent instead of USD 1.10.
