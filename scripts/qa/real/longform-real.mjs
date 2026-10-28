@@ -33,6 +33,14 @@ const browser = await chromium.launch({ headless: true, channel: process.env.PW_
 const ctx = await browser.newContext({ storageState: STATE, viewport: { width: 1440, height: 900 }, acceptDownloads: true });
 const p = await ctx.newPage(); const main = () => p.locator("main").innerText();
 let R = REUSE;
+// «hash:<6>»: the request is named in reports by the sha256 prefix of its id (ids are not printed); resolve it among the
+// owner's own requests so a retry keeps the SAME request (and its paid script responses) instead of creating a new one.
+if (R.startsWith("hash:")) {
+  const want = R.slice(5); const { data: reqs } = await db.from("video_requests").select("id").eq("user_id", OWNER).order("created_at", { ascending: false }).limit(200);
+  const hits = (reqs || []).filter((x) => crypto.createHash("sha256").update(x.id).digest("hex").startsWith(want));
+  if (!ok("reuse: the referenced request exists in the owner's account (unique)", hits.length === 1, `${hits.length} match(es)`)) stop("request reference not unique");
+  R = hits[0].id; facts.reusedRequest = R.slice(0, 8);
+}
 if (!R) {
   const topic = process.env.LF_TOPIC || `La sonda Voyager 1 y el límite del sistema solar (prueba real ${new Date().toISOString().slice(0, 10)})`;
   facts.topic = topic;
