@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { evaluateRenderStart, isExhaustedStaleAttempt, type RenderStartRow } from "./render-guard";
+import { evaluateRenderStart, isExhaustedStaleAttempt, MAX_ZERO_SPEND_RESTARTS, zeroSpendRestartCandidate, type RenderStartRow } from "./render-guard";
 import { LONG_FORM_HEARTBEAT_STALE_MS, MAX_RENDER_ATTEMPTS, RENDER_TIMEOUT_MS } from "./limits";
 
 const NOW = new Date("2026-09-16T20:00:00.000Z").getTime();
@@ -98,4 +98,18 @@ test("intento colgado SIN intentos restantes: se reconoce para cerrarlo (antes q
   assert.equal(isExhaustedStaleAttempt(alive, NOW), false);
   // Con intentos restantes lo gestiona el reintento normal, no este cierre.
   assert.equal(isExhaustedStaleAttempt({ ...stuck, render_attempts: MAX_RENDER_ATTEMPTS - 1 }, NOW), false);
+});
+
+test("Long Form reconfigurado tras paradas de material: candidato a reinicio sin gasto solo confirmado, en script_ready y bajo el tope duro", () => {
+  const lf = (o: Partial<RenderStartRow> & { long_form_confirmed_at?: string | null }) =>
+    ({ ...row({ mode: "long_form", render_attempts: MAX_RENDER_ATTEMPTS, ...o }), long_form_confirmed_at: "2026-10-28T12:17:49Z", ...o });
+  assert.equal(zeroSpendRestartCandidate(lf({})), true);
+  assert.equal(zeroSpendRestartCandidate(lf({ render_attempts: MAX_RENDER_ATTEMPTS + MAX_ZERO_SPEND_RESTARTS - 1 })), true);
+  assert.equal(zeroSpendRestartCandidate(lf({ render_attempts: MAX_RENDER_ATTEMPTS + MAX_ZERO_SPEND_RESTARTS })), false, "tope duro");
+  assert.equal(zeroSpendRestartCandidate(lf({ render_attempts: 1 })), false, "con intentos libres decide evaluateRenderStart");
+  assert.equal(zeroSpendRestartCandidate(lf({ long_form_confirmed_at: null })), false);
+  assert.equal(zeroSpendRestartCandidate(lf({ status: "failed" })), false);
+  assert.equal(zeroSpendRestartCandidate(lf({ mode: "visual" })), false);
+  // La decisión pura no cambia: la excepción vive en la ruta, detrás de la prueba del ledger.
+  assert.equal(evaluateRenderStart(lf({}), NOW).allowed, false);
 });

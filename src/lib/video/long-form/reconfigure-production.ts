@@ -56,7 +56,7 @@ async function download(service: SupabaseClient, path: string): Promise<string |
   return await data.text();
 }
 
-function defaultDeps(service: SupabaseClient): Required<ReconfigureDeps> {
+export function defaultReconfigureDeps(service: SupabaseClient): Required<ReconfigureDeps> {
   return {
     async listOperations(requestId) {
       const ledger = supabaseLedgerStore(service);
@@ -77,6 +77,36 @@ function defaultDeps(service: SupabaseClient): Required<ReconfigureDeps> {
   };
 }
 
+export type NoSpendProof = { ok: true; budget: ProductionBudgetState | null } | { ok: false; status: number; error: string };
+
+/**
+ * Prueba (desde el ledger y el estado durable, nunca desde el mensaje) de que el pedido no tiene gasto de producción:
+ * ninguna operación de producción salvo reembolsadas, presupuesto de producción sin uso y sin autorización de
+ * presupuesto total (ambas solo nacen al pasar la comprobación de material). La usan «Volver a configurar» y el
+ * inicio de un plan reconfigurado cuyos intentos anteriores se detuvieron todos sin gastar (render/route.ts).
+ */
+export async function proveNoProductionSpend(requestId: string, deps: Required<ReconfigureDeps>): Promise<NoSpendProof> {
+  let ops: PaidOperation[];
+  let budget: ProductionBudgetState | null;
+  let authorized: boolean;
+  try {
+    [ops, budget, authorized] = await Promise.all([deps.listOperations(requestId), deps.loadBudget(requestId), deps.authorizationExists(requestId)]);
+  } catch {
+    return { ok: false, status: 503, error: "No se pudo comprobar el gasto de producción de este documental. No se cambió nada; inténtalo de nuevo." };
+  }
+  const production = productionOps(ops);
+  if (production.some((op) => op.status !== "REFUNDED") || requestSpend(production).totalUsd > 0) {
+    return { ok: false, status: 409, error: "Este documental ya tiene operaciones de producción registradas; no puede volver a configurarse. Contacta al soporte. No se cambió nada." };
+  }
+  if (budget && budgetUsed(budget)) {
+    return { ok: false, status: 409, error: "El presupuesto de producción de este documental registra uso; no puede volver a configurarse. Contacta al soporte. No se cambió nada." };
+  }
+  if (authorized) {
+    return { ok: false, status: 409, error: "Este documental ya tiene un presupuesto total autorizado; no puede volver a configurarse desde aquí. Contacta al soporte. No se cambió nada." };
+  }
+  return { ok: true, budget };
+}
+
 const NOT_ELIGIBLE = "Solo se puede volver a configurar un documental detenido por falta de material antes de gastar. No se cambió nada.";
 
 export async function reopenLongFormAfterMaterialGap(
@@ -84,7 +114,7 @@ export async function reopenLongFormAfterMaterialGap(
   input: { requestId: string; userId: string },
   deps: ReconfigureDeps = {},
 ): Promise<ReconfigureResult> {
-  const d = { ...defaultDeps(service), ...deps };
+  const d = { ...defaultReconfigureDeps(service), ...deps };
   const { data, error } = await service.from("video_requests")
     .select("id, mode, user_id, status, error_message, long_form_confirmed_at, reel_image_source")
     .eq("id", input.requestId)
@@ -103,24 +133,9 @@ export async function reopenLongFormAfterMaterialGap(
   }
 
   // Zero production spend, proven from the ledger and the durable production state (never assumed from the message).
-  let ops: PaidOperation[];
-  let budget: ProductionBudgetState | null;
-  let authorized: boolean;
-  try {
-    [ops, budget, authorized] = await Promise.all([d.listOperations(input.requestId), d.loadBudget(input.requestId), d.authorizationExists(input.requestId)]);
-  } catch {
-    return { ok: false, status: 503, error: "No se pudo comprobar el gasto de producción de este documental. No se cambió nada; inténtalo de nuevo." };
-  }
-  const production = productionOps(ops);
-  if (production.some((op) => op.status !== "REFUNDED") || requestSpend(production).totalUsd > 0) {
-    return { ok: false, status: 409, error: "Este documental ya tiene operaciones de producción registradas; no puede volver a configurarse. Contacta al soporte. No se cambió nada." };
-  }
-  if (budget && budgetUsed(budget)) {
-    return { ok: false, status: 409, error: "El presupuesto de producción de este documental registra uso; no puede volver a configurarse. Contacta al soporte. No se cambió nada." };
-  }
-  if (authorized) {
-    return { ok: false, status: 409, error: "Este documental ya tiene un presupuesto total autorizado; no puede volver a configurarse desde aquí. Contacta al soporte. No se cambió nada." };
-  }
+  const proof = await proveNoProductionSpend(input.requestId, d);
+  if (!proof.ok) return proof;
+  const { budget } = proof;
 
   // Transition FIRST (compare-and-swap on the state read above), the budget file only after winning it (audit of #238:
   // deleting before the CAS let a concurrent retry lose its durable budget while the reconfiguration lost the race).
