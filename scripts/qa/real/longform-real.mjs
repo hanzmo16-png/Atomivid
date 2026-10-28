@@ -100,6 +100,29 @@ if (AUTO_PRIOR) {
   console.log(`INFO Long Form ledger since 2026-10-27: USD ${lfTotal} over ${mine.length} paid operations (case cap ${CAP})`);
 }
 const base = (pageScript) => (lfTotal ?? PRIOR + pageScript);
+// A plan already confirmed but never started (the start call failed after the confirm) redirects the configure page to
+// the video page, which offers «Iniciar producción»: start from there instead of confirming again.
+const { data: pre } = await db.from("video_requests").select("status,long_form_confirmed_at").eq("id", R).single();
+const resumeStart = pre?.status === "script_ready" && !!pre?.long_form_confirmed_at;
+let scriptUsd = NaN, ceiling = NaN, limit = NaN;
+// Responses of the confirm/start calls (status + error text only) so a refused start is visible in the log.
+const apiCalls = [];
+p.on("response", async (res) => { const u = res.url(); if (!/\/api\/generate\/[^/]+\/(confirm-production|render)/.test(u)) return;
+  let body = ""; try { const j = await res.json(); body = String(j?.error ?? (j?.ok === false ? "ok:false" : "ok")).slice(0, 300); } catch { body = "(sin JSON)"; }
+  apiCalls.push({ path: u.replace(/^.*\/api\/generate\/[^/]+\//, ""), status: res.status(), body }); console.log("API", JSON.stringify(apiCalls.at(-1))); });
+if (resumeStart) {
+  console.log(`INFO plan confirmed at ${pre.long_form_confirmed_at} but never started: starting from the video page`);
+  await p.goto(`${APP}/dashboard/videos/${R}`, { timeout: 180000 }); await skipTour(p); await sleep(3000);
+  const vt = await main(); await shot(p, "C01-confirmado-sin-iniciar");
+  const lim = Number(((vt.match(/Límite[^\n]*?USD\s*([0-9]+[.,][0-9]+)/) || [])[1] || "NaN").replace(",", "."));
+  // Without a limit on the page, the remaining case cap is the bound the final spend check enforces.
+  limit = Number.isFinite(lim) ? lim : Math.round((CAP - base(0)) * 10000) / 10000; ceiling = limit;
+  Object.assign(facts, { resumedConfirmedPlan: pre.long_form_confirmed_at, productionLimitUsd: limit });
+  const start = p.getByRole("button", { name: "Iniciar producción" });
+  if (!ok("start offered for the confirmed plan", await start.isVisible().catch(() => false), vt.slice(0, 160))) stop("no «Iniciar producción» button");
+  await start.click(); await sleep(15000); await shot(p, "C02-iniciado");
+  console.log("PAGE", (await main()).replace(/\s+/g, " ").slice(0, 600));
+} else {
 await p.goto(`${APP}/dashboard/long-form/configure/${R}`, { timeout: 180000 }); await skipTour(p);
 for (const t of ["Ver estructura narrativa", "Ver referencias recuperadas"]) await p.getByText(t).first().click().catch(() => {});
 await p.getByText(/Revisar el guion \(/).first().click().catch(() => {});
@@ -125,25 +148,21 @@ for (const st of ["Económico / archivo", "Equilibrado", "Cinemático / IA"]) {
 }
 await shot(p, "C01b-estrategia");
 ok("no delivery impediment before confirming (some strategy, current image provider)", !blocked, JSON.stringify(facts.strategies));
-const scriptUsd = usdOf(/Guion ya gastado\s*USD\s*([0-9]+[.,][0-9]+)/), ceiling = usdOf(/Techo que se autorizaría\s*USD\s*([0-9]+[.,][0-9]+)/), limit = usdOf(/Límite autorizado por producción\s*USD\s*([0-9]+[.,][0-9]+)/);
+scriptUsd = usdOf(/Guion ya gastado\s*USD\s*([0-9]+[.,][0-9]+)/); ceiling = usdOf(/Techo que se autorizaría\s*USD\s*([0-9]+[.,][0-9]+)/); limit = usdOf(/Límite autorizado por producción\s*USD\s*([0-9]+[.,][0-9]+)/);
 Object.assign(facts, { priorAttemptsUsd: PRIOR, scriptSpendUsdPage: scriptUsd, ceilingUsd: ceiling, productionLimitUsd: limit });
 ok("budget: script spend and authorization ceiling visible before confirming", Number.isFinite(scriptUsd) && Number.isFinite(ceiling) && ceiling > 0, `script ${scriptUsd} / ceiling ${ceiling} / limit ${limit}`);
 const overflow = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth); ok("configure page: no horizontal overflow", overflow <= 1, `${overflow}px`);
 if (blocked || !Number.isFinite(ceiling)) stop("cannot confirm (impediment or no ceiling)");
 if (base(scriptUsd) + ceiling > CAP + 1e-6) stop(`spent so far ${base(scriptUsd)} + production ceiling ${ceiling} exceed the case cap ${CAP}: not confirming`);
-// Responses of the confirm/start calls (status + error text only) so a refused confirmation is visible in the log.
-const apiCalls = [];
-p.on("response", async (res) => { const u = res.url(); if (!/\/api\/generate\/[^/]+\/(confirm-production|render)/.test(u)) return;
-  let body = ""; try { const j = await res.json(); body = String(j?.error ?? (j?.ok === false ? "ok:false" : "ok")).slice(0, 300); } catch { body = "(sin JSON)"; }
-  apiCalls.push({ path: u.replace(/^.*\/api\/generate\/[^/]+\//, ""), status: res.status(), body }); console.log("API", JSON.stringify(apiCalls.at(-1))); });
 await p.getByRole("button", { name: "Confirmar y generar video" }).click(); await sleep(6000); await shot(p, "C02-confirmado");
+}
 const alertText = await p.locator('[role="alert"]').allInnerTexts().then((a) => a.join(" | ").slice(0, 400)).catch(() => "");
 if (alertText) console.log("ALERT", alertText);
 facts.confirmApi = apiCalls; facts.confirmAlert = alertText;
 let r; const t1 = Date.now();
 while (Date.now() - t1 < 150 * 60000) {
   if (Date.now() - t1 > 5 * 60000) { const { data: st } = await db.from("video_requests").select("status,long_form_confirmed_at").eq("id", R).single();
-    if (st?.status === "script_ready" && !st?.long_form_confirmed_at) { ok("confirmation took effect", false, JSON.stringify({ apiCalls, alertText })); stop("the confirmation did not take effect (status still script_ready after 5 min)"); } } const { data } = await db.from("video_requests").select("status,long_form_stage,video_path,error_message,duration_seconds,aspect_ratio").eq("id", R).single(); r = data; if (["completed", "failed"].includes(r?.status)) break; await sleep(30000); }
+    if (st?.status === "script_ready") { ok("confirmation took effect", false, JSON.stringify({ apiCalls, alertText })); stop(`production did not start (status still script_ready after 5 min; confirmed ${st?.long_form_confirmed_at ? "yes" : "no"})`); } } const { data } = await db.from("video_requests").select("status,long_form_stage,video_path,error_message,duration_seconds,aspect_ratio").eq("id", R).single(); r = data; if (["completed", "failed"].includes(r?.status)) break; await sleep(30000); }
 facts.production = { status: r?.status, stage: r?.long_form_stage ?? null, minutes: Math.round((Date.now() - t1) / 6000) / 10, error: r?.error_message ?? null };
 ok("full video produced (status completed)", r?.status === "completed" && !!r?.video_path, JSON.stringify(facts.production));
 const s2 = await spent(R); facts.totalSpendUsd = s2.usd;
