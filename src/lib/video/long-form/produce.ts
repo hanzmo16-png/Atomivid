@@ -81,7 +81,7 @@ import { authorizeRequestBudget, requestSpend, storageAuthorizationStore, withRe
 import type { PilotStageEstimate } from "./pilot-budget-envelope";
 import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
 import type { ProductionTtsCostGuard as TtsCostGuard } from "./production-tts-cache";
-import { LongFormMaterialPreflightTemporaryError, LongFormMaterialUnavailableError, materialAvailabilityPreflight, type MaterialPreflight } from "./material-preflight";
+import { LongFormMaterialPreflightTemporaryError, LongFormMaterialUnavailableError, materialAvailabilityPreflight, materialTextFallback, MAX_MATERIAL_TEXT_RATIO, type MaterialPreflight } from "./material-preflight";
 import { curatedSvgGraphic } from "./premium-composition";
 import type { LongFormCuratedSvgGraphic } from "../../../../remotion/LongFormDoc";
 import type { ExecutableSequence } from "./sequence-intent";
@@ -138,6 +138,8 @@ export type LongFormRuntime = {
   materialPreflight?: boolean;
   /** Observa el veredicto del preflight de material (diagnóstico/pruebas). */
   onMaterialPreflight?: (verdict: MaterialPreflight) => void;
+  /** Pruebas: proporción de escenas de archivo cubribles con la tarjeta del pasaje (por omisión MAX_MATERIAL_TEXT_RATIO). */
+  materialTextRatio?: number;
   /**
    * v4: registro de recursos verificados del SERVIDOR (ya rehidratado). Ausente = se rehidrata
    * desde `{requestId}/state/curation.json` (decisiones del curador; datos, no autoridad), o vacío.
@@ -363,6 +365,8 @@ export async function generateLongFormVideoFromScript({
   // ADVANCE 1 (material-preflight.ts): disponibilidad de material ANTES de la primera llamada pagada (voz).
   // Búsquedas gratuitas en el proveedor de stock elegido, mismo criterio de elegibilidad que la selección real.
   // Carencia inevitable → USD 0 y error claro; error temporal → recuperable, USD 0. La puerta final se mantiene.
+  // Escenas sin material pertinente y único cubiertas con la tarjeta del pasaje narrado (dentro de MAX_MATERIAL_TEXT_RATIO).
+  let materialTextShots: Set<string> | undefined;
   if (anchored0 && !sequences && !replayOnly && runtime.materialPreflight !== false) {
     const aiVideoForPlan = allocation.maxAiVideoClips > 0 && (runtime.videoProvider !== undefined ? runtime.videoProvider !== null : (runtime.aiVideoEnabled ?? isLongFormAiVideoConfigured()));
     const material = await materialAvailabilityPreflight({
@@ -379,7 +383,17 @@ export async function generateLongFormVideoFromScript({
       },
     });
     runtime.onMaterialPreflight?.(material);
-    if (material.status === "unavoidable_gap") throw new LongFormMaterialUnavailableError(material.missing);
+    if (material.status === "unavoidable_gap") {
+      // Pocas carencias sustituibles: tarjeta con el pasaje narrado (gratis, nunca una imagen ajena), registrada como
+      // desviación. Más que eso, o alguna escena de identidad/prueba sin contrato: se detiene antes de gastar.
+      const fallback = materialTextFallback(material, runtime.materialTextRatio ?? MAX_MATERIAL_TEXT_RATIO);
+      if (!fallback) throw new LongFormMaterialUnavailableError(material.missing);
+      materialTextShots = fallback;
+      for (const m of material.missing) {
+        await budget.recordDeviation({ shotId: m.shotId, planned: m.plannedType, executed: "text",
+          reason: `sin material de archivo pertinente y único (${m.reason}); tarjeta con el pasaje narrado (máx. ${Math.round(MAX_MATERIAL_TEXT_RATIO * 100)} % de las escenas de archivo)` });
+      }
+    }
     if (material.status === "temporary_error") throw new LongFormMaterialPreflightTemporaryError(material.temporary);
   }
   // ADVANCE 2: techo TOTAL del pedido (todas las etapas, calculador de PR173), aplicado en el ledger ANTES de
@@ -506,6 +520,7 @@ export async function generateLongFormVideoFromScript({
     cinematic: usesVisualIdentity(plan),
     // Escenas sin archivo promovidas a imagen IA al configurar (ya dentro de la allocation confirmada).
     promoteToImage: planMaterialPromotions(plan),
+    ...(materialTextShots ? { promoteToText: materialTextShots } : {}),
   };
   const allShots = timeline.beats.flatMap((b) => b.shots);
   // Recraft-first plans (image-priority.ts): the worker re-applies the SAME prioritization to the real-duration shots,
