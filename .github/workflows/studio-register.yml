@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       modo: { description: "dry | apply", required: true, default: "dry" }
-      script: { description: "register-valeria | quota-adjust", required: false, default: "register-valeria" }
+      script: { description: "register-valeria | quota-adjust | recraft-enable", required: false, default: "register-valeria" }
   push:
     branches: [claude/puertas-merge]
     paths: [".github/workflows/studio-register.yml"]
