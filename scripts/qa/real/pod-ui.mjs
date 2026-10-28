@@ -6,9 +6,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { chromium, devices } from "playwright";
 
-// El código nuevo aún no está en producción (fusión/despliegue sin autorizar): se prueba en la vista previa de la rama,
-// con la sesión del dueño copiada a ese dominio (mismo proyecto de Supabase). Solo lectura: nunca se genera nada.
-const APP = process.env.POD_UI_URL || "https://atomivid-git-claude-podcast-estudios-atomivid.vercel.app", EVID = process.env.EVID;
+// Producción (tras la fusión de #244, autorizada por el dueño el 2026-10-28). POD_UI_URL permite apuntar a otra URL;
+// la sesión del dueño se copia a ese dominio. Solo lectura: nunca se genera nada.
+const APP = process.env.POD_UI_URL || "https://atomivid.vercel.app", EVID = process.env.EVID;
 const HOST = new URL(APP).hostname;
 const stateFor = () => { const st = JSON.parse(fs.readFileSync(process.env.STATE_FILE, "utf8")); st.cookies = (st.cookies ?? []).map((c) => ({ ...c, domain: HOST })); st.origins = []; return st; };
 fs.mkdirSync(EVID, { recursive: true });
