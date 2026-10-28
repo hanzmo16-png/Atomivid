@@ -119,6 +119,23 @@ body {
   animation: hero-pan 14s ease-in-out infinite;
 }
 
+/* Indicador de avance del podcast: las órbitas del átomo giran mientras hay actividad (se detiene con
+   prefers-reduced-motion por la regla de abajo). */
+@keyframes atom-spin {
+  to { transform: rotate(360deg); }
+}
+.animate-atom-spin {
+  animation: atom-spin 9s linear infinite;
+  transform-origin: 50% 50%;
+}
+@keyframes atom-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+.animate-atom-pulse {
+  animation: atom-pulse 1.8s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

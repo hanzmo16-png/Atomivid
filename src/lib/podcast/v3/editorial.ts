@@ -5,17 +5,21 @@
  *  - VERACIDAD: una recreación nunca se presenta como evidencia; siempre lleva la etiqueta en pantalla.
  *  - Coherencia: la imagen de un turno se elige por palabras del propio turno (sin escenas ajenas al diálogo);
  *    nunca la misma imagen dos veces en el episodio salvo que la biblioteca se agote (se informa).
- *  - Sin saltos incoherentes: no se pasa de un plano de avatar a otro del MISMO tipo y hablante distinto sin
- *    two-shot/transición; las apariciones del avatar respetan frecuencia y duración máxima (costo).
+ *  - Continuidad: estudio compartido, A a la izquierda y B a la derecha en todos los planos; las apariciones del avatar
+ *    respetan frecuencia y duración máxima (costo).
  */
 import type { StudioMode } from "./spec";
 import { estimateSeconds, type Turn } from "./script";
 
 export type ShotKind = "avatar_a" | "avatar_b" | "two_shot" | "over_shoulder" | "imagen" | "recreacion" | "archivo" | "transicion" | "titulo";
-export type VisualAsset = { id: string; query: string; kind: "foto" | "archivo" | "recreacion"; tags: string[]; credit?: string };
+export type VisualAsset = { id: string; query: string; kind: "foto" | "archivo" | "recreacion" | "ilustracion"; tags: string[]; credit?: string;
+  /** Ilustración generada para UN turno concreto (Recraft): ese turno la usa antes que cualquier otra. */
+  forTurn?: string };
 export type Shot = {
   turn_id: string | null; speaker: "A" | "B" | null; kind: ShotKind; start: number; end: number;
-  asset_id?: string; label?: "Recreación" | "Archivo"; reason: string;
+  asset_id?: string; label?: "Recreación" | "Archivo" | "Ilustración"; reason: string;
+  /** Alternativa explícita cuando la imagen del turno no superó la verificación: tarjeta con la idea del turno. */
+  card?: string;
   /** En sobre el hombro: quién mira a cámara (habla) y quién queda de espaldas. */
   facing?: "A" | "B";
 };
@@ -66,7 +70,6 @@ export function planEpisode(input: PlanInput): EditorialPlan {
   // apariciones al mismo hablante (prueba real 2026-10-28, episodio 0a482791: Valeria nunca habló a cámara).
   // Arranca de modo que el primer turno de cada uno lo presente su avatar.
   const acc = { A: 1 - input.avatarFrequency, B: 1 - input.avatarFrequency };
-  let lastKind: ShotKind | null = null;
   input.turns.forEach((turn, i) => {
     const dur = turn.seconds ?? estimateSeconds(turn.text);
     const start = t, end = t + dur;
@@ -75,7 +78,10 @@ export function planEpisode(input: PlanInput): EditorialPlan {
     const wantsAvatar = input.mode !== "narracion" && input.avatarFrequency > 0 && acc[turn.speaker] >= 1 - 1e-9 && input.hasAvatar[turn.speaker];
     if (wantsAvatar) acc[turn.speaker] -= 1;
     const visual = () => {
-      const pick = pickAsset(turn.text, input.assets, used, input.recreations);
+      // Ilustración propia del turno (Recraft): describe ESTA intervención; nunca se reparte entre turnos.
+      const own = input.assets.find((a) => a.forTurn === turn.id && !used.has(a.id));
+      if (own) { used.add(own.id); return { kind: "imagen" as const, asset_id: own.id, reason: "Ilustración generada para el contenido de este turno." }; }
+      const pick = pickAsset(turn.text, input.assets.filter((a) => !a.forTurn), used, input.recreations);
       if (pick) {
         used.add(pick.asset.id);
         const kind: ShotKind = pick.asset.kind === "recreacion" ? "recreacion" : pick.asset.kind === "archivo" ? "archivo" : "imagen";
@@ -85,7 +91,7 @@ export function planEpisode(input: PlanInput): EditorialPlan {
       // ajena. Solo si tampoco la hay, el plano queda en transición.
       const topic = new Set((input.topicTerms ?? []).map((w) => w.toLowerCase()));
       const onTopic = topic.size === 0 ? undefined : input.assets
-        .filter((a) => a.kind !== "recreacion" && !used.has(a.id) && a.tags.some((tag) => topic.has(tag.toLowerCase())))
+        .filter((a) => a.kind !== "recreacion" && !a.forTurn && !used.has(a.id) && a.tags.some((tag) => topic.has(tag.toLowerCase())))
         .sort((x, y) => x.id.localeCompare(y.id))[0];
       if (onTopic) {
         used.add(onTopic.id);
@@ -100,9 +106,11 @@ export function planEpisode(input: PlanInput): EditorialPlan {
     } else if (wantsAvatar) {
       const capped = Math.min(dur, input.avatarMaxSeconds);
       if (input.mode === "dialogo" && input.hasAvatar.A && input.hasAvatar.B) {
-        // Variedad editorial en conversación: pregunta → sobre el hombro (quien pregunta de espaldas); reacción/comentario corto → two-shot; resto → primer plano.
-        const kind: ShotKind = turn.kind === "pregunta" ? "over_shoulder" : (turn.kind === "reaccion" || turn.kind === "apertura" || turn.kind === "cierre" || turn.kind === "transicion") ? "two_shot" : turn.speaker === "A" ? "avatar_a" : "avatar_b";
-        shot = { kind, facing: turn.speaker, reason: kind === "two_shot" ? "Plano de conversación (two-shot) compuesto: los dos avatares en el set." : kind === "over_shoulder" ? "Sobre el hombro compuesto: habla quien mira a cámara." : "Primer plano de quien habla." };
+        // Estudio compartido (2026-10-28): plano general de los dos sentados a la mesa para abrir, cerrar, cambiar de bloque,
+        // reaccionar o discrepar; el resto, primer plano de quien habla en su asiento (misma posición que en el general).
+        // El «sobre el hombro» (oyente oscuro y desenfocado encima del otro) se retiró: parecía dos retratos superpuestos.
+        const kind: ShotKind = (turn.kind === "reaccion" || turn.kind === "apertura" || turn.kind === "cierre" || turn.kind === "transicion" || turn.kind === "desacuerdo") ? "two_shot" : turn.speaker === "A" ? "avatar_a" : "avatar_b";
+        shot = { kind, facing: turn.speaker, reason: kind === "two_shot" ? "Plano general: los dos en el mismo estudio, a cada lado de la mesa." : "Primer plano de quien habla, en su asiento." };
       } else shot = { kind: turn.speaker === "A" ? "avatar_a" : "avatar_b", reason: "El avatar presenta este turno." };
       // Duración máxima por aparición: el resto del turno pasa a imagen relacionada (la voz sigue).
       if (capped < dur - 0.05) {
@@ -111,18 +119,17 @@ export function planEpisode(input: PlanInput): EditorialPlan {
         if (shot.kind === "two_shot") avatarSeconds[turn.speaker === "A" ? "B" : "A"] += capped;
         const rest = visual() ?? { kind: "transicion" as const, reason: "Resto del turno sin imagen relacionada: transición." };
         shots.push({ turn_id: turn.id, speaker: turn.speaker, start: start + capped, end, ...rest, reason: `Límite de ${input.avatarMaxSeconds}s por aparición; ${rest.reason}` });
-        lastKind = rest.kind; t = end; return;
+        t = end; return;
       }
       avatarSeconds[turn.speaker] += dur;
       if (shot.kind === "two_shot") avatarSeconds[turn.speaker === "A" ? "B" : "A"] += dur;
     } else {
       shot = visual() ?? { kind: "transicion", reason: "Sin imagen relacionada sin repetir: transición (no se fuerza otra aparición de pago)." };
     }
-    // Sin saltos incoherentes: dos primeros planos seguidos de hablantes distintos → el segundo pasa a sobre el hombro.
-    if (input.mode === "dialogo" && input.hasAvatar.A && input.hasAvatar.B && (shot.kind === "avatar_a" || shot.kind === "avatar_b") && (lastKind === "avatar_a" || lastKind === "avatar_b") && lastKind !== shot.kind)
-      shot = { ...shot, kind: "over_shoulder", facing: turn.speaker, reason: "Cambio de hablante encadenado: sobre el hombro para no saltar entre primeros planos." };
+    // Plano/contraplano: A siempre a la izquierda y B a la derecha (también en los primeros planos), así que dos primeros
+    // planos seguidos de hablantes distintos mantienen la continuidad de posiciones y no necesitan un plano intermedio.
     shots.push({ turn_id: turn.id, speaker: turn.speaker, start, end, ...shot });
-    lastKind = shot.kind; t = end;
+    t = end;
     if (i === n - 1 && used.size === 0 && input.mode === "narracion" && input.assets.length > 0) issues.push("Ninguna imagen relacionada: revisa las búsquedas visuales.");
   });
   const ids = shots.filter((s) => s.asset_id).map((s) => s.asset_id!);

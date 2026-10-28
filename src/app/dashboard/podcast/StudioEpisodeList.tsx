@@ -3,13 +3,15 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { safeParseJsonResponse } from "@/lib/http/safe-json";
+import { progressView } from "@/lib/podcast/v3/progress";
+import { AtomProgress } from "@/components/podcast/AtomProgress";
 
 export type StudioListEpisode = { id: string; title: string; status: string; mode: string; cost_usd: number | null };
 
 const STATUS: Record<string, string> = { draft: "Borrador", authorized: "Autorizado", generating: "Generando", ready: "Listo", failed: "Con error" };
 const MODE: Record<string, string> = { narracion: "narración", avatar: "avatar", dialogo: "conversación" };
 
-type Media = { status: string; error: string | null; videoUrl: string | null; audioUrl: string | null; cost: number | null };
+type Media = { status: string; error: string | null; videoUrl: string | null; audioUrl: string | null; cost: number | null; progress: unknown; updatedAt: string | null };
 
 /** Cuerpo visible de un episodio de estudio. Sin red: las pruebas de render le pasan las URLs ya firmadas. */
 export function StudioEpisodePlayback({ title, statusLabel, detail, videoUrl, audioUrl, error, canRedispatch, busy, onRedispatch }: {
@@ -43,9 +45,10 @@ function StudioEpisodeCard({ episode }: { episode: StudioListEpisode }) {
     const tick = async () => {
       try {
         const res = await fetch(`/api/podcast/v3/${episode.id}`);
-        const out = await safeParseJsonResponse<{ episode?: { status?: string; error?: string | null; cost_usd?: number | null }; video_url?: string | null; audio_url?: string | null }>(res);
+        const out = await safeParseJsonResponse<{ episode?: { status?: string; error?: string | null; cost_usd?: number | null; progress?: unknown; updated_at?: string | null }; video_url?: string | null; audio_url?: string | null }>(res);
         if (!out.ok || stop) return;
-        const next: Media = { status: out.data.episode?.status ?? episode.status, error: out.data.episode?.error ?? null, videoUrl: out.data.video_url ?? null, audioUrl: out.data.audio_url ?? null, cost: out.data.episode?.cost_usd ?? null };
+        const next: Media = { status: out.data.episode?.status ?? episode.status, error: out.data.episode?.error ?? null, videoUrl: out.data.video_url ?? null, audioUrl: out.data.audio_url ?? null, cost: out.data.episode?.cost_usd ?? null,
+          progress: out.data.episode?.progress ?? null, updatedAt: out.data.episode?.updated_at ?? null };
         setMedia(next);
         if (next.status === "ready" || next.status === "failed") stop = true;
       } catch { /* el siguiente ciclo reintenta */ }
@@ -80,6 +83,7 @@ function StudioEpisodeCard({ episode }: { episode: StudioListEpisode }) {
         busy={busy}
         onRedispatch={() => void redispatch()}
       />
+      {(status === "authorized" || status === "generating") && <div className="mt-2"><AtomProgress compact view={progressView({ status, progress: media?.progress, updated_at: media?.updatedAt })} /></div>}
       {note && <p className="mt-1 text-xs text-ink-muted">{note}</p>}
     </li>
   );

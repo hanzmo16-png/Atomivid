@@ -20,15 +20,15 @@ test("flag: activado con PODCAST_V3_ENABLED=1 o por defecto SOLO en Vercel Previ
   assert.equal(studioFlag({ PODCAST_V3_ENABLED: "1", VERCEL_ENV: "production" }).source, "env");
 });
 
-test("proveedores visuales: Recraft no disponible con motivo; elegirlo lanza (nunca se sustituye)", () => {
+test("proveedores visuales: Recraft es el principal del estudio; Pexels ya no se ofrece; apagado → motivo y nunca se sustituye", () => {
   const ps = visualProviders({});
-  const rc = ps.find((p) => p.id === "recraft")!;
-  assert.equal(rc.available, false); assert.match(rc.reason!, /FAL_KEY/);
-  assert.match(visualProviders({ FAL_KEY: "x" }).find((p) => p.id === "recraft")!.reason!, /no está conectado/);
-  assert.equal(visualProviders({ FAL_KEY: "x", PODCAST_STUDIO_RECRAFT: "1" }).find((p) => p.id === "recraft")!.available, true);
-  assert.throws(() => requireProvider("recraft", {}), ProviderUnavailableError);
-  assert.throws(() => requireProvider("dalle", {}), ProviderUnavailableError);
-  assert.equal(requireProvider("pexels", {}).id, "pexels");
+  assert.deepEqual(ps.map((p) => p.id), ["recraft", "solo_set"], "Pexels no está en el estudio");
+  assert.equal(ps[0].available, true);
+  const off = visualProviders({ PODCAST_STUDIO_RECRAFT: "0" }).find((p) => p.id === "recraft")!;
+  assert.equal(off.available, false); assert.match(off.reason!, /desactivado/);
+  assert.throws(() => requireProvider("recraft", { PODCAST_STUDIO_RECRAFT: "0" }), ProviderUnavailableError);
+  assert.throws(() => requireProvider("pexels", {}), ProviderUnavailableError, "un borrador con Pexels se rechaza (no se usa en silencio)");
+  assert.equal(requireProvider("recraft", {}).id, "recraft");
 });
 
 const V = (voiceId: string, name: string): AccountVoice => ({ voiceId, name, category: "premade", language: "es", accent: null, gender: null, previewUrl: null } as AccountVoice);
@@ -38,15 +38,18 @@ const deps = (over: Partial<ApiDeps> = {}): ApiDeps => ({ userId: "u1", viewer: 
 const dlg = (visual: Record<string, unknown> = {}) => ({ spec: { mode: "dialogo", title: "T", script: templateConversation({ topic: "la luna Europa", hostName: "Ana", guestName: "Luis", minutes: 3 }).map((t) => `${t.speaker === "A" ? "Ana" : "Luis"}: ${t.text}`).join("\n"), target_minutes: 3,
   participants: [{ id: "A", name: "Ana", voice_id: "voiceAnaHost1", avatar: { kind: "existente", avatar_id: "a1" } }, { id: "B", name: "Luis", voice_id: "voiceLuisGuest", avatar: { kind: "existente", avatar_id: "a2" } }], visual, music: {}, budget_usd: 50 } });
 
-test("API: proveedor Recraft elegido y no disponible → 409 con motivo, sin crear ni estimar con otro proveedor", async () => {
+test("API: Recraft apagado → 409 con motivo, sin crear; la estimación con Recraft incluye ilustraciones y verificación", async () => {
   let inserted = 0;
-  const r = await studioAction(deps({ insert: async () => { inserted++; return { id: "x" }; } }), { action: "create", ...dlg({ provider: "recraft" }) });
+  const offEnv = { PODCAST_STUDIO_RECRAFT: "0" };
+  const r = await studioAction(deps({ env: offEnv, insert: async () => { inserted++; return { id: "x" }; } }), { action: "create", ...dlg({ provider: "recraft" }) });
   assert.equal(r.status, 409); assert.match(String(r.body.error), /No se sustituye/); assert.equal(inserted, 0);
-  assert.equal((await studioAction(deps(), { action: "estimate", ...dlg({ provider: "recraft" }) })).status, 409);
-  const ok = await studioAction(deps(), { action: "estimate", ...dlg({ provider: "pexels" }) });
+  assert.equal((await studioAction(deps(), { action: "estimate", ...dlg({ provider: "pexels" }) })).status, 409, "Pexels ya no se acepta en el estudio");
+  const ok = await studioAction(deps(), { action: "estimate", ...dlg({ provider: "recraft", avatar_frequency: 0.5 }) });
   assert.equal(ok.status, 200);
-  const e = ok.body.estimate as { byProvider: Record<string, number>; providers: { id: string }[]; lipTimeline: unknown[]; coverage: Record<string, boolean>; turnList: { speaker: string; kind: string }[] };
+  const e = ok.body.estimate as { byProvider: Record<string, number>; providers: { id: string }[]; lipTimeline: unknown[]; coverage: Record<string, boolean>; turnList: { speaker: string; kind: string }[]; lines: { concept: string; provider: string; usd: number }[] };
   assert.ok(e.byProvider.ElevenLabs > 0 && "HeyGen" in e.byProvider, "costo por proveedor antes de autorizar");
+  // La verificación de las imágenes es local (CLIP en el worker): aparece en la estimación con USD 0.
+  assert.ok(e.byProvider.Recraft > 0 && e.byProvider["Verificación local"] === 0, `Recraft y verificación en la estimación: ${JSON.stringify(e.byProvider)}`);
   assert.ok(e.lipTimeline.length > 0 && e.turnList.length > 0);
   assert.ok(e.coverage.general && (e.coverage.primerPlanoA || e.coverage.primerPlanoB), JSON.stringify(e.coverage));
 });
@@ -104,11 +107,13 @@ test("música: ducking desactivable, intro y outro controlables; −16 LUFS es e
 test("asistente: 10 pasos en el orden pedido, persistencia y modalidades visibles", () => {
   assert.deepEqual([...STEPS], ["Modalidad", "Tema", "Participantes", "Voces", "Avatares", "Música", "Visuales", "Presupuesto", "Vista previa", "Generación"]);
   assert.equal(modalityToMode("audio"), "narracion");
-  assert.equal(defaultDraft().provider, "pexels", "Recraft no se preselecciona: el default es Pexels, disponible sin FAL");
-  const d = { ...defaultDraft(), step: STEP.musica, modality: "dialogo" as const, mode: "dialogo" as const, count: 2 as const, intensity: "alta" as const, ducking: false, provider: "pexels" as const };
+  assert.equal(defaultDraft().provider, "recraft", "Recraft es el proveedor principal del estudio");
+  assert.equal(loadDraft(JSON.stringify({ ...defaultDraft(), provider: "pexels", set: "neon" })).provider, "recraft", "un borrador con Pexels pasa a Recraft");
+  assert.equal(loadDraft(JSON.stringify({ ...defaultDraft(), set: "biblioteca" })).set, "calido", "escenario anterior → estudio compartido");
+  const d = { ...defaultDraft(), step: STEP.musica, modality: "dialogo" as const, mode: "dialogo" as const, count: 2 as const, intensity: "alta" as const, ducking: false, provider: "recraft" as const };
   const back = loadDraft(JSON.stringify(d));
   assert.equal(back.step, STEP.musica); assert.equal(back.intensity, "alta"); assert.equal(back.ducking, false);
-  assert.ok(stepErrors({ ...d, provider: "recraft" }, STEP.visuales, { unavailableVoices: [], providers: visualProviders({}) }).some((e) => /no se cambia automáticamente/.test(e)));
+  assert.ok(stepErrors(d, STEP.visuales, { unavailableVoices: [], providers: visualProviders({ PODCAST_STUDIO_RECRAFT: "0" }) }).some((e) => /no se cambia automáticamente/.test(e)));
   assert.ok(stepErrors(d, STEP.avatares, { unavailableVoices: [] }).some((e) => /avatar/.test(e)));
   assert.deepEqual(stepErrors({ ...d, modality: "audio", mode: "narracion" }, STEP.avatares, { unavailableVoices: [] }), []);
   const s = StudioSpec.parse({ ...draftToSpec({ ...d, title: "T", script: "x".repeat(30), participants: [{ ...d.participants[0], voice_id: "voiceA1", personality: "curioso", gender: "femenino" }, { ...d.participants[1], voice_id: "voiceB1" }] }), version: STUDIO_VERSION });

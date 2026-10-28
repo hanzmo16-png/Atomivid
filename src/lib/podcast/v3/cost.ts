@@ -11,7 +11,7 @@ import { RECRAFT_USD_PER_IMAGE } from "@/lib/providers/image/recraft";
 import { ceilLedgerUsd } from "@/lib/supply/anthropic-cost";
 import type { EditorialPlan } from "./editorial";
 
-export type CostLine = { concept: "voz" | "avatar" | "imagenes" | "video" | "render"; detail: string; usd: number; provider: string };
+export type CostLine = { concept: "voz" | "avatar" | "imagenes" | "verificacion" | "video" | "render"; detail: string; usd: number; provider: string };
 /** Tarifas usadas en la estimación: se guardan con el episodio y el worker reserva con ESTAS (una sola fuente). */
 export type EstimateRates = { voiceUsdPer1kChars: number; avatarUsdPerSecond: number; renderUsdPerMinute: number };
 export type CostEstimate = { lines: CostLine[]; totalUsd: number; assumptions: string[]; rates: EstimateRates };
@@ -22,6 +22,10 @@ export function estimateEpisodeCost(input: {
   avatarCreations?: number; pricing?: ReturnType<typeof getPricingConfig>;
   /** Solo audio: no hay planos ni MP4 (el runner solo mezcla y masteriza). */
   audioOnly?: boolean;
+  /** Ilustraciones generadas (Recraft): una por plano de imagen, el estilo del episodio y un margen de regeneraciones. */
+  illustrations?: { count: number; usdPerImage: number; styleUsd: number; retries: number };
+  /** Director visual (Anthropic): descripción de las imágenes y verificación de cada imagen generada. */
+  director?: { briefUsd: number; verifyUsd: number; verifyBatchUsd?: number };
 }): CostEstimate {
   const p = input.pricing ?? getPricingConfig();
   const lines: CostLine[] = [];
@@ -32,16 +36,27 @@ export function estimateEpisodeCost(input: {
   let avatar = 0, avatarSecs = 0;
   for (const s of clips) { const d = s.end - s.start; avatar += estimateHeygenCost(Math.max(1, d)); avatarSecs += d; }
   lines.push({ concept: "avatar", detail: `${clips.length} apariciones · ${Math.round(avatarSecs)} s de avatar (HeyGen Avatar IV foto, ~USD 0.0385/s)${input.avatarCreations ? ` · ${input.avatarCreations} avatar(es) nuevos desde foto (sin costo de subida)` : ""}`, usd: r4(avatar), provider: "HeyGen" });
-  const imgs = input.plan.shots.filter((s) => s.kind === "imagen" || s.kind === "archivo").length;
-  const rec = input.recreationImages * RECRAFT_USD_PER_IMAGE;
-  lines.push({ concept: "imagenes", detail: `${imgs} fotos de archivo (Pexels, gratis) · ${input.recreationImages} recreaciones a USD ${RECRAFT_USD_PER_IMAGE}`, usd: r4(rec), provider: "Pexels / Recraft" });
+  const il = input.illustrations;
+  if (il) {
+    const n = il.count + il.retries;
+    lines.push({ concept: "imagenes", detail: `${il.count} ilustraciones Recraft a USD ${il.usdPerImage} (+ estilo del episodio USD ${il.styleUsd}; margen de ${il.retries} regeneraciones si una imagen no pasa la verificación)`,
+      usd: r4(n * il.usdPerImage + (il.count > 0 ? il.styleUsd : 0)), provider: "Recraft" });
+    if (input.director && il.count > 0) {
+      const usd = r4(input.director.briefUsd + 2 * (input.director.verifyBatchUsd ?? 0) + n * input.director.verifyUsd);
+      lines.push({ concept: "verificacion", detail: `Verificación visual de cada imagen generada (${n} comprobaciones${usd === 0 ? ", modelo local en el generador, sin costo" : ""})`, usd, provider: usd === 0 ? "Verificación local" : "Anthropic" });
+    }
+  } else {
+    const imgs = input.plan.shots.filter((s) => s.kind === "imagen" || s.kind === "archivo").length;
+    const rec = input.recreationImages * RECRAFT_USD_PER_IMAGE;
+    lines.push({ concept: "imagenes", detail: `${imgs} fotos de archivo · ${input.recreationImages} recreaciones a USD ${RECRAFT_USD_PER_IMAGE}`, usd: r4(rec), provider: "Recraft" });
+  }
   lines.push({ concept: "video", detail: input.audioOnly ? "Solo audio: no se genera video" : input.aiVideoSeconds ? `${input.aiVideoSeconds} s de video generativo` : "Sin video generativo (planos compuestos con FFmpeg)", usd: 0, provider: "—" });
   const renderMin = Math.ceil(input.episodeSeconds / 60 * (input.renderMinutesFactor ?? 1.5)) + 3;
   lines.push({ concept: "render", detail: `~${renderMin} min de runner (GitHub Actions) a USD ${p.renderUsdPerMinute}/min`, usd: r4(renderMin * p.renderUsdPerMinute), provider: "GitHub Actions" });
   return { lines, totalUsd: r4(lines.reduce((s, l) => s + l.usd, 0)), rates: { voiceUsdPer1kChars: p.elevenLabsUsdPer1kChars, avatarUsdPerSecond: 0.0385, renderUsdPerMinute: p.renderUsdPerMinute }, assumptions: [
     "Voz: tarifa de PRICING_ELEVENLABS_USD_PER_1K_CHARS (o 0,10 por defecto).",
     "Avatar: tarifa observada de HeyGen Avatar IV con foto (estimateHeygenCost), un clip por aparición (en two-shot/sobre el hombro solo habla uno; el otro es un fotograma fijo, sin costo).",
-    "Imágenes: Pexels sin costo; recreaciones con Recraft solo si se activan.",
+    "Imágenes: ilustraciones de Recraft generadas para el contenido de cada turno y verificadas una a una; si una no muestra lo pedido se regenera una vez y, si tampoco, se usa una tarjeta con la idea del turno (nunca una foto ajena).",
     "Render: duración × 1,5 + 3 min de preparación; minutos gratuitos de Actions no descontados.",
   ] };
 }
@@ -74,13 +89,20 @@ export async function committedUsd(ledger: StudioLedger, episode: string): Promi
 }
 
 /**
+ * Comprobante de una operación de pago ya reservada en el libro: el episodio (proyecto), la autorización duradera del
+ * dueño (`authorized_at` del episodio, fijada al confirmar el presupuesto) y la clave de la reserva (transacción). Un
+ * adaptador de pago real lo verifica contra la base ANTES de llamar al proveedor: sin comprobante válido no hay llamada.
+ */
+export type SpendTicket = { projectId: string; ownerId: string; provider: string; authorizationRef: string | null; transactionId: string };
+
+/**
  * Ejecuta una operación de pago UNA vez por clave:
  *  - liquidada → devuelve el resultado guardado (reintento sin cobro);
  *  - reservada/incierta → bloquea (no se repite un cargo dudoso);
  *  - liberada (falló sin cargo) → puede reintentarse;
  *  - sin autorización o sin presupuesto → no llama al proveedor.
  */
-export async function paidOnce<T extends { result: string; actualUsd: number }>(ledger: StudioLedger, req: { key: string; owner: string; episode: string; provider: string; op: string; usd: number; budgetUsd: number; authorized: boolean }, call: () => Promise<T>): Promise<{ result: string; reused: boolean; usd: number }> {
+export async function paidOnce<T extends { result: string; actualUsd: number }>(ledger: StudioLedger, req: { key: string; owner: string; episode: string; provider: string; op: string; usd: number; budgetUsd: number; authorized: boolean; authorizationRef?: string | null }, call: (ticket: SpendTicket) => Promise<T>): Promise<{ result: string; reused: boolean; usd: number }> {
   if (!req.authorized) throw new UnauthorizedChargeError();
   const prev = await ledger.get(req.key);
   if (prev && prev.owner !== req.owner) throw new Error("ACCESO_DENEGADO");
@@ -91,7 +113,7 @@ export async function paidOnce<T extends { result: string; actualUsd: number }>(
   const base = { key: req.key, owner: req.owner, episode: req.episode, provider: req.provider, op: req.op, reserved_usd: req.usd };
   await ledger.put({ ...base, state: "reserved", actual_usd: null });
   try {
-    const out = await call();
+    const out = await call({ projectId: req.episode, ownerId: req.owner, provider: req.provider, authorizationRef: req.authorizationRef ?? null, transactionId: req.key });
     await ledger.put({ ...base, state: "settled", actual_usd: out.actualUsd, result: out.result });
     return { result: out.result, reused: false, usd: out.actualUsd };
   } catch (e) {

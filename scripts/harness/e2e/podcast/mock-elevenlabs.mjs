@@ -8,8 +8,13 @@ const VOICES = [
   { voice_id: "VozCatalogoAna01", name: "Ana (catálogo)", category: "premade", labels: { language: "es", gender: "female" } },
   { voice_id: "VozCatalogoLeo02", name: "Leo (catálogo)", category: "premade", labels: { language: "es", gender: "male" } },
   { voice_id: "DuroPruebaLocal03", name: "duro hans (FICTICIA local)", category: "cloned", is_owner: true, labels: { language: "es" } },
+  // Voces de los anfitriones del catálogo de Podcast Studio (Callie para Valeria, Ximena, Víctor): mismos ids, audio espeak.
+  { voice_id: "7YaUDeaStRuoYg3FKsmU", name: "Callie (simulada)", category: "premade", labels: { language: "es", gender: "female" } },
+  { voice_id: "fuVibWsnIUtzBVjB2PCa", name: "Ximena (simulada)", category: "premade", labels: { language: "es", gender: "female" } },
+  { voice_id: "TbvhqFC7AApJv7hnNvmY", name: "Víctor (simulada)", category: "premade", labels: { language: "es", gender: "male" } },
 ];
-const PROFILE = { VozCatalogoAna01: ["-v", "es+f3", "-p", "65"], VozCatalogoLeo02: ["-v", "es-419", "-p", "35"], DuroPruebaLocal03: ["-v", "es", "-p", "20"] };
+const PROFILE = { VozCatalogoAna01: ["-v", "es+f3", "-p", "65"], VozCatalogoLeo02: ["-v", "es-419", "-p", "35"], DuroPruebaLocal03: ["-v", "es", "-p", "20"],
+  "7YaUDeaStRuoYg3FKsmU": ["-v", "es+f2", "-p", "60"], fuVibWsnIUtzBVjB2PCa: ["-v", "es+f4", "-p", "55"], TbvhqFC7AApJv7hnNvmY: ["-v", "es+m3", "-p", "40"] };
 const log = (o) => LOG && fs.appendFileSync(LOG, JSON.stringify({ at: new Date().toISOString(), ...o }) + "\n");
 const body = (req) => new Promise((r) => { const c = []; req.on("data", (d) => c.push(d)); req.on("end", () => r(Buffer.concat(c).toString())); });
 http.createServer(async (req, res) => {

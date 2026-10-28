@@ -21,8 +21,11 @@ test("saldo y topes previos: la demanda del estudio usa la regla de producción 
     { provider: "heygen", state: "released", reserved_usd: 9, actual_usd: 0 }, { provider: "elevenlabs", state: "reserved", reserved_usd: 0.2, actual_usd: null }]));
   assert.deepEqual(d.find((x) => x.provider === "heygen"), { provider: "heygen", unit: "usd", units: 8.4, usd: 8.4 }, "liquidado al real + incierto al reservado; liberado no cuenta");
   assert.equal(d.find((x) => x.provider === "elevenlabs")!.usd, 1.1);
-  assert.equal(unsupportedSpend(needs({ imagesUsd: 0.4 }))?.includes("no está conectado"), true);
+  assert.equal(unsupportedSpend(needs({ imagesUsd: 0.4 }), false)?.includes("no está conectado"), true);
+  assert.equal(unsupportedSpend(needs({ imagesUsd: 0.4 }), true), null, "con Recraft conectado, las ilustraciones son una demanda más");
   assert.equal(unsupportedSpend(needs()), null);
+  const rc = studioSupplyDemands({ ...needs({ imagesUsd: 0.7 }), imagesCalls: 20 }, { recraft: 0.1 }).find((x) => x.provider === "recraft");
+  assert.deepEqual(rc, { provider: "recraft", unit: "usd", units: 0.8, usd: 0.8, calls: 20 }, "Recraft pasa por saldo, topes y cuota de llamadas");
   // Daily call quotas: the calls still to make travel with the demand (only when there are any).
   const withCalls = studioSupplyDemands({ ...needs({ avatarUsd: 2 }), ttsCalls: 8, avatarCalls: 0 }, {});
   assert.equal(withCalls.find((x) => x.provider === "elevenlabs")!.calls, 8);
@@ -45,7 +48,7 @@ test("modos del asistente: A solo audio (sin video), B narración con imágenes 
   const mk = (modality: WizardDraft["modality"]): WizardDraft => ({ ...defaultDraft(), modality, mode: modality ? modalityToMode(modality) : null, title: "T", script: "x".repeat(40), count: 2 });
   const a = draftToSpec(mk("audio")), b = draftToSpec(mk("visual")), c = draftToSpec(mk("dialogo"));
   assert.equal(a.mode, "narracion"); assert.equal(a.output, "audio"); assert.equal(a.visual.provider, "solo_set");
-  assert.equal(b.mode, "narracion"); assert.equal(b.output, "video"); assert.equal(b.visual.provider, "pexels");
+  assert.equal(b.mode, "narracion"); assert.equal(b.output, "video"); assert.equal(b.visual.provider, "recraft");
   assert.equal(c.mode, "dialogo"); assert.equal(c.output, "video");
   // Especificaciones antiguas (sin «output») siguen siendo válidas: por defecto video.
   assert.equal(StudioSpec.parse({ version: STUDIO_VERSION, mode: "narracion", title: "T", script: "y".repeat(30), target_minutes: 1, participants: [{ id: "A", name: "A", voice_id: "voiceAnaHost1" }], visual: {}, music: {}, budget_usd: 1 }).output, "video");

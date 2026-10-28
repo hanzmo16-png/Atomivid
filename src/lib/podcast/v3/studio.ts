@@ -38,22 +38,19 @@ export function studioFlag(env: Env = process.env, user?: StudioUser): StudioFla
   return { enabled: false, source: "off", reason: "Apagado (producción sin PODCAST_V3_ENABLED=1)" };
 }
 
-export type VisualProviderId = "pexels" | "recraft" | "solo_set";
+export type VisualProviderId = "recraft" | "solo_set";
 export type VisualProvider = { id: VisualProviderId; label: string; available: boolean; reason: string | null; usdPerImage: number };
 /**
- * Recraft existe en el repo (src/lib/providers/image/recraft.ts, vía fal.ai) y lo usa Reels/Long Form; el worker del
- * estudio de podcast todavía NO tiene un adaptador de recreaciones conectado, así que aquí se muestra «No disponible»
- * con el motivo. Si se elige igualmente, la API rechaza (409) en vez de cambiar a otro proveedor.
+ * Proveedores visuales del estudio. Recraft es el principal: una ilustración generada por intervención, con un estilo
+ * por episodio y verificada mirando la imagen (pipeline.ts). Pexels quedó fuera del estudio (sus etiquetas incluían las
+ * palabras de la búsqueda y daban por pertinentes fotos ajenas: avión, huevos de Pascua, ropa); otros módulos lo siguen
+ * usando. Recraft se puede apagar con PODCAST_STUDIO_RECRAFT=0; el generador comprueba FAL_KEY antes de cualquier cargo.
  */
 export function visualProviders(env: Env = process.env): VisualProvider[] {
-  const recraftReason = env.PODCAST_STUDIO_RECRAFT === "1" && env.FAL_KEY
-    ? null
-    : !env.FAL_KEY ? "No disponible: falta FAL_KEY y el adaptador de Recraft para el estudio de podcast aún no está conectado (solo Reels/Long Form lo usan)."
-    : "No disponible: el adaptador de Recraft para el estudio de podcast aún no está conectado (PODCAST_STUDIO_RECRAFT≠1).";
+  const off = env.PODCAST_STUDIO_RECRAFT === "0";
   return [
-    { id: "pexels", label: "Fotos de archivo (Pexels)", available: true, reason: null, usdPerImage: 0 },
-    { id: "recraft", label: "Ilustraciones Recraft (fal.ai)", available: recraftReason === null, reason: recraftReason, usdPerImage: RECRAFT_USD_PER_IMAGE },
-    { id: "solo_set", label: "Solo set virtual y avatares (sin imágenes)", available: true, reason: null, usdPerImage: 0 },
+    { id: "recraft", label: "Ilustraciones Recraft", available: !off, reason: off ? "No disponible: Recraft está desactivado en el estudio (PODCAST_STUDIO_RECRAFT=0)." : null, usdPerImage: RECRAFT_USD_PER_IMAGE },
+    { id: "solo_set", label: "Solo estudio y anfitriones (sin imágenes)", available: true, reason: null, usdPerImage: 0 },
   ];
 }
 export class ProviderUnavailableError extends Error {

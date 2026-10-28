@@ -10,7 +10,7 @@
 import type { JobSupplyDemand } from "@/lib/supply/job";
 import type { ProviderNeeds } from "./pipeline";
 
-export type StudioSpend24h = { elevenlabs?: number; heygen?: number };
+export type StudioSpend24h = { elevenlabs?: number; heygen?: number; recraft?: number };
 const r4 = (n: number) => Math.round(n * 1e4) / 1e4;
 
 export function studioSupplyDemands(needs: ProviderNeeds, spent: StudioSpend24h): JobSupplyDemand[] {
@@ -18,12 +18,14 @@ export function studioSupplyDemands(needs: ProviderNeeds, spent: StudioSpend24h)
   const calls = (n: number | undefined) => (n !== undefined && n > 0 ? { calls: n } : {});
   if (needs.ttsChars > 0) out.push({ provider: "elevenlabs", unit: "character", units: needs.ttsChars, usd: r4(Math.max(needs.ttsUsd, 0.0001) + (spent.elevenlabs ?? 0)), ...calls(needs.ttsCalls) });
   if (needs.avatarUsd > 0) out.push({ provider: "heygen", unit: "usd", units: r4(needs.avatarUsd + (spent.heygen ?? 0)), usd: r4(needs.avatarUsd + (spent.heygen ?? 0)), ...calls(needs.avatarCalls) });
+  // Ilustraciones (Recraft vía fal.ai): saldo verificado, topes diarios/mensuales y cuota de llamadas, como el resto.
+  if (needs.imagesUsd > 0) out.push({ provider: "recraft", unit: "usd", units: r4(needs.imagesUsd + (spent.recraft ?? 0)), usd: r4(needs.imagesUsd + (spent.recraft ?? 0)), ...calls(needs.imagesCalls) });
   return out;
 }
 
-/** Recreaciones de pago: el estudio no tiene adaptador conectado; si el plan las pidiera, se bloquea. */
-export function unsupportedSpend(needs: ProviderNeeds): string | null {
-  return needs.imagesUsd > 0 ? "Recreaciones de pago: el adaptador de imágenes de pago del estudio no está conectado." : null;
+/** Gasto de imágenes sin generador conectado (p. ej. la estimación pide ilustraciones y no hay adaptador): se bloquea. */
+export function unsupportedSpend(needs: ProviderNeeds, hasGenerator = true): string | null {
+  return needs.imagesUsd > 0 && !hasGenerator ? "Ilustraciones de pago: el generador de imágenes del estudio no está conectado." : null;
 }
 
 /** Suma lo comprometido por el estudio (liquidado al costo real; reservado/incierto al reservado) por proveedor. */
