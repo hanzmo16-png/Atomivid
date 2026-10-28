@@ -16,7 +16,7 @@ jobs:
   diag:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
