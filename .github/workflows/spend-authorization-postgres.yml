@@ -18,11 +18,13 @@ jobs:
         with: { node-version: 22, cache: npm }
       - run: npm ci --no-audit --no-fund
       - name: Free app tests (mocked providers, no network)
-        run: node --import tsx --test src/lib/supply/spend-authorization.test.ts src/lib/video/long-form/long-form-15min-readiness.test.ts
+        run: node --import tsx --test src/lib/supply/spend-authorization.test.ts src/lib/video/long-form/long-form-15min-readiness.test.ts src/lib/supply/script-stale-release.test.ts
       - name: Disposable PostgreSQL + proposal verification
         run: bash scripts/qa/spend-authorization-db.sh "$RUNNER_TEMP/pgsa" 55901 2>&1 | tee spend-authorization-postgres.log; test "${PIPESTATUS[0]}" = 0
       - name: Manual fal.ai balance (Recraft) — later consumption, in-flight, refunds and job reservations reduce availability
         run: bash scripts/qa/spend-authorization-db.sh "$RUNNER_TEMP/pgmb" 55902 scripts/qa/manual-balance-postgres.sh 2>&1 | tee -a spend-authorization-postgres.log; test "${PIPESTATUS[0]}" = 0
+      - name: pi_supply_spend counts COMMITTED calls at their real cost (proposal 20261028100000 + rollback)
+        run: bash scripts/qa/spend-authorization-db.sh "$RUNNER_TEMP/pgss" 55903 scripts/qa/supply-spend-postgres.sh 2>&1 | tee -a spend-authorization-postgres.log; test "${PIPESTATUS[0]}" = 0
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: spend-authorization-postgres, path: spend-authorization-postgres.log }

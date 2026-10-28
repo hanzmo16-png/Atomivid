@@ -81,7 +81,9 @@ export async function releaseStaleReservations(store: Pick<LedgerStore, "get" | 
   for (const r of rows) {
     if (r.status !== "RESERVED" || !r.idempotency_key || nowMs - Date.parse(r.updated_at) < staleMs) { out.push(r); continue; }
     const updated_at = new Date(nowMs).toISOString();
-    if (await store.update(r.idempotency_key, "RESERVED", { status: "REFUNDED", committedUsd: 0, resultRef: RELEASED_STALE_REF, updatedAt: updated_at })) {
+    // Never SUBMITTED → the provider was never called: no charge is provable from the ledger itself, so the release is
+    // reconciled at once (otherwise pi_supply_spend keeps counting the whole reservation as spend).
+    if (await store.update(r.idempotency_key, "RESERVED", { status: "REFUNDED", committedUsd: 0, supplyReconciled: true, resultRef: RELEASED_STALE_REF, updatedAt: updated_at })) {
       out.push({ ...r, status: "REFUNDED", updated_at });
       continue;
     }
