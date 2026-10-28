@@ -69,3 +69,16 @@ test("subtítulos: páginas de ≤ 2 líneas que aparecen cuando se dice su prim
   assert.equal(pages[1].start, words.find((w) => w.text === firstWordOfPage2)!.start, "sincronizado con la palabra");
   assert.equal(pages.at(-1)!.end, 9);
 });
+
+test("director local: describe cada turno con su contenido y el tema, marca las escenas del pasado como recreación, sin costo", async () => {
+  const { localDirector } = await import("./adapters");
+  const d = localDirector({ dir: "/tmp" });
+  const r = await d.brief({ topic: "Anunnaki, sumerios y tablillas cuneiformes", title: "T", language: "es", turns: [
+    { id: "T001", text: "Las tablillas cuneiformes de Nippur cuentan cómo los dioses sumerios repartieron el cielo y la tierra." },
+    { id: "T002", text: "¿Y qué opinas de quienes dicen que eran visitantes de otro planeta?" }] });
+  assert.equal(r.actualUsd, 0); assert.equal(d.briefUsd + d.verifyUsd, 0);
+  assert.equal(r.briefs.length, 2);
+  assert.match(r.briefs[0].prompt, /tablillas cuneiformes de Nippur/); assert.match(r.briefs[0].prompt, /Anunnaki/);
+  assert.equal(r.briefs[0].recreation, true, "una escena histórica se etiqueta «Recreación»");
+  assert.match(r.briefs[1].subject, /^Anunnaki, sumerios y tablillas cuneiformes:/, "lo que debe verse incluye el tema");
+});
