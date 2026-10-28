@@ -89,13 +89,20 @@ export async function committedUsd(ledger: StudioLedger, episode: string): Promi
 }
 
 /**
+ * Comprobante de una operación de pago ya reservada en el libro: el episodio (proyecto), la autorización duradera del
+ * dueño (`authorized_at` del episodio, fijada al confirmar el presupuesto) y la clave de la reserva (transacción). Un
+ * adaptador de pago real lo verifica contra la base ANTES de llamar al proveedor: sin comprobante válido no hay llamada.
+ */
+export type SpendTicket = { projectId: string; ownerId: string; provider: string; authorizationRef: string | null; transactionId: string };
+
+/**
  * Ejecuta una operación de pago UNA vez por clave:
  *  - liquidada → devuelve el resultado guardado (reintento sin cobro);
  *  - reservada/incierta → bloquea (no se repite un cargo dudoso);
  *  - liberada (falló sin cargo) → puede reintentarse;
  *  - sin autorización o sin presupuesto → no llama al proveedor.
  */
-export async function paidOnce<T extends { result: string; actualUsd: number }>(ledger: StudioLedger, req: { key: string; owner: string; episode: string; provider: string; op: string; usd: number; budgetUsd: number; authorized: boolean }, call: () => Promise<T>): Promise<{ result: string; reused: boolean; usd: number }> {
+export async function paidOnce<T extends { result: string; actualUsd: number }>(ledger: StudioLedger, req: { key: string; owner: string; episode: string; provider: string; op: string; usd: number; budgetUsd: number; authorized: boolean; authorizationRef?: string | null }, call: (ticket: SpendTicket) => Promise<T>): Promise<{ result: string; reused: boolean; usd: number }> {
   if (!req.authorized) throw new UnauthorizedChargeError();
   const prev = await ledger.get(req.key);
   if (prev && prev.owner !== req.owner) throw new Error("ACCESO_DENEGADO");
@@ -106,7 +113,7 @@ export async function paidOnce<T extends { result: string; actualUsd: number }>(
   const base = { key: req.key, owner: req.owner, episode: req.episode, provider: req.provider, op: req.op, reserved_usd: req.usd };
   await ledger.put({ ...base, state: "reserved", actual_usd: null });
   try {
-    const out = await call();
+    const out = await call({ projectId: req.episode, ownerId: req.owner, provider: req.provider, authorizationRef: req.authorizationRef ?? null, transactionId: req.key });
     await ledger.put({ ...base, state: "settled", actual_usd: out.actualUsd, result: out.result });
     return { result: out.result, reused: false, usd: out.actualUsd };
   } catch (e) {

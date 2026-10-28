@@ -18,7 +18,7 @@ import { assembleVoice, exportAudio, mixAndMaster, transitionTimes, type Timelin
 import { FPS, frameFor, muxEpisode, renderShot, shotFrames, type SubtitleWord } from "./compose";
 import type { Matte } from "./studios";
 import { progressRecord, stagesFor, type Stage, type StudioProgress } from "./progress";
-import { estimateEpisodeCost, opKey, paidOnce, releaseUndelivered, committedUsd, BudgetExceededError, UnauthorizedChargeError, type CostEstimate, type StudioLedger } from "./cost";
+import { estimateEpisodeCost, opKey, paidOnce, releaseUndelivered, committedUsd, BudgetExceededError, UnauthorizedChargeError, type CostEstimate, type SpendTicket, type StudioLedger } from "./cost";
 import { keywords, salientTerms, planEpisode, planIssues, type EditorialPlan, type VisualAsset } from "./editorial";
 import { autoMood, ensureBundledMusic } from "./music-library";
 import { estimateSeconds, narrationTurns, parseLabeledScript, type Turn } from "./script";
@@ -42,7 +42,7 @@ export type AvatarProvider = { name: string; label: ProviderLabel;
   prepare?: (photoRef: string) => Promise<{ ref: string; actualUsd: number }>; prepareUsd?: number };
 export type ImageProvider = { name: string; label: ProviderLabel;
   /** Ilustración generada (Recraft, de pago) para un turno: la descripción la escribe el director visual. */
-  generate?: (req: { prompt: string; negative: string; aspect: "16:9" | "9:16"; attempt: number }, dest: string) => Promise<{ actualUsd: number }>;
+  generate?: (req: { prompt: string; negative: string; aspect: "16:9" | "9:16"; attempt: number }, dest: string, ticket?: SpendTicket) => Promise<{ actualUsd: number }>;
   /** Costo por imagen y costo único de crear el estilo del episodio (primera imagen). */
   generateUsd?: number; styleUsd?: number;
   /** Banco de imágenes (solo planificación y pruebas). El estudio ya no busca fotos de archivo en producción. */
@@ -145,7 +145,7 @@ const assetKind = (assets: VisualAsset[], id: string) => assets.find((a) => a.id
 /** Regeneraciones permitidas por episodio (una imagen que no pasa la verificación se pide otra vez, hasta este tope). */
 export const imageRetries = (images: number) => Math.ceil(images * 0.25);
 
-type Pay = (provider: string, op: string, payload: unknown, usd: number, call: () => Promise<{ result: string; actualUsd: number }>, dest?: string) => Promise<string>;
+type Pay = (provider: string, op: string, payload: unknown, usd: number, call: (ticket: SpendTicket) => Promise<{ result: string; actualUsd: number }>, dest?: string) => Promise<string>;
 /** Lo que nunca debe aparecer en una ilustración del podcast (Recraft lo recibe como «Avoid»). */
 export const NEGATIVE_IMAGE = "text, letters, captions, watermarks, logos, airplanes, cars, phones, modern objects unrelated to the topic, holiday decorations, clothing catalog, product photos";
 
@@ -226,7 +226,9 @@ export type RunResult = {
 
 export async function runEpisode(spec: StudioSpec, ctx: { owner: string; episode: string; dir: string; providers: Providers; ledger: StudioLedger; guard: RunGuard; authorizedUsd: number | null; small?: boolean; musicDir?: string; onProgress?: (p: StudioProgress) => void;
   /** Persistencia de lo pagado entre runners (obligatoria en el worker real). */ artifacts?: ArtifactStore;
-  /** Tarifas del episodio autorizado (las de la estimación guardada). */ rates?: StudioRates }): Promise<RunResult> {
+  /** Tarifas del episodio autorizado (las de la estimación guardada). */ rates?: StudioRates;
+  /** Autorización duradera del dueño (`authorized_at` del episodio): viaja en el comprobante de cada operación de pago. */
+  authorizationRef?: string | null }): Promise<RunResult> {
   const token = createHash("sha1").update(`${ctx.episode}:${Date.now()}:${Math.random()}`).digest("hex");
   if (!(await ctx.guard.acquire(ctx.episode, token))) throw new DuplicateRunError();
   const progress = ctx.onProgress ?? (() => {});
@@ -271,11 +273,11 @@ export async function runEpisode(spec: StudioSpec, ctx: { owner: string; episode
     let reused = 0, paid = 0;
     const keyOf = (provider: string, op: string, payload: unknown) => opKey({ owner: ctx.owner, episode: ctx.episode, provider, op, payload });
     /** `dest`: archivo local que produce la operación. Con almacén, el libro guarda la referencia persistente. */
-    const pay = async (provider: string, op: string, payload: unknown, usd: number, call: () => Promise<{ result: string; actualUsd: number }>, dest?: string) => {
+    const pay = async (provider: string, op: string, payload: unknown, usd: number, call: (ticket: SpendTicket) => Promise<{ result: string; actualUsd: number }>, dest?: string) => {
       const key = keyOf(provider, op, payload);
       const store = dest ? ctx.artifacts : undefined;
-      const r = await paidOnce(ctx.ledger, { key, owner: ctx.owner, episode: ctx.episode, provider, op, usd, budgetUsd: budget, authorized },
-        store ? async () => { const out = await call(); return { result: await store.put(key, out.result), actualUsd: out.actualUsd }; } : call);
+      const r = await paidOnce(ctx.ledger, { key, owner: ctx.owner, episode: ctx.episode, provider, op, usd, budgetUsd: budget, authorized, authorizationRef: ctx.authorizationRef ?? null },
+        store ? async (t) => { const out = await call(t); return { result: await store.put(key, out.result), actualUsd: out.actualUsd }; } : call);
       if (r.reused) reused++; else paid++;
       if (!dest) return r.result;
       if (!r.reused) return dest;
@@ -376,7 +378,7 @@ export async function runEpisode(spec: StudioSpec, ctx: { owner: string; episode
         const prompt = attempt === 1 ? brief.prompt : `${brief.prompt}. The image must clearly show: ${brief.subject}. Do not include: ${reason || "anything unrelated to the topic"}.`;
         const payload = { prompt, aspect: spec.format, attempt };
         const file = await pay(ctx.providers.images.name, "ilustracion", payload, (ctx.providers.images.generateUsd ?? 0) + (ctx.providers.images.styleUsd ?? 0),
-          async () => { const r = await ctx.providers.images.generate!({ prompt, negative: NEGATIVE_IMAGE, aspect: spec.format, attempt }, dest); return { result: dest, actualUsd: r.actualUsd }; }, dest);
+          async (ticket) => { const r = await ctx.providers.images.generate!({ prompt, negative: NEGATIVE_IMAGE, aspect: spec.format, attempt }, dest, ticket); return { result: dest, actualUsd: r.actualUsd }; }, dest);
         return { image: file, brief, key: keyOf(ctx.providers.images.name, "ilustracion", payload) };
       };
       // Primera pasada: una ilustración por plano; luego UNA verificación del lote.

@@ -18,7 +18,7 @@ import { ffmpeg } from "./ffmpeg";
 import type { Face } from "./studios";
 import { getPricingConfig } from "@/lib/billing/pricing";
 import { heygenAvatarProvider, estimateHeygenCost } from "@/lib/providers/avatar/heygen";
-import { ProviderRejectedError as StudioRejected } from "./cost";
+import { ProviderRejectedError as StudioRejected, type SpendTicket } from "./cost";
 import type { AvatarProvider, ImageProvider, Matter, TtsProvider, TurnBrief, VisualDirector } from "./pipeline";
 import { keywords } from "./editorial";
 
@@ -52,10 +52,39 @@ export function realAvatar(deps: { publishAudio: (file: string) => Promise<strin
  * estilo del podcast: la primera generación crea el estilo (+USD 0,005) y devuelve su style_id; las demás del episodio
  * lo reutilizan (estilo coherente). Sin FAL_KEY se rechaza ANTES de cualquier cargo (no se sustituye por otro banco).
  */
-export function realRecraftImages(deps: { styleRefs: () => Promise<string[]>; styleId?: string | null }): ImageProvider {
+/** Lo que la base dice de una reserva y de su episodio (lo lee el worker con la clave de servicio). */
+export type TicketFacts = {
+  op: { key: string; episode_id: string; user_id: string; provider: string; state: string } | null;
+  episode: { id: string; user_id: string; status: string; authorized_usd: number | null; authorized_at: string | null } | null;
+};
+/**
+ * Regla de la autorización duradera de un pago real del estudio (proyecto + autorización + transacción): la reserva
+ * existe en el libro con ESA clave, está «reserved», es de ese episodio, de ese dueño y de ese proveedor; el episodio
+ * está autorizado (o generándose) con importe, y su autorización es la misma que viaja en el comprobante. Devuelve el
+ * motivo del rechazo o null. Sin comprobante o con cualquier diferencia: no se llama al proveedor.
+ */
+export function ticketRefusal(t: SpendTicket | undefined, f: TicketFacts): string | null {
+  if (!t) return "sin comprobante de reserva (la llamada no pasó por el libro del estudio)";
+  if (!t.authorizationRef) return "el episodio no tiene autorización duradera (authorized_at)";
+  const { op, episode } = f;
+  if (!op || op.key !== t.transactionId) return "la reserva (transacción) no existe en el libro";
+  if (op.state !== "reserved") return `la reserva no está abierta (${op.state})`;
+  if (op.episode_id !== t.projectId || op.user_id !== t.ownerId || op.provider !== t.provider) return "la reserva no corresponde a este episodio, dueño o proveedor";
+  if (!episode || episode.id !== t.projectId || episode.user_id !== t.ownerId) return "el episodio no existe o es de otro dueño";
+  if (!["authorized", "generating"].includes(episode.status) || episode.authorized_usd == null) return `el episodio no está autorizado (${episode.status})`;
+  if (!episode.authorized_at || new Date(episode.authorized_at).getTime() !== new Date(t.authorizationRef).getTime()) return "la autorización del episodio cambió o no coincide";
+  return null;
+}
+
+export function realRecraftImages(deps: { styleRefs: () => Promise<string[]>; styleId?: string | null;
+  /** Lee de la base la reserva y el episodio del comprobante (obligatorio: sin él no se genera nada). */
+  readTicket: (t: SpendTicket) => Promise<TicketFacts> }): ImageProvider {
   let styleId: string | undefined = deps.styleId ?? undefined;
   return { name: "recraft", label: "real adapter (untested live)", generateUsd: RECRAFT_USD_PER_IMAGE, styleUsd: RECRAFT_USD_STYLE_CREATION,
-    async generate(req, dest) {
+    async generate(req, dest, ticket) {
+      // Autorización duradera ANTES de cualquier otra cosa: sin reserva válida en el libro no hay llamada ni cargo.
+      const refusal = ticketRefusal(ticket, ticket ? await deps.readTicket(ticket) : { op: null, episode: null });
+      if (refusal) throw new StudioRejected(`Recraft no se llamó: ${refusal}. No se generó ni cobró nada.`);
       if (!process.env.FAL_KEY?.trim()) throw new StudioRejected("Recraft no está configurado en el generador (FAL_KEY); no se generó ni cobró nada.");
       const style = styleId ? { styleId } : { referenceImageUrls: await deps.styleRefs() };
       try {

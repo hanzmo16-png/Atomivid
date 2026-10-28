@@ -403,7 +403,7 @@ test("Recraft: una ilustración por turno, verificada mirando la imagen; la rech
   const providers = mockProviders({ tonesOnly: true, rejectImagesWith: ["Ehman"] });
   const ledger = new MemoryLedger(), seen: { stage: string; pct: number }[] = [];
   const dir = await mkdtemp(path.join(tmpdir(), "p30-recraft-"));
-  const r = await runEpisode(A, { owner: "u1", episode: "ep-rc", dir, providers, ledger, guard: new MemoryRunGuard(), authorizedUsd: 5, small: true, musicDir: MUSIC, onProgress: (p) => seen.push({ stage: p.stage, pct: p.pct }) });
+  const r = await runEpisode(A, { owner: "u1", episode: "ep-rc", dir, providers, ledger, guard: new MemoryRunGuard(), authorizedUsd: 5, authorizationRef: "2026-10-28T18:00:00Z", small: true, musicDir: MUSIC, onProgress: (p) => seen.push({ stage: p.stage, pct: p.pct }) });
   const imageShots = r.plan.shots.filter((s) => s.asset_id);
   assert.ok(imageShots.length >= 2 && imageShots.every((s) => s.asset_id!.startsWith("rc-")), "cada imagen es la ilustración de SU turno");
   assert.equal(providers.calls.briefs, 1, "un solo guion visual por episodio");
@@ -413,6 +413,16 @@ test("Recraft: una ilustración por turno, verificada mirando la imagen; la rech
   assert.match(card[0].reason, /rechazada por la verificación/);
   assert.equal(providers.calls.images.length, imageShots.length + 1, "solo una regeneración");
   assert.equal([...ledger.rows.values()].filter((x) => x.op === "ilustracion").length, imageShots.length + 1);
+  // Cada ilustración llegó al proveedor con su comprobante: este episodio, este dueño, la autorización duradera y la
+  // clave de SU reserva en el libro (que queda liquidada).
+  const rows = [...ledger.rows.values()].filter((x) => x.op === "ilustracion");
+  assert.equal(providers.calls.tickets.length, rows.length);
+  for (const t of providers.calls.tickets) {
+    assert.ok(t && t.projectId === "ep-rc" && t.ownerId === "u1" && t.authorizationRef === "2026-10-28T18:00:00Z" && t.provider === providers.images.name, JSON.stringify(t));
+    const row = rows.find((x) => x.key === t!.transactionId);
+    assert.ok(row && row.state === "settled", `la transacción ${t!.transactionId.slice(0, 8)} es una reserva del libro`);
+  }
+  assert.equal(new Set(providers.calls.tickets.map((t) => t!.transactionId)).size, rows.length, "una transacción por llamada");
   // Avance: etapas en orden, porcentaje que nunca retrocede y nunca llega a 100 antes de «ready».
   const order = ["preparacion", "voces", "imagenes", "montaje", "guardado"];
   assert.deepEqual([...new Set(seen.map((x) => x.stage))], order);

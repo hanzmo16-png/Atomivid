@@ -93,3 +93,38 @@ test("director local: describe cada turno con su contenido y el tema, marca las 
   assert.equal(r.briefs[0].recreation, true, "una escena histórica se etiqueta «Recreación»");
   assert.match(r.briefs[1].subject, /^Anunnaki, sumerios y tablillas cuneiformes:/, "lo que debe verse incluye el tema");
 });
+
+test("Recraft: autorización duradera (proyecto + autorización + transacción) antes de llamar; sin comprobante válido no hay llamada", async () => {
+  const { ticketRefusal, realRecraftImages } = await import("./adapters");
+  const at = "2026-10-28T18:00:00.000Z";
+  const t = { projectId: "ep1", ownerId: "u1", provider: "recraft", authorizationRef: at, transactionId: "k1" };
+  const ok = { op: { key: "k1", episode_id: "ep1", user_id: "u1", provider: "recraft", state: "reserved" }, episode: { id: "ep1", user_id: "u1", status: "generating", authorized_usd: 5, authorized_at: "2026-10-28T18:00:00+00:00" } };
+  assert.equal(ticketRefusal(t, ok), null, "reserva abierta del episodio autorizado: se permite");
+  const bad: [string, Parameters<typeof ticketRefusal>[0], Parameters<typeof ticketRefusal>[1]][] = [
+    ["sin comprobante", undefined, ok],
+    ["sin autorización duradera", { ...t, authorizationRef: null }, ok],
+    ["transacción inexistente", t, { ...ok, op: null }],
+    ["otra transacción", { ...t, transactionId: "k2" }, ok],
+    ["reserva ya liquidada", t, { ...ok, op: { ...ok.op, state: "settled" } }],
+    ["reserva de otro episodio", t, { ...ok, op: { ...ok.op, episode_id: "ep2" } }],
+    ["reserva de otro dueño", t, { ...ok, op: { ...ok.op, user_id: "u2" } }],
+    ["reserva de otro proveedor", t, { ...ok, op: { ...ok.op, provider: "elevenlabs" } }],
+    ["episodio de otro dueño", t, { ...ok, episode: { ...ok.episode, user_id: "u2" } }],
+    ["episodio en borrador", t, { ...ok, episode: { ...ok.episode, status: "draft" } }],
+    ["episodio fallido", t, { ...ok, episode: { ...ok.episode, status: "failed" } }],
+    ["sin importe autorizado", t, { ...ok, episode: { ...ok.episode, authorized_usd: null } }],
+    ["autorización reemplazada", t, { ...ok, episode: { ...ok.episode, authorized_at: "2026-10-28T19:00:00Z" } }],
+  ];
+  for (const [why, tk, f] of bad) assert.ok(ticketRefusal(tk, f), `debe rechazar: ${why}`);
+  // El adaptador real rechaza ANTES de la credencial y de la red: con FAL_KEY puesta, no llega a fal.
+  const prevKey = process.env.FAL_KEY; process.env.FAL_KEY = "clave-de-prueba";
+  let reads = 0;
+  const rc = realRecraftImages({ styleRefs: async () => { throw new Error("no debe pedir referencias"); }, readTicket: async () => { reads++; return { ...ok, op: { ...ok.op, state: "settled" } }; } });
+  const req = { prompt: "x", negative: "", aspect: "16:9" as const, attempt: 1 };
+  try {
+    await assert.rejects(rc.generate!(req, "/tmp/no-se-escribe.png"), (e: Error) => e.name === "ProviderRejectedError" && /sin comprobante/.test(e.message));
+    assert.equal(reads, 0, "sin comprobante ni siquiera se consulta la base");
+    await assert.rejects(rc.generate!(req, "/tmp/no-se-escribe.png", t), (e: Error) => e.name === "ProviderRejectedError" && /no está abierta/.test(e.message));
+    assert.equal(reads, 1);
+  } finally { if (prevKey === undefined) delete process.env.FAL_KEY; else process.env.FAL_KEY = prevKey; }
+});

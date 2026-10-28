@@ -292,6 +292,48 @@ async function partB() {
 const estimate0 = (m: Mode) => estimates.get(m.tag) ?? 5;
 const estimates = new Map<string, number>();
 
+// E. Recraft: la autorización duradera (proyecto + autorización + transacción) se comprueba contra las filas REALES del
+// libro y del episodio, con las mismas columnas que lee el worker. Sin FAL_KEY: un comprobante válido llega hasta la
+// comprobación de la credencial (y se detiene ahí, USD 0); cualquier comprobante inválido se rechaza antes.
+async function partE() {
+  console.log("== E. Recraft: autorización duradera contra la BD");
+  const { realRecraftImages } = await import("../../src/lib/podcast/v3/adapters");
+  const read = async (t: { transactionId: string; projectId: string }) => ({
+    op: (await q<{ key: string; episode_id: string; user_id: string; provider: string; state: string }>("select key,episode_id,user_id,provider,state from public.podcast_studio_operations where key=$1", [t.transactionId]))[0] ?? null,
+    episode: (await q<{ id: string; user_id: string; status: string; authorized_usd: number | null; authorized_at: string | null }>("select id,user_id,status,authorized_usd::float8 as authorized_usd,authorized_at::text as authorized_at from public.podcast_studio_episodes where id=$1", [t.projectId]))[0] ?? null });
+  const ep = randomUUID();
+  await db.query("insert into public.podcast_studio_episodes(id,user_id,title,mode,spec,status,authorized_usd,authorized_at) values ($1,$2,'recraft-auth','narracion','{\"version\":\"podcast-studio/3\"}','generating',5,now())", [ep, A]);
+  const at = String(await one("select authorized_at::text from public.podcast_studio_episodes where id=$1", [ep]));
+  const key = createHash("sha256").update(`recraft-auth:${ep}`).digest("hex");
+  const reserve = (k: string) => db.query("insert into public.podcast_studio_operations(key,user_id,episode_id,provider,op,state,reserved_usd) values ($1,$2,$3,'recraft','ilustracion','reserved',0.04)", [k, A, ep]);
+  // Con la política de suministro de Recraft apagada (como en producción hoy), la base no deja ni reservar.
+  const enabled = await one("select enabled from public.pi_supply_policies where provider='recraft'");
+  if (enabled === false) {
+    const e0 = await reserve(key).then(() => "", (e: Error) => e.message);
+    ok("E0 política «recraft» apagada: la base rechaza la reserva (ningún cargo posible)", /STUDIO_CAP: provider recraft disabled/.test(e0), e0.slice(0, 80));
+    // Solo en esta base desechable: activa con los topes de producción (USD 10/día, 50/mes).
+    await db.query("update public.pi_supply_policies set enabled=true, daily_cap_usd=10, monthly_cap_usd=50, max_concurrent=1, max_daily_calls=250 where provider='recraft'");
+  }
+  await reserve(key);
+  const prevKey = process.env.FAL_KEY; delete process.env.FAL_KEY;
+  const rc = realRecraftImages({ styleRefs: async () => [], readTicket: read });
+  const req = { prompt: "x", negative: "", aspect: "16:9" as const, attempt: 1 };
+  const why = (t?: Parameters<NonNullable<typeof rc.generate>>[2]) => rc.generate!(req, path.join(OUT, "no-se-escribe.png"), t).then(() => "LLAMÓ", (e: Error) => e.message);
+  const t = { projectId: ep, ownerId: A, provider: "recraft", authorizationRef: at, transactionId: key };
+  try {
+    ok("E1 comprobante válido (reserva abierta + autorización del episodio): pasa la autorización y se detiene en la credencial", /FAL_KEY/.test(await why(t)));
+    ok("E2 sin comprobante: rechazado", /sin comprobante/.test(await why()));
+    ok("E3 transacción inexistente: rechazado", /no existe/.test(await why({ ...t, transactionId: "f".repeat(64) })));
+    ok("E4 otro dueño: rechazado", /no corresponde/.test(await why({ ...t, ownerId: B })));
+    ok("E5 autorización distinta (reautorizado): rechazado", /no coincide/.test(await why({ ...t, authorizationRef: "2020-01-01T00:00:00Z" })));
+    await db.query("update public.podcast_studio_operations set state='settled', actual_usd=0.04 where key=$1", [key]);
+    ok("E6 reserva ya liquidada: no se vuelve a llamar", /no está abierta/.test(await why(t)));
+    await db.query("update public.podcast_studio_episodes set status='failed' where id=$1", [ep]);
+    await db.query("insert into public.podcast_studio_operations(key,user_id,episode_id,provider,op,state,reserved_usd) values ($1,$2,$3,'recraft','ilustracion','reserved',0.04)", ["e".repeat(64), A, ep]).catch(() => {});
+    ok("E7 episodio fallido: la base no deja reservar y el adaptador rechaza", /no (existe|está autorizado)/.test(await why({ ...t, transactionId: "e".repeat(64) })));
+  } finally { if (prevKey !== undefined) process.env.FAL_KEY = prevKey; }
+}
+
 async function main() {
   await mkdir(OUT, { recursive: true });
   await db.connect();
@@ -302,6 +344,7 @@ async function main() {
   try { await partC(); } catch (e) { ok("C sin excepción", false, (e as Error).stack?.slice(0, 400)); }
   try { await partD(); } catch (e) { ok("D sin excepción", false, (e as Error).stack?.slice(0, 400)); }
   try { await partB(); } catch (e) { ok("B sin excepción", false, (e as Error).stack?.slice(0, 600)); }
+  try { await partE(); } catch (e) { ok("E sin excepción", false, (e as Error).stack?.slice(0, 600)); }
   await db.end();
   await writeFile(path.join(OUT, "evidence.json"), JSON.stringify({ pass, fails, evidence }, null, 2));
   console.log(`RESULTADO ${pass}/${pass + fails.length} PASS`);

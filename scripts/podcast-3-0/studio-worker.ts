@@ -167,11 +167,18 @@ export async function runStudioJob(episodeId: string) {
     if (createHash("sha256").update(await readFile(f)).digest("hex") !== RVM_MODEL.sha256) throw new Error("RECORTE_MODELO_HUELLA");
     return f;
   };
+  const readTicket = async (t: import("../../src/lib/podcast/v3/cost").SpendTicket) => {
+    const [{ data: op }, { data: ep }] = await Promise.all([
+      service.from(STUDIO_OPS_TABLE).select("key,episode_id,user_id,provider,state").eq("key", t.transactionId).maybeSingle(),
+      service.from(STUDIO_TABLE).select("id,user_id,status,authorized_usd,authorized_at").eq("id", t.projectId).maybeSingle()]);
+    return { op: op ?? null, episode: ep ? { ...ep, authorized_usd: ep.authorized_usd == null ? null : Number(ep.authorized_usd) } : null };
+  };
   const providers = simulated ? mockProviders(Number.isInteger(rejectTtsCall) && rejectTtsCall > 0 ? { rejectTtsCall } : {}) : { tts: realTts(spec.language, rates?.voiceUsdPer1kChars), avatar: wrapped, readiness,
     // Recraft como proveedor de las ilustraciones (Pexels quedó fuera del estudio: sus etiquetas incluían las palabras de
     // la búsqueda y daban por pertinentes fotos ajenas). La pertinencia la decide el director visual mirando cada imagen.
     // Director visual local (CLIP, sin costo): la verificación mira cada imagen; no requiere un proveedor de pago.
-    images: realRecraftImages({ styleRefs }), director: localDirector({ dir }), matte: realMatter({ model: await matterModel() }) };
+    // Cada ilustración exige su comprobante: la reserva abierta en el libro y la autorización duradera del episodio.
+    images: realRecraftImages({ styleRefs, readTicket }), director: localDirector({ dir }), matte: realMatter({ model: await matterModel() }) };
   console.log("STUDIO_PROVIDERS", simulated ? "mock" : "real adapter (untested live)");
   // Avance real (progress.ts) + latido: mientras un proveedor trabaja sin informar (un clip de avatar tarda minutos), el
   // último avance se reescribe con la hora actual para que la página distinga «trabajando» de «sin noticias».
@@ -180,7 +187,7 @@ export async function runStudioJob(episodeId: string) {
   const progress = (p: import("../../src/lib/podcast/v3/progress").StudioProgress) => write(p);
   const beat = setInterval(() => { if (last) write({ ...last, updatedAt: new Date().toISOString() }); }, 45_000);
   try {
-    const r = await runEpisode(spec, { owner, episode: episodeId, dir, providers, small: simulated, ledger: supabaseStudioLedger(service, owner), guard: supabaseRunGuard(service), authorizedUsd: Number(row.authorized_usd), onProgress: progress, artifacts, rates });
+    const r = await runEpisode(spec, { owner, episode: episodeId, dir, providers, small: simulated, ledger: supabaseStudioLedger(service, owner), guard: supabaseRunGuard(service), authorizedUsd: Number(row.authorized_usd), authorizationRef: row.authorized_at ?? null, onProgress: progress, artifacts, rates });
     // Guardado: la última etapa; el 100 % solo llega con «ready», cuando el archivo ya está en el almacenamiento.
     const stages = stagesFor({ video: !!r.mp4, images: r.plan.shots.some((x) => !!x.asset_id), avatars: r.plan.shots.some((x) => /avatar|two_shot|over_shoulder/.test(x.kind)) });
     write(progressRecord(stages, "guardado", 0, r.mp4 ? 2 : 1));
