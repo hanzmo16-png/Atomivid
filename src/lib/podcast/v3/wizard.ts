@@ -3,6 +3,9 @@
 import type { Mood, StudioMode, StudioSet } from "./spec";
 
 export const WIZARD_STORAGE_KEY = "atomivid.podcast.asistente.v2";
+/** Tope por episodio que el servidor y la BD hacen cumplir (STUDIO_MAX_AUTHORIZED_USD en api.ts; CHECK ≤ 50 en 140000).
+ * El asistente lo aplica ya en «Presupuesto» para no dejar avanzar hasta un 402 al final del recorrido. */
+export const STUDIO_BUDGET_MAX_USD = 50;
 export const STEPS = ["Modalidad", "Tema", "Participantes", "Voces", "Avatares", "Música", "Visuales", "Presupuesto", "Vista previa", "Generación"] as const;
 export const STEP = { modalidad: 0, tema: 1, participantes: 2, voces: 3, avatares: 4, musica: 5, visuales: 6, presupuesto: 7, vista: 8, generacion: 9 } as const;
 /**
@@ -27,6 +30,25 @@ export type WizardDraft = {
   format: "16:9" | "9:16"; audioExport: "mp3" | "wav"; budgetUsd: number; authorized: boolean; episodeId: string | null; draftId?: string | null;
 };
 const P = (name: string): WizardParticipant => ({ name, role: "", gender: "neutro", style: "", personality: "", voice_id: "", voice_kind: "sintetica", avatar: { kind: "ninguno" } });
+
+/** Clon privado concedido → «clonada»; catálogo o id vacío → «sintetica». La UI y el envío usan la misma regla. */
+export function voiceKindFor(voiceId: string, catalog: readonly { voiceId: string; kind?: "sintetica" | "clonada" }[]): "sintetica" | "clonada" {
+  if (!voiceId) return "sintetica";
+  return catalog.find((v) => v.voiceId === voiceId)?.kind === "clonada" ? "clonada" : "sintetica";
+}
+
+export function withVoiceKinds(d: WizardDraft, catalog: readonly { voiceId: string; kind?: "sintetica" | "clonada" }[]): WizardDraft {
+  const participants = d.participants.map((p) => {
+    if (!p.voice_id) return p.voice_kind === "sintetica" ? p : { ...p, voice_kind: "sintetica" as const };
+    const known = catalog.find((v) => v.voiceId === p.voice_id);
+    // Catálogo vacío o aún sin esta voz: no degradar un clon ya guardado (un fallo al listar voces no debe reescribir el borrador).
+    if (!known) return p;
+    const voice_kind = known.kind === "clonada" ? "clonada" : "sintetica";
+    return voice_kind === p.voice_kind ? p : { ...p, voice_kind };
+  }) as WizardDraft["participants"];
+  if (participants.every((p, i) => p === d.participants[i])) return d;
+  return { ...d, participants };
+}
 export const defaultDraft = (): WizardDraft => ({ step: 0, modality: null, mode: null, language: "es", provider: "pexels", intensity: "media", intro: true, outro: true, ducking: true, title: "", topic: "", script: "", minutes: 5, count: 1, participants: [P("Anfitrión"), P("Invitado")],
   set: "estudio_oscuro", swap: false, subtitles: true, avatarFrequency: 0.5, avatarMaxSeconds: 20, recreations: true,
   musicEnabled: true, mood: "auto", volumeDb: -22, stings: true, ambient: "ninguno", format: "16:9", audioExport: "mp3", budgetUsd: 10, authorized: false, episodeId: null });
@@ -65,6 +87,7 @@ export function stepErrors(d: WizardDraft, step: number, ctx: { unavailableVoice
     if (pr && !pr.available) e.push(`${pr.reason ?? "Proveedor no disponible."} Elige otro proveedor (no se cambia automáticamente).`);
   }
   if (step === STEP.presupuesto && !(d.budgetUsd > 0)) e.push("Define un presupuesto máximo mayor que cero.");
+  if (step === STEP.presupuesto && d.budgetUsd > STUDIO_BUDGET_MAX_USD) e.push(`Por seguridad, un episodio no puede autorizar más de USD ${STUDIO_BUDGET_MAX_USD}. Baja el presupuesto o divide el episodio.`);
   if (step === STEP.generacion && !d.authorized) e.push("Marca la casilla para autorizar el cargo.");
   return e;
 }

@@ -106,3 +106,41 @@ test("tope duro de autorización por episodio (USD 50), aunque el presupuesto es
   assert.equal((await authorizeAction(d, "e1", { confirm: true, authorizedUsd: 60 })).status, 402); assert.equal(authorized, 0);
   assert.equal((await authorizeAction(d, "e1", { confirm: true, authorizedUsd: 50 })).status, 200); assert.equal(authorized, 1);
 });
+
+// Audit F3 (#200 @ 7153c35): a studio episode left «generating» by a lost runner (mark-failed never ran) could not be
+// retried from the API (409). Past the job timeout it is closed like mark-failed does, then the owner can retry.
+test("F3 runner perdido: «generating» más viejo que el timeout del job → markStale y reintento; uno reciente sigue en 409", async () => {
+  const { authorizeAction, STUDIO_RUNNER_MAX_MS } = await import("./api");
+  const spec = { version: STUDIO_VERSION, mode: "narracion", title: "T", script: "y".repeat(30), target_minutes: 1, participants: [{ id: "A", name: "A", voice_id: "voiceAnaHost1" }], visual: {}, music: {}, budget_usd: 10 };
+  const mk = (startedMsAgo: number) => {
+    let row: Record<string, unknown> = { id: "e1", user_id: "u1", status: "generating", estimated_usd: 1, spec, run_started_at: new Date(Date.now() - startedMsAgo).toISOString() };
+    const calls = { mark: 0, authorize: 0, dispatch: 0, before: "" };
+    const d = deps({
+      load: async () => row as never,
+      markStale: async (_id, before) => { calls.mark++; calls.before = before; row = { ...row, status: "failed" }; return true; },
+      authorize: async () => { calls.authorize++; return true; },
+      dispatch: async () => { calls.dispatch++; return true; },
+    });
+    return { d, calls };
+  };
+  const old = mk(STUDIO_RUNNER_MAX_MS + 60_000);
+  const r1 = await authorizeAction(old.d, "e1", { confirm: true, authorizedUsd: 2 });
+  assert.equal(r1.status, 200, JSON.stringify(r1.body));
+  assert.deepEqual([old.calls.mark, old.calls.authorize, old.calls.dispatch], [1, 1, 1]);
+  assert.ok(Date.parse(old.calls.before) <= Date.now() - STUDIO_RUNNER_MAX_MS + 1000, "CAS bound = job timeout");
+  const fresh = mk(50 * 60_000); // pasó el umbral de 45 min del run guard, pero el job (200 min) puede seguir vivo
+  const r2 = await authorizeAction(fresh.d, "e1", { confirm: true, authorizedUsd: 2 });
+  assert.equal(r2.status, 409);
+  assert.deepEqual([fresh.calls.mark, fresh.calls.authorize, fresh.calls.dispatch], [0, 0, 0]);
+  assert.ok(STUDIO_RUNNER_MAX_MS > 200 * 60_000, "más que el timeout de podcast-video.yml");
+});
+
+test("F3 el route implementa markStale como mark-failed: CAS generating→failed y reserved→uncertain (nunca released)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync("src/app/api/podcast/v3/[id]/route.ts", "utf8");
+  const m = src.slice(src.indexOf("markStale:"), src.indexOf("}, id, body);"));
+  assert.match(m, /\.eq\("status", "generating"\)/);
+  assert.match(m, /run_started_at\.lt\./);
+  assert.match(m, /state: "uncertain"/);
+  assert.doesNotMatch(m, /released/);
+});

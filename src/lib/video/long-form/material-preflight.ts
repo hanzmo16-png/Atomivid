@@ -22,13 +22,25 @@
 import type { FootageCandidate, FootageProvider } from "@/lib/providers/types";
 import { canonicalizeUrl } from "./asset-identity";
 import { allocateShotTypes, getGenerativeUnitCosts, limitsWithinAllocation, planShotsFromScript, strategyLimits, type AllocatedShot, type ProductionPlanBeatInput } from "./production-plan";
-import { usesAnchoredVisuals, usesVisualIdentity, type ProductionPlan, type ProductionPlanAllocation } from "./production-plan-types";
+import { planMaterialPromotions, usesAnchoredVisuals, usesVisualIdentity, type ProductionPlan, type ProductionPlanAllocation } from "./production-plan-types";
 import { screenCandidate, searchCandidatesStrict, selectionQueries } from "./stock-selection";
 import { requiresEvidence, requiresIdentity, type BeatVisual } from "./visual-intents";
 import type { VerifiedAssetRegistry } from "./verified-assets";
 
 export type MaterialShotStatus = "available" | "generatable" | "deterministic" | "nonexistent" | "temporary";
-export type MaterialShotVerdict = { shotId: string; plannedType: string; status: MaterialShotStatus; reason: string };
+export type MaterialShotVerdict = {
+  shotId: string;
+  plannedType: string;
+  status: MaterialShotStatus;
+  reason: string;
+  /**
+   * Solo en «nonexistent» por falta de candidato pertinente y único (no en escenas de identidad o prueba sin
+   * contrato): la escena admite imagen IA en una estrategia que la permite (material-plan.ts).
+   */
+  promotable?: boolean;
+};
+/** Caché de búsquedas gratuitas compartible entre estrategias (misma consulta, mismo modo → una sola búsqueda). */
+export type MaterialSearchCache = Map<string, Promise<FootageCandidate[]>>;
 export type MaterialPreflight = {
   status: "ok" | "unavoidable_gap" | "temporary_error";
   shots: MaterialShotVerdict[];
@@ -54,6 +66,8 @@ export async function materialAvailabilityPreflight(input: {
   completedStock?: (shotId: string) => Promise<{ sourceId?: string; canonicalUrl?: string } | null>;
   verifyEntityLink?: Parameters<typeof screenCandidate>[3]["verifyEntityLink"];
   verifyEvidenceLink?: Parameters<typeof screenCandidate>[3]["verifyEvidenceLink"];
+  /** Configurar: una caché para las tres estrategias. Ausente = una caché propia de esta comprobación. */
+  searchCache?: MaterialSearchCache;
 }): Promise<MaterialPreflight> {
   const { plan } = input;
   const anchored = usesAnchoredVisuals(plan);
@@ -62,10 +76,11 @@ export async function materialAvailabilityPreflight(input: {
   const limits = {
     ...limitsWithinAllocation(strategyLimits(plan.strategy, plan.estimatedVoiceCostUsd ?? 0, { aiVideoEnabled: input.aiVideoEnabled, units }), input.allocation),
     cinematic: usesVisualIdentity(plan),
+    promoteToImage: planMaterialPromotions(plan),
   };
   const allocated = allocateShotTypes(shots, narrationSeconds, limits);
 
-  const searchCache = new Map<string, Promise<FootageCandidate[]>>();
+  const searchCache: MaterialSearchCache = input.searchCache ?? new Map();
   let searches = 0;
   const search = (provider: FootageProvider, query: string, preferVideo: boolean, minDur: number) => {
     const key = `${provider.name}|${preferVideo ? "v" : "i"}|${query}`;
@@ -148,6 +163,7 @@ export async function materialAvailabilityPreflight(input: {
     return {
       ...base,
       status: "nonexistent",
+      promotable: true,
       reason: considered === 0
         ? "el proveedor no devolvió candidatos para esta intención"
         : `no existe material pertinente y único (${considered} evaluados, ${duplicates} ya reservados para otras escenas)`,
@@ -165,12 +181,15 @@ export async function materialAvailabilityPreflight(input: {
   };
 }
 
+/** Inicio estable del mensaje de LongFormMaterialUnavailableError (lo reconoce la reconfiguración, reconfigure-production.ts). */
+export const MATERIAL_UNAVAILABLE_PREFIX = "IMPEDIMENTO ANTES DE GASTAR: no existe material pertinente y único";
+
 /** Carencia INEVITABLE detectada antes de gastar: no se llama a voz, imágenes, video ni render. */
 export class LongFormMaterialUnavailableError extends Error {
   readonly recoverable = false;
   constructor(readonly missing: MaterialShotVerdict[]) {
     super(
-      `IMPEDIMENTO ANTES DE GASTAR: no existe material pertinente y único para ${missing.length} escena(s) del plan confirmado ` +
+      `${MATERIAL_UNAVAILABLE_PREFIX} para ${missing.length} escena(s) del plan confirmado ` +
         `(${missing.slice(0, 12).map((m) => `${m.shotId}: ${m.reason}`).join("; ")}${missing.length > 12 ? "; …" : ""}). ` +
         "No se ha llamado a ningún proveedor de pago (USD 0). Hace falta material verificado, otro proveedor aprobado o una adaptación editorial del plan.",
     );

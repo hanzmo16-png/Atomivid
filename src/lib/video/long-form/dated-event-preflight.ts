@@ -16,6 +16,8 @@
  * Una visual sin `quote` en un beat fechado se trata como anclada al pasaje fechado (fallo cerrado).
  */
 import { LongFormVisualQualityError } from "./visual-report";
+import { calendarDatesIn, sentences } from "./calendar-dates";
+export { calendarDatesIn } from "./calendar-dates";
 
 export const DATED_EVENT_EVIDENCE_REQUIRED = "DATED_EVENT_EVIDENCE_REQUIRED";
 
@@ -24,41 +26,15 @@ type VisualLike = { description?: unknown; quote?: unknown };
 
 export type DatedEventFinding = { beatId: string; date: string; sentence: string; visuals: string[] };
 
-const fold = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-
-const ES_MONTHS = "enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre";
-// «mar» queda fuera de las abreviaturas sueltas: en español es «el mar» («en el mar 20 barcos…»). Solo cuenta con
-// punto («Mar. 5») o con año («Mar 5, 2024»), igual que «may».
-const EN_MONTHS = "january|february|march|april|june|july|august|september|october|november|december|jan|feb|apr|jun|jul|aug|sept|sep|oct|nov|dec";
-const DATE_PATTERNS: RegExp[] = [
-  // «10 de mayo», «10 de mayo de 2024», «1.º de julio del 1969»
-  new RegExp(`\\b([0-3]?\\d)(?:\\.?º|\\.?o)?\\s+de\\s+(?:${ES_MONTHS})(?:\\s+(?:de|del)\\s+\\d{3,4})?\\b`, "g"),
-  // "May 10, 2024", "July 20th 1969", "Oct. 3" ("may" solo con año: también es un verbo)
-  new RegExp(`\\b(?:${EN_MONTHS})\\.?\\s+[0-3]?\\d(?:st|nd|rd|th)?(?:,?\\s+\\d{3,4})?\\b`, "g"),
-  /\bmay\s+[0-3]?\d(?:st|nd|rd|th)?,?\s+\d{4}\b/g,
-  /\bmar\.\s*[0-3]?\d(?:st|nd|rd|th)?\b/g,
-  /\bmar\s+[0-3]?\d(?:st|nd|rd|th)?,?\s+\d{4}\b/g,
-  // "10 May 2024", "20th of July 1969"
-  new RegExp(`\\b[0-3]?\\d(?:st|nd|rd|th)?\\s+(?:of\\s+)?(?:${EN_MONTHS}|may|mar)\\.?,?\\s+\\d{3,4}\\b`, "g"),
-  // ISO 2024-05-10
-  /\b\d{4}-[01]\d-[0-3]\d\b/g,
-];
-
-/** Fechas de calendario (día + mes) presentes en el texto, tal como aparecen (texto plegado). */
-export function calendarDatesIn(text: string): string[] {
-  const t = fold(text);
-  const found = new Set<string>();
-  for (const re of DATE_PATTERNS) for (const m of t.matchAll(re)) found.add(m[0].trim());
-  return [...found];
-}
-
-function sentences(narration: string): string[] {
-  return narration.split(/(?<=[.!?…])\s+/).map((s) => s.trim()).filter(Boolean);
-}
-
 /**
- * Escenas ilustrativas que quedarían ancladas a un pasaje con fecha de calendario.
+ * Escenas ilustrativas que se mostrarían sobre un pasaje con fecha de calendario.
  * Vacío = el guion no presenta ningún acontecimiento fechado como si lo mostrara.
+ *
+ * Una escena con cita literal anclada a la oración fechada NO cuenta: en la ruta v3 la planificación la convierte en
+ * tarjeta de texto del propio pasaje (visualsForBeat → datedPassage → shots.ts), nunca en imagen ilustrativa
+ * (54740b5a/Voyager: sin esto, todo documental con una fecha exacta se detenía en Configurar sin salida automática).
+ * Siguen bloqueando, fallo cerrado, las escenas SIN cita en un beat fechado y los beats fechados sin escenas: su
+ * imagen se derivaría del pasaje y nadie puede garantizar que se muestre como texto.
  */
 export function datedEventFindings(beats: readonly BeatLike[]): DatedEventFinding[] {
   const out: DatedEventFinding[] = [];
@@ -68,14 +44,12 @@ export function datedEventFindings(beats: readonly BeatLike[]): DatedEventFindin
     for (const sentence of sentences(beat.narration ?? "")) {
       const dates = calendarDatesIn(sentence);
       if (dates.length === 0) continue;
-      const folded = fold(sentence);
-      // Sin visuales declaradas, la escena se deriva del propio pasaje: siempre anclada (fallo cerrado).
-      const anchored = visuals.length === 0
+      const illustrative = visuals.length === 0
         ? ["(visual derivada del pasaje)"]
         : visuals
-            .filter((v) => typeof v.quote !== "string" || v.quote.trim() === "" || folded.includes(fold(v.quote).trim()))
+            .filter((v) => typeof v.quote !== "string" || v.quote.trim() === "")
             .map((v) => (typeof v.description === "string" && v.description) || "(visual sin descripción)");
-      if (anchored.length > 0) out.push({ beatId, date: dates[0], sentence, visuals: anchored });
+      if (illustrative.length > 0) out.push({ beatId, date: dates[0], sentence, visuals: illustrative });
     }
   });
   return out;

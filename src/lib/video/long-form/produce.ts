@@ -76,7 +76,7 @@ import { assertVisualQuality, buildVisualReport, LongFormVisualQualityError, typ
 import { VerifiedAssetRegistry } from "./verified-assets";
 import { MAX_TEXT_FALLBACK_RATIO, visualReleasePreflight } from "./visual-release-preflight";
 import { datedEventEvidenceBlockers, LongFormDatedEventEvidenceError } from "./dated-event-preflight";
-import { usesImpactDirection } from "./production-plan-types";
+import { planMaterialPromotions, usesImpactDirection } from "./production-plan-types";
 import { authorizeRequestBudget, requestSpend, storageAuthorizationStore, withRequestBudget, type AuthorizationStore, type RequestBudgetAuthorization, type RequestSpend } from "./request-budget";
 import type { PilotStageEstimate } from "./pilot-budget-envelope";
 import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
@@ -89,7 +89,7 @@ import { directSequenceScenes, sequenceShotsForSpan } from "./sequence-direction
 import { directImpactScenes, hookStatus } from "./impact-direction";
 import { ProductionBudget, supabaseBudgetStore, type BudgetStore } from "./production-budget";
 import { getPricingConfig } from "@/lib/billing/pricing";
-import { getLongFormBudget } from "./cost";
+import { getLongFormBudget, LONG_FORM_RENDER_JOB_TIMEOUT_MIN, longFormRenderCeilingUsd } from "./cost";
 import { conservativeUnits, conservativeWorstCaseUsd, loadObservedMax, productionHardCap, type ObservedMax } from "./spend-cap";
 import { supabaseShotAssetStore, type ShotAssetStore } from "./durable-shot-assets";
 import { createImageStyleContext, executeShot, type ImageStyleContext, type ShotExecution } from "./shot-executor";
@@ -504,6 +504,8 @@ export async function generateLongFormVideoFromScript({
     ...limitsWithinAllocation(strategyLimits(plan.strategy, plan.estimatedVoiceCostUsd ?? 0, { aiVideoEnabled, units }), allocation),
     // v4: el asignador no pide lo que el Director prohíbe (mismas reglas que al calcular el plan).
     cinematic: usesVisualIdentity(plan),
+    // Escenas sin archivo promovidas a imagen IA al configurar (ya dentro de la allocation confirmada).
+    promoteToImage: planMaterialPromotions(plan),
   };
   const allShots = timeline.beats.flatMap((b) => b.shots);
   // Recraft-first plans (image-priority.ts): the worker re-applies the SAME prioritization to the real-duration shots,
@@ -939,8 +941,5 @@ async function defaultScriptScopes(supabase: SupabaseClient, requestId: string):
   return [scope];
 }
 
-/** Minutos máximos del job de render long_form (timeout-minutes de .github/workflows/render.yml). */
-export const LONG_FORM_RENDER_JOB_TIMEOUT_MIN = 330;
-function renderCeilingUsd(): number {
-  return MAX_RENDER_ATTEMPTS * LONG_FORM_RENDER_JOB_TIMEOUT_MIN * getPricingConfig().renderUsdPerMinute;
-}
+export { LONG_FORM_RENDER_JOB_TIMEOUT_MIN };
+const renderCeilingUsd = longFormRenderCeilingUsd;

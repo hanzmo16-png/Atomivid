@@ -187,6 +187,44 @@ test("9: a killed worker becomes a persisted interrupted state, resumable, and a
   } finally { h.restore(); }
 });
 
+test("9c: with nobody on the page, the next worker step requeues a stopped invocation itself (same bounded budget)", async () => {
+  const mode: ProviderMode = { hangOn: "writer" };
+  const h = await harness(mode);
+  try {
+    let step: Promise<unknown> | null = null;
+    for (let i = 0; i < 5 && !step; i++) {
+      const p = runScriptJobStep(h.job.id, h.db);
+      const raced = await Promise.race([p, new Promise(r => setTimeout(() => r("hung"), 50))]);
+      if (raced === "hung") step = p;
+    }
+    assert.ok(step, "writer step is in flight");
+    // Still fresh: the worker only waits, it never steals a live invocation.
+    assert.equal((await runScriptJobStep(h.job.id, h.db)).state, "running");
+    // Vercel stopped it long ago (no progress for > 10 min): the next step recovers it, no owner action.
+    h.row().updated_at = new Date(Date.now() - STALE_RUNNING_MS - 60_000).toISOString();
+    mode.hangOn = undefined;
+    assert.equal(await h.work(), "completed");
+    assert.equal(h.row().resubmit_allowance, 1, "consumed one bounded re-submission, as «Reanudar» would");
+    // The dead invocation finally returns: fenced by run_token, it cannot overwrite anything.
+    h.provider.state.release();
+    await assert.rejects(step as Promise<unknown>, /ownership lost/);
+    assert.equal(h.row().status, "completed");
+    assert.equal(h.service.tables.video_requests.length, 1, "one approved script, no duplicate");
+  } finally { h.provider.state.release(); h.restore(); }
+});
+
+test("9d: automatic recovery honours the resubmit budget: with none left the job ends interrupted, not requeued", async () => {
+  const h = await harness();
+  try {
+    Object.assign(h.row(), { status: "running", resubmit_allowance: 2, retry_count: 2, updated_at: new Date(Date.now() - STALE_RUNNING_MS - 60_000).toISOString() });
+    const { recoverStaleRunningJob } = await import("./script-jobs");
+    assert.equal(await recoverStaleRunningJob(h.job.id, h.db), "interrupted");
+    assert.equal(h.row().status, "failed");
+    assert.equal(h.row().failure_kind, "interrupted");
+    assert.equal(h.provider.state.requests, 0, "no provider call");
+  } finally { h.restore(); }
+});
+
 test("9b: re-submission keys skip only uncertain rows and always reuse committed results", async () => {
   const store = memoryLedgerStore();
   const spec = () => ({ projectId: "documentary:x", shotId: "script:documentary:abc", provider: "anthropic", model: "m", method: "generate_script", inputFingerprint: {}, reservedUsd: 1 });

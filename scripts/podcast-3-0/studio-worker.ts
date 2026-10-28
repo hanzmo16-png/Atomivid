@@ -7,14 +7,37 @@ import { mkdir, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+/** Mismo interruptor que la app: PODCAST_V3_ENABLED=1, o el piloto del dueño (PODCAST_V3_OWNER_PILOT=0 lo apaga) para
+ *  episodios del dueño, verificado aquí de forma independiente: por PODCAST_V3_OWNER_USER_ID (secreto
+ *  INTERNAL_PRODUCTION_OWNER_USER_ID, si existe en GitHub) o, si no, preguntando a la app con una petición firmada (la app
+ *  sí conoce al dueño). Cualquier otra cuenta, error o falta de respuesta: no se genera ni se cobra. */
+export async function studioWorkerEnabled(episodeId: string, env: Record<string, string | undefined> = process.env,
+  deps: { ownerOf?: (id: string) => Promise<string | null>; askApp?: (userId: string) => Promise<boolean> } = {}): Promise<boolean> {
+  if (env.PODCAST_V3_ENABLED === "1") return true;
+  if (env.PODCAST_V3_OWNER_PILOT === "0" || !/^[0-9a-f-]{36}$/i.test(episodeId)) return false;
+  const ownerId = env.PODCAST_V3_OWNER_USER_ID?.trim().toLowerCase();
+  if (ownerId && !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(ownerId)) return false;
+  const read = deps.ownerOf ?? (async (id: string) => {
+    if (!env.SUPABASE_SERVICE_ROLE_KEY) return null;
+    const { createServiceClient } = await import("../../src/lib/supabase/service");
+    const { data } = await createServiceClient().from("podcast_studio_episodes").select("user_id").eq("id", id).maybeSingle();
+    return (data as { user_id?: string } | null)?.user_id ?? null;
+  });
+  const uid = (await read(episodeId))?.toLowerCase();
+  if (!uid) return false;
+  if (ownerId) return uid === ownerId;
+  const ask = deps.askApp ?? (async (u: string) => (await import("../../src/lib/podcast/v3/owner-check")).askAppIsStudioOwner(u, env));
+  return ask(uid);
+}
+
 export async function runStudioJob(episodeId: string) {
-  if (process.env.PODCAST_V3_ENABLED !== "1") {
+  if (!(await studioWorkerEnabled(episodeId))) {
     // App y worker desalineados (la app autorizó, el worker no tiene el interruptor): no se genera NI se cobra, y el
     // episodio no queda «autorizado» para siempre: pasa a «failed» con el motivo (se puede reintentar al alinear).
     console.log("STUDIO_DISABLED");
     if (/^[0-9a-f-]{36}$/i.test(episodeId) && process.env.SUPABASE_SERVICE_ROLE_KEY) {
       const { createServiceClient } = await import("../../src/lib/supabase/service");
-      await createServiceClient().from("podcast_studio_episodes").update({ status: "failed", error: "El estudio no está activado en el generador (PODCAST_V3_ENABLED). No se hizo ningún cargo.", updated_at: new Date().toISOString() }).eq("id", episodeId).eq("status", "authorized");
+      await createServiceClient().from("podcast_studio_episodes").update({ status: "failed", error: "El estudio no está activado en el generador para esta cuenta (interruptor o piloto del dueño). No se hizo ningún cargo.", updated_at: new Date().toISOString() }).eq("id", episodeId).eq("status", "authorized");
     }
     return;
   }
@@ -22,12 +45,13 @@ export async function runStudioJob(episodeId: string) {
   const { createServiceClient } = await import("../../src/lib/supabase/service");
   const { STUDIO_TABLE, STUDIO_OPS_TABLE, STUDIO_COLUMNS, supabaseStudioLedger, supabaseRunGuard } = await import("../../src/lib/podcast/v3/store");
   const { StudioSpec } = await import("../../src/lib/podcast/v3/spec");
-  const { runEpisode } = await import("../../src/lib/podcast/v3/pipeline");
+  const { runEpisode, studioRunErrorFailsEpisode } = await import("../../src/lib/podcast/v3/pipeline");
   const { lipTimeline, lipViolations, shotCoverage } = await import("../../src/lib/podcast/v3/studio");
   const { realTts, realAvatar, realImages } = await import("../../src/lib/podcast/v3/adapters");
   const { searchScenePhotos } = await import("../../src/lib/ai/footage");
   const { downloadToFile } = await import("../../src/lib/podcast/visual-assets");
   const { heygenAvatarProvider } = await import("../../src/lib/providers/avatar/heygen");
+  const { stillSource } = await import("../../src/lib/podcast/v3/still-source");
   const service = createServiceClient();
   const BUCKET = "videos";
   const { data: row } = await service.from(STUDIO_TABLE).select(STUDIO_COLUMNS).eq("id", episodeId).single();
@@ -59,9 +83,17 @@ export async function runStudioJob(episodeId: string) {
     const created = await heygenAvatarProvider.createAvatar({ photoBuffer: Buffer.from(await data.arrayBuffer()), mimeType: p.endsWith(".png") ? "image/png" : "image/jpeg", consentGiven: true } as never);
     return { ref: created.providerAvatarId, actualUsd: 0 };
   };
+  // Misma fuente que fetchStill (bucket y ruta del dueño); lectura gratuita antes de cualquier cargo.
+  const stillOf = async (ref: string) => stillSource(owner, ref, ref.startsWith("foto:") ? null : (await avatarRow(ref)).source_photo_path);
   const avatar = realAvatar({
+    checkStill: async (ref) => { const src = await stillOf(ref); const { data } = await service.storage.from(src.bucket).download(src.path); return !!data; },
     publishAudio: async (file) => { const p = await upload(`${base}/avatar-audio/${path.basename(file)}`, file, "audio/wav"); const { data } = await service.storage.from(BUCKET).createSignedUrl(p, 3600); if (!data?.signedUrl) throw new Error("SIGN"); return data.signedUrl; },
-    fetchStill: async (ref, dest) => { const p = ref.startsWith("foto:") ? ref.slice(5) : (await avatarRow(ref)).source_photo_path; if (!p || !p.startsWith(`${owner}/`)) throw new Error("Avatar sin foto fija disponible"); const { data } = await service.storage.from(BUCKET).download(p); if (!data) throw new Error("FOTO"); const { writeFile } = await import("node:fs/promises"); await writeFile(dest, Buffer.from(await data.arrayBuffer())); },
+    fetchStill: async (ref, dest) => {
+      // Wizard photo → «videos»; existing avatar → «avatar-uploads» (see still-source.ts). Owner-only path either way.
+      const src = await stillOf(ref);
+      const { data } = await service.storage.from(src.bucket).download(src.path); if (!data) throw new Error("FOTO");
+      const { writeFile } = await import("node:fs/promises"); await writeFile(dest, Buffer.from(await data.arrayBuffer()));
+    },
   });
   const wrapped = { ...avatar, prepare: preparePhoto, prepareUsd: 0, render: async (ref: string, a: string, s: number, d: string, m: number) => avatar.render(await resolveRef(ref), a, s, d, m) };
   // Saldo verificado ANTES de cualquier cargo (GET de facturación gratuitos; nunca generación).
@@ -96,8 +128,12 @@ export async function runStudioJob(episodeId: string) {
       const { writeFile } = await import("node:fs/promises"); await writeFile(dest, Buffer.from(await data.arrayBuffer()));
     },
   };
-  const providers = simulated ? mockProviders() : { tts: realTts(spec.language, rates?.voiceUsdPer1kChars), avatar: wrapped, readiness,
-    images: realImages({ searchPhotos: async (q) => (await searchScenePhotos(q, spec.format === "9:16" ? "portrait" : "landscape", spec.language)).map((c) => ({ id: c.sourceId, url: c.url, credit: c.photographer })), download: downloadToFile }) };
+  // Arnés: inyección de un rechazo (sin cargo) en la N-ésima voz; solo con proveedores simulados, nunca en producción.
+  const rejectTtsCall = Number(process.env.PODCAST_V3_MOCK_TTS_REJECT_CALL || 0);
+  const providers = simulated ? mockProviders(Number.isInteger(rejectTtsCall) && rejectTtsCall > 0 ? { rejectTtsCall } : {}) : { tts: realTts(spec.language, rates?.voiceUsdPer1kChars), avatar: wrapped, readiness,
+    // Pexels espera una región completa («es-ES»); con «es» la búsqueda en español no se interpreta (P1 real: un solo paisaje costero
+    // para un episodio sobre un cometa). La descripción de la foto se usa como etiqueta real de pertinencia.
+    images: realImages({ searchPhotos: async (q) => (await searchScenePhotos(q, spec.format === "9:16" ? "portrait" : "landscape", spec.language === "en" ? "en-US" : "es-ES")).map((c) => ({ id: c.sourceId, url: c.url, credit: c.photographer, description: c.description })), download: downloadToFile }) };
   console.log("STUDIO_PROVIDERS", simulated ? "mock" : "real adapter (untested live)");
   const progress = (stage: string, pct: number) => { void service.from(STUDIO_TABLE).update({ progress: { stage, pct }, updated_at: new Date().toISOString() }).eq("id", episodeId); };
   try {
@@ -110,6 +146,7 @@ export async function runStudioJob(episodeId: string) {
         lips: lipTimeline(r.plan).map((x) => ({ start: x.start, end: x.end, shot: x.shot, A: x.lips.A, B: x.lips.B })), lip_violations: lipViolations(lipTimeline(r.plan), r.timeline), coverage: shotCoverage(r.plan) }, error: null, updated_at: new Date().toISOString() }).eq("id", episodeId);
     console.log("STUDIO_READY", JSON.stringify({ usd: r.spentUsd, paid: r.paidOps, reused: r.reusedOps }));
   } catch (e) {
+    if (!studioRunErrorFailsEpisode(e)) { console.log("STUDIO_DUPLICATE"); return; }
     const msg = e instanceof Error ? e.message.slice(0, 400) : "Error";
     await service.from(STUDIO_TABLE).update({ status: "failed", error: msg, updated_at: new Date().toISOString() }).eq("id", episodeId);
     console.log("STUDIO_FAILED", e instanceof Error ? e.name : "unknown", e instanceof Error && "detail" in e ? String((e as { detail?: string }).detail ?? "").slice(0, 200) : "");

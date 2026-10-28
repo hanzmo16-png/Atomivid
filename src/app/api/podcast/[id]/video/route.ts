@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { podcastUser } from "@/lib/podcast/auth";
 import { loadOwnedEpisode } from "@/lib/podcast/server";
-import { cancelScheduledProduction, requestPodcastVideo } from "@/lib/podcast/video-jobs";
+import { cancelScheduledProduction, requestPodcastVideo, validatePodcastVideoRequest, type ProductionOptions } from "@/lib/podcast/video-jobs";
 import { episodeSpend, pendingNarration, readRunBudget } from "@/lib/podcast/pilot-server";
 import { narrationCapUsd } from "@/lib/podcast/pilot";
 import { ensurePodcastSpendAuthorization } from "@/lib/podcast/spend-authorization-open";
@@ -32,6 +32,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const spend = await episodeSpend(service, episode.id);
   const pending = await pendingNarration(service, episode);
   const runBudgetColumn = (await readRunBudget(service, episode.id)).available;
+  const options: ProductionOptions = { ...(budgetUsd === undefined ? {} : { budgetUsd }), scheduleAt, spentUsd: spend?.spentUsd ?? null, uncertainCharges: spend?.uncertain ?? 0,
+    pendingUsd: pending.usd, pendingChunks: pending.chunks, runBudgetUsd, runBudgetColumn };
+  // Audit F1 (#200): every pure refusal (budget 402, run limit 402, producing/uncertain 409, attempts 429, schedule 400)
+  // happens BEFORE the immutable spend authorization is opened, so a refused request never fixes its cap.
+  const check = validatePodcastVideoRequest(episode, options);
+  if (check.ok !== true) return NextResponse.json({ error: check.error }, { status: check.status });
   // PR #198: record the owner's approval (run limit ∧ what is left of the total budget) BEFORE dispatch, so the
   // worker's pi_submit_with_supply finds it. Only when there is something to pay; the DB keeps the final word.
   if (pending.usd > 0) {
@@ -41,7 +47,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const authz = await ensurePodcastSpendAuthorization(service, episode.id, episodeCapUsd, `app:production:${user.id}:${new Date().toISOString()}`, { neededUsd: approved });
     if (!authz.ok) return NextResponse.json({ error: authz.error }, { status: authz.status });
   }
-  const out = await requestPodcastVideo(service, episode, { ...(budgetUsd === undefined ? {} : { budgetUsd }), scheduleAt, spentUsd: spend?.spentUsd ?? null, uncertainCharges: spend?.uncertain ?? 0,
-    pendingUsd: pending.usd, pendingChunks: pending.chunks, runBudgetUsd, runBudgetColumn });
+  const out = await requestPodcastVideo(service, episode, options);
   return "error" in out ? NextResponse.json({ error: out.error }, { status: out.status }) : NextResponse.json(out, { status: 202 });
 }

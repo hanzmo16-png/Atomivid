@@ -1,0 +1,101 @@
+# YouTube Long Form — recorrido de cierre UI→MP4 16:9 con proveedores SIMULADOS. USD 0: no usa ningún secreto del
+# repositorio; todo corre en 127.0.0.1 (PostgreSQL 17 desechable + PostgREST, Next, worker real con adaptadores reales
+# redirigidos a mocks loopback, voz espeak-ng). La BD aplica las 51 migraciones y las propuestas #198/120000/130000/140000
+# (estado tras O1–O8) SOLO en el runner. Falla si alguna aserción falla, si hay menos aserciones de las esperadas, o si hay
+# un intento de salida hacia un proveedor real. Recraft y el Director Cinematográfico (área de Grok) no se ejercen.
+name: longform-e2e-cierre
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/longform-e2e-cierre.yml"
+      - "scripts/harness/e2e/longform-cierre/**"
+      - "scripts/harness/e2e/infra/**"
+      - "scripts/harness/e2e/worker-longform.ts"
+      - "src/lib/video/**"
+      - "src/lib/providers/**"
+      - "src/app/dashboard/long-form/**"
+      - "src/app/dashboard/videos/**"
+      - "src/app/api/long-form/**"
+      - "remotion/**"
+      - "supabase/migrations/**"
+      - "supabase/proposals/**"
+permissions:
+  contents: read
+concurrency:
+  group: longform-e2e-cierre-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    env:
+      CSP_OBSERVER_LOG: ${{ github.workspace }}/csp-observer.jsonl
+      NODE_OPTIONS: --require /tmp/csp-observer-loader.cjs
+      CI: "1"
+      E2E_HOME: ${{ github.workspace }}/.e2e-local
+      E2E_PGPORT: "55432"
+    steps:
+      - name: "Ensayo: cargador del observador de CSP (GitHub no permite NODE_OPTIONS en $GITHUB_ENV)"
+        run: printf '%s\n' 'try { require(process.env.GITHUB_WORKSPACE + "/scripts/harness/e2e/infra/csp-observer.cjs"); } catch {}' > /tmp/csp-observer-loader.cjs
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - name: Dependencias del sistema
+        timeout-minutes: 20
+        run: |
+          sudo rm -f /var/lib/man-db/auto-update
+          sudo apt-get -o Acquire::Retries=3 update -q
+          sudo apt-get install -yq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -yq --no-install-recommends postgresql-17 espeak-ng ffmpeg python3-numpy xz-utils fonts-dejavu-core
+          sudo systemctl stop postgresql || true
+          echo "PG_BIN=/usr/lib/postgresql/17/bin" >> "$GITHUB_ENV"
+      - run: npm ci --no-audit --no-fund
+      - name: Arnés local (PG, PostgREST, Chrome con H.264 de Remotion)
+        run: bash scripts/harness/e2e/infra/setup.sh
+      - name: Entorno Long Form (propuestas en BD desechable, mocks, worker, Next)
+        run: bash scripts/harness/e2e/longform-cierre/start-lf.sh
+      - name: Recorrido UI → MP4 (escritorio + Android) con fallo de proveedor e interrupción del worker
+        env: { OUT: "${{ github.workspace }}/.e2e-local/out/lf-cierre", LF_WAIT_MIN: "45" }
+        run: |
+          set -o pipefail
+          node scripts/harness/e2e/longform-cierre/run.cjs 2>&1 | tee lf-cierre.log
+          line=$(grep -E '^RESULTADO' lf-cierre.log | tail -1); echo "$line"
+          pass=$(echo "$line" | sed -E 's/^RESULTADO ([0-9]+) PASS.*/\1/')
+          echo "$line" | grep -Eq '^RESULTADO [0-9]+ PASS / 0 FAIL' || { echo "::error::recorrido con fallos: $line"; exit 1; }
+          [ "$pass" -ge 50 ] || { echo "::error::solo $pass aserciones (mínimo 50): el recorrido no llegó al final"; exit 1; }
+      - name: Ningún proveedor real contactado
+        if: always()
+        run: |
+          # next-intercept.cjs y worker-longform.ts rechazan (no envían) toda salida no local y la registran aquí.
+          [ -f "$E2E_HOME/logs/egress.jsonl" ] || { echo "sin intentos de salida registrados"; exit 0; }
+          grep -h 'egress_refused' "$E2E_HOME/logs/egress.jsonl" | sort -u || true
+          if grep -h 'egress_refused' "$E2E_HOME/logs/egress.jsonl" | grep -Eiq 'elevenlabs|pexels|fal\.(ai|run|media)|openai|anthropic|recraft|heygen|d-id|supabase\.co|stripe|wikimedia'; then
+            echo "::error::intento de salida hacia un proveedor real"; exit 1; fi
+      - name: Resumen (anotaciones, sin secretos)
+        if: always()
+        run: |
+          [ -f lf-cierre.log ] || exit 0
+          echo "::notice title=Long Form E2E::$(grep -E '^RESULTADO' lf-cierre.log | tail -1)"
+          grep -E '^(intento|NO PROBADO)' lf-cierre.log | head -12 | while read -r l; do echo "::notice title=detalle::${l:0:300}"; done
+          grep -E '^FAIL' lf-cierre.log | head -8 | while read -r l; do echo "::warning title=fallo::${l:0:300}"; done
+      - name: Evidencia (sin secretos)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: longform-e2e-cierre
+          retention-days: 14
+          path: |
+            lf-cierre.log
+            .e2e-local/out/lf-cierre/**
+            .e2e-local/logs/egress.jsonl
+            .e2e-local/logs/mock-lf.jsonl
+            .e2e-local/logs/dispatches.jsonl
+            .e2e-local/logs/worker-*.log
+      - name: "Ensayo: resumen de CSP (aplicada = FAIL; informe = aviso)"
+        if: always()
+        run: |
+          f="$GITHUB_WORKSPACE/csp-observer.jsonl"; [ -f "$f" ] || { echo "::error title=csp-e2e::sin registro del observador (no se cargó)"; exit 1; }
+          node -e 'const A=require("fs").readFileSync(process.argv[1],"utf8").trim().split("\n").filter(Boolean).map(JSON.parse);const pages=A.filter(x=>x.kind==="page").length,L=A.filter(x=>x.kind!=="page");const e=L.filter(x=>!x.report),r=L.filter(x=>x.report);if(!pages){console.log("::error title=csp-e2e::el observador no vio ninguna página (no se cargó)");process.exit(1)}const u=(a)=>[...new Set(a.map(x=>x.script+" · "+x.text.slice(0,160)))].slice(0,6).join("%0A");console.log("::notice title=csp-e2e::páginas observadas="+pages+" aplicada="+e.length+" informe="+r.length+(r.length?"%0A"+u(r):""));if(e.length){console.log("::error title=csp-e2e::la CSP APLICADA bloqueó algo%0A"+u(e));process.exit(1)}' "$f"

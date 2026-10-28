@@ -104,6 +104,7 @@ test("música: ducking desactivable, intro y outro controlables; −16 LUFS es e
 test("asistente: 10 pasos en el orden pedido, persistencia y modalidades visibles", () => {
   assert.deepEqual([...STEPS], ["Modalidad", "Tema", "Participantes", "Voces", "Avatares", "Música", "Visuales", "Presupuesto", "Vista previa", "Generación"]);
   assert.equal(modalityToMode("audio"), "narracion");
+  assert.equal(defaultDraft().provider, "pexels", "Recraft no se preselecciona: el default es Pexels, disponible sin FAL");
   const d = { ...defaultDraft(), step: STEP.musica, modality: "dialogo" as const, mode: "dialogo" as const, count: 2 as const, intensity: "alta" as const, ducking: false, provider: "pexels" as const };
   const back = loadDraft(JSON.stringify(d));
   assert.equal(back.step, STEP.musica); assert.equal(back.intensity, "alta"); assert.equal(back.ducking, false);
@@ -123,4 +124,81 @@ test("costos: estimación por modo para un episodio de 10 minutos (desglose por 
   assert.equal(audio.byProvider.HeyGen, 0);
   assert.ok(one.avatarSeconds > 0 && one.avatarSeconds <= 600 * 0.5 + 30, "avatar en segmentos cortos (≈50% de turnos, tope 20 s)");
   assert.equal(syntheticTurns(10, true).length, 20);
+});
+
+test("asistente: el presupuesto por encima del tope del servidor se rechaza en «Presupuesto», no con un 402 al final", async () => {
+  const { STUDIO_BUDGET_MAX_USD } = await import("./wizard");
+  const { STUDIO_MAX_AUTHORIZED_USD } = await import("./api");
+  assert.equal(STUDIO_BUDGET_MAX_USD, STUDIO_MAX_AUTHORIZED_USD, "el tope del asistente es el mismo que hace cumplir el servidor");
+  const d = { ...defaultDraft(), budgetUsd: STUDIO_MAX_AUTHORIZED_USD + 10 };
+  assert.ok(stepErrors(d, STEP.presupuesto, { unavailableVoices: [] }).some((e) => /no puede autorizar más de USD 50/.test(e)));
+  assert.deepEqual(stepErrors({ ...d, budgetUsd: STUDIO_MAX_AUTHORIZED_USD }, STEP.presupuesto, { unavailableVoices: [] }), []);
+});
+
+// Piloto del dueño (cierre 2026-10-27): sin PODCAST_V3_ENABLED, el estudio genera SOLO para INTERNAL_PRODUCTION_OWNER_USER_ID.
+test("owner pilot: only the internal owner (email confirmed) gets the studio; PODCAST_V3_OWNER_PILOT=0 turns it off", async () => {
+  const { studioOwnerPilot, studioGenerationEnabled, studioFlag } = await import("./studio");
+  const OWNER = "11111111-2222-4333-8444-555555555555";
+  const env = { INTERNAL_PRODUCTION_OWNER_USER_ID: OWNER };
+  const owner = { id: OWNER, email_confirmed_at: "2026-01-01T00:00:00Z" };
+  assert.equal(studioGenerationEnabled(owner, env), true);
+  assert.equal(studioFlag(env, owner).source, "owner");
+  assert.equal(studioGenerationEnabled({ id: "99999999-2222-4333-8444-555555555555", email_confirmed_at: "2026-01-01T00:00:00Z" }, env), false, "another account");
+  assert.equal(studioGenerationEnabled({ id: OWNER, email_confirmed_at: null }, env), false, "unconfirmed email");
+  assert.equal(studioGenerationEnabled(null, env), false);
+  assert.equal(studioGenerationEnabled(owner, {}), false, "no owner configured");
+  assert.equal(studioOwnerPilot(owner, { ...env, PODCAST_V3_OWNER_PILOT: "0" }), false, "kill switch");
+  assert.equal(studioFlag({ ...env, PODCAST_V3_OWNER_PILOT: "0" }, owner).enabled, false);
+  assert.equal(studioGenerationEnabled({ id: "99999999-2222-4333-8444-555555555555" }, { PODCAST_V3_ENABLED: "1" }), true, "global switch unchanged");
+});
+
+test("owner pilot in the worker: only the owner's episodes run with the switch off (owner id, or the app's signed answer)", async () => {
+  const { studioWorkerEnabled } = await import("../../../../scripts/podcast-3-0/studio-worker");
+  const OWNER = "11111111-2222-4333-8444-555555555555", OTHER = "99999999-2222-4333-8444-555555555555", EP = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+  let reads = 0, asks = 0;
+  const of = (id: string | null) => async () => { reads++; return id; };
+  const app = (answer: boolean) => async () => { asks++; return answer; };
+  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: OWNER }, { ownerOf: of(OWNER), askApp: app(false) }), true, "owner id configured: compared locally");
+  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: OWNER.toUpperCase() }, { ownerOf: of(OWNER) }), true, "case-insensitive");
+  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: OWNER }, { ownerOf: of(OTHER), askApp: app(true) }), false, "another account (the app is not asked)");
+  assert.equal(asks, 0);
+  assert.equal(await studioWorkerEnabled(EP, {}, { ownerOf: of(OWNER), askApp: app(true) }), true, "no owner id: the app confirms the owner");
+  assert.equal(await studioWorkerEnabled(EP, {}, { ownerOf: of(OTHER), askApp: app(false) }), false, "no owner id: the app says not the owner");
+  assert.equal(await studioWorkerEnabled(EP, {}, { ownerOf: of(null), askApp: app(true) }), false, "episode not found");
+  reads = 0; asks = 0;
+  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_PILOT: "0" }, { ownerOf: of(OWNER), askApp: app(true) }), false, "kill switch");
+  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_OWNER_USER_ID: "not-a-uuid" }, { ownerOf: of(OWNER), askApp: app(true) }), false, "malformed owner id");
+  assert.equal(await studioWorkerEnabled("not-an-id", {}, { ownerOf: of(OWNER), askApp: app(true) }), false);
+  assert.equal(reads + asks, 0, "no lookup when the pilot cannot apply");
+  assert.equal(await studioWorkerEnabled(EP, { PODCAST_V3_ENABLED: "1" }, { ownerOf: of(null) }), true, "global switch unchanged");
+});
+
+test("owner check: signed request bound to the account; any error or other answer fails closed", async () => {
+  const { askAppIsStudioOwner, validStudioOwnerSignature, studioOwnerSignature, STUDIO_OWNER_PATH } = await import("./owner-check");
+  const KEY = "k".repeat(40), U = "11111111-2222-4333-8444-555555555555", N = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", T = String(Date.now());
+  assert.equal(validStudioOwnerSignature(KEY, U, N, T, studioOwnerSignature(KEY, U, N, T)), true);
+  assert.equal(validStudioOwnerSignature(KEY, "99999999-2222-4333-8444-555555555555", N, T, studioOwnerSignature(KEY, U, N, T)), false, "signature bound to the account");
+  assert.equal(validStudioOwnerSignature(KEY, U, N, String(Date.now() - 600_000), studioOwnerSignature(KEY, U, N, String(Date.now() - 600_000))), false, "expired");
+  assert.equal(validStudioOwnerSignature("short", U, N, T, studioOwnerSignature("short", U, N, T)), false, "weak secret");
+  let seen: { url: string; ok: boolean } | null = null;
+  const f = (owner: unknown, status = 200) => (async (url: string, init: RequestInit) => { const h = init.headers as Record<string, string>; seen = { url, ok: validStudioOwnerSignature(KEY, U, h["x-probe-nonce"], h["x-probe-time"], h["x-probe-signature"]) }; return new Response(JSON.stringify({ owner }), { status }); }) as unknown as typeof fetch;
+  assert.equal(await askAppIsStudioOwner(U, { SUPABASE_SERVICE_ROLE_KEY: KEY }, f(true)), true);
+  assert.ok(seen!.ok && seen!.url.endsWith(STUDIO_OWNER_PATH), "the request is signed for this account");
+  assert.equal(await askAppIsStudioOwner(U, { SUPABASE_SERVICE_ROLE_KEY: KEY }, f(false)), false);
+  assert.equal(await askAppIsStudioOwner(U, { SUPABASE_SERVICE_ROLE_KEY: KEY }, f("yes")), false, "only a literal true counts");
+  assert.equal(await askAppIsStudioOwner(U, { SUPABASE_SERVICE_ROLE_KEY: KEY }, f(true, 401)), false, "HTTP error");
+  assert.equal(await askAppIsStudioOwner(U, { SUPABASE_SERVICE_ROLE_KEY: KEY }, (async () => { throw new Error("down"); }) as unknown as typeof fetch), false, "network error");
+  assert.equal(await askAppIsStudioOwner(U, {}, f(true)), false, "no key");
+});
+
+test("still photo source: wizard photo from «videos», existing avatar from «avatar-uploads»; never another account's path", async () => {
+  // Regresión P2 real (episodio 0de4b445): la foto de un avatar existente se buscaba en «videos» y el episodio falló con «FOTO».
+  const { stillSource, STUDIO_BUCKET } = await import("./still-source");
+  const { RECORDING_BUCKET } = await import("@/lib/video/avatar/recording");
+  const owner = "0f8fad5b-d9cb-469f-a165-70867728950e";
+  assert.deepEqual(stillSource(owner, `foto:${owner}/podcast-studio/photos/a.jpg`, null), { bucket: STUDIO_BUCKET, path: `${owner}/podcast-studio/photos/a.jpg` });
+  assert.deepEqual(stillSource(owner, "avatar-row-id", `${owner}/avatars/photo.jpg`), { bucket: RECORDING_BUCKET, path: `${owner}/avatars/photo.jpg` });
+  assert.equal(RECORDING_BUCKET, "avatar-uploads");
+  for (const [ref, photo] of [["avatar-row-id", null], ["avatar-row-id", "otra-cuenta/avatars/p.jpg"], [`foto:otra-cuenta/x.jpg`, null], ["avatar-row-id", `${owner}/../otra/p.jpg`]] as const)
+    assert.throws(() => stillSource(owner, ref, photo), /Avatar sin foto fija/, `${ref} ${photo}`);
 });

@@ -10,12 +10,16 @@ import { getSignedVideoUrl } from "@/lib/storage/signed-url";
 import { selectIfOwned, type OwnedRequestRow } from "@/lib/video/access";
 import { ResultView } from "@/components/video/ResultView";
 import { createServiceClient } from "@/lib/supabase/service";
+import { closeExhaustedStaleAttempt } from "@/lib/video/exhausted-attempt";
+import { EXHAUSTED_ATTEMPT_CLOSED } from "@/lib/video/start-outcome";
 import { loadAvatarRecovery } from "@/lib/video/avatar/recovery";
 import { Alert } from "@/components/ui/Alert";
 import { AutoRefresh } from "@/app/dashboard/AutoRefresh";
 import { cinematicDirectorRenderEnabled } from "@/lib/video/director/flag";
 import { loadDirectorApplied, loadDirectorRequested } from "@/lib/video/director-applied";
 import { DirectorAppliedPanel } from "@/components/video/DirectorAppliedPanel";
+import { ReconfigureAfterMaterialGap } from "@/components/video/ReconfigureAfterMaterialGap";
+import { isMaterialUnavailableFailure } from "@/lib/video/long-form/reconfigure-production";
 
 export default async function VideoResultPage({
   params,
@@ -70,6 +74,10 @@ export default async function VideoResultPage({
   if (!request) {
     notFound();
   }
+  // Intento colgado sin intentos restantes: estado final aquí mismo (antes quedaba «processing» para siempre).
+  if ((await closeExhaustedStaleAttempt(createServiceClient(), request).catch(() => "changed" as const)) === "closed") {
+    Object.assign(request, { status: "failed", progress_stage: null, error_message: EXHAUSTED_ATTEMPT_CLOSED });
+  }
 
   const videoUrl =
     request.status === "completed" && request.video_path
@@ -108,6 +116,10 @@ export default async function VideoResultPage({
           supportRequired={request.status === "failed" && Boolean(request.error_message) && describeStoredFailure(request.error_message!).action === "support"} />
         <ResultView request={request} videoUrl={videoUrl} thumbnailUrl={thumbnailUrl} thumbnailRequested={thumbnailRequested} nowMs={nowMs} avatarRecovery={avatarRecovery} />
       </StartOutcomeProvider>
+      {/* Long Form stopped for missing material before any spend: offer Configure again (the server re-checks spend). */}
+      {request.mode === "long_form" && request.status === "failed" && isMaterialUnavailableFailure(request.error_message) && (
+        <ReconfigureAfterMaterialGap requestId={request.id} />
+      )}
       {directorRows && directorRows.length > 0 && <DirectorAppliedPanel rows={directorRows} />}
       {directorRequested && (!directorRows || directorRows.length === 0) && (
         <p role="status" className="my-4 rounded-lg border border-border bg-surface p-4 text-sm text-ink-muted" data-testid="director-no-evidence">

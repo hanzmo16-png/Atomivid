@@ -2,14 +2,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { StudioSpec, STUDIO_VERSION, validateSpec, voiceAvailability, EL_DURO_VOICE_ID } from "./spec";
-import { parseLabeledScript, narrationTurns, generateConversation, templateConversation, coherenceIssues } from "./script";
+import { parseLabeledScript, narrationTurns, narrationSegments, NARRATION_SEGMENT_WORDS, generateConversation, templateConversation, coherenceIssues } from "./script";
 import { planEpisode, planIssues, pickAsset, type VisualAsset } from "./editorial";
 import { estimateEpisodeCost, MemoryLedger, paidOnce, opKey, committedUsd, releaseUndelivered, ProviderRejectedError, BudgetExceededError, UnauthorizedChargeError, UncertainChargeError } from "./cost";
 import { mixGraph, transitionTimes } from "./audio";
-import { shotFrames, wrap, subtitlePages, FPS } from "./compose";
+import { shotFrames, wrap, subtitlePages, textLines, FPS } from "./compose";
+import { realImages } from "./adapters";
 import { autoMood, trackExpression, BUNDLED_TRACKS, licenseManifest, V2_MOOD_MAP } from "./music-library";
-import { defaultDraft, loadDraft, stepErrors, draftToSpec, draftToV2 } from "./wizard";
-import { studioAction, authorizeAction, type ApiDeps } from "./api";
+import { defaultDraft, loadDraft, stepErrors, draftToSpec, draftToV2, withVoiceKinds, STEP } from "./wizard";
+import { studioAction, authorizeAction, episodeAction, type ApiDeps } from "./api";
 import { turnsFor } from "./pipeline";
 import type { AccountVoice } from "@/lib/podcast/voices";
 
@@ -37,8 +38,26 @@ test("spec: El Duro sin concesión aparece como NO disponible (no se oculta ni s
   const list = voiceAvailability(VOICES, OWNER, {});
   const d = list.find((v) => v.voiceId === EL_DURO_VOICE_ID);
   assert.equal(d?.available, false);
-  assert.equal(voiceAvailability(VOICES, OWNER, GRANT).find((v) => v.voiceId === EL_DURO_VOICE_ID)?.available, true);
+  assert.match(d?.note ?? "", /No disponible: requiere autorización \(PRIVATE_VOICE_GRANTS\)/);
+  const granted = voiceAvailability(VOICES, OWNER, GRANT).find((v) => v.voiceId === EL_DURO_VOICE_ID);
+  assert.equal(granted?.available, true);
+  assert.equal(granted?.kind, "clonada", "con concesión el dueño la elige como voz clonada");
   assert.equal(voiceAvailability(VOICES, { ...OWNER, email: "otra@example.com" }, GRANT).some((v) => v.voiceId === EL_DURO_VOICE_ID), false, "concedida a otra cuenta: oculta");
+});
+
+test("asistente: El Duro concedido se guarda voice_kind clonada; sin concesión no se puede avanzar; otra voz sigue sintética", () => {
+  const catalog = voiceAvailability(VOICES, OWNER, GRANT);
+  const base = defaultDraft();
+  const picked = withVoiceKinds({ ...base, modality: "avatar", mode: "avatar", count: 1, title: "T", script: "x".repeat(30), participants: [{ ...base.participants[0], voice_id: EL_DURO_VOICE_ID, voice_kind: "sintetica" }, base.participants[1]] }, catalog);
+  assert.equal(picked.participants[0].voice_kind, "clonada");
+  assert.equal(draftToSpec(picked).participants[0].voice_kind, "clonada");
+  const synth = withVoiceKinds({ ...picked, participants: [{ ...picked.participants[0], voice_id: "voiceAnaHost1", voice_kind: "clonada" }, picked.participants[1]] }, catalog);
+  assert.equal(synth.participants[0].voice_kind, "sintetica");
+  assert.equal(withVoiceKinds(picked, catalog), picked, "si el tipo ya es correcto no se clona el borrador");
+  assert.equal(withVoiceKinds(picked, []), picked, "un catálogo vacío no borra el clon ya guardado");
+  const off = voiceAvailability(VOICES, OWNER, {});
+  assert.equal(off.find((v) => v.voiceId === EL_DURO_VOICE_ID)?.available, false);
+  assert.ok(stepErrors({ ...base, participants: [{ ...base.participants[0], voice_id: EL_DURO_VOICE_ID }, base.participants[1]] }, STEP.voces, { unavailableVoices: off.filter((v) => !v.available).map((v) => v.voiceId) }).some((e) => /no está disponible/));
 });
 
 test("spec: foto sin consentimiento explícito no pasa el esquema", () => {
@@ -61,6 +80,26 @@ test("guion: etiquetas de hablante (nombres, A/B, [B], guiones) → turnos A/B c
 test("guion: narración con dos voces alterna por párrafo", () => {
   assert.deepEqual(narrationTurns("uno\n\ndos\n\ntres", 2).map((t) => t.speaker), ["A", "B", "A"]);
   assert.deepEqual(narrationTurns("uno\n\ndos", 1).map((t) => t.speaker), ["A", "A"]);
+});
+
+test("guion: un párrafo largo de narración se divide en segmentos de oraciones completas (un plano por segmento)", () => {
+  // Regresión P1 real (episodio 938479f1): un párrafo de ~55 s quedó en UN turno y por tanto con UNA sola imagen.
+  const para = "El cometa interestelar cruzó nuestro sistema solar. Viajaba demasiado rápido para estar atado al Sol, y su brillo cambiaba de forma inesperada. Primero, la velocidad: más de cincuenta kilómetros por segundo. Segundo, la forma: alargada, quizá aplanada. Tercero, el gas: casi invisible. Cada dato cuenta una parte de la historia, y juntos dibujan un visitante que no se parece a nada de lo que conocíamos. Lo que sí sabemos es que vino de otra estrella y que ya se aleja para siempre.";
+  const turns = narrationTurns(para, 1);
+  assert.ok(turns.length >= 3, `${turns.length} segmentos`);
+  assert.equal(turns.map((t) => t.text).join(" "), para, "no se pierde ni se altera texto");
+  assert.ok(turns.every((t) => /[.!?…]$/.test(t.text)), "cada segmento termina en oración completa");
+  assert.ok(turns.every((t) => t.text.split(" ").length <= NARRATION_SEGMENT_WORDS), "≤ máximo de palabras");
+  assert.deepEqual(new Set(turns.map((t) => t.id)).size, turns.length, "ids únicos");
+  // Dos voces: los segmentos de un mismo párrafo conservan la voz del párrafo.
+  assert.deepEqual([...new Set(narrationTurns(`${para}\n\nCorto.`, 2).map((t) => t.speaker))], ["A", "B"]);
+  assert.deepEqual(narrationSegments("Una sola oración sin punto final"), ["Una sola oración sin punto final"]);
+});
+
+test("imágenes reales: la descripción de la foto entra en las etiquetas de pertinencia", async () => {
+  const imgs = realImages({ searchPhotos: async () => [{ id: 7, url: "u", description: "Comet over a night sky" }], download: async () => {} });
+  const [a] = await imgs.search("cometa interestelar");
+  assert.ok(a.tags.includes("comet") && a.tags.includes("cometa"), a.tags.join(","));
 });
 
 test("generador: LLM simulado coherente se usa; si falla o es incoherente, plantilla determinista", async () => {
@@ -180,6 +219,8 @@ test("composición: fotogramas acumulados = duración del audio (sincronía A/V)
   assert.equal(pages.join(" ").replace(/\n/g, " ").split(" ").length, 60);
   assert.ok(pages.every((p) => p.split("\n").length <= 2));
   assert.equal(wrap("a b c", 100), "a b c");
+  // Regresión P1 real: cada línea va en su propio drawtext (el salto de línea dentro de un textfile se dibujaba como «□»).
+  assert.ok(textLines(long, 40).every((l) => !l.includes("\n") && l.length <= 40));
 });
 
 test("asistente: borrador persistente tolerante, validación por paso y especificación", () => {
@@ -214,6 +255,21 @@ test("API: guion por plantilla sin LLM; estimación gratis; crear con estudio ap
   assert.equal((await studioAction(deps(), { action: "create", ...body() })).status, 200);
 });
 
+test("API: El Duro concedido se guarda clonada para el dueño; otra cuenta y sin concesión se rechazan", async () => {
+  const duro = spec({ mode: "avatar", participants: [{ id: "A", name: "Hans", voice_id: EL_DURO_VOICE_ID, voice_kind: "sintetica", avatar: { kind: "existente", avatar_id: "a" } }] });
+  const captured: { spec: { participants: { voice_kind: string }[] } | null } = { spec: null };
+  const owner = await studioAction(deps({ env: GRANT, insert: async (row) => { const specRow = row.spec; if (specRow && typeof specRow === "object" && "participants" in specRow) captured.spec = specRow as { participants: { voice_kind: string }[] }; return { id: "11111111-1111-4111-8111-111111111111" }; } }), { action: "create", ...body(duro) });
+  assert.equal(owner.status, 200, JSON.stringify(owner.body));
+  assert.ok(captured.spec, "el episodio guardado incluye la especificación");
+  assert.equal(captured.spec.participants[0].voice_kind, "clonada");
+  const other = await studioAction(deps({ env: GRANT, viewer: { ...OWNER, email: "otra@example.com" } }), { action: "create", ...body(duro) });
+  assert.equal(other.status, 400);
+  assert.match(String(other.body.error), /El Duro|no está disponible|no autorizada/);
+  const off = await studioAction(deps({ env: {} }), { action: "create", ...body(duro) });
+  assert.equal(off.status, 400);
+  assert.match(String(off.body.error), /no está autorizada/);
+});
+
 test("API: aislamiento — foto o avatar de otra cuenta → 403", async () => {
   const foreign = spec({ participants: [{ id: "A", name: "Ana", voice_id: "voiceAnaHost1", avatar: { kind: "foto", photo_path: "otro/podcast-studio/photos/x.jpg", consent: { given: true, at: "x", text: "consentimiento explícito" } } }, { id: "B", name: "Luis", voice_id: "voiceLuisGuest", avatar: { kind: "existente", avatar_id: "a2" } }] });
   assert.equal((await studioAction(deps(), { action: "create", ...body(foreign) })).status, 403);
@@ -231,4 +287,117 @@ test("API: autorizar exige confirmación explícita, monto ≥ estimación y ≤
   assert.equal((await authorizeAction(D({ load: async () => ({ ...row, user_id: "otro" }) as never }), "e1", { confirm: true, authorizedUsd: 2 })).status, 404);
   const ok = await authorizeAction(D(), "e1", { confirm: true, authorizedUsd: 2 });
   assert.equal(ok.status, 200); assert.equal(ok.body.dispatched, true);
+});
+
+test("API: autorizado sin arranque se re-despacha sin volver a autorizar ni cambiar el monto", async () => {
+  const row = { id: "e1", user_id: "u1", title: "T", mode: "dialogo", spec: spec(), status: "authorized", estimate: {}, estimated_usd: 1, authorized_usd: 2, authorized_at: "t", run_started_at: null, progress: null, result: null, video_path: null, audio_path: null, cost_usd: null, error: null, created_at: "", updated_at: "" };
+  let authorized = 0, dispatches = 0;
+  const d = deps({ load: async () => ({ ...row }) as never, authorize: async () => { authorized++; return true; }, dispatch: async () => { dispatches++; return false; } });
+  const missing = await authorizeAction(d, "e1", {});
+  assert.equal(missing.status, 400); assert.equal(authorized, 0); assert.equal(dispatches, 0);
+  const again = await authorizeAction(d, "e1", { confirm: true, authorizedUsd: 50 });
+  assert.equal(again.status, 200); assert.equal(again.body.dispatched, false); assert.equal(authorized, 0); assert.equal(dispatches, 1);
+  assert.match(String(again.body.note), /no se cobra dos veces/);
+  const started = await authorizeAction(deps({ load: async () => ({ ...row, run_started_at: "t" }) as never, dispatch: async () => { dispatches++; return true; } }), "e1", { confirm: true });
+  assert.equal(started.status, 409); assert.equal(dispatches, 1);
+});
+
+test("una segunda generación del mismo episodio no marca el episodio como fallido", async () => {
+  const { DuplicateRunError, studioRunErrorFailsEpisode } = await import("./pipeline");
+  assert.equal(studioRunErrorFailsEpisode(new DuplicateRunError()), false);
+  assert.equal(studioRunErrorFailsEpisode(new Error("almacenamiento")), true);
+});
+
+test("API: reintento tras un fallo (reautorizado, con la marca del intento anterior) se puede re-despachar sin otro cargo", async () => {
+  const row = { id: "e1", user_id: "u1", title: "T", mode: "dialogo", spec: spec(), status: "authorized", estimate: {}, estimated_usd: 1, authorized_usd: 2, authorized_at: "2026-10-27T03:00:00Z", run_started_at: "2026-10-27T02:00:00Z", progress: null, result: null, video_path: null, audio_path: null, cost_usd: null, error: null, created_at: "", updated_at: "" };
+  let authorized = 0, dispatches = 0;
+  const d = deps({ load: async () => ({ ...row }) as never, authorize: async () => { authorized++; return true; }, dispatch: async () => { dispatches++; return true; } });
+  const again = await authorizeAction(d, "e1", { confirm: true, authorizedUsd: 2 });
+  assert.equal(again.status, 200); assert.equal(dispatches, 1); assert.equal(authorized, 0, "no se vuelve a autorizar ni cambia el monto");
+  // Un worker ya tomó el episodio DESPUÉS de esta autorización: no se re-despacha.
+  const taken = await authorizeAction(deps({ load: async () => ({ ...row, run_started_at: "2026-10-27T03:05:00Z" }) as never, dispatch: async () => { dispatches++; return true; } }), "e1", { confirm: true });
+  assert.equal(taken.status, 409); assert.equal(dispatches, 1);
+});
+
+test("guard del worker: solo toma un episodio con autorización vigente (o runner perdido); «failed» exige reautorizar", async () => {
+  const { supabaseRunGuard } = await import("./store");
+  const fake = (row: { status: string; run_started_at: string | null }) => {
+    const db = { ...row }; let updates = 0;
+    const builder = (mode: "select" | "update", patch?: Record<string, unknown>) => {
+      const where: [string, unknown][] = [];
+      const match = () => where.every(([k, v]) => (db as Record<string, unknown>)[k] === v);
+      const b = {
+        eq(k: string, v: unknown) { if (k !== "id") where.push([k, v]); return b; },
+        is(k: string, v: unknown) { where.push([k, v]); return b; },
+        async maybeSingle() { return { data: { ...db }, error: null }; },
+        async select() { if (mode === "update" && match()) { Object.assign(db, patch); updates++; return { data: [{ id: "e" }], error: null }; } return { data: [], error: null }; },
+      };
+      return b;
+    };
+    return { db, get updates() { return updates; }, client: { from: () => ({ select: () => builder("select"), update: (p: Record<string, unknown>) => builder("update", p) }) } };
+  };
+  const ok = fake({ status: "authorized", run_started_at: null });
+  assert.equal(await supabaseRunGuard(ok.client as never).acquire("e", "a".repeat(40)), true); assert.equal(ok.db.status, "generating");
+  const second = await supabaseRunGuard(ok.client as never).acquire("e", "b".repeat(40));
+  assert.equal(second, false, "un segundo worker no gana la carrera");
+  const failed = fake({ status: "failed", run_started_at: "2026-10-27T02:00:00Z" });
+  assert.equal(await supabaseRunGuard(failed.client as never).acquire("e", "c".repeat(40)), false); assert.equal(failed.updates, 0); assert.equal(failed.db.status, "failed");
+  const lost = fake({ status: "generating", run_started_at: new Date(Date.now() - 3 * 3600_000).toISOString() });
+  assert.equal(await supabaseRunGuard(lost.client as never).acquire("e", "d".repeat(40)), true, "runner perdido (marca vieja) se puede retomar");
+  const live = fake({ status: "generating", run_started_at: new Date().toISOString() });
+  assert.equal(await supabaseRunGuard(live.client as never).acquire("e", "e".repeat(40)), false);
+});
+
+// Contención de la descarga (PR #231, revisión delta de Grok): portado tal cual.
+const EP = "11111111-1111-4111-8111-111111111111";
+const episodeRow = (over: Record<string, unknown> = {}) => ({ id: EP, user_id: "u1", title: "Señal", mode: "narracion", spec: spec({ mode: "narracion", output: "video" }), status: "ready", estimate: {}, estimated_usd: 1, authorized_usd: 2, authorized_at: "2026-10-27T03:00:00Z", run_started_at: "2026-10-27T03:01:00Z", progress: null, result: null, video_path: `u1/podcast-studio/${EP}/episodio.mp4`, audio_path: `u1/podcast-studio/${EP}/episodio.mp3`, cost_usd: 1.2, error: null, created_at: "", updated_at: "", ...over }) as never;
+
+test("descarga: solo el dueño, solo «ready», solo su carpeta; otra cuenta, otro episodio o una ruta ajena no firman", async () => {
+  const signed: string[] = [];
+  const sign = async (p: string) => { signed.push(p); return `signed:${p}`; };
+  const own = await episodeAction("u1", episodeRow(), sign);
+  assert.equal(own.status, 200);
+  assert.equal(own.body.video_url, `signed:u1/podcast-studio/${EP}/episodio.mp4`);
+  assert.equal(own.body.audio_url, `signed:u1/podcast-studio/${EP}/episodio.mp3`);
+  assert.equal("spec" in (own.body.episode as object), false);
+  const nested = await episodeAction("u1", episodeRow({ audio_path: `u1/podcast-studio/${EP}/paid/voz.mp3`, video_path: null }), sign);
+  assert.equal(nested.body.audio_url, `signed:u1/podcast-studio/${EP}/paid/voz.mp3`);
+  assert.equal(nested.body.video_url, null);
+  const before = signed.length;
+  const other = await episodeAction("u2", episodeRow(), sign);
+  assert.equal(other.status, 404); assert.equal(signed.length, before); assert.equal(JSON.stringify(other.body).includes("episodio.mp4"), false);
+  const foreign = [
+    `u2/podcast-studio/${EP}/episodio.mp4`,
+    `u1/podcast-studio/22222222-2222-4222-8222-222222222222/episodio.mp4`,
+    `u1/podcast-studio/${EP}/../../u2/secreto.mp4`,
+    `u1/podcast-studio/${EP}/%2e%2e/%2e%2e/u2/secreto.mp4`,
+    `u1/podcast-studio/${EP}/../episodio.mp4`,
+    `u1\\podcast-studio\\${EP}\\episodio.mp4`,
+    `u1/podcast-studio/${EP}`,
+  ];
+  for (const video_path of foreign) {
+    const n = signed.length;
+    const out = await episodeAction("u1", episodeRow({ video_path, audio_path: video_path }), sign);
+    assert.equal(out.status, 200, video_path);
+    assert.equal(out.body.video_url, null, video_path);
+    assert.equal(out.body.audio_url, null, video_path);
+    assert.equal(signed.length, n, video_path);
+  }
+  for (const status of ["draft", "authorized", "generating", "failed"]) {
+    const n = signed.length;
+    const out = await episodeAction("u1", episodeRow({ status }), sign);
+    assert.equal(out.body.video_url, null, status);
+    assert.equal(out.body.audio_url, null, status);
+    assert.equal(signed.length, n, status);
+  }
+});
+
+test("descarga: solo audio no firma MP4 aunque la fila tenga video_path", async () => {
+  const signed: string[] = [];
+  const sign = async (p: string) => { signed.push(p); return `signed:${p}`; };
+  const audio = spec({ mode: "narracion", output: "audio", visual: { provider: "solo_set", recreations: false } });
+  const out = await episodeAction("u1", episodeRow({ spec: audio, video_path: `u1/podcast-studio/${EP}/episodio.mp4`, audio_path: `u1/podcast-studio/${EP}/episodio.mp3` }), sign);
+  assert.equal(out.body.video_url, null);
+  assert.equal(out.body.audio_url, `signed:u1/podcast-studio/${EP}/episodio.mp3`);
+  assert.deepEqual(signed, [`u1/podcast-studio/${EP}/episodio.mp3`]);
 });

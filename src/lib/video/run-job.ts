@@ -9,7 +9,7 @@ import { getVoiceProvider } from "@/lib/providers/voice";
 import { editorialApprovalError } from "./long-form/editorial";
 import { loadReelRecraft, recraftDemandUsd, signReferenceUrls, persistReelStyleId, loadStyleMissing, persistStyleMissing } from "@/lib/video/recraft-reel-server";
 import { getRecraftImageProvider } from "@/lib/providers/image";
-import { recraftAllowedFor, RecraftAccessError } from "@/lib/video/recraft-access";
+import { recraftAllowedForWorker, RecraftAccessError } from "@/lib/video/recraft-access";
 import { ChosenImageProviderError } from "@/lib/video/long-form/shot-executor";
 import { RecraftStyleMissingError } from "@/lib/video/recraft-reel";
 import { GeneratedImageRejectedError } from "@/lib/video/visual-resource-resolver";
@@ -213,7 +213,7 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
     if (recraft) {
       const { data: ownerData, error: ownerError } = await service.auth.admin.getUserById(row.user_id);
       if (ownerError) throw ownerError;
-      if (!recraftAllowedFor(ownerData.user)) throw new RecraftAccessError();
+      if (!(await recraftAllowedForWorker(ownerData.user))) throw new RecraftAccessError();
       getRecraftImageProvider();
     }
     await reserveJobSupply(service, requestId, row.render_attempts, jobSupplyDemands(row, getVoiceProvider().name, undefined, { recraftUsd: mode === "visual" ? recraftDemandUsd(recraft, row.script_json) : 0 }));

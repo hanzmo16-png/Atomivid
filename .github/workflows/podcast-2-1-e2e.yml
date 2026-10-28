@@ -85,11 +85,15 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     env:
+      CSP_OBSERVER_LOG: ${{ github.workspace }}/csp-observer.jsonl
+      NODE_OPTIONS: --require /tmp/csp-observer-loader.cjs
       CI: "1"
       E2E_HOME: ${{ github.workspace }}/.e2e-local
       E2E_PGPORT: "55532"
       E2E_TIMEOUT: "5400"
     steps:
+      - name: "Ensayo: cargador del observador de CSP (GitHub no permite NODE_OPTIONS en $GITHUB_ENV)"
+        run: printf '%s\n' 'try { require(process.env.GITHUB_WORKSPACE + "/scripts/harness/e2e/infra/csp-observer.cjs"); } catch {}' > /tmp/csp-observer-loader.cjs
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
       - uses: actions/setup-node@v4
@@ -158,3 +162,8 @@ jobs:
             audio-qc/*.json
             .e2e-local/logs/*.jsonl
             .e2e-local/logs/next.log
+      - name: "Ensayo: resumen de CSP (aplicada = FAIL; informe = aviso)"
+        if: always()
+        run: |
+          f="$GITHUB_WORKSPACE/csp-observer.jsonl"; [ -f "$f" ] || { echo "::error title=csp-e2e::sin registro del observador (no se cargó)"; exit 1; }
+          node -e 'const A=require("fs").readFileSync(process.argv[1],"utf8").trim().split("\n").filter(Boolean).map(JSON.parse);const pages=A.filter(x=>x.kind==="page").length,L=A.filter(x=>x.kind!=="page");const e=L.filter(x=>!x.report),r=L.filter(x=>x.report);if(!pages){console.log("::error title=csp-e2e::el observador no vio ninguna página (no se cargó)");process.exit(1)}const u=(a)=>[...new Set(a.map(x=>x.script+" · "+x.text.slice(0,160)))].slice(0,6).join("%0A");console.log("::notice title=csp-e2e::páginas observadas="+pages+" aplicada="+e.length+" informe="+r.length+(r.length?"%0A"+u(r):""));if(e.length){console.log("::error title=csp-e2e::la CSP APLICADA bloqueó algo%0A"+u(e));process.exit(1)}' "$f"

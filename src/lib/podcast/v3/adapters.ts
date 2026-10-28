@@ -12,6 +12,7 @@ import { getPricingConfig } from "@/lib/billing/pricing";
 import { heygenAvatarProvider, estimateHeygenCost } from "@/lib/providers/avatar/heygen";
 import { ProviderRejectedError as StudioRejected } from "./cost";
 import type { VisualAsset } from "./editorial";
+import { keywords } from "./editorial";
 import type { AvatarProvider, ImageProvider, TtsProvider } from "./pipeline";
 
 /** `rate`: tarifa de la estimación autorizada del episodio (si falta, la de la configuración). */
@@ -24,9 +25,9 @@ export function realTts(language: "es" | "en", rate = getPricingConfig().elevenL
 }
 
 /** `publishAudio` sube el audio del turno y devuelve una URL HTTPS firmada de corta duración; `fetchStill` trae la foto del avatar. */
-export function realAvatar(deps: { publishAudio: (file: string) => Promise<string>; fetchStill: (avatarRef: string, dest: string) => Promise<void> }): AvatarProvider {
+export function realAvatar(deps: { publishAudio: (file: string) => Promise<string>; fetchStill: (avatarRef: string, dest: string) => Promise<void>; checkStill?: (avatarRef: string) => Promise<boolean> }): AvatarProvider {
   return { name: "heygen", label: "real adapter (untested live)", usdFor: (s) => estimateHeygenCost(Math.max(1, s)),
-    still: (ref, dest) => deps.fetchStill(ref, dest),
+    still: (ref, dest) => deps.fetchStill(ref, dest), checkStill: deps.checkStill,
     async render(ref, audioFile, seconds, dest, maxUsd) {
       if (!heygenAvatarProvider.isAvailable()) throw new StudioRejected("HeyGen no está configurado (HEYGEN_API_KEY); no se generó ni cobró nada.");
       const audioUrl = await deps.publishAudio(audioFile);
@@ -36,12 +37,12 @@ export function realAvatar(deps: { publishAudio: (file: string) => Promise<strin
     } };
 }
 
-export function realImages(deps: { searchPhotos: (q: string) => Promise<{ id: string | number; url: string; credit?: string }[]>; download: (url: string, dest: string) => Promise<void> }): ImageProvider {
+export function realImages(deps: { searchPhotos: (q: string) => Promise<{ id: string | number; url: string; credit?: string; description?: string }[]>; download: (url: string, dest: string) => Promise<void> }): ImageProvider {
   const urls = new Map<string, string>();
   return { name: "pexels", label: "real adapter (untested live)",
     async search(query) {
       const r = await deps.searchPhotos(query);
-      return r.slice(0, 3).map((x) => { const id = `px-${x.id}`; urls.set(id, x.url); return { id, query, kind: "foto" as const, tags: query.split(" "), credit: x.credit } satisfies VisualAsset; });
+      return r.slice(0, 3).map((x) => { const id = `px-${x.id}`; urls.set(id, x.url); return { id, query, kind: "foto" as const, tags: [...new Set([...query.split(" "), ...keywords(x.description ?? "")])], credit: x.credit } satisfies VisualAsset; });
     },
     async fetch(asset, dest) { const u = urls.get(asset.id); if (!u) throw new Error("Imagen no encontrada"); await deps.download(u, dest); await readFile(dest); },
     // Recreaciones (Recraft) NO conectadas en este PR: sin `recreate`, el planificador no las ofrece en real.

@@ -16,7 +16,7 @@ import { ffmpeg, ffprobeDuration } from "./ffmpeg";
 import { assembleVoice, exportAudio, mixAndMaster, transitionTimes, type TimelineEntry } from "./audio";
 import { FPS, frameFor, muxEpisode, renderShot, shotFrames } from "./compose";
 import { estimateEpisodeCost, opKey, paidOnce, releaseUndelivered, committedUsd, BudgetExceededError, UnauthorizedChargeError, type CostEstimate, type StudioLedger } from "./cost";
-import { keywords, planEpisode, planIssues, type EditorialPlan, type VisualAsset } from "./editorial";
+import { keywords, salientTerms, planEpisode, planIssues, type EditorialPlan, type VisualAsset } from "./editorial";
 import { autoMood, ensureBundledMusic } from "./music-library";
 import { estimateSeconds, narrationTurns, parseLabeledScript, type Turn } from "./script";
 import type { Mood, StudioSpec } from "./spec";
@@ -28,6 +28,8 @@ export type AvatarProvider = { name: string; label: ProviderLabel;
   render(avatarRef: string, audioFile: string, seconds: number, dest: string, maxUsd: number): Promise<{ actualUsd: number }>;
   /** Fotograma fijo del avatar (sin costo): foto/preview del avatar. */
   still(avatarRef: string, dest: string): Promise<void>; usdFor(seconds: number): number;
+  /** Comprueba (sin costo) que la foto fija del avatar se puede leer. Se usa ANTES del primer cargo. */
+  checkStill?: (avatarRef: string) => Promise<boolean>;
   /**
    * Prepara un avatar desde foto (HeyGen: sube la foto como asset) y devuelve la referencia del proveedor. Pasa por el
    * libro de operaciones con su propia clave: un reintento reutiliza la referencia y no vuelve a subir/cobrar.
@@ -42,6 +44,7 @@ export type Providers = { tts: TtsProvider; avatar: AvatarProvider; images: Imag
   /** Verificación GRATUITA previa (credenciales y saldo). Devuelve el motivo del bloqueo o null. Sin ella no se verifica saldo. */
   readiness?: (needs: ProviderNeeds) => Promise<string | null> };
 export class ProviderNotReadyError extends Error { constructor(why: string) { super(`Proveedor no listo: ${why} No se hizo ningún cargo.`); this.name = "ProviderNotReadyError"; } }
+export class StillUnavailableError extends Error { constructor() { super("FOTO: la foto fija del avatar no está disponible. No se hizo ningún cargo."); this.name = "StillUnavailableError"; } }
 
 /**
  * Almacén de lo ya PAGADO (voz, clips de avatar, recreaciones). El libro guarda la referencia del almacén, no una ruta
@@ -59,6 +62,10 @@ export class MemoryRunGuard implements RunGuard {
   async release(e: string, t: string) { if (this.m.get(e) === t) this.m.delete(e); }
 }
 export class DuplicateRunError extends Error { constructor() { super("Ya hay una generación en curso para este episodio; no se inicia otra."); this.name = "DuplicateRunError"; } }
+/** El perdedor de una carrera no debe marcar el episodio «failed»: el ganador sigue y, si no, lo dejaría en error con el archivo ya listo. */
+export function studioRunErrorFailsEpisode(e: unknown): boolean {
+  return !(e instanceof DuplicateRunError);
+}
 
 export type StudioTurns = { turns: Turn[]; names: Record<"A" | "B", string> };
 /** Turnos según el modo: guion etiquetado (diálogo) o párrafos (narración/avatar; 2 voces alternan). */
@@ -76,10 +83,12 @@ export function turnsFor(spec: StudioSpec): StudioTurns {
 export const INTRO_SECONDS = 3, OUTRO_SECONDS = 2.5;
 
 /** Activos candidatos por turno (búsqueda deduplicada por consulta). */
-export async function gatherAssets(turns: Turn[], images: ImageProvider, title: string, recreations: boolean): Promise<VisualAsset[]> {
+export async function gatherAssets(turns: Turn[], images: ImageProvider, title: string, recreations: boolean, topic = ""): Promise<VisualAsset[]> {
   const seen = new Map<string, VisualAsset>();
   const queries = new Set<string>();
-  for (const t of turns) { const kw = keywords(t.text).slice(0, 3); if (kw.length) queries.add(kw.join(" ")); }
+  // Cada búsqueda lleva el ancla del tema + las palabras propias del turno (sin repetir el ancla).
+  const anchor = salientTerms(topic, turns.map((t) => t.text), 2, title);
+  for (const t of turns) { const kw = keywords(t.text).filter((w) => !anchor.includes(w)).slice(0, anchor.length ? 2 : 3); if (kw.length || anchor.length) queries.add([...anchor, ...kw].join(" ")); }
   for (const q of queries) for (const a of await images.search(q).catch(() => [])) if (!seen.has(a.id)) seen.set(a.id, a);
   if (recreations && images.recreate) for (const t of turns.filter((x) => x.kind === "narracion" || x.kind === "respuesta").slice(0, 4)) {
     const kw = keywords(t.text).slice(0, 4);
@@ -94,7 +103,7 @@ export type Preflight = { turns: Turn[]; names: Record<"A" | "B", string>; plan:
 export async function preflight(spec: StudioSpec, providers: Providers, rates?: StudioRates): Promise<Preflight> {
   const { turns, names } = turnsFor(spec);
   const audioOnly = spec.output === "audio";
-  const assets = audioOnly || spec.visual.provider === "solo_set" ? [] : await gatherAssets(turns, providers.images, spec.title, spec.visual.recreations);
+  const assets = audioOnly || spec.visual.provider === "solo_set" ? [] : await gatherAssets(turns, providers.images, spec.title, spec.visual.recreations, spec.topic);
   const plan = planEpisode({ mode: spec.mode, turns, assets, avatarFrequency: spec.mode === "narracion" ? 0 : spec.visual.avatar_frequency, avatarMaxSeconds: spec.visual.avatar_max_seconds,
     recreations: spec.visual.recreations, hasAvatar: { A: hasAvatar(spec, "A"), B: hasAvatar(spec, "B") }, introSeconds: INTRO_SECONDS });
   const ttsChars = turns.reduce((n, t) => n + t.text.length, 0);
@@ -104,6 +113,11 @@ export async function preflight(spec: StudioSpec, providers: Providers, rates?: 
     avatarCreations: spec.participants.filter((p) => p.avatar.kind === "foto").length, renderMinutesFactor: audioOnly ? 0.2 : undefined, audioOnly });
   const mood = spec.music.mood === "auto" ? autoMood(spec.script) : spec.music.mood;
   return { turns, names, plan, estimate, mood, ttsChars, assets };
+}
+/** Avatares que pueden aparecer como oyentes (foto fija): ambos en «diálogo» con dos avatares y algún plano de avatar. */
+export function stillListeners(spec: StudioSpec, plan: EditorialPlan): ("A" | "B")[] {
+  const isAv = (k: string) => k === "avatar_a" || k === "avatar_b" || k === "two_shot" || k === "over_shoulder";
+  return spec.mode === "dialogo" && hasAvatar(spec, "A") && hasAvatar(spec, "B") && plan.shots.some((s) => isAv(s.kind)) ? ["A", "B"] : [];
 }
 const hasAvatar = (spec: StudioSpec, id: "A" | "B") => { const p = spec.participants.find((x) => x.id === id); return !!p && p.avatar.kind !== "ninguno"; };
 const avatarRef = (spec: StudioSpec, id: "A" | "B") => { const a = spec.participants.find((x) => x.id === id)?.avatar; return a?.kind === "existente" ? a.avatar_id : a?.kind === "foto" ? `foto:${a.photo_path}` : ""; };
@@ -135,6 +149,13 @@ export async function runEpisode(spec: StudioSpec, ctx: { owner: string; episode
     if (ctx.providers.readiness) {
       const why = await ctx.providers.readiness({ ttsChars: pf.ttsChars, ttsUsd: line("voz"), avatarUsd: line("avatar"), imagesUsd: line("imagenes") });
       if (why) throw new ProviderNotReadyError(why);
+    }
+    // Foto fija de quien escucha en los planos de conversación: se comprueba ANTES del primer cargo (P2 real: se leía
+    // después de pagar voz y un clip). Solo hay oyentes en «diálogo» con dos avatares, y ahí se comprueban LOS DOS: el
+    // plan definitivo (duraciones reales) puede convertir un primer plano en «sobre el hombro» que el preliminar no tiene.
+    // Un avatar fuera de una conversación de dos avatares nunca escucha: no se comprueba ni bloquea.
+    if (spec.output !== "audio" && ctx.providers.avatar.checkStill && stillListeners(spec, pf.plan).length) {
+      for (const s of stillListeners(spec, pf.plan)) if (!(await ctx.providers.avatar.checkStill(avatarRef(spec, s)).catch(() => false))) throw new StillUnavailableError();
     }
     let reused = 0, paid = 0;
     const keyOf = (provider: string, op: string, payload: unknown) => opKey({ owner: ctx.owner, episode: ctx.episode, provider, op, payload });

@@ -1,6 +1,6 @@
 import { cinematicV6Enabled } from "./cinematic-v6-access";
 import { DocumentaryResponseError } from "./json-response";
-import { SupplyUnavailableError } from "@/lib/supply/policy";
+import { SupplyUnavailableError, nextPeriodMessage } from "@/lib/supply/policy";
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -17,6 +17,7 @@ import { EDITORIAL_VERSION, EditorialQualityError, type EditorialReport } from "
 import { documentaryFormError } from "./form-error";
 import { ScriptJobFieldsSchema, type ScriptJobFields, type ScriptJobInput } from "./script-job-types";
 import { parseOpenQuestions, parseSources } from "@/app/dashboard/long-form/new/parse";
+import { withOwnerCorrections } from "./owner-corrections-registry";
 
 export async function enqueueScriptJob(session: SupabaseClient, user: {id:string; email_confirmed_at?:string}, rawFields: ScriptJobFields, service: SupabaseClient=createServiceClient()) {
  const fields=ScriptJobFieldsSchema.parse(rawFields);
@@ -36,7 +37,10 @@ export async function enqueueScriptJob(session: SupabaseClient, user: {id:string
 
 /** A worker invocation replays cached stages but admits at most ONE new paid
  * request. A lost HTTP response cannot resubmit: SQL CAS and the ledger both fence it. */
-export async function runScriptJobStep(id:string, service=createServiceClient()) {
+/** Injection for zero-cost tests of the real step (production always uses the defaults). */
+export type ScriptJobStepDeps = { research?: typeof researchDocumentary };
+export async function runScriptJobStep(id:string, service=createServiceClient(), deps:ScriptJobStepDeps={}) {
+ await recoverStaleRunningJob(id,service);
  const token=randomUUID();
  const {data:claim,error:claimError}=await service.rpc("claim_documentary_script_job",{p_id:id,p_token:token});
  if(claimError) throw new Error("Could not claim script job");
@@ -59,12 +63,14 @@ export async function runScriptJobStep(id:string, service=createServiceClient())
    documentaryScopeInput(input,fields),
    input.recoverLegacyOperator && isInternalProductionOwner(owner.user),async()=>{
     await update({stage:"Investigando fuentes"});
-    const researchPack=await researchDocumentary({topic:fields.topic,references:parseSources(fields.sources),openQuestions:parseOpenQuestions(fields.openQuestions)});
+    const researchPack=await (deps.research??researchDocumentary)({topic:fields.topic,references:parseSources(fields.sources),openQuestions:parseOpenQuestions(fields.openQuestions)});
     const beats=await generateDocumentaryScript({researchPack,creativeHistory:input.creativeHistory,referenceContract:input.referenceContract,writerContract:input.writerContract,extraEditorialRounds:job.editorial_rounds??0,mode:"curiosity_documentary",language:fields.language,
      targetDurationSeconds:Number(fields.durationMinutes)*60,cinematicV6:cinematicV6Enabled(owner.user),allowVisualSceneRepair:(job.retry_count??0)>0,onStage:stage=>update({stage}),
      onDraft:draft=>update({editorial_checkpoint:draft}),onEditorialApproved:r=>{editorial=r;}});
     if(!editorial) throw new Error("Editorial approval missing");
-    return {topic:fields.topic,beats:beats.map((b,i)=>({id:`beat-${i+1}`,...b})),editorial,sources:researchPack.sources};
+    // Owner corrections (e8048599) apply to the FINISHED script, after every paid response was reused or made:
+    // applying them earlier would change the request fingerprints. All or nothing; a failure stops before persisting.
+    return withOwnerCorrections(id,{topic:fields.topic,beats:beats.map((b,i)=>({id:`beat-${i+1}`,...b})),editorial,sources:researchPack.sources});
    },job.resubmit_allowance??0));
   const {error:finishError}=await service.rpc("finish_documentary_script_job",{p_id:id,p_token:token,p_script:script});
   if(finishError) throw new Error("Could not persist approved script");
@@ -72,6 +78,12 @@ export async function runScriptJobStep(id:string, service=createServiceClient())
  } catch(error) {
   if(error instanceof DocumentaryStepYield) {await update({status:"queued",run_token:null});return {state:"queued"};}
   if(error instanceof SupplyUnavailableError) {
+   // A daily quota or a period spend ceiling cannot clear before the next period: say so and let the worker stop
+   // instead of asking again every few seconds (real run 2026-10-27: 156 refused polls in 48 min, USD 0).
+   if(error.waitsForNextPeriod) {
+    await update({status:"queued",run_token:null,stage:"En espera del próximo periodo del proveedor",error_message:nextPeriodMessage(error.reason)});
+    return {state:"waiting_period"};
+   }
    await update({status:"queued",run_token:null,stage:"Esperando disponibilidad",error_message:error.customerMessage});
    return {state:"waiting"};
   }
@@ -102,6 +114,25 @@ export async function reconcileStaleScriptJobs(userId:string,service:SupabaseCli
 }
 
 export const MAX_SCRIPT_RETRIES=3, MAX_EDITORIAL_ROUNDS=2, MAX_RESUBMITS=2;
+
+/** Same step, automatic: a job left «running» by an invocation Vercel stopped (maxDuration) is requeued with the
+ * SAME budget as the owner's «Reanudar» (retryPatch: interrupted resubmits ≤ MAX_RESUBMITS), compare-and-set on
+ * the stale row version. A live step can never look stale (it refreshes updated_at and stops at 300 s < 10 min).
+ * Saved paid responses replay free (ledger); with no budget left it ends failed/interrupted, as before. */
+export async function recoverStaleRunningJob(id:string,service:SupabaseClient=createServiceClient(),now=Date.now()):Promise<"requeued"|"interrupted"|"none"> {
+ const {data,error}=await service.from("documentary_script_jobs").select("id,status,failure_kind,retry_count,editorial_rounds,resubmit_allowance,updated_at").eq("id",id).maybeSingle();
+ if(error||!data) return "none";
+ const job=data as RetryRow;
+ if(job.status!=="running" || Date.parse(job.updated_at)>now-STALE_RUNNING_MS) return "none";
+ const patch=retryPatch({...job,status:"failed",failure_kind:"interrupted"});
+ const at=new Date(now).toISOString();
+ const change=patch
+  ? {...patch,status:"queued",run_token:null,failure_kind:null,error_code:null,error_message:null,stage:"Reanudando tras una interrupción",updated_at:at}
+  : {status:"failed",run_token:null,failure_kind:"interrupted",updated_at:at,
+     error_message:"La preparación se interrumpió sin confirmar su última etapa. Los avances pagados están guardados; puedes reanudarla."};
+ const {data:updated}=await service.from("documentary_script_jobs").update(change).eq("id",id).eq("status","running").eq("updated_at",job.updated_at).select("id");
+ return updated?.length===1 ? (patch?"requeued":"interrupted") : "none";
+}
 type RetryRow={id:string;status:string;failure_kind:string|null;retry_count:number;editorial_rounds:number;resubmit_allowance:number;updated_at:string};
 /** Owner action on a failed job. Compare-and-swap on the exact row version, so a
  * double click or two tabs requeue it once. Saved paid responses replay free;

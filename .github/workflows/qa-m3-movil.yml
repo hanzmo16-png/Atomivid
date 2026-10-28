@@ -1,0 +1,130 @@
+# M3 (UX móvil): evidencia en navegador de M3-1 (el botón «?» no tapa «Generar video final» ni «Siguiente») y M3-2
+# (las páginas públicas no se ensanchan a 320/360/412 px). USD 0: no usa secretos; todo corre en 127.0.0.1 con el arnés
+# local (PG, PostgREST, gateway, mocks de proveedores, worker de prueba). next-intercept.cjs rechaza y registra toda salida
+# no local. Cualquier FAIL de M3-1 o M3-2 falla el job. P1-1 (Recraft en móvil, carril de Grok) es un XFAIL explícito:
+# se registra, no se corrige aquí y no bloquea.
+name: qa-m3-movil
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/qa-m3-movil.yml"
+      - "scripts/harness/e2e/qa-aceptacion/**"
+      - "scripts/harness/e2e/infra/**"
+      - "src/components/onboarding/**"
+      - "src/app/page.tsx"
+      - "src/app/dashboard/**"
+      - "src/components/**"
+permissions:
+  contents: read
+concurrency:
+  group: qa-m3-movil-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  movil:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CSP_OBSERVER_LOG: ${{ github.workspace }}/csp-observer.jsonl
+      NODE_OPTIONS: --require /tmp/csp-observer-loader.cjs
+      CI: "1"
+      E2E_HOME: ${{ github.workspace }}/.e2e-local
+      E2E_PGPORT: "55532"
+      E2E_TIMEOUT: "1500"
+    steps:
+      - name: "Ensayo: cargador del observador de CSP (GitHub no permite NODE_OPTIONS en $GITHUB_ENV)"
+        run: printf '%s\n' 'try { require(process.env.GITHUB_WORKSPACE + "/scripts/harness/e2e/infra/csp-observer.cjs"); } catch {}' > /tmp/csp-observer-loader.cjs
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - name: Dependencias del sistema
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -yq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -yq postgresql-17 espeak-ng ffmpeg xz-utils
+          sudo systemctl stop postgresql || true
+          echo "PG_BIN=/usr/lib/postgresql/17/bin" >> "$GITHUB_ENV"
+      - run: npm ci --no-audit --no-fund
+      - name: Arnés local
+        run: bash scripts/harness/e2e/infra/setup.sh
+      - name: Entorno base (Next 3100)
+        run: bash scripts/harness/e2e/infra/start.sh
+      - name: M3-1 — el botón de ayuda no tapa las acciones principales (360/412/640/740/1366/1440)
+        run: |
+          set +e; E2E_SCRIPT=qa-aceptacion/m3-help-overlap.cjs bash scripts/harness/e2e/infra/run-e2e.sh m3-help-overlap; code=$?
+          log="$E2E_HOME/out/m3-help-overlap.log"; grep -E '^(PASS|FAIL)  ' "$log"
+          # Total exacto: 6 dispositivos (360, 412, 640, 740 → 3 comprobaciones; 1366, 1440 → 4). Menos = algo no se midió.
+          grep -qx 'RESULTADO 20 PASS / 0 FAIL' "$log" || { echo "::error::m3-help-overlap: se esperaba exactamente «RESULTADO 20 PASS / 0 FAIL»"; [ "$code" = 0 ] && code=1; }
+          exit $code
+      - name: M3-2 — las páginas públicas no se ensanchan (320/360/412)
+        run: |
+          set +e; E2E_SCRIPT=qa-aceptacion/m3-public-width.cjs bash scripts/harness/e2e/infra/run-e2e.sh m3-public-width; code=$?
+          log="$E2E_HOME/out/m3-public-width.log"; grep -E '^(PASS|FAIL)  ' "$log"
+          # Total exacto: 8 páginas × 3 anchos.
+          grep -qx 'RESULTADO 24 PASS / 0 FAIL' "$log" || { echo "::error::m3-public-width: se esperaba exactamente «RESULTADO 24 PASS / 0 FAIL»"; [ "$code" = 0 ] && code=1; }
+          # Los tres anchos pedidos deben haberse medido de verdad (no solo un RESULTADO global).
+          for w in 320 360 412; do grep -qE "^PASS  \\[${w}px\\]" "$log" || { echo "::error::m3-public-width: sin PASS a ${w} px"; [ "$code" = 0 ] && code=1; }; done
+          exit $code
+      - name: Reel en navegador — reproducción y descarga del MP4 (Samsung 390 + escritorio 1440)
+        run: |
+          # Flujo completo del Reel con el worker local de prueba (USD 0). La descarga desde la UI debe ser un MP4 H.264 + AAC
+          # con el mismo sha256 que el objeto almacenado, en ambos dispositivos. La reproducción se intenta con el Chrome
+          # headless de Remotion (decodifica H.264); si no avanza, la batería lo declara NO PROBADO y no cuenta como PASS.
+          set +e; QA_FLOWS=reel E2E_SCRIPT=qa-aceptacion/acceptance.cjs bash scripts/harness/e2e/infra/run-e2e.sh qa-reel; code=$?
+          log="$E2E_HOME/out/qa-reel.log"; grep -E '^(PASS|FAIL|NO PROBADO|XFAIL)  ' "$log"
+          [ "$code" = 124 ] && echo "::error::qa-reel: TIMEOUT de la batería — no hay PASS parcial"
+          grep -q '^RESULTADO' "$log" || { echo "::error::qa-reel terminó sin RESULTADO"; [ "$code" = 0 ] && code=1; }
+          n=$(grep -cE '^PASS  \[(samsung|desktop)\] descarga desde la UI: MP4 H.264 \+ AAC idéntico al almacenado' "$log")
+          [ "$n" = 2 ] || { echo "::error::qa-reel: descarga íntegra verificada en $n de 2 dispositivos"; [ "$code" = 0 ] && code=1; }
+          p=$(grep -cE '^PASS  \[(samsung|desktop)\] reproducción: el tiempo avanza' "$log")
+          echo "::notice title=reproducción::reproducción verificada en $p de 2 dispositivos (el resto queda NO PROBADO, nunca PASS)"
+          exit $code
+      - name: P1-1 (Recraft en móvil) — XFAIL explícito, no se corrige en esta rama
+        id: p11
+        run: |
+          set +e; E2E_SCRIPT=qa-aceptacion/recraft-mobile-repro.cjs bash scripts/harness/e2e/infra/run-e2e.sh recraft-repro; code=$?
+          log="$E2E_HOME/out/recraft-repro.log"; grep -E '^(PASS|FAIL)  |^RESULTADO' "$log"
+          # XFAIL solo si el exit 1 se debe EXACTAMENTE a P1-1: RESULTADO del defecto, y cada FAIL con «con archivo N px
+          # (dispositivo N px)» (el ancho sin Recraft es correcto). Un cuelgue, una excepción u otra regresión de ancho
+          # también salen con 1 y se informan como NO-EVALUABLE, nunca como el defecto conocido.
+          if [ "$code" = 1 ]; then
+            nf=$(grep -c '^FAIL  ' "$log"); ok=$(grep -cE '^FAIL  .*con archivo ([0-9]+) px \(dispositivo \1 px\)' "$log")
+            if ! grep -q 'defecto P1-1 presente' "$log" || [ "$nf" = 0 ] || [ "$nf" != "$ok" ]; then code=99; fi
+          fi
+          case "$code" in
+            1) echo "::notice title=P1-1::XFAIL — el defecto sigue presente (esperado; carril de Grok)"; echo "result=XFAIL" >> "$GITHUB_OUTPUT" ;;
+            0) echo "::warning title=P1-1::XPASS — la reproducción ya no falla; revisar y retirar el XFAIL"; echo "result=XPASS" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::warning title=P1-1::no evaluable (exit=$code)"; echo "result=NO-EVALUABLE" >> "$GITHUB_OUTPUT" ;;
+          esac
+          exit 0
+      - name: Ningún proveedor real contactado
+        if: always()
+        run: |
+          f="$E2E_HOME/logs/egress.jsonl"; [ -f "$f" ] || { echo "::error::sin registro de salidas (egress.jsonl): no hay evidencia de que no se contactara a proveedores"; exit 1; }
+          grep '"egress_refused"' "$f" | sort -u || true
+          if grep '"egress_refused"' "$f" | grep -Eiq 'elevenlabs|pexels|pixabay|runway|googleapis|beatoven|fal\.(ai|run)|openai|anthropic|recraft|heygen|d-id|supabase\.co|stripe'; then
+            echo "::error::intento de salida hacia un proveedor real"; exit 1; fi
+      - name: Resumen
+        if: always()
+        run: |
+          s=""; for t in m3-help-overlap m3-public-width qa-reel recraft-repro; do f="$E2E_HOME/out/$t.log"; [ -f "$f" ] && s="$s$t: $(grep -E '^RESULTADO' "$f" | tail -1)%0A"; done
+          echo "::notice title=qa-m3-movil::${s}P1-1: ${{ steps.p11.outputs.result }}"
+      - name: Evidencia (capturas, resúmenes, registros; sin secretos)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-m3-movil
+          retention-days: 14
+          path: |
+            .e2e-local/out/m3-help-overlap
+            .e2e-local/out/m3-public-width
+            .e2e-local/out/qa-reel
+            .e2e-local/out/recraft-repro
+            .e2e-local/out/*.log
+      - name: "Ensayo: resumen de CSP (aplicada = FAIL; informe = aviso)"
+        if: always()
+        run: |
+          f="$GITHUB_WORKSPACE/csp-observer.jsonl"; [ -f "$f" ] || { echo "::error title=csp-movil::sin registro del observador (no se cargó)"; exit 1; }
+          node -e 'const A=require("fs").readFileSync(process.argv[1],"utf8").trim().split("\n").filter(Boolean).map(JSON.parse);const pages=A.filter(x=>x.kind==="page").length,L=A.filter(x=>x.kind!=="page");const e=L.filter(x=>!x.report),r=L.filter(x=>x.report);if(!pages){console.log("::error title=csp-movil::el observador no vio ninguna página (no se cargó)");process.exit(1)}const u=(a)=>[...new Set(a.map(x=>x.script+" · "+x.text.slice(0,160)))].slice(0,6).join("%0A");console.log("::notice title=csp-movil::páginas observadas="+pages+" aplicada="+e.length+" informe="+r.length+(r.length?"%0A"+u(r):""));if(e.length){console.log("::error title=csp-movil::la CSP APLICADA bloqueó algo%0A"+u(e));process.exit(1)}' "$f"

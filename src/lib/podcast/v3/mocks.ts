@@ -14,7 +14,7 @@ const hasEspeak = () => spawnSync("espeak-ng", ["--version"]).status === 0;
 const hashNum = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 
 export type MockCalls = { tts: string[]; avatar: string[]; images: string[]; recreate: string[]; prepare: string[] };
-export function mockProviders(opts: { failAvatarTimes?: number; failTtsRejectTimes?: number; usdPer1k?: number; tonesOnly?: boolean; ttsStretch?: number } = {}): Providers & { calls: MockCalls } {
+export function mockProviders(opts: { failAvatarTimes?: number; failTtsRejectTimes?: number; rejectTtsCall?: number; usdPer1k?: number; tonesOnly?: boolean; ttsStretch?: number } = {}): Providers & { calls: MockCalls } {
   const calls: MockCalls = { tts: [], avatar: [], images: [], recreate: [], prepare: [] };
   let avatarFails = opts.failAvatarTimes ?? 0, ttsRejects = opts.failTtsRejectTimes ?? 0;
   const usdPer1k = opts.usdPer1k ?? 0.2;
@@ -23,6 +23,8 @@ export function mockProviders(opts: { failAvatarTimes?: number; failTtsRejectTim
     usdFor: (n) => Math.ceil(n / 1000 * usdPer1k * 1e4) / 1e4,
     async synth(text, voiceId, dest) {
       calls.tts.push(`${voiceId}:${text.slice(0, 30)}`);
+      // Rechazo (sin cargo) de exactamente la N-ésima llamada: un fallo a mitad del episodio, con turnos ya pagados.
+      if (opts.rejectTtsCall && calls.tts.length === opts.rejectTtsCall) { const { ProviderRejectedError } = await import("./cost"); throw new ProviderRejectedError("ElevenLabs simulado: 429 en la llamada " + opts.rejectTtsCall + " (sin cargo)"); }
       if (ttsRejects > 0) { ttsRejects--; const { ProviderRejectedError } = await import("./cost"); throw new ProviderRejectedError("ElevenLabs simulado: 429 (sin cargo)"); }
       const secs = Math.max(1.2, text.length / 15) * (opts.ttsStretch ?? 1);
       const pitch = 90 + (hashNum(voiceId) % 120);

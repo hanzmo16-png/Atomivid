@@ -5,11 +5,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, stat, copyFile, rm } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { StudioSpec, STUDIO_VERSION } from "./spec";
-import { runEpisode, MemoryRunGuard, DuplicateRunError, preflight, PaidArtifactMissingError, type ArtifactStore } from "./pipeline";
+import { runEpisode, MemoryRunGuard, DuplicateRunError, preflight, PaidArtifactMissingError, stillListeners, type ArtifactStore } from "./pipeline";
+import { planEpisode } from "./editorial";
 import { MemoryLedger, UnauthorizedChargeError, UncertainChargeError } from "./cost";
 import { mockProviders } from "./mocks";
 import { ebur128, readPcm, rmsDb, ffprobeDuration } from "./ffmpeg";
@@ -216,4 +218,141 @@ test("duraciones reales mayores que la estimación: se para ANTES de pedir clips
   const ok = await render(B2, { ledger, providers, artifacts, authorizedUsd: 5, episode: "ep-real" });
   assert.equal(providers.calls.tts.length, tts, "la voz pagada se reutiliza");
   assert.ok(ok.r.mp4 && providers.calls.avatar.length > 0);
+});
+
+test("modo C: fallo al leer la foto fija DESPUÉS de pagar voz y clips → reintento del mismo episodio sin llamadas ni cargos nuevos", { timeout: 600_000 }, async () => {
+  // Caso real P2 (episodio 0de4b445): 8 voces + 1 clip pagados, luego «FOTO» al leer la foto fija del oyente.
+  const ledger = new MemoryLedger(), providers = mockProviders({ tonesOnly: true }), artifacts = await diskArtifacts();
+  const realStill = providers.avatar.still.bind(providers.avatar);
+  let broken = true;
+  providers.avatar.still = async (ref: string, dest: string) => { if (broken) throw new Error("FOTO"); return realStill(ref, dest); };
+  await assert.rejects(render(C, { ledger, providers, artifacts, episode: "ep-foto" }), /FOTO/);
+  const ttsPaid = providers.calls.tts.length, clipsPaid = providers.calls.avatar.length;
+  assert.ok(ttsPaid > 0 && clipsPaid > 0, "voz y al menos un clip ya pagados antes del fallo");
+  const before = new Map([...ledger.rows].map(([k, r]) => [k, JSON.stringify(r)]));
+  broken = false; // arreglo desplegado (foto en el bucket correcto)
+  const retry = await render(C, { ledger, providers, artifacts, episode: "ep-foto" });
+  assert.equal(providers.calls.tts.length, ttsPaid, "ninguna voz se vuelve a pedir");
+  assert.equal(providers.calls.avatar.length, clipsPaid + (retry.r.paidOps), "solo se piden los clips que faltaban");
+  assert.ok(retry.r.mp4 && (await stat(retry.r.mp4)).size > 10_000, "el episodio se completa");
+  for (const [k, r] of before) assert.equal(JSON.stringify(ledger.rows.get(k)), r, `operación pagada ${k} reutilizada sin cambios (sin segundo cobro)`);
+  const newRows = [...ledger.rows.keys()].filter((k) => !before.has(k));
+  assert.equal(newRows.length, retry.r.paidOps, "las únicas operaciones nuevas son las que faltaban");
+  assert.ok(newRows.every((k) => !/tts|voz|voice/i.test(k)), `sin voz nueva: ${newRows.join(",")}`);
+});
+
+test("P2 real reproducido: guion de 8 turnos, mismo avatar existente para A y B; «FOTO» tras pagar 8 voces y clips → reintento del mismo episodio: 8 voces reutilizadas, clips pagados reutilizados, «ready» con MP4 y MP3 reproducibles y firmables", { timeout: 900_000 }, async () => {
+  const P2 = StudioSpec.parse({ ...base, mode: "dialogo", title: "Prueba real P2", script: "Ana: ¿De verdad un cometa puede venir de otra estrella?\nLuis: Sí, y lo sabemos por su velocidad: ningún objeto ligado al Sol va tan rápido.\nAna: ¿Y no podría ser un error de medición?\nLuis: Lo midieron varios observatorios durante semanas. Los datos coinciden.\nAna: Entonces, ¿qué nos dice de su origen?\nLuis: Que los sistemas planetarios expulsan restos, y algunos cruzan el espacio durante millones de años.\nAna: Me cuesta imaginarlo. ¿Volverá?\nLuis: No. Va de salida, y nunca más lo veremos.",
+    participants: [{ id: "A", name: "Ana", voice_id: "CeFSZuaHs4SxcBxb9nCr", avatar: { kind: "existente", avatar_id: "av-hans" } }, { id: "B", name: "Luis", voice_id: "vozLuisInv", avatar: { kind: "existente", avatar_id: "av-hans" } }],
+    visual: { avatar_frequency: 0.5, avatar_max_seconds: 20, recreations: false }, music: { enabled: true, mood: "auto" } });
+  const ledger = new MemoryLedger(), providers = mockProviders({ tonesOnly: true }), artifacts = await diskArtifacts();
+  const realStill = providers.avatar.still.bind(providers.avatar);
+  let broken = true;
+  providers.avatar.still = async (ref: string, dest: string) => { if (broken) throw new Error("FOTO"); return realStill(ref, dest); };
+  await assert.rejects(render(P2, { ledger, providers, artifacts, episode: "0de4b445" }), /FOTO/);
+  assert.equal(providers.calls.tts.length, 8, "8 voces pagadas antes del fallo (como en producción)");
+  const clipsBefore = providers.calls.avatar.length; assert.ok(clipsBefore >= 1, "al menos un clip de avatar pagado antes del fallo");
+  const before = new Map([...ledger.rows].map(([k, r]) => [k, JSON.stringify(r)]));
+  const settledBefore = [...ledger.rows.values()].filter((r) => r.state === "settled");
+  assert.ok(settledBefore.length >= 9 && [...ledger.rows.values()].every((r) => r.state === "settled"), "todo lo pagado quedó asentado; nada incierto ni reservado");
+
+  broken = false; // la foto fija se lee del bucket correcto
+  const retry = await render(P2, { ledger, providers, artifacts, episode: "0de4b445" });
+  assert.equal(providers.calls.tts.length, 8, "reintento: cero voces nuevas (las 8 se reutilizan)");
+  for (const [k, r] of before) assert.equal(JSON.stringify(ledger.rows.get(k)), r, `operación pagada ${k} reutilizada sin cambios`);
+  const newKeys = [...ledger.rows.keys()].filter((k) => !before.has(k));
+  assert.equal(providers.calls.avatar.length - clipsBefore, newKeys.length, "solo se piden los clips que aún no existían; ninguno pagado se repite");
+  assert.ok(newKeys.every((k) => ledger.rows.get(k)!.provider !== providers.tts.name), "ninguna operación de voz nueva");
+  assert.equal(retry.r.paidOps, newKeys.length);
+  console.log("P2_SIM", JSON.stringify({ voicesFirstRun: 8, clipsFirstRun: clipsBefore, settledReusedOps: before.size, voicesOnRetry: providers.calls.tts.length - 8, newClipsOnRetry: newKeys.length }));
+
+  // «ready»: el pipeline entrega MP4 y audio decodificables (lo que el worker sube y la app firma).
+  assert.ok(retry.r.ok && retry.r.mp4 && retry.r.audio);
+  const probe = (f: string) => JSON.parse(spawnSync("ffprobe", ["-v", "error", "-show_entries", "stream=codec_type,codec_name:format=duration", "-of", "json", f], { encoding: "utf8" }).stdout);
+  const v = probe(retry.r.mp4!), a = probe(retry.r.audio);
+  assert.ok(v.streams.some((x: { codec_type: string }) => x.codec_type === "video") && v.streams.some((x: { codec_type: string }) => x.codec_type === "audio"), "MP4 con video y audio");
+  assert.ok(Number(v.format.duration) > 10 && Number(a.format.duration) > 10, "MP4 y MP3 con duración real");
+  const dec = spawnSync("ffmpeg", ["-v", "error", "-i", retry.r.mp4!, "-f", "null", "-"], { encoding: "utf8" });
+  assert.equal(dec.status, 0, `el MP4 se decodifica completo (reproducible): ${dec.stderr.slice(0, 200)}`);
+
+  // Descarga desde la cuenta: la ruta de la app firma MP4 y MP3 del episodio «ready» del dueño.
+  const { episodeAction } = await import("./api");
+  const id = "11111111-1111-4111-8111-0de4b4450000";
+  const signed: string[] = [];
+  const out = await episodeAction("u1", { id, user_id: "u1", title: "Prueba real P2", mode: "dialogo", spec: P2, status: "ready", estimate: {}, estimated_usd: 0.52, authorized_usd: 3, authorized_at: "", run_started_at: "", progress: null, result: null,
+    video_path: `u1/podcast-studio/${id}/episodio.mp4`, audio_path: `u1/podcast-studio/${id}/episodio.mp3`, cost_usd: 0.3, error: null, created_at: "", updated_at: "" } as never, async (p) => { signed.push(p); return `signed:${p}`; });
+  assert.equal(out.body.video_url, `signed:u1/podcast-studio/${id}/episodio.mp4`);
+  assert.equal(out.body.audio_url, `signed:u1/podcast-studio/${id}/episodio.mp3`);
+});
+
+test("foto fija comprobada ANTES del primer cargo: sin foto de quien escucha → «FOTO» con cero voces, cero clips y libro vacío; con foto, el episodio sigue igual", { timeout: 900_000 }, async () => {
+  const P2 = StudioSpec.parse({ ...base, mode: "dialogo", title: "Prueba real P2", script: "Ana: ¿De verdad un cometa puede venir de otra estrella?\nLuis: Sí, y lo sabemos por su velocidad: ningún objeto ligado al Sol va tan rápido.\nAna: ¿Y no podría ser un error de medición?\nLuis: Lo midieron varios observatorios durante semanas. Los datos coinciden.",
+    participants: [{ id: "A", name: "Ana", voice_id: "CeFSZuaHs4SxcBxb9nCr", avatar: { kind: "existente", avatar_id: "av-hans" } }, { id: "B", name: "Luis", voice_id: "vozLuisInv", avatar: { kind: "existente", avatar_id: "av-hans" } }],
+    visual: { avatar_frequency: 0.5, avatar_max_seconds: 20, recreations: false }, music: { enabled: true, mood: "auto" } });
+  // Sin foto: se detiene antes de pagar nada (P2 real pagó 8 voces y un clip antes de «FOTO»).
+  const missing = mockProviders({ tonesOnly: true }), checked: string[] = [];
+  missing.avatar.checkStill = async (ref) => { checked.push(ref); return false; };
+  const ledger = new MemoryLedger();
+  await assert.rejects(render(P2, { ledger, providers: missing }), (e: Error) => e.name === "StillUnavailableError" && /FOTO/.test(e.message) && /No se hizo ningún cargo/.test(e.message));
+  assert.ok(checked.length >= 1 && checked.every((r) => r === "av-hans"), "se comprueba la foto del avatar que escucha");
+  assert.equal(missing.calls.tts.length, 0, "cero voces pagadas");
+  assert.equal(missing.calls.avatar.length, 0, "cero clips pagados");
+  assert.equal(ledger.rows.size, 0, "ninguna operación en el libro");
+  // Un error al comprobar cuenta como «sin foto» (falla cerrado, sin cargo).
+  const throwing = mockProviders({ tonesOnly: true });
+  throwing.avatar.checkStill = async () => { throw new Error("storage caído"); };
+  await assert.rejects(render(P2, { providers: throwing }), /FOTO/);
+  assert.equal(throwing.calls.tts.length + throwing.calls.avatar.length, 0);
+  // Con foto: mismo resultado que sin comprobación.
+  const present = mockProviders({ tonesOnly: true });
+  present.avatar.checkStill = async () => true;
+  const ok = await render(P2, { providers: present });
+  assert.ok(ok.r.ok && ok.r.mp4 && present.calls.tts.length === 4 && present.calls.avatar.length >= 1);
+});
+
+test("foto fija: un avatar que nunca escucha (sin planos de conversación) no se comprueba ni bloquea", { timeout: 900_000 }, async () => {
+  const providers = mockProviders({ tonesOnly: true }), checked: string[] = [];
+  providers.avatar.checkStill = async (ref) => { checked.push(ref); return false; };
+  const { r } = await render(B, { providers });
+  assert.ok(r.ok && r.mp4, "modo avatar sin planos de conversación sigue funcionando aunque el avatar no tenga foto fija");
+  assert.equal(checked.length, 0);
+});
+
+test("foto fija: con duraciones reales el plan puede añadir un oyente que el preliminar no tiene → en diálogo con dos avatares se comprueban LOS DOS antes de pagar", { timeout: 900_000 }, async () => {
+  const D = StudioSpec.parse({ ...base, mode: "dialogo", title: "Dos avatares", script: "Ana: El cometa viene de otra estrella, eso ya está medido por varios observatorios.\nLuis: Su velocidad lo confirma: ningún objeto ligado al Sol va tan rápido.\nAna: Y su brillo cambió de una forma que nadie esperaba.\nLuis: Por eso sigue abierto el debate sobre su forma.\nAna: Y ya se aleja para siempre de nosotros.",
+    participants: [{ id: "A", name: "Ana", voice_id: "CeFSZuaHs4SxcBxb9nCr", avatar: { kind: "existente", avatar_id: "av-ana" } }, { id: "B", name: "Luis", voice_id: "vozLuisInv", avatar: { kind: "existente", avatar_id: "av-luis" } }],
+    visual: { avatar_frequency: 1, avatar_max_seconds: 6, recreations: false }, music: { enabled: false, mood: "auto" } });
+  const pf = await preflight(D, mockProviders({ tonesOnly: true }));
+  const listenersOf = (seconds: number[]) => { const plan = planEpisode({ mode: "dialogo", turns: pf.turns.map((t, i) => ({ ...t, seconds: seconds[i] })), assets: [], avatarFrequency: 1, avatarMaxSeconds: 6, recreations: false, hasAvatar: { A: true, B: true }, introSeconds: 1 });
+    return [...new Set(plan.shots.filter((s) => (s.kind === "two_shot" || s.kind === "over_shoulder") && s.speaker).map((s) => (s.speaker === "A" ? "B" : "A")))].sort().join(""); };
+  // Mismo guion: turnos cortos → los primeros planos encadenados pasan a «sobre el hombro» (hay oyentes); un turno real más
+  // largo que el máximo de avatar deja una imagen en medio y ese oyente desaparece. El oyente depende de la duración REAL.
+  const short = listenersOf(pf.turns.map(() => 3)), long = listenersOf(pf.turns.map((_, i) => (i === 1 ? 9 : 3)));
+  assert.notEqual(short, long, `oyentes con duraciones distintas: ${short} vs ${long}`);
+  // Por eso la comprobación previa no depende del plan preliminar: en diálogo con dos avatares cubre a A y a B.
+  assert.deepEqual(stillListeners(D, pf.plan), ["A", "B"]);
+  const providers = mockProviders({ tonesOnly: true }), checked: string[] = [];
+  providers.avatar.checkStill = async (ref) => { checked.push(ref); return ref !== "av-luis"; };
+  const ledger = new MemoryLedger();
+  await assert.rejects(render(D, { ledger, providers }), /FOTO/);
+  assert.deepEqual([...new Set(checked)].sort(), ["av-ana", "av-luis"], "se comprueban los dos avatares");
+  assert.equal(providers.calls.tts.length + providers.calls.avatar.length, 0, "sin ningún cargo");
+  assert.equal(ledger.rows.size, 0);
+  // Fuera de un diálogo de dos avatares nadie escucha: no hay comprobación.
+  assert.deepEqual(stillListeners(StudioSpec.parse({ ...D, participants: [D.participants[0], { ...D.participants[1], avatar: { kind: "ninguno" } }] }), pf.plan), []);
+});
+
+test("encuadre: un clip de avatar en retrato conserva la cara (tercio superior) en sobre el hombro y primer plano — el recorte centrado la cortaba a la altura de los ojos (prueba real 2026-10-28)", { timeout: 300_000 }, async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "p30-crop-"));
+  // Retrato 720x1280 como los clips de HeyGen: «cara» roja entre el 8 % y el 25 % de la altura; el resto azul.
+  const clip = path.join(dir, "retrato.mp4"), still = path.join(dir, "oyente.png");
+  spawnSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=blue:s=720x1280:r=25:d=1", "-vf", "drawbox=x=0:y=102:w=720:h=218:c=red:t=fill", "-c:v", "libx264", "-pix_fmt", "yuv420p", clip]);
+  spawnSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=gray:s=480x640", "-frames:v", "1", still]);
+  const red = (f: string) => { const png = f.replace(/\.mp4$/, ".png"); spawnSync("ffmpeg", ["-y", "-v", "error", "-ss", "0.5", "-i", f, "-frames:v", "1", "-vf", "format=rgb24", "-f", "rawvideo", png]); const b = readFileSync(png); let n = 0; for (let i = 0; i + 2 < b.length; i += 3) if (b[i] > 150 && b[i + 1] < 90 && b[i + 2] < 90) n++; return n / (b.length / 3); };
+  const { renderShot, frameFor } = await import("./compose");
+  for (const kind of ["over_shoulder", "avatar_a", "two_shot"] as const) {
+    const out = await renderShot(dir, kind.length, { turn_id: "T001", speaker: "A", kind, start: 0, end: 1, reason: "", facing: "A" }, 25, { speakingClip: clip, listenerStill: still }, { set: "estudio_oscuro", frame: frameFor("16:9", true), swap: false, small: true, fade: false });
+    assert.ok(red(out) > 0.02, `${kind}: la cara del clip aparece en el plano (${(red(out) * 100).toFixed(1)} % de píxeles)`);
+  }
+  await rm(dir, { recursive: true, force: true });
 });

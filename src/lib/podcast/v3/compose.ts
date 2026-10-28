@@ -82,13 +82,22 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
   const font = await fontFile(dir);
   const bg = await setBackground(dir, o.set, o.frame);
   const fs = Math.round(h * (w > h ? 0.04 : 0.028));
-  const textFilter = async (name: string, text: string, y: string, size: number, box = true) => {
-    const f = path.join(dir, `${name}-${idx}.txt`);
-    await writeFile(f, wrap(text, w > h ? 60 : 32));
-    return `drawtext=fontfile='${esc(font)}':textfile='${esc(f)}':fontcolor=white:fontsize=${size}:x=(w-text_w)/2:y=${y}:line_spacing=6${box ? ":box=1:boxcolor=black@0.55:boxborderw=12" : ""}`;
+  // Un drawtext POR LÍNEA: con varias líneas en un textfile, el ffmpeg del runner (6.1) dibuja el salto de línea como «□»
+  // (P1 real). `anchor` fija el borde superior ("top") o inferior ("bottom") del bloque en `y`.
+  const textFilter = async (name: string, text: string, y: string, size: number, box = true, anchor: "top" | "bottom" = "top") => {
+    const lines = textLines(text, w > h ? 60 : 32);
+    const lineH = Math.round(size * 1.25) + (box ? 24 : 6);
+    const parts: string[] = [];
+    for (const [i, line] of lines.entries()) {
+      const f = path.join(dir, `${name}-${idx}-${i}.txt`);
+      await writeFile(f, line);
+      const ly = anchor === "top" ? `${y}+${i * lineH}` : `${y}-${(lines.length - i) * lineH}`;
+      parts.push(`drawtext=fontfile='${esc(font)}':textfile='${esc(f)}':fontcolor=white:fontsize=${size}:x=(w-text_w)/2:y=${ly}${box ? ":box=1:boxcolor=black@0.55:boxborderw=12" : ""}`);
+    }
+    return parts;
   };
   const post: string[] = [];
-  if (shot.label) post.push((await textFilter("tag", shot.label, "h*0.05", Math.round(fs * 0.9))).replace("x=(w-text_w)/2", "x=w*0.04"));
+  if (shot.label) post.push(...(await textFilter("tag", shot.label, "h*0.05", Math.round(fs * 0.9))).map((f) => f.replace("x=(w-text_w)/2", "x=w*0.04")));
   if (src.subtitle) {
     // Subtítulos paginados: bloques de ≤2 líneas repartidos en el plano en proporción a sus caracteres.
     const pages = subtitlePages(src.subtitle, w > h ? 60 : 32);
@@ -96,7 +105,7 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
     let acc = 0;
     for (const [k, page] of pages.entries()) {
       const a = acc / totalChars * (frames / FPS), b = (acc + page.length) / totalChars * (frames / FPS); acc += page.length;
-      post.push((await textFilter(`sub${k}`, page, "h*0.86-text_h", fs)) + `:enable='between(t,${a.toFixed(3)},${b.toFixed(3)})'`);
+      post.push(...(await textFilter(`sub${k}`, page, "h*0.9", fs, true, "bottom")).map((f) => f + `:enable='between(t,${a.toFixed(3)},${b.toFixed(3)})'`));
     }
   }
   if (o.fade && frames > 2 * Math.round(FPS * 0.25)) post.push(`fade=t=in:st=0:d=0.25,fade=t=out:st=${(frames / FPS - 0.25).toFixed(3)}:d=0.25`);
@@ -110,7 +119,7 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
       if (!src.speakingClip) throw new Error(`Plano de avatar sin clip (${shot.turn_id}).`);
       const bw = Math.round(w * (w > h ? 0.62 : 0.9)), bh = Math.round(h * (w > h ? 0.8 : 0.62));
       args = [...bgIn, "-i", src.speakingClip, "-filter_complex",
-        `[1:v]scale=${bw}:${bh}:force_original_aspect_ratio=increase,crop=${bw}:${bh},setsar=1[a];[0:v][a]overlay=(W-w)/2:(H-h)*0.45:shortest=0,${tail("trim=end_frame=" + frames)}`];
+        `[1:v]scale=${bw}:${bh}:force_original_aspect_ratio=increase,crop=${bw}:${bh}:${FACE_CROP},setsar=1[a];[0:v][a]overlay=(W-w)/2:(H-h)*0.45:shortest=0,${tail("trim=end_frame=" + frames)}`];
       break;
     }
     case "two_shot": {
@@ -121,7 +130,7 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
       const [p1, p2] = vertical ? [`(W-w)/2:H*0.08`, `(W-w)/2:H*0.5`] : [`W*0.06:(H-h)*0.42`, `W*0.52:(H-h)*0.42`];
       // Quien escucha: fotograma fijo de su avatar con movimiento de cámara sutil (no queda congelado; sin mover labios).
       args = [...bgIn, "-i", src.speakingClip, "-i", src.listenerStill, "-filter_complex",
-        `[1:v]scale=${bw}:${bh}:force_original_aspect_ratio=increase,crop=${bw}:${bh},setsar=1[s];[2:v]${stillMotion(bw, bh, frames, idx)},setsar=1,eq=brightness=-0.04[l];` +
+        `[1:v]scale=${bw}:${bh}:force_original_aspect_ratio=increase,crop=${bw}:${bh}:${FACE_CROP},setsar=1[s];[2:v]${stillMotion(bw, bh, frames, idx)},setsar=1,eq=brightness=-0.04[l];` +
         `[0:v][s]overlay=${speakerFirst ? p1 : p2}[x];[x][l]overlay=${speakerFirst ? p2 : p1},${tail("trim=end_frame=" + frames)}`];
       break;
     }
@@ -132,7 +141,7 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
       const lw = Math.round(w * 0.5), lh = Math.round(h * 0.7);
       const speakerRight = (shot.speaker === "A") === leftIsA ? false : true;
       args = [...bgIn, "-i", src.speakingClip, "-i", src.listenerStill, "-filter_complex",
-        `[1:v]scale=${fw}:${fh}:force_original_aspect_ratio=increase,crop=${fw}:${fh},setsar=1[s];` +
+        `[1:v]scale=${fw}:${fh}:force_original_aspect_ratio=increase,crop=${fw}:${fh}:${FACE_CROP},setsar=1[s];` +
         `[2:v]${stillMotion(lw, lh, frames, idx)},hflip,boxblur=12:2,eq=brightness=-0.35:saturation=0.3,setsar=1[l];` +
         `[0:v][s]overlay=${speakerRight ? "W*0.40" : "W*0.05"}:(H-h)*0.35[x];[x][l]overlay=${speakerRight ? "-W*0.08" : "W*0.58"}:H-h*0.85,${tail("trim=end_frame=" + frames)}`];
       break;
@@ -145,7 +154,7 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
       break;
     }
     case "titulo": {
-      const t = await textFilter("title", src.title ?? "", "(h-text_h)/2", Math.round(fs * 1.6), false);
+      const t = (await textFilter("title", src.title ?? "", "(h-text_h)/2", Math.round(fs * 1.6), false)).join(",");
       args = ["-i", bg, "-filter_complex", `[0:v]${stillMotion(w, h, frames, idx)},${t},${tail("trim=end_frame=" + frames)}`];
       break;
     }
@@ -158,12 +167,21 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
   return out;
 }
 
+/** Recorte de los clips de avatar: centrado en horizontal y anclado arriba (la cara está en el tercio superior de un
+ *  retrato). El recorte centrado cortaba la cara a la altura de los ojos (prueba real 2026-10-28, sobre el hombro). */
+export const FACE_CROP = "(iw-ow)/2:(ih-oh)*0.15";
+
 export function wrap(text: string, width: number): string {
   const words = text.replace(/\s+/g, " ").trim().split(" ");
   const lines: string[] = []; let cur = "";
   for (const wd of words) { if ((cur + " " + wd).trim().length > width) { if (cur) lines.push(cur); cur = wd; } else cur = (cur + " " + wd).trim(); }
   if (cur) lines.push(cur);
   return lines.join("\n");
+}
+
+/** Líneas ya ajustadas a `width`, sin saltos de línea dentro (cada una va en su propio drawtext). */
+export function textLines(text: string, width: number): string[] {
+  return wrap(text, width).split("\n").map((l) => l.trim()).filter(Boolean);
 }
 
 export function subtitlePages(text: string, width: number): string[] {

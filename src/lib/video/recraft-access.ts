@@ -17,6 +17,21 @@ export function recraftAllowedFor(user: InternalProductionUser, env: Record<stri
   return isInternalProductionOwner(user, { INTERNAL_PRODUCTION_OWNER_USER_ID: owner });
 }
 
+/**
+ * Worker-side decision. The render worker only gets the owner id through RECRAFT_PILOT_OWNER_USER_ID, which is empty
+ * when the Actions secret is not configured: the web would offer Recraft to the owner and the worker would then refuse
+ * it (real Long Form run, 2026-10-27). With no pilot owner configured in the worker, it asks the app (signed request,
+ * yes/no answer) with the same criterion the web used. The general flag and a configured owner id behave as before.
+ */
+export async function recraftAllowedForWorker(user: InternalProductionUser, env: Record<string, string | undefined> = process.env,
+  askApp?: (userId: string) => Promise<boolean>): Promise<boolean> {
+  if (recraftAllowedFor(user, env)) return true;
+  if (env.RECRAFT_PILOT_OWNER_USER_ID?.trim() || env.INTERNAL_PRODUCTION_OWNER_USER_ID?.trim()) return false;
+  if (!user?.id || !user.email_confirmed_at) return false;
+  const ask = askApp ?? (async (id: string) => (await import("@/lib/podcast/v3/owner-check")).askAppIsInternalOwner(id, env));
+  return ask(user.id).catch(() => false);
+}
+
 /** Worker-side refusal (before any reservation or payment): the account may not use Recraft, or a Long Form row's stored
  * choice does not match its confirmed plan. Customer-safe text; retrying cannot fix it (support reviews). */
 export class RecraftAccessError extends Error {

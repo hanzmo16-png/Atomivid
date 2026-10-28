@@ -37,6 +37,9 @@ const MODERN_MARKERS = [
   "headphones", "wifi", "instagram",
 ];
 
+/** Ancient objects whose name contains a modern marker ("wax tablet" is a Roman writing tablet, not a device). */
+const HISTORICAL_COMPOUNDS = /\b(?:wax|clay|stone|cuneiform|marble|bronze|lead|wooden|writing|votive|curse) tablets?\b/g;
+
 /** Lugares nombrados que, si el candidato los menciona y la intención nombra OTRO, delatan un contexto geográfico ajeno. */
 const KNOWN_PLACES = [
   "panama", "egypt", "suez", "paris", "france", "london", "england", "new york", "usa", "america", "china", "japan", "india", "dubai",
@@ -71,6 +74,19 @@ function stem(word: string): string {
 const EQUIVALENT_TERMS: Record<string, string[]> = {
   lunar: ["moon"], moon: ["lunar"], solar: ["sun"], sun: ["solar"], martian: ["mars"], mars: ["martian"],
   terrestrial: ["earth"], stellar: ["star"], star: ["stellar"],
+};
+
+/**
+ * Category (hypernym) -> member names, matched on the provider's own words. ONE-WAY: a subject that names the category
+ * ("herbivores", "savanna") accepts a candidate that names a member ("african buffalo grazing", "open plains"); a subject
+ * that names a member never accepts another member ("zebra" vs "giraffe") nor the category. Phrases that use a member
+ * name for something else ("zebra crossing", "buffalo wings", "plain background") never count.
+ * Incident 2026-10-28 ("Un día en la sabana africana"): every herbivore and savanna scene was rejected on wording alone.
+ */
+const CATEGORY_MEMBERS: Record<string, RegExp> = {
+  herbivore: /\b(?:herbivorous|(?:african |cape |water )?buffalo(?:es|s)?(?! wings?\b| bills?\b|,? (?:ny|new york)\b)|zebras?(?! crossings?\b)|giraffes?|antelopes?|wildebeests?|gnus?|gazelles?|impalas?|elephants?|hippos?|hippopotam(?:us|uses|i)|rhinos?|rhinoceros(?:es)?|elands?|kudus?|warthogs?|okapis?|bison)\b/,
+  savanna: /\b(?:savannah?s?|grasslands?|(?:open |grassy |vast |african |serengeti )plains)\b/,
+  savannah: /\b(?:savannah?s?|grasslands?|(?:open |grassy |vast |african |serengeti )plains)\b/,
 };
 
 /**
@@ -128,7 +144,8 @@ export function assessRelevance(visual: BeatVisual, candidateText: string | unde
   const candidate = new Set(englishTerms(candidateText));
   const conflicts: string[] = [];
   if (isHistoricalEra(visual.era)) {
-    for (const marker of MODERN_MARKERS) if (new RegExp(`\\b${marker}\\b`).test(text)) conflicts.push(`época: "${marker}"`);
+    const eraText = text.replace(HISTORICAL_COMPOUNDS, " ");
+    for (const marker of MODERN_MARKERS) if (new RegExp(`\\b${marker}\\b`).test(eraText)) conflicts.push(`época: "${marker}"`);
   }
   if (isCelestialScene(visual)) {
     for (const marker of EARTHBOUND_CONTEXT) if (new RegExp(`\\b${marker}\\b`).test(text)) conflicts.push(`contexto terrestre: "${marker}"`);
@@ -159,7 +176,7 @@ export function assessRelevance(visual: BeatVisual, candidateText: string | unde
   weigh(englishTerms(visual.description), 1);
   // Every subject term (1-3 words) must appear, or an equivalent form: "lunar crater" needs both, so a
   // volcanic crater or a Lunar New Year photo no longer passes on one shared word.
-  const present = (t: string) => candidate.has(t) || (EQUIVALENT_TERMS[t] ?? []).some((e) => candidate.has(e));
+  const present = (t: string) => candidate.has(t) || (EQUIVALENT_TERMS[t] ?? []).some((e) => candidate.has(e)) || (CATEGORY_MEMBERS[t]?.test(text) ?? false);
   for (const t of subject) {
     if (!candidate.has(t) && present(t) && !matched.includes(t)) {
       matched.push(t);

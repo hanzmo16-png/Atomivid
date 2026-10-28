@@ -120,14 +120,16 @@ function SiteHeader() {
     <header className="sticky top-0 z-20 border-b border-border bg-canvas/85 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
         <Logo />
-        <nav className="flex items-center gap-2 sm:gap-3">
-          <Link href="#planes" className="rounded-md px-3 py-2 text-sm font-medium text-ink-muted transition-colors hover:text-ink">
+        {/* Teléfono: sin «Planes» (la sección está en esta misma página) y con menos relleno, para que la cabecera
+            quepa en 320–360 px sin ensanchar el diseño (M3-2, PR #216). */}
+        <nav className="flex items-center gap-1 sm:gap-3">
+          <Link href="#planes" className="hidden rounded-md px-3 py-2 text-sm font-medium text-ink-muted transition-colors hover:text-ink sm:inline-block">
             Planes
           </Link>
           <TrackCta cta="header_login">
             <Link
               href="/login"
-              className="rounded-md px-3 py-2 text-sm font-medium text-ink-muted transition-colors hover:text-ink"
+              className="rounded-md px-2 py-2 text-sm font-medium text-ink-muted transition-colors hover:text-ink sm:px-3"
             >
               Iniciar sesión
             </Link>

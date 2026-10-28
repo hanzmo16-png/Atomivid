@@ -1,6 +1,7 @@
 /**
  * Podcast 2.1 — Estudio audiovisual: piezas puras (sin red) para el flujo de 10 pasos.
- *  - Interruptor: PODCAST_V3_ENABLED=1, o por defecto SOLO en Vercel Preview (VERCEL_ENV=preview). Producción no cambia.
+ *  - Interruptor: PODCAST_V3_ENABLED=1 (todas las cuentas con acceso al podcast), o el piloto del dueño (solo la cuenta
+ *    INTERNAL_PRODUCTION_OWNER_USER_ID, salvo PODCAST_V3_OWNER_PILOT=0), o por defecto SOLO en Vercel Preview (sin generar).
  *  - Proveedores visuales con disponibilidad y motivo: un proveedor elegido NUNCA se sustituye en silencio.
  *  - Línea de tiempo de labios: en cada plano solo mueve los labios quien tiene el turno; el otro queda en reposo.
  *  - Estimación por modo (episodio de N minutos) con desglose por proveedor.
@@ -8,15 +9,31 @@
 import { estimateEpisodeCost, type CostEstimate } from "./cost";
 import { planEpisode, type EditorialPlan, type Shot, type VisualAsset } from "./editorial";
 import { RECRAFT_USD_PER_IMAGE } from "@/lib/providers/image/recraft";
+import { isInternalProductionOwner } from "@/lib/billing/internal-production";
 import type { StudioMode } from "./spec";
 import type { Turn } from "./script";
 
 type Env = Record<string, string | undefined>;
 
-export type StudioFlag = { enabled: boolean; source: "env" | "preview" | "off"; reason: string };
-/** El estudio se ve si PODCAST_V3_ENABLED=1 o si es un despliegue Preview de Vercel (salvo PODCAST_STUDIO_PREVIEW=0). */
-export function studioFlag(env: Env = process.env): StudioFlag {
+export type StudioFlag = { enabled: boolean; source: "env" | "owner" | "preview" | "off"; reason: string };
+type StudioUser = { id?: string; email_confirmed_at?: string | null } | null | undefined;
+/** Piloto del dueño: el estudio genera solo para la cuenta INTERNAL_PRODUCTION_OWNER_USER_ID (email confirmado), sin abrirlo a
+ *  ninguna otra; se apaga con PODCAST_V3_OWNER_PILOT=0. Los topes de gasto y la autorización por episodio no cambian. */
+export function studioOwnerPilot(user: StudioUser, env: Env = process.env): boolean {
+  return env.PODCAST_V3_OWNER_PILOT !== "0" && isInternalProductionOwner(user ? { id: user.id, email_confirmed_at: user.email_confirmed_at ?? undefined } : null, env);
+}
+/** La GENERACIÓN del estudio (despacho de trabajos y cobros autorizados): PODCAST_V3_ENABLED=1 o el piloto del dueño. */
+export function studioGenerationEnabled(user: StudioUser, env: Env = process.env): boolean {
+  return env.PODCAST_V3_ENABLED === "1" || studioOwnerPilot(user, env);
+}
+/** Visibilidad del estudio para una cuenta concreta (navegación y página): mismo criterio que `studioFlag`. */
+export function studioFlagFor(user: StudioUser, env: Env = process.env): StudioFlag {
+  return studioFlag(env, user);
+}
+/** El estudio se ve si PODCAST_V3_ENABLED=1, para el dueño (piloto) o si es un despliegue Preview de Vercel (salvo PODCAST_STUDIO_PREVIEW=0). */
+export function studioFlag(env: Env = process.env, user?: StudioUser): StudioFlag {
   if (env.PODCAST_V3_ENABLED === "1") return { enabled: true, source: "env", reason: "PODCAST_V3_ENABLED=1" };
+  if (studioOwnerPilot(user, env)) return { enabled: true, source: "owner", reason: "Piloto del dueño (solo esta cuenta)" };
   if (env.VERCEL_ENV === "preview" && env.PODCAST_STUDIO_PREVIEW !== "0") return { enabled: true, source: "preview", reason: "Vercel Preview: activado por defecto solo en Preview" };
   return { enabled: false, source: "off", reason: "Apagado (producción sin PODCAST_V3_ENABLED=1)" };
 }

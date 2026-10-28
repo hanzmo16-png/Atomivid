@@ -48,7 +48,7 @@ export function pgLedgerStore(db: PgClient, opts: { withSubmit?: boolean } = {})
     },
     async update(key, expected, patch) {
       const sets: string[] = []; const vals: unknown[] = [];
-      const map: [keyof PaidOperation, string][] = [["status", "status"], ["committedUsd", "committed_usd"], ["providerJobId", "provider_job_id"], ["resultRef", "result_ref"], ["updatedAt", "updated_at"]];
+      const map: [keyof PaidOperation, string][] = [["status", "status"], ["committedUsd", "committed_usd"], ["providerJobId", "provider_job_id"], ["resultRef", "result_ref"], ["supplyReconciled", "supply_reconciled"], ["updatedAt", "updated_at"]];
       for (const [k, col] of map) if (patch[k] !== undefined) { vals.push(patch[k]); sets.push(`${col}=$${vals.length}`); }
       vals.push(key, expected);
       try { const r = await db.query(`update public.pi_paid_operations set ${sets.join(",")} where idempotency_key=$${vals.length - 1} and status=$${vals.length} returning idempotency_key`, vals); return r.rowCount === 1; }

@@ -6,6 +6,7 @@
 import type { AccountVoice } from "@/lib/podcast/voices";
 import type { VoiceViewer } from "@/lib/voices/private-voices";
 import { StudioSpec, validateSpec, STUDIO_VERSION, type StudioSpec as Spec } from "./spec";
+import { isPrivateVoice } from "@/lib/voices/private-voices";
 import { preflight, type ImageProvider, type Providers } from "./pipeline";
 import { generateConversation, type LlmFn } from "./script";
 import { keywords, type VisualAsset } from "./editorial";
@@ -30,12 +31,17 @@ export type ApiDeps = {
   /** CAS draft→authorized (devuelve true si cambió exactamente una fila). */
   authorize: (id: string, usd: number) => Promise<boolean>;
   dispatch: (id: string) => Promise<boolean>;
+  /** Runner perdido (audit F3, #200): CAS generating→failed para un inicio anterior a `startedBefore` y reserved→uncertain,
+   *  igual que scripts/podcast-video-mark-failed.ts. Devuelve true si cambió exactamente el episodio. */
+  markStale?: (id: string, startedBefore: string) => Promise<boolean>;
   /** El avatar existente pertenece al usuario y está listo (aislamiento por usuario). */
   ownsAvatar?: (avatarId: string) => Promise<boolean>;
   env?: Record<string, string | undefined>;
 };
 type Out = { status: number; body: Record<string, unknown> };
 export const STUDIO_MAX_AUTHORIZED_USD = 50;
+/** Más que el timeout del job de estudio (podcast-video.yml: 200 min): pasado esto, ningún runner sigue vivo. */
+export const STUDIO_RUNNER_MAX_MS = 4 * 3600_000;
 const DISABLED: Out = { status: 503, body: { error: "Los modos de estudio (avatar y conversación) se activan tras autorizar la migración y PODCAST_V3_ENABLED. La narración sigue disponible." } };
 
 export async function studioAction(d: ApiDeps, body: Record<string, unknown> | null): Promise<Out> {
@@ -57,13 +63,19 @@ export async function studioAction(d: ApiDeps, body: Record<string, unknown> | n
   try { requireProvider(spec.visual.provider, d.env ?? process.env); } catch (e) { if (e instanceof ProviderUnavailableError) return { status: 409, body: { error: e.message, provider: spec.visual.provider } }; throw e; }
   let voices: AccountVoice[];
   try { voices = await d.voices(); } catch { return { status: 503, body: { error: "No se pudieron consultar las voces; inténtalo más tarde." } }; }
-  const issues = validateSpec(spec, voices, d.viewer);
+  const env = d.env ?? process.env;
+  const issues = validateSpec(spec, voices, d.viewer, env);
   if (issues.length) return { status: 400, body: { error: issues[0].message, issues } };
+  // El cliente puede omitir voice_kind (el esquema pone «sintetica»). Un clon privado concedido se guarda como «clonada».
+  const stored: Spec = { ...spec, participants: spec.participants.map((p) => {
+    const v = voices.find((x) => x.voiceId === p.voice_id);
+    return { ...p, voice_kind: v && isPrivateVoice(v) ? "clonada" : "sintetica" };
+  }) };
   for (const p of spec.participants) {
     if (p.avatar.kind === "foto" && !p.avatar.photo_path.startsWith(`${d.userId}/podcast-studio/photos/`)) return { status: 403, body: { error: "La foto del avatar no pertenece a tu cuenta." } };
     if (p.avatar.kind === "existente" && d.ownsAvatar && !(await d.ownsAvatar(p.avatar.avatar_id))) return { status: 403, body: { error: "Ese avatar no está disponible en tu cuenta." } };
   }
-  const pf = await preflight(spec, planningProviders());
+  const pf = await preflight(stored, planningProviders());
   const estimate = { lines: pf.estimate.lines, totalUsd: pf.estimate.totalUsd, assumptions: pf.estimate.assumptions, rates: pf.estimate.rates, turns: pf.turns.length, mood: pf.mood,
     shots: pf.plan.shots.reduce<Record<string, number>>((m, s) => ({ ...m, [s.kind]: (m[s.kind] ?? 0) + 1 }), {}), overBudget: pf.estimate.totalUsd > spec.budget_usd,
     byProvider: pf.estimate.lines.reduce<Record<string, number>>((m, l) => ({ ...m, [l.provider]: Math.round(((m[l.provider] ?? 0) + l.usd) * 1e4) / 1e4 }), {}),
@@ -73,7 +85,7 @@ export async function studioAction(d: ApiDeps, body: Record<string, unknown> | n
   if (b.action === "create") {
     if (!d.enabled) return DISABLED;
     if (estimate.overBudget) return { status: 402, body: { error: `El costo estimado (USD ${estimate.totalUsd.toFixed(2)}) supera tu presupuesto máximo (USD ${spec.budget_usd.toFixed(2)}). Sube el presupuesto o reduce apariciones del avatar.`, estimate } };
-    const row = await d.insert({ user_id: d.userId, title: spec.title, mode: spec.mode, spec, status: "draft", estimate, estimated_usd: estimate.totalUsd });
+    const row = await d.insert({ user_id: d.userId, title: stored.title, mode: stored.mode, spec: stored, status: "draft", estimate, estimated_usd: estimate.totalUsd });
     if (row === "missing") return DISABLED;
     if (!row) return { status: 500, body: { error: "No se pudo guardar el episodio." } };
     return { status: 200, body: { id: row.id, estimate } };
@@ -84,10 +96,30 @@ export async function studioAction(d: ApiDeps, body: Record<string, unknown> | n
 /** Autorización explícita del cargo (paso 10). Requiere confirmación, monto ≥ estimación y ≤ presupuesto. */
 export async function authorizeAction(d: ApiDeps, id: string, body: Record<string, unknown> | null): Promise<Out> {
   if (!d.enabled) return DISABLED;
-  const row = await d.load(id);
+  let row = await d.load(id);
   if (row === "missing") return DISABLED;
   if (!row || row.user_id !== d.userId) return { status: 404, body: { error: "Episodio no encontrado." } };
-  if (row.status !== "draft" && row.status !== "failed") return { status: 409, body: { error: row.status === "generating" ? "Ya se está generando; no se inicia otra vez." : "Este episodio ya fue autorizado." } };
+  // Audit F3 (#200): «generating» cuyo runner ya no puede existir (inicio anterior al timeout del job) → se cierra como
+  // lo haría mark-failed (lo reservado pasa a «uncertain», nunca a «released») y el dueño puede reintentar.
+  if (row.status === "generating" && d.markStale && (!row.run_started_at || Date.parse(row.run_started_at) < Date.now() - STUDIO_RUNNER_MAX_MS)) {
+    const before = new Date(Date.now() - STUDIO_RUNNER_MAX_MS).toISOString();
+    if (await d.markStale(id, before)) {
+      const again = await d.load(id);
+      if (again === "missing" || !again || again.user_id !== d.userId) return { status: 409, body: { error: "Otra solicitud cambió el episodio; recarga la página." } };
+      row = again;
+    }
+  }
+  // El cargo ya quedó registrado y el worker no ha tomado el episodio: solo se vuelve a pedir el inicio.
+  // No se llama a authorize (no cambia el monto) y el guard del worker impide una segunda generación.
+  // «Sin arranque» = ningún worker tomó el episodio DESPUÉS de esta autorización (un reintento tras un fallo conserva
+  // la marca del intento anterior, más antigua que authorized_at).
+  const notStarted = !row.run_started_at || (!!row.authorized_at && Date.parse(row.run_started_at) < Date.parse(row.authorized_at));
+  if (row.status === "authorized" && notStarted) {
+    if (body?.confirm !== true) return { status: 400, body: { error: "Confirma explícitamente el costo antes de generar." } };
+    const dispatched = await d.dispatch(id);
+    return { status: 200, body: { ok: true, dispatched, note: dispatched ? null : "Autorizado. No pudimos confirmar el inicio del trabajo; pulsa «Reintentar» (no se cobra dos veces)." } };
+  }
+  if (row.status !== "draft" && row.status !== "failed") return { status: 409, body: { error: row.status === "generating" || row.status === "authorized" ? "Ya se está generando; no se inicia otra vez." : "Este episodio ya fue autorizado." } };
   if (body?.confirm !== true) return { status: 400, body: { error: "Confirma explícitamente el costo antes de generar." } };
   const usd = Number(body?.authorizedUsd);
   const spec = StudioSpec.safeParse(row.spec);
@@ -103,14 +135,31 @@ export async function authorizeAction(d: ApiDeps, id: string, body: Record<strin
 }
 
 /**
+ * Archivo de entrega del propio episodio. El prefijo no basta: `..`, `.`, un segmento vacío o una ruta codificada
+ * salen de `${userId}/podcast-studio/${episodeId}/` y no se firman.
+ */
+export function ownStudioAsset(userId: string, episodeId: string, p: string | null): boolean {
+  if (!p || p.includes("\\") || p.includes("\0")) return false;
+  let decoded: string;
+  try { decoded = decodeURIComponent(p); } catch { return false; }
+  if (decoded !== p || decoded.includes("\\") || decoded.includes("\0")) return false;
+  const prefix = `${userId}/podcast-studio/${episodeId}/`;
+  if (!decoded.startsWith(prefix)) return false;
+  const rest = decoded.slice(prefix.length);
+  return rest.length > 0 && rest.split("/").every((seg) => seg !== "" && seg !== "." && seg !== "..");
+}
+
+/**
  * GET del episodio de estudio (estado + enlaces de descarga firmados). Solo el dueño; solo rutas dentro de su carpeta
- * del episodio; enlaces solo cuando está «ready». Separado de Next para probar aislamiento y descarga sin red.
+ * del episodio; enlaces solo cuando está «ready». Solo audio no firma MP4. Separado de Next para probar aislamiento
+ * y descarga sin red.
  */
 export async function episodeAction(userId: string, row: StudioEpisodeRow | "missing" | null, sign: (path: string, name: string) => Promise<string | null>): Promise<Out> {
   if (row === "missing") return { status: 503, body: { error: "Requiere la migración del estudio." } };
   if (!row || row.user_id !== userId) return { status: 404, body: { error: "Episodio no encontrado." } };
-  const signOwn = async (p: string | null, name: string) => (!p || !p.startsWith(`${userId}/podcast-studio/${row.id}/`) ? null : sign(p, name));
+  const audioOnly = (() => { const s = StudioSpec.safeParse(row.spec); return s.success && s.data.output === "audio"; })();
+  const signOwn = async (p: string | null, name: string) => (!p || !ownStudioAsset(userId, row.id, p) ? null : sign(p, name));
   const { spec: _spec, ...pub } = row;
-  return { status: 200, body: { episode: pub, video_url: row.status === "ready" ? await signOwn(row.video_path, `${row.title}.mp4`) : null,
+  return { status: 200, body: { episode: pub, video_url: row.status === "ready" && !audioOnly ? await signOwn(row.video_path, `${row.title}.mp4`) : null,
     audio_url: row.status === "ready" ? await signOwn(row.audio_path, `${row.title}.${row.audio_path?.split(".").pop() ?? "mp3"}`) : null } };
 }
