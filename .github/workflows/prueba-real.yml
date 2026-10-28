@@ -83,6 +83,7 @@ jobs:
           LF_PRIOR_USD: ${{ inputs.lf_prior_usd }}
           RETRY_EPISODE_ID: ${{ inputs.episodio_reintento }}
           LF_TOPIC: ${{ inputs.lf_topic }}
+          GH_TOKEN: ${{ github.token }}
         run: if [ "$CASO" = lf ]; then node scripts/qa/real/longform-real.mjs; elif [ "$CASO" = descargas ]; then node scripts/qa/real/podcast-downloads.mjs; else node scripts/qa/real/podcast-real.mjs; fi
       - name: Evidencia cifrada (capturas, hechos y descarga) a la rama de evidencias
         if: always()

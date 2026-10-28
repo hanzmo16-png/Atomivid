@@ -11,7 +11,7 @@ import { createClient } from "@supabase/supabase-js";
 import { chromium, devices } from "playwright";
 
 const APP = process.env.APP_URL || "https://atomivid.vercel.app";
-const CAP = Number(process.env.BUDGET_USD || 0), PRIOR = Number(process.env.LF_PRIOR_USD || 0), OWNER = process.env.OWNER_ID, EVID = process.env.EVID, MIN = Number(process.env.LF_MINUTES || 5);
+const CAP = Number(process.env.BUDGET_USD || 0), AUTO_PRIOR = process.env.LF_PRIOR_USD === "auto", PRIOR = AUTO_PRIOR ? 0 : Number(process.env.LF_PRIOR_USD || 0), OWNER = process.env.OWNER_ID, EVID = process.env.EVID, MIN = Number(process.env.LF_MINUTES || 5);
 const STATE = process.env.STATE_FILE, STATE2 = process.env.STATE_FILE_2, REUSE = process.env.LF_REQUEST_ID || "";
 const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 let fails = 0; const facts = { capUsd: CAP };
@@ -54,12 +54,35 @@ if (!R) {
   R = job.request_id;
 }
 facts.request = R;
+// A reused request whose script job is QUEUED (waiting for the provider's next period) is woken with the same event the
+// app sends (prepare-documentary-script + jobId): no requeue, no state change; the worker replays saved paid responses.
+if (REUSE) {
+  const { data: q } = await db.from("documentary_script_jobs").select("id,status").eq("request_id", R).order("created_at", { ascending: false }).limit(1);
+  if (q?.[0]?.status === "queued" && process.env.GH_TOKEN && process.env.GITHUB_REPOSITORY) {
+    const res = await fetch(`https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/dispatches`, { method: "POST", headers: { Authorization: `Bearer ${process.env.GH_TOKEN}`, Accept: "application/vnd.github+json" }, body: JSON.stringify({ event_type: "prepare-documentary-script", client_payload: { jobId: q[0].id } }) });
+    ok("reuse: queued script job woken with the app's own worker event", res.status === 204, `HTTP ${res.status}`); facts.wokeJob = q[0].id.slice(0, 8);
+  }
+}
 // Script generation (real LLM, editorial review): wait for the job to finish.
 let jobDone; const t0 = Date.now();
 while (Date.now() - t0 < 40 * 60000) { const { data } = await db.from("documentary_script_jobs").select("id,status,error_message").eq("request_id", R).order("created_at", { ascending: false }).limit(1); jobDone = data?.[0]; if (["completed", "failed"].includes(jobDone?.status)) break; await sleep(20000); }
 facts.scriptJob = { status: jobDone?.status, minutes: Math.round((Date.now() - t0) / 6000) / 10, error: jobDone?.error_message ?? null };
 if (!ok("script generated with editorial review (job completed)", jobDone?.status === "completed", JSON.stringify(facts.scriptJob))) stop("script job not completed");
 const s1 = await spent(R); facts.scriptSpendUsd = s1.usd;
+// LF_PRIOR_USD=auto: ledger reconciliation of EVERYTHING Long Form since the case started (2026-10-27): script calls
+// (documentary:* projects) + paid production of the owner's requests, settled at cost and open rows at their reservation.
+// Includes this request's script spend, so the check is total + production ceiling ≤ case cap.
+let lfTotal = null;
+if (AUTO_PRIOR) {
+  const { data: reqs } = await db.from("video_requests").select("id").eq("user_id", OWNER).gte("created_at", "2026-10-26T00:00:00Z");
+  const ids = new Set((reqs || []).map((x) => x.id));
+  const { data: ops } = await db.from("pi_paid_operations").select("project_id,status,reserved_usd,committed_usd").gte("created_at", "2026-10-27T00:00:00Z");
+  const mine = (ops || []).filter((o) => String(o.project_id).startsWith("documentary:") || ids.has(o.project_id));
+  lfTotal = Math.round(mine.reduce((a, o) => a + (o.status === "COMMITTED" ? Number(o.committed_usd ?? o.reserved_usd) : ["RESERVED", "SUBMITTED", "PROVIDER_JOB_RECORDED", "RECONCILIATION_REQUIRED"].includes(o.status) ? Number(o.reserved_usd ?? 0) : o.status === "REFUNDED" ? 0 : Number(o.committed_usd ?? 0)), 0) * 10000) / 10000;
+  facts.lfSpendSinceCaseStartUsd = lfTotal; facts.lfOpsSinceCaseStart = mine.length;
+  console.log(`INFO Long Form ledger since 2026-10-27: USD ${lfTotal} over ${mine.length} paid operations (case cap ${CAP})`);
+}
+const base = (pageScript) => (lfTotal ?? PRIOR + pageScript);
 await p.goto(`${APP}/dashboard/long-form/configure/${R}`); await skipTour(p);
 for (const t of ["Ver estructura narrativa", "Ver referencias recuperadas"]) await p.getByText(t).first().click().catch(() => {});
 await p.getByText(/Revisar el guion \(/).first().click().catch(() => {});
@@ -78,7 +101,7 @@ const money = () => ({ script: usdOf(/Guion ya gastado\s*USD\s*([0-9]+[.,][0-9]+
 // La primera estrategia que pasa la comprobación previa Y cuyo techo cabe en lo que queda del tope del caso.
 for (const st of ["Económico / archivo", "Equilibrado", "Cinemático / IA"]) {
   await p.getByText(st, { exact: true }).first().click().catch(() => {}); await sleep(2000);
-  txt = await main(); const b = isBlocked(txt), m = money(), fits = PRIOR + m.script + m.ceiling <= CAP + 1e-6;
+  txt = await main(); const b = isBlocked(txt), m = money(), fits = base(m.script) + m.ceiling <= CAP + 1e-6;
   facts.strategies[st] = b ? (txt.match(/(Esta producción no puede iniciar[^\n]*)/) || [""])[0] : `OK ceiling ${m.ceiling}${fits ? "" : " (does not fit the case cap)"}`;
   if (!b) blocked = false;
   if (!b && fits) { facts.strategy = st; break; }
@@ -90,7 +113,7 @@ Object.assign(facts, { priorAttemptsUsd: PRIOR, scriptSpendUsdPage: scriptUsd, c
 ok("budget: script spend and authorization ceiling visible before confirming", Number.isFinite(scriptUsd) && Number.isFinite(ceiling) && ceiling > 0, `script ${scriptUsd} / ceiling ${ceiling} / limit ${limit}`);
 const overflow = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth); ok("configure page: no horizontal overflow", overflow <= 1, `${overflow}px`);
 if (blocked || !Number.isFinite(ceiling)) stop("cannot confirm (impediment or no ceiling)");
-if (PRIOR + scriptUsd + ceiling > CAP + 1e-6) stop(`earlier attempts ${PRIOR} + script ${scriptUsd} + ceiling ${ceiling} exceed the case cap ${CAP}: not confirming`);
+if (base(scriptUsd) + ceiling > CAP + 1e-6) stop(`spent so far ${base(scriptUsd)} + production ceiling ${ceiling} exceed the case cap ${CAP}: not confirming`);
 await p.getByRole("button", { name: "Confirmar y generar video" }).click(); await sleep(6000); await shot(p, "C02-confirmado");
 let r; const t1 = Date.now();
 while (Date.now() - t1 < 150 * 60000) { const { data } = await db.from("video_requests").select("status,long_form_stage,video_path,error_message,duration_seconds,aspect_ratio").eq("id", R).single(); r = data; if (["completed", "failed"].includes(r?.status)) break; await sleep(30000); }
