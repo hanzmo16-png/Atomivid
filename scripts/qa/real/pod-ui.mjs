@@ -49,8 +49,12 @@ for (const [label, opts] of [["escritorio", { viewport: { width: 1366, height: 9
     ok(`${label}: paso Participantes`, /Participantes/.test(await title()), await title());
     const grpA = W().getByRole("radiogroup", { name: /Participante A/ }), grpB = W().getByRole("radiogroup", { name: /Participante B/ });
     ok(`${label}: catálogo con 3 anfitriones`, (await grpA.locator('[data-testid^="anfitrion-"]').count()) === 3);
-    const photos = await grpA.locator("img").evaluateAll((els) => els.map((e) => e.complete && e.naturalWidth > 0));
-    ok(`${label}: fotos de los anfitriones cargan`, photos.length === 3 && photos.every(Boolean), JSON.stringify(photos));
+    // Espera real a que terminen de cargar (hasta 30 s) y mide tiempo y peso de cada foto (Resource Timing).
+    await grpA.locator("img").evaluateAll((els) => Promise.all(els.map((e) => e.complete ? 0 : new Promise((r) => { e.onload = e.onerror = r; setTimeout(r, 30000); }))));
+    const photos = await grpA.locator("img").evaluateAll((els) => els.map((e) => ({ ok: e.complete && e.naturalWidth > 0, w: e.naturalWidth,
+      ms: Math.round(performance.getEntriesByName(e.currentSrc)[0]?.duration ?? -1), kb: Math.round((performance.getEntriesByName(e.currentSrc)[0]?.transferSize ?? 0) / 1024) })));
+    console.log(`PHOTOS ${label} ${JSON.stringify(photos)}`);
+    ok(`${label}: fotos de los anfitriones cargan`, photos.length === 3 && photos.every((x) => x.ok), JSON.stringify(photos));
     ok(`${label}: muestras de voz`, (await grpA.locator("audio").count()) === 3);
     await grpA.getByTestId("anfitrion-valeria").getByRole("radio").click();
     await grpB.getByTestId("anfitrion-victor").getByRole("radio").click();
