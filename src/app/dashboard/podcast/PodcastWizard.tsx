@@ -14,7 +14,7 @@ import { AtomProgress } from "@/components/podcast/AtomProgress";
 import { StudioPreview, type PreviewHost } from "@/components/podcast/StudioPreview";
 import { HostPicker, type HostCard } from "@/components/podcast/HostPicker";
 import { SavedAvatarPicker } from "@/components/podcast/SavedAvatarPicker";
-import { CONSENT_TEXT, INTENSITY_DB, MODALITIES, MODALITY_LABEL, STEP, STEPS, STUDIO_BUDGET_MAX_USD, WIZARD_STORAGE_KEY, defaultDraft, draftToSpec, draftToV2, durationFit, estimateMinutes, loadDraft, modalityToMode, stepErrors, voiceKindFor, withHost, withoutHost, withSavedAvatar, avatarSummary, withVoiceKinds, type Modality, type WizardDraft } from "@/lib/podcast/v3/wizard";
+import { CONSENT_TEXT, INTENSITY_DB, MODALITIES, MODALITY_LABEL, STEP, STEPS, STUDIO_BUDGET_MAX_USD, WIZARD_STORAGE_KEY, defaultDraft, draftToSpec, draftToV2, durationFit, estimateMinutes, loadDraft, modalityToMode, stepErrors, voiceKindFor, withHost, withoutHost, withSavedAvatar, avatarSummary, withAvailableProvider, withVoiceKinds, type Modality, type WizardDraft } from "@/lib/podcast/v3/wizard";
 import type { VisualProvider } from "@/lib/podcast/v3/studio";
 
 export type WizardVoice = { voiceId: string; name: string; available: boolean; note: string | null; kind: "sintetica" | "clonada" };
@@ -41,7 +41,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   const [loaded, setLoaded] = useState(false);
   // El tipo de voz se deriva del catálogo en el render: un efecto con setState rompe el lint del repo
   // (react-hooks/set-state-in-effect) y un catálogo vacío no debe reescribir un clon ya guardado.
-  const d = useMemo(() => (loaded ? withVoiceKinds(raw, voices) : raw), [loaded, raw, voices]);
+  const d = useMemo(() => withAvailableProvider(loaded ? withVoiceKinds(raw, voices) : raw, providers), [loaded, raw, voices, providers]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -260,8 +260,9 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
           {d.modality === "audio" ? <p className="text-ink-muted" data-testid="solo-audio-sin-video">Solo audio: se exporta el archivo de audio. No se genera video ni se buscan imágenes.</p> : (
             <div className="grid min-w-0 gap-2" role="radiogroup" aria-label="Proveedor visual">
               {providers.map((p) => (
-                <label key={p.id} className={`${choice(d.provider === p.id)} min-w-0 max-w-full break-words`} data-testid={`proveedor-${p.id}`}>
-                  <input type="radio" name="proveedor" aria-label={p.label} checked={d.provider === p.id} onChange={() => set({ provider: p.id })} /> <b>{p.label}</b>{p.usdPerImage ? ` · USD ${p.usdPerImage}/imagen` : " · sin costo"}
+                <label key={p.id} className={`${choice(d.provider === p.id)} min-w-0 max-w-full break-words ${p.available ? "" : "cursor-not-allowed opacity-60"}`} data-testid={`proveedor-${p.id}`} data-available={p.available ? "1" : "0"}>
+                  <input type="radio" name="proveedor" aria-label={p.label} checked={d.provider === p.id} disabled={!p.available} onChange={() => set({ provider: p.id })} /> <b>{p.label}</b>{p.usdPerImage ? ` · USD ${p.usdPerImage}/imagen` : " · sin costo"}
+                  {!p.available && <span className="ml-1 rounded bg-danger-soft px-1 text-xs font-medium text-danger">No disponible</span>}
                   {!p.available && <span className="mt-1 block text-xs text-danger">{p.reason}</span>}
                 </label>
               ))}

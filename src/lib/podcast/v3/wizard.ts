@@ -98,6 +98,18 @@ export function loadDraft(raw: string | null): WizardDraft {
   catch { return defaultDraft(); }
 }
 
+/**
+ * Un proveedor no disponible nunca queda preseleccionado como si estuviera listo: si el borrador apunta a uno que hoy no
+ * puede producir (p. ej. Recraft sin saldo verificable), el asistente muestra el primero disponible y lo explica en
+ * pantalla. Es una elección previa a autorizar, a la vista; la producción sigue sin sustituir proveedores.
+ */
+export function withAvailableProvider<T extends { provider: WizardDraft["provider"] }>(d: T, providers: { id: string; available: boolean }[]): T {
+  const cur = providers.find((p) => p.id === d.provider);
+  if (!cur || cur.available) return d;
+  const alt = providers.find((p) => p.available);
+  return alt ? { ...d, provider: alt.id as WizardDraft["provider"] } : d;
+}
+
 /** Errores que impiden avanzar desde un paso (mensajes para personas no técnicas). */
 export function stepErrors(d: WizardDraft, step: number, ctx: { unavailableVoices: string[]; providers?: { id: string; available: boolean; reason: string | null }[] }): string[] {
   const e: string[] = [];

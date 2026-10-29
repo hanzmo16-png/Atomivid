@@ -441,14 +441,14 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     await snap("paso06-musica"); await next();
     if (m.mode !== "Solo audio") {
       // Recraft es el proveedor principal del estudio (con precio por imagen) y Pexels ya no se ofrece. Aquí su política de
-      // gasto está cerrada (como la dejó la migración): el asistente lo dice ANTES de autorizar y no avanza con él; nunca lo
-      // sustituye solo. Con la política lista (caso 13) se ofrece y se estima. Este E2E no sale a fal.ai.
+      // gasto está cerrada (como la dejó la migración): el asistente lo dice ANTES de autorizar y no deja elegirlo. Con la
+      // política lista (caso 13) se ofrece, queda elegido y se estima. Este E2E no sale a fal.ai.
       const rc = await W().getByTestId("proveedor-recraft").textContent();
       ok(`${tag}: Recraft con precio por imagen y, sin política lista, el motivo en pantalla`, /USD 0\.035\/imagen/.test(rc) && /No disponible por ahora: .*no están configurados/.test(rc) && /No se cobra nada/.test(rc), rc.slice(0, 200));
-      ok(`${tag}: Recraft preseleccionado como proveedor principal`, await W().getByLabel("Ilustraciones Recraft").isChecked());
-      await W().getByRole("button", { name: "Siguiente", exact: true }).click(); await S.p.waitForTimeout(400);
-      const blocked = await W().getByRole("alert").textContent().catch(() => "");
-      ok(`${tag}: con Recraft no listo el asistente no avanza y explica por qué (no lo cambia solo)`, /Visuales/.test(await stepTitle()) && /No disponible por ahora/.test(blocked ?? "") && await W().getByLabel("Ilustraciones Recraft").isChecked(), String(blocked).slice(0, 160));
+      // Un proveedor no disponible no queda presentado como listo: deshabilitado, sin marcar, con «No disponible», y la
+      // opción disponible queda elegida a la vista (la producción nunca sustituye proveedores).
+      ok(`${tag}: Recraft no listo: deshabilitado, sin marcar y con la etiqueta «No disponible»`, await W().getByLabel("Ilustraciones Recraft").isDisabled() && !(await W().getByLabel("Ilustraciones Recraft").isChecked()) && /No disponible\b/.test(rc) && (await W().getByTestId("proveedor-recraft").getAttribute("data-available")) === "0");
+      ok(`${tag}: «Solo estudio y anfitriones» queda elegido y disponible`, await W().getByLabel("Solo estudio y anfitriones (sin imágenes)").isChecked() && (await W().getByTestId("proveedor-solo_set").getAttribute("data-available")) === "1");
       ok(`${tag}: Pexels ya no aparece en el estudio`, (await W().locator('[data-testid="proveedor-pexels"]').count()) === 0);
       await W().getByLabel("Solo estudio y anfitriones (sin imágenes)").check();
     }

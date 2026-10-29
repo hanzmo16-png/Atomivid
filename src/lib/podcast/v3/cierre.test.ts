@@ -199,3 +199,15 @@ test("avatar guardado: cambiar entre catálogo y avatar propio no pierde el epis
   assert.ok(!stepErrors(ok2, STEP.avatares, { unavailableVoices: [] }).some((e) => /mismo avatar/.test(e)));
   assert.equal(ok2.script, base.script); assert.equal(ok2.topic, base.topic);
 });
+
+test("paso Visuales: un proveedor no disponible nunca queda preseleccionado como listo", async () => {
+  const { withAvailableProvider } = await import("./wizard");
+  const { visualProviders } = await import("./studio");
+  const blocked = visualProviders({}, "el saldo de fal.ai no se puede verificar en este entorno");
+  const d = { ...defaultDraft() };
+  assert.equal(d.provider, "recraft");
+  assert.equal(withAvailableProvider(d, blocked).provider, "solo_set", "Recraft bloqueado → se muestra elegida la opción disponible");
+  assert.equal(withAvailableProvider(d, visualProviders({}, null)).provider, "recraft", "Recraft listo → sigue siendo el principal");
+  assert.equal(withAvailableProvider({ ...d, provider: "solo_set" as const }, visualProviders({}, null)).provider, "solo_set", "una elección disponible del usuario se respeta");
+  assert.equal(withAvailableProvider(d, []).provider, "recraft", "sin lista de proveedores no se toca nada");
+});
