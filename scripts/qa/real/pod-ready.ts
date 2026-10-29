@@ -40,6 +40,10 @@ async function main() {
   const { data: snaps } = await service.from("pi_capacity_snapshots").select("provider,available,unit,reliability,health,status,checked_at")
     .eq("provider", "recraft").order("checked_at", { ascending: false }).limit(5);
   const { data: st } = await service.rpc("pi_supply_state", { p_provider: "recraft" });
+  const { data: pol } = await service.from("pi_supply_policies").select("provider,enabled,unit,unit_cost_usd,baseline,max_concurrent,max_daily_calls,daily_cap_usd,monthly_cap_usd,timezone,evidence").in("provider", ["recraft", "elevenlabs", "heygen"]);
+  console.log("POLICY_FULL", JSON.stringify((pol ?? []).map((r) => ({ ...r, evidence: `${String(r.evidence ?? "").trim().length} chars` }))));
+  const { data: anySnap } = await service.from("pi_capacity_snapshots").select("provider,reliability,checked_at").in("provider", ["elevenlabs", "heygen"]).eq("reliability", "manual_entry").limit(3);
+  console.log("MANUAL_ENTRIES_OTHER", JSON.stringify(anySnap));
   console.log("RECRAFT_SNAPSHOTS", JSON.stringify(snaps), "STATE", JSON.stringify(st));
 }
 main().catch((e) => { console.error(e instanceof Error ? e.message : "error"); process.exitCode = 1; });
