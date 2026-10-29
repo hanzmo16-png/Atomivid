@@ -23,6 +23,21 @@ const SCRIPT = [
   "Víctor Albarrán: Exacto. La mayoría son registros cotidianos; los mitos son una parte pequeña y muy interesante.",
 ].join("\n");
 
+// POD_UI_UNTIL=visuales: smoke sin estimar (se detiene en «Visuales»). Conteos de SOLO LECTURA antes/después para probar
+// que el recorrido no crea episodios, autorizaciones, reservas ni gasto.
+const UNTIL = process.env.POD_UI_UNTIL || "";
+const count = async (table, filter = "") => {
+  const r = await fetch(`${process.env.SUPABASE_URL}/rest/v1/${table}?select=*${filter}`, { method: "HEAD", headers: { apikey: process.env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`, Prefer: "count=exact" } });
+  return Number((r.headers.get("content-range") ?? "").split("/")[1] ?? NaN);
+};
+const ledger = async () => {
+  const own = `&user_id=eq.${process.env.OWNER_ID}`;
+  return { studioEpisodes: await count("podcast_studio_episodes", own), studioAuthorized: await count("podcast_studio_episodes", `${own}&authorized_at=not.is.null`),
+    studioOps: await count("podcast_studio_operations"), recraftPaidOps: await count("pi_paid_operations", "&provider=eq.recraft"), recraftSnapshots: await count("pi_capacity_snapshots", "&provider=eq.recraft"),
+    podcastEpisodes: await count("podcast_episodes", own) };
+};
+const BEFORE = UNTIL ? await ledger() : null;
+if (BEFORE) console.log(`LEDGER_BEFORE ${JSON.stringify(BEFORE)}`);
 const browser = await chromium.launch({ headless: true, channel: process.env.PW_CHANNEL || undefined });
 for (const [label, opts] of [["escritorio", { viewport: { width: 1366, height: 900 } }], ["movil", { ...devices["iPhone 13"] }]]) {
   const ctx = await browser.newContext({ ...opts, storageState: stateFor() });
@@ -83,13 +98,18 @@ for (const [label, opts] of [["escritorio", { viewport: { width: 1366, height: 9
     const rc = (await W().getByTestId("proveedor-recraft").innerText()).replace(/\s+/g, " ");
     const recraftBlocked = /No disponible/.test(rc);
     console.log(`RECRAFT ${label} ${JSON.stringify({ blocked: recraftBlocked, text: rc.slice(0, 240) })}`);
+    if (UNTIL) ok(`${label}: Recraft aparece NO disponible antes de autorizar`, recraftBlocked, rc.slice(0, 240));
     if (recraftBlocked) {
       ok(`${label}: Recraft no listo muestra el motivo y que no se cobra`, /No se cobra nada/.test(rc), rc.slice(0, 240));
       await W().getByRole("button", { name: "Siguiente", exact: true }).click(); await p.waitForTimeout(600);
       const al = await W().getByRole("alert").innerText().catch(() => "");
       ok(`${label}: con Recraft no listo el asistente no avanza y lo explica`, /Visuales/.test(await title()) && /No disponible/.test(al), al.slice(0, 200));
-      await W().getByLabel("Solo estudio y anfitriones (sin imágenes)").check();
+      const solo = W().getByLabel("Solo estudio y anfitriones (sin imágenes)");
+      await solo.check();
+      ok(`${label}: «Solo estudio y anfitriones» sigue seleccionable`, await solo.isEnabled() && await solo.isChecked() && !/No disponible/.test(await W().getByTestId("proveedor-solo_set").innerText()));
+      await shot("3b-solo-estudio");
     }
+    if (UNTIL === "visuales") throw Object.assign(new Error("STOP"), { stop: true });
     await next();
     await W().getByRole("button", { name: "Calcular costo" }).click().catch(() => {});
     await W().getByTestId("costo-por-proveedor").waitFor({ timeout: 60000 }).catch(() => {});
@@ -105,10 +125,15 @@ for (const [label, opts] of [["escritorio", { viewport: { width: 1366, height: 9
     const list = p.getByTestId("studio-episodes");
     if (await list.count()) await list.screenshot({ path: path.join(EVID, `${label}-5-episodios.png`) }).catch(() => {});
     ok(`${label}: nunca «En cola» en episodios ya iniciados`, !(/En cola/.test(await list.innerText().catch(() => ""))));
-  } catch (e) { ok(`${label}: recorrido sin errores`, false, String(e?.message ?? e).slice(0, 300)); await shot("error"); }
+  } catch (e) { if (!e?.stop) { ok(`${label}: recorrido sin errores`, false, String(e?.message ?? e).slice(0, 300)); await shot("error"); } }
   await p.evaluate(() => { try { for (const k of Object.keys(localStorage)) if (/podcast/i.test(k)) localStorage.removeItem(k); } catch {} }).catch(() => {});
   await ctx.close();
 }
 await browser.close();
+if (BEFORE) {
+  const AFTER = await ledger();
+  console.log(`LEDGER_AFTER ${JSON.stringify(AFTER)}`);
+  ok("sin cambios: episodios, autorizaciones, reservas del estudio, operaciones pagadas ni snapshots", JSON.stringify(AFTER) === JSON.stringify(BEFORE) && Object.values(BEFORE).every(Number.isFinite), JSON.stringify({ BEFORE, AFTER }));
+}
 console.log(`RESULT pod-ui: ${fails} FAIL`);
 process.exit(fails ? 1 : 0);

@@ -93,7 +93,7 @@ jobs:
           FAL_KEY: ${{ (inputs.caso == 'pod-assets' || inputs.caso == 'pod-fragment') && secrets.FAL_KEY || '' }}
         run: |
           if [ "$CASO" = pod-diag ]; then node scripts/qa/real/pod-diag.mjs; exit $?; fi
-          if [ "$CASO" = pod-ui ]; then node scripts/qa/real/pod-ui.mjs; exit $?; fi
+          if [ "$CASO" = pod-ui ]; then POD_UI_UNTIL="${{ (inputs.pod_episode_id == 'visuales' && 'visuales') || '' }}" node scripts/qa/real/pod-ui.mjs; exit $?; fi
           if [ "$CASO" = pod-clips ]; then node scripts/qa/real/pod-clips.mjs; exit $?; fi
           if [ "$CASO" = pod-fragment ] || [ "$CASO" = pod-scan ] || [ "$CASO" = pod-remaster ] || [ "$CASO" = pod-calib ]; then
             # Código del estudio nuevo (rama de trabajo, repositorio público) sobre las dependencias ya instaladas.
