@@ -16,6 +16,7 @@ import { voiceAvailability } from "@/lib/podcast/v3/spec";
 import { listStudioEpisodes } from "@/lib/podcast/v3/store";
 import { studioFlagFor, studioGenerationEnabled, visualProviders } from "@/lib/podcast/v3/studio";
 import { studioRecraftBlocker } from "@/lib/podcast/v3/readiness";
+import { RECORDING_BUCKET } from "@/lib/video/avatar/recording";
 
 const STATUS: Record<PodcastEpisode["status"], string> = { draft: "Borrador", generating: "Generando", ready: "Listo", failed: "Con error" };
 const VIDEO: Record<string, string> = { scheduled: "programado", queued: "en cola", running: "en producción", ready: "entregado", failed: "con error", blocked: "detenido" };
@@ -42,8 +43,11 @@ export default async function PodcastPage() {
   const previewNotice = flag.source === "preview" ? "Vista previa (Vercel Preview): el estudio se muestra activado solo aquí. Puedes recorrer los 10 pasos y ver costos; la generación real está desactivada hasta aplicar la migración y PODCAST_V3_ENABLED=1." : null;
   // Los episodios ya hechos se listan siempre (escuchar y descargar no genera ni cobra), aunque la generación esté apagada.
   const studioEpisodes = (await listStudioEpisodes(service, user.id)) ?? [];
-  const { data: avatarRows } = await service.from("avatars").select("id,name").eq("user_id", user.id).eq("status", "ready").order("created_at", { ascending: false }).limit(20);
-  const avatars = (avatarRows ?? []) as WizardAvatar[];
+  const { data: avatarRows } = await service.from("avatars").select("id,name,source_photo_path,source_deleted_at").eq("user_id", user.id).eq("status", "ready").order("created_at", { ascending: false }).limit(20);
+  // Vista previa de cada avatar guardado: su foto en el almacenamiento privado (enlace firmado de 1 h), si aún existe.
+  const avatars: WizardAvatar[] = await Promise.all(((avatarRows ?? []) as { id: string; name: string; source_photo_path: string | null; source_deleted_at: string | null }[]).map(async (a) => ({
+    id: a.id, name: a.name,
+    photoUrl: a.source_photo_path && !a.source_deleted_at ? (await service.storage.from(RECORDING_BUCKET).createSignedUrl(a.source_photo_path, 3600)).data?.signedUrl ?? null : null })));
   // Estado real de Recraft (política y saldo, solo lectura): el asistente muestra el motivo si hoy no puede producir.
   const recraftBlock = v3Enabled ? await studioRecraftBlocker(service) : null;
   const wizardVoices = voicesError ? [] : voiceAvailability(voices, user);

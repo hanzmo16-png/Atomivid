@@ -47,6 +47,21 @@ export function withoutHost(p: WizardParticipant): WizardParticipant {
   return { ...p, host: null, voice_id: "", voice_kind: "sintetica", avatar: { kind: "ninguno" } };
 }
 
+/** Usar un avatar ya listo de la cuenta (p. ej. el propio): deja el catálogo, conserva tema/guion y pide la voz aparte. */
+export function withSavedAvatar(p: WizardParticipant, avatar: { id: string; name: string }): WizardParticipant {
+  const base = p.host ? withoutHost(p) : p;
+  // El nombre del anfitrión del catálogo (o el genérico) se cambia por el del avatar; un nombre escrito a mano se respeta.
+  const generic = !!p.host || ["Anfitrión", "Invitado", ""].includes(p.name.trim());
+  return { ...base, name: generic ? avatar.name.slice(0, 60) : base.name, avatar: { kind: "existente", avatar_id: avatar.id } };
+}
+/** Texto para el resumen previo: qué avatar usa cada participante. */
+export function avatarSummary(p: WizardParticipant, avatars: { id: string; name: string }[]): string {
+  if (p.host || p.avatar.kind === "catalogo") return "anfitrión del catálogo";
+  if (p.avatar.kind === "existente") { const id = p.avatar.avatar_id; return `avatar guardado «${avatars.find((a) => a.id === id)?.name ?? "de tu cuenta"}»`; }
+  if (p.avatar.kind === "foto") return "avatar nuevo desde una foto";
+  return "sin avatar";
+}
+
 /** Clon privado concedido → «clonada»; catálogo o id vacío → «sintetica». La UI y el envío usan la misma regla. */
 export function voiceKindFor(voiceId: string, catalog: readonly { voiceId: string; kind?: "sintetica" | "clonada" }[]): "sintetica" | "clonada" {
   if (!voiceId) return "sintetica";
@@ -102,6 +117,8 @@ export function stepErrors(d: WizardDraft, step: number, ctx: { unavailableVoice
     }
     if (d.count === 2 && active[0].voice_id && active[0].voice_id === active[1].voice_id) e.push("Los dos participantes necesitan voces distintas.");
   }
+  if (step === STEP.avatares && d.mode !== "narracion" && active.length === 2 && active.every((p) => p.avatar.kind === "existente")
+    && (active[0].avatar as { avatar_id: string }).avatar_id === (active[1].avatar as { avatar_id: string }).avatar_id) e.push("Los dos participantes tienen el mismo avatar guardado; elige otro para uno de ellos.");
   if (step === STEP.avatares && d.mode !== "narracion") for (const p of active) {
     if (p.avatar.kind === "ninguno") e.push(`Elige un avatar para ${p.name}.`);
     if (p.avatar.kind === "foto" && !p.avatar.consent) e.push(`Marca el consentimiento para crear el avatar de ${p.name} desde su foto.`);

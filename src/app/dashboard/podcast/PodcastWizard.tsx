@@ -13,11 +13,12 @@ import { progressView } from "@/lib/podcast/v3/progress";
 import { AtomProgress } from "@/components/podcast/AtomProgress";
 import { StudioPreview, type PreviewHost } from "@/components/podcast/StudioPreview";
 import { HostPicker, type HostCard } from "@/components/podcast/HostPicker";
-import { CONSENT_TEXT, INTENSITY_DB, MODALITIES, MODALITY_LABEL, STEP, STEPS, STUDIO_BUDGET_MAX_USD, WIZARD_STORAGE_KEY, defaultDraft, draftToSpec, draftToV2, durationFit, estimateMinutes, loadDraft, modalityToMode, stepErrors, voiceKindFor, withHost, withoutHost, withVoiceKinds, type Modality, type WizardDraft } from "@/lib/podcast/v3/wizard";
+import { SavedAvatarPicker } from "@/components/podcast/SavedAvatarPicker";
+import { CONSENT_TEXT, INTENSITY_DB, MODALITIES, MODALITY_LABEL, STEP, STEPS, STUDIO_BUDGET_MAX_USD, WIZARD_STORAGE_KEY, defaultDraft, draftToSpec, draftToV2, durationFit, estimateMinutes, loadDraft, modalityToMode, stepErrors, voiceKindFor, withHost, withoutHost, withSavedAvatar, avatarSummary, withVoiceKinds, type Modality, type WizardDraft } from "@/lib/podcast/v3/wizard";
 import type { VisualProvider } from "@/lib/podcast/v3/studio";
 
 export type WizardVoice = { voiceId: string; name: string; available: boolean; note: string | null; kind: "sintetica" | "clonada" };
-export type WizardAvatar = { id: string; name: string };
+export type WizardAvatar = { id: string; name: string; photoUrl?: string | null };
 type LipSeg = { start: number; end: number; shot: string; speaker: "A" | "B" | null; lips: { A: string; B: string } };
 type Estimate = { lines: { concept: string; detail: string; usd: number; provider: string }[]; totalUsd: number; assumptions: string[]; turns: number; mood: string; shots: Record<string, number>; overBudget: boolean; byProvider?: Record<string, number>; lipTimeline?: LipSeg[]; coverage?: Record<string, boolean>; turnList?: { id: string; speaker: "A" | "B"; kind: string; text: string }[] };
 type Status = { episode: { status: string; progress: unknown; updated_at?: string | null; error: string | null; cost_usd: number | null }; video_url: string | null; audio_url: string | null };
@@ -170,6 +171,12 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
                 onSelect={(id) => setRaw((x) => { const ps = [...x.participants] as WizardDraft["participants"]; ps[i] = withHost(ps[i], id as NonNullable<WizardDraft["participants"][0]["host"]>); return { ...x, participants: ps }; })}
                 onCustom={() => setRaw((x) => { const ps = [...x.participants] as WizardDraft["participants"]; ps[i] = withoutHost(ps[i]); return { ...x, participants: ps }; })} />
             )}
+            {studio && d.mode !== "narracion" && (
+              <SavedAvatarPicker label={`O usa un avatar guardado de tu cuenta para ${tag(i) === "A" ? (d.mode === "dialogo" ? "el anfitrión (A)" : "el presentador") : "el invitado (B)"}`} who={tag(i)}
+                avatars={avatars} selected={!p.host && p.avatar.kind === "existente" ? p.avatar.avatar_id : null}
+                disabledIds={active.filter((_, j) => j !== i).map((x) => (x.avatar.kind === "existente" ? x.avatar.avatar_id : "")).filter(Boolean)}
+                onSelect={(a) => setRaw((x) => { const ps = [...x.participants] as WizardDraft["participants"]; ps[i] = withSavedAvatar(ps[i], a); return { ...x, participants: ps }; })} />
+            )}
             {p.host ? <p className="text-xs text-ink-muted" data-testid={`anfitrion-elegido-${tag(i)}`}>{p.name}: rostro, voz y estilo del catálogo (personaje virtual de Atomicvid).</p> : (
             <fieldset className="grid gap-2 rounded border border-border p-2">
               <legend className="px-1">{i === 0 ? (d.mode === "dialogo" ? "Participante A (anfitrión)" : "Participante principal") : "Participante B (invitado o segunda voz)"}</legend>
@@ -209,7 +216,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
               <select aria-label={`Avatar ${tag(i)}`} value={p.avatar.kind === "existente" ? p.avatar.avatar_id : p.avatar.kind === "foto" ? "__foto" : ""}
                 onChange={(e) => setP(i as 0 | 1, { avatar: e.target.value === "__foto" ? { kind: "foto", photo_path: "", consent: false, consent_at: null } : e.target.value ? { kind: "existente", avatar_id: e.target.value } : { kind: "ninguno" } })} className={input}>
                 <option value="">Elige…</option>
-                {avatars.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                {avatars.map((a) => <option key={a.id} value={a.id} disabled={active.some((x, j) => j !== i && x.avatar.kind === "existente" && x.avatar.avatar_id === a.id)}>{a.name}</option>)}
                 <option value="__foto">Crear desde una foto</option>
               </select>
               {p.avatar.kind === "foto" && (
@@ -311,7 +318,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
       {d.step === STEP.vista && (
         <div className="mt-3 grid gap-2 text-sm" data-testid="wizard-preview">
           <p><b>{d.title}</b> · {d.modality ? MODALITY_LABEL[d.modality] : ""} · {d.minutes} min · {d.language === "es" ? "español" : "inglés"}</p>
-          <p className="text-xs">Participantes: {active.map((p) => `${p.name} (${p.role || "sin rol"}${p.personality ? `, ${p.personality}` : ""})`).join(" · ")}</p>
+          <p className="text-xs" data-testid="resumen-participantes">Participantes: {active.map((p) => `${p.name} (${p.role || "sin rol"}${p.personality ? `, ${p.personality}` : ""}${d.mode !== "narracion" ? ` · ${avatarSummary(p, avatars)}` : ""})`).join(" · ")}</p>
           <p className="text-xs">Música: {d.musicEnabled ? `${d.mood === "auto" ? "automática" : MOOD_LABEL[d.mood as keyof typeof MOOD_LABEL]}, intensidad ${d.intensity}${d.intro ? ", intro" : ""}${d.outro ? ", outro" : ""}${d.ducking ? ", ducking" : ""}` : "sin música"} · −16 LUFS</p>
           {estimate?.coverage && d.mode === "dialogo" && <p className="text-xs" data-testid="cobertura-planos">Planos: {estimate.coverage.general ? "✔ plano general de los dos" : "✘ sin plano general"} · {estimate.coverage.primerPlanoA ? "✔" : "✘"} primer plano A · {estimate.coverage.primerPlanoB ? "✔" : "✘"} primer plano B</p>}
           {estimate?.turnList && (
