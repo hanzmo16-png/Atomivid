@@ -51,5 +51,17 @@ const narration = beats.map((b) => String(b?.narration ?? "")).join("\n");
 facts.script = { beats: beats.length, scenes: beats.reduce((a, b) => a + (Array.isArray(b?.visuals) ? b.visuals.length : 0), 0), narrationWords: narration.split(/\s+/).filter(Boolean).length };
 fs.writeFileSync(path.join(EVID, "narration.txt"), narration);
 fs.writeFileSync(path.join(EVID, "scenes.json"), JSON.stringify(beats.map((b, i) => ({ beat: i, narration: b?.narration, visuals: (b?.visuals || []).map((v) => v?.description) })), null, 1));
+// Informe visual que el worker guardó antes del render (solo lectura): qué recurso cubre cada escena, su descripción
+// del proveedor y los términos que coincidieron. Permite revisar a ojo los fotogramas contra lo que el filtro aceptó.
+const { data: vr } = await db.storage.from("videos").download(`${R}/state/visual-report.json`);
+if (vr) {
+  const rep = JSON.parse(Buffer.from(await vr.arrayBuffer()).toString());
+  const scenes = (rep.scenes || []).map((s) => ({ start: s.startSec, end: s.endSec, intent: s.intent?.description, subject: s.intent?.subject, place: s.intent?.place,
+    source: s.source ?? s.asset?.source ?? null, provider: s.provider ?? s.asset?.provider ?? null, description: s.candidateDescription ?? s.description ?? s.asset?.description ?? null,
+    relevance: s.relevance ?? null, matchedTerms: s.matchedTerms ?? null }));
+  fs.writeFileSync(path.join(EVID, "visual-report.json"), JSON.stringify(rep, null, 1));
+  fs.writeFileSync(path.join(EVID, "visual-scenes.json"), JSON.stringify(scenes, null, 1));
+  console.log(`INFO visual report: ${scenes.length} scenes`);
+} else console.log("INFO visual report: not stored");
 spawnSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", "-i", file, "-vn", "-ac", "1", "-ar", "16000", path.join(WORK, "lf.wav")]);
 done();
