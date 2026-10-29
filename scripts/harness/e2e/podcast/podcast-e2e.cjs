@@ -714,7 +714,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     const ins = (id, status, startedSql) => db.query(`insert into public.podcast_studio_episodes(id,user_id,title,mode,spec,status,authorized_usd,authorized_at,run_started_at) values ($1,$2,'c15','narracion','{"version":"podcast-studio/3"}',$3,2,now(),${startedSql})`, [id, OWNER.id, status]);
     const A = "c15a0000-0000-4000-8000-000000000001", G = "c15a0000-0000-4000-8000-000000000002", S = "c15a0000-0000-4000-8000-000000000003";
     await ins(A, "authorized", "null"); await ins(G, "generating", "now()"); await ins(S, "authorized", "now() + interval '1 minute'");
-    await db.query("insert into public.podcast_studio_operations(key,user_id,episode_id,provider,op,state,reserved_usd) values ('c15-op',$1,$2,'elevenlabs','tts','reserved',0.01)", [OWNER.id, G]);
+    await db.query("insert into public.podcast_studio_operations(key,user_id,episode_id,provider,op,state,reserved_usd) values ('980a9fbda02b3e68f906ae9865bebde0842172b730db77b9486fe18d2474ac03',$1,$2,'elevenlabs','tts','reserved',0.01)", [OWNER.id, G]);
     const row = async (id) => (await db.query("select status,error,authorized_usd,authorized_at from public.podcast_studio_episodes where id=$1", [id])).rows[0];
     const before = await row(A);
     const ra = await markFailed(A, "studio");
@@ -722,14 +722,14 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     ok("c15: sin arrancar → sigue «authorized» con su autorización intacta", a.status === "authorized" && Number(a.authorized_usd) === 2 && +a.authorized_at === +before.authorized_at, JSON.stringify(a));
     ok("c15: sin arrancar → el error explica que no se cobró y cómo reintentar", /No se pudo iniciar/.test(a.error ?? "") && /no se cobra otra vez/.test(a.error ?? "") && /STUDIO_NOT_STARTED_NOTED 1/.test(ra.out), `${a.error} | ${ra.out.slice(-160)}`);
     await markFailed(G, "studio");
-    const g = await row(G), op = (await db.query("select state from public.podcast_studio_operations where key='c15-op'")).rows[0];
+    const g = await row(G), op = (await db.query("select state from public.podcast_studio_operations where key='980a9fbda02b3e68f906ae9865bebde0842172b730db77b9486fe18d2474ac03'")).rows[0];
     ok("c15: muerto durante la generación → «failed» y lo reservado pasa a «uncertain» (como antes)", g.status === "failed" && op.state === "uncertain", `${g.status} ${op.state}`);
     await markFailed(S, "studio");
     ok("c15: ya tomado por un worker tras esta autorización → no se toca", (await row(S)).error === null);
     // La API ofrece volver a pedir el inicio sin cobrar: el episodio sigue autorizado y no hay operación nueva.
     const ops = Number((await db.query("select count(*)::int n from public.podcast_studio_operations where episode_id=$1", [A])).rows[0].n);
     ok("c15: ningún cargo ni reserva para el episodio que no arrancó", ops === 0, String(ops));
-    await db.query("delete from public.podcast_studio_operations where key='c15-op'");
+    await db.query("delete from public.podcast_studio_operations where key='980a9fbda02b3e68f906ae9865bebde0842172b730db77b9486fe18d2474ac03'");
     await db.query("delete from public.podcast_studio_episodes where id = any($1)", [[A, G, S]]);
   }
   await s.ctx.close(); await browser.close(); await db.end();
