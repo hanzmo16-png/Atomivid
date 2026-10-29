@@ -1,0 +1,51 @@
+# Sondeo de acceso a una preview protegida por Vercel (USD 0, solo lectura). No cambia SSO ni ajustes del proyecto.
+# Informa: presencia (sí/no) de VERCEL_TOKEN y VERCEL_AUTOMATION_BYPASS_SECRET (nunca su valor), respuesta sin
+# credenciales, con el secreto de bypass (si existe), con «vercel curl» (solo si hay secreto: sin él, el CLI podría
+# CREAR un token de bypass en el proyecto, lo cual sería cambiar la configuración) y con un token OIDC temporal de
+# GitHub en x-vercel-trusted-oidc-idp-token (Trusted Sources; solo funciona si el proyecto tiene esa regla).
+name: preview-access
+on:
+  workflow_dispatch:
+    inputs:
+      url: { description: "URL completa de la preview (incluye la ruta)", required: true }
+  push:
+    branches: [claude/puertas-merge]
+    paths: [".github/workflows/preview-access.yml"]
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  probe:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      URL: ${{ inputs.url }}
+      VT: ${{ secrets.VERCEL_TOKEN }}
+      BYP: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+    steps:
+      - name: Credenciales disponibles (solo presencia)
+        run: |
+          echo "VERCEL_TOKEN presente: $([ -n "$VT" ] && echo sí || echo no)"
+          echo "VERCEL_AUTOMATION_BYPASS_SECRET presente: $([ -n "$BYP" ] && echo sí || echo no)"
+      - name: Sin credenciales
+        run: |
+          curl -sS -o /dev/null -D h.txt -w "HTTP %{http_code}\n" "$URL" || true
+          echo "Location: $(grep -i '^location:' h.txt | sed -E 's#(https?://[^/?]+[^?]*).*#\1#' | tr -d '\r' | head -1)"
+          grep -iE '^(x-vercel-error|x-vercel-id|server):' h.txt | tr -d '\r' || true
+      - name: Con secreto de bypass (si existe)
+        run: |
+          if [ -z "$BYP" ]; then echo "NO EJECUTADO: el repositorio no tiene VERCEL_AUTOMATION_BYPASS_SECRET"; exit 0; fi
+          curl -sS -o /dev/null -w "HTTP %{http_code}\n" -H "x-vercel-protection-bypass: $BYP" "$URL"
+      - name: vercel curl (solo con secreto existente)
+        run: |
+          if [ -z "$VT" ] || [ -z "$BYP" ]; then echo "NO EJECUTADO: vercel curl necesita VERCEL_TOKEN y, sin un secreto de bypass existente, crearía uno en el proyecto (cambio de configuración no autorizado)"; exit 0; fi
+          npx -y vercel@48.10.2 curl "$URL" --token "$VT" --protection-bypass "$BYP" -sS -o /dev/null -w "HTTP %{http_code}\n"
+      - name: Trusted Sources con OIDC temporal de GitHub
+        run: |
+          for aud in "https://vercel.com/atomivid" "vercel"; do
+            T=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$aud" | python3 -c "import json,sys; print(json.load(sys.stdin).get('value',''))")
+            [ -n "$T" ] || { echo "aud=$aud: no se obtuvo token OIDC"; continue; }
+            curl -sS -o /dev/null -D o.txt -w "aud=$aud → HTTP %{http_code}\n" -H "x-vercel-trusted-oidc-idp-token: $T" "$URL" || true
+            grep -iE '^(location|x-vercel-error):' o.txt | sed -E 's#(https?://[^/?]+[^?]*).*#\1#' | tr -d '\r' || true
+          done
