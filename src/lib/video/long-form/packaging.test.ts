@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { canonicalThumbnailPath, defaultPackaging, isOwnChannelAccount, suggestTitle, toCoverSpec, validatePackagingInput } from "./packaging";
+import { canonicalSubtitlePath, canonicalThumbnailPath, defaultPackaging, isOwnChannelAccount, suggestTitle, toCoverSpec, validatePackagingInput } from "./packaging";
 import { COVER_CANVAS } from "../../../../remotion/cover-rules";
 
 const env = { AVATAR_PREPARATION_OWNER_EMAIL: "hans@example.com", LONG_FORM_OWN_CHANNEL_EMAILS: "canal2@example.com, Canal3@Example.com" };
@@ -51,6 +51,8 @@ test("validación de lo que envía el navegador: una, ambas o ninguna; nunca est
 test("especificación de render: arriba a la derecha y antetítulo vacío omitido", () => {
   assert.deepEqual(toCoverSpec({ enabled: true, style: "alerta", title: "T", kicker: "  " }), { style: "alerta", title: "T", kicker: undefined, placement: "top-right" });
   assert.equal(canonicalThumbnailPath("req-1"), "req-1/output/thumbnail.jpg");
+  assert.equal(canonicalSubtitlePath("req-1"), "req-1/output/subtitles.es.srt");
+  assert.equal(canonicalSubtitlePath("req-1", "en"), "req-1/output/subtitles.en.srt");
 });
 
 test("interfaz: la configuración ofrece Portada de apertura y Miniatura como opciones independientes con vista previa", () => {

@@ -49,7 +49,9 @@ import { getVoiceProvider } from "@/lib/providers/voice";
 import { buildLongFormTimeline, type BeatSynthesizer } from "./timeline";
 import { shotsForSpan } from "./shots";
 import { assertOpeningValid, CoverValidationError, renderLongFormDoc, renderLongFormThumbnail, type RenderLongFormDocInput } from "./render";
-import { canonicalThumbnailPath, toCoverSpec } from "./packaging";
+import { canonicalSubtitlePath, canonicalThumbnailPath, toCoverSpec } from "./packaging";
+import { probeOutput } from "./output-media";
+import { attachLongFormSubtitles } from "./subtitle-track";
 import { provenanceLabel } from "../../../../remotion/long-form-card-fit";
 import { defaultDirections, snapSceneBoundaries } from "./montage-direction";
 import { captionsWithinScenes } from "./scene-captions";
@@ -292,7 +294,7 @@ export async function generateLongFormVideoFromScript({
   /** Snapshot CONFIRMADO (long_form_production_plan) — el worker ejecuta exactamente su estrategia y nunca excede su allocation. */
   plan: ProductionPlan;
   runtime?: LongFormRuntime;
-}): Promise<{ videoPath: string; deviations: number; spentUsd: number; reconciled: boolean; output: LongFormOutputState | null; thumbnailPath?: string }> {
+}): Promise<{ videoPath: string; deviations: number; spentUsd: number; reconciled: boolean; output: LongFormOutputState | null; thumbnailPath?: string; subtitlePath?: string }> {
   const voiceCharacters = beats.reduce((sum, b) => sum + b.narration.length, 0);
   if (voiceCharacters !== plan.voiceCharacters) throw new LongFormScriptChangedError();
 
@@ -809,18 +811,47 @@ export async function generateLongFormVideoFromScript({
     );
   }
 
+  // El render quema los subtítulos en la imagen y no deja pista ni archivo.
+  // Se muxan aquí (copia de video y audio) y el SRT se sube junto al MP4.
+  // Un archivo que no es un MP4 legible — las pruebas escriben bytes falsos,
+  // igual que cuando falta ffmpeg para masterizar — no tumba la entrega.
+  // Si el MP4 sí se lee y los cues no son válidos o el mux deja tracks: 0,
+  // attachLongFormSubtitles lanza y no se publica un video sin subtítulos.
+  let subtitleSidecar: { directory: string; sidecarPath: string } | null = null;
+  const media = await probeOutput(outputPath).catch(() => null);
+  if (media?.videoCodec && media.durationSeconds > 0) {
+    const attached = await keepAlive()(() => attachLongFormSubtitles({
+      videoPath: outputPath,
+      captions,
+      durationSeconds: media.durationSeconds,
+      language,
+    }));
+    if (attached.videoPath !== outputPath && outputPath !== rawOutputPath) await fs.unlink(outputPath).catch(() => {});
+    outputPath = attached.videoPath;
+    subtitleSidecar = { directory: attached.directory, sidecarPath: attached.sidecarPath };
+  } else {
+    console.warn(`[atomivid:long-form:produce] ${requestId} — MP4 sin lectura de medios; no se muxó la pista de subtítulos`);
+  }
+
   // Entrega idempotente (output-finalize.ts): preflight de tamaño con el
   // archivo YA renderizado, subida reanudable con reintentos del MISMO
   // archivo, salida canónica por solicitud y estado durable. Un fallo aquí
   // nunca vuelve a renderizar ni llama a proveedores; el archivo se
   // conserva (LONG_FORM_OUTPUT_KEEP_DIR) y el cliente ve un mensaje seguro.
   if (outputPath !== rawOutputPath) await fs.unlink(rawOutputPath).catch(() => {});
+  let subtitlePath: string | undefined;
+  if (subtitleSidecar) {
+    const buffer = await fs.readFile(subtitleSidecar.sidecarPath);
+    subtitlePath = (await uploadArtifact(canonicalSubtitlePath(requestId, language), buffer, "application/x-subrip")).path;
+    storageBytes += buffer.byteLength;
+  }
   const { videoPath, state: outputState } = await keepAlive()(() => finalizeLongFormOutput(
     { requestId, attempt: runtime.attempt ?? null, filePath: outputPath, profile: runtime.encoding },
     outputDeps,
   ));
   storageBytes += outputState.delivered?.bytes ?? 0;
   await fs.unlink(outputPath).catch(() => {});
+  if (subtitleSidecar) await fs.rm(subtitleSidecar.directory, { recursive: true, force: true }).catch(() => {});
 
   // Miniatura de YouTube (opcional, independiente de la portada): la imagen de la primera escena con su
   // reencuadre + el título. Un fallo aquí nunca afecta al video ya entregado.
@@ -879,7 +910,7 @@ export async function generateLongFormVideoFromScript({
       });
   }
 
-  return { videoPath, deviations, spentUsd, reconciled: false, output: outputState, thumbnailPath };
+  return { videoPath, deviations, spentUsd, reconciled: false, output: outputState, thumbnailPath, subtitlePath };
 }
 
 /** Mismo patrón que generate-video.ts (Shorts): sube al bucket privado y firma una URL de corta duración para que este mismo proceso (Remotion) pueda leerla. */
