@@ -43,7 +43,7 @@ const SEQ = [
   { tag: "listo", body: { ...ep("ready", prog("guardado", 99, 1, 1, { preparacion: [1, 1], voces: [43, 43], imagenes: [21, 21], avatares: [12, 12], montaje: [40, 40], guardado: [1, 1] }, "Archivo final guardado"), { audio_path: "ficticio/episodio.mp3" }), activity: null } },
 ];
 
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, channel: process.env.PW_CHANNEL || undefined });
 for (const [label, opts] of [["escritorio", { viewport: { width: 1366, height: 900 } }], ["movil", { ...devices["iPhone 13"] }]]) {
   const ctx = await browser.newContext({ ...opts, storageState: stateFor() });
   await ctx.addInitScript(() => { try { localStorage.setItem("atomivid_onboarding_completed_v1", "1"); } catch {} });
