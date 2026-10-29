@@ -19,6 +19,21 @@ async function main() {
     console.log("OPEN_RESERVATIONS", (rs ?? []).length, JSON.stringify(rs));
     return;
   }
+  if (id === "todos") {
+    // Todos los episodios del estudio (solo lectura): estado, rutas de entrega y si el archivo existe en Storage.
+    const { data: all, error } = await db.from("podcast_studio_episodes").select("id,user_id,status,mode,spec,video_path,audio_path,progress,error,authorized_at,run_started_at,created_at,updated_at").order("created_at", { ascending: true });
+    if (error) { console.log("ALL_ERROR", error.message); process.exitCode = 1; return; }
+    const exists = async (p: string | null) => { if (!p) return null; const dir = p.split("/").slice(0, -1).join("/"), name = p.split("/").pop(); const { data } = await db.storage.from("videos").list(dir, { search: name }); return !!data?.some((f) => f.name === name); };
+    const users: string[] = [];
+    for (const r of all ?? []) {
+      if (!users.includes(String(r.user_id))) users.push(String(r.user_id));
+      const pr = r.progress as { stage?: string; pct?: number; stages?: object } | null;
+      console.log("EP", JSON.stringify({ id: String(r.id).slice(0, 8), user: `u${users.indexOf(String(r.user_id)) + 1}`, status: r.status, mode: r.mode, output: (r.spec as { output?: string } | null)?.output ?? null,
+        video: r.video_path ? "sí" : null, video_exists: await exists(r.video_path), audio: r.audio_path ? "sí" : null, audio_exists: await exists(r.audio_path),
+        progress: pr ? { stage: pr.stage, pct: pr.pct, stages: Object.keys(pr.stages ?? {}).length } : null, error: r.error ? String(r.error).slice(0, 120) : null, authorized_at: r.authorized_at, run_started_at: r.run_started_at, created_at: r.created_at, updated_at: r.updated_at }));
+    }
+    return;
+  }
   if (id === "recientes") {
     // Diagnóstico de un intento sin respuesta (solo lectura, sin datos personales): episodios del estudio y clásicos de
     // las últimas 12 h (cualquier estado, incluso «draft»), operaciones del libro y estado de Recraft.
