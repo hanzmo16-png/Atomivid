@@ -440,12 +440,15 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     await W().getByLabel("Ambiente musical").selectOption(m.mood ?? "auto"); if (m.intensity) await W().getByLabel("Intensidad de la música").selectOption(m.intensity);
     await snap("paso06-musica"); await next();
     if (m.mode !== "Solo audio") {
-      // Recraft es el proveedor principal del estudio (con precio por imagen) y Pexels ya no se ofrece. La regla «nunca se
-      // sustituye un proveedor no disponible» la cubre studio.test (409 con PODCAST_STUDIO_RECRAFT=0). Este E2E no tiene
-      // fal.ai: sigue con «solo estudio» para no salir a la red.
+      // Recraft es el proveedor principal del estudio (con precio por imagen) y Pexels ya no se ofrece. Aquí su política de
+      // gasto está cerrada (como la dejó la migración): el asistente lo dice ANTES de autorizar y no avanza con él; nunca lo
+      // sustituye solo. Con la política lista (caso 13) se ofrece y se estima. Este E2E no sale a fal.ai.
       const rc = await W().getByTestId("proveedor-recraft").textContent();
-      ok(`${tag}: Recraft disponible, con precio por imagen`, !/No disponible/.test(rc) && /USD 0\.035\/imagen/.test(rc), rc.slice(0, 120));
+      ok(`${tag}: Recraft con precio por imagen y, sin política lista, el motivo en pantalla`, /USD 0\.035\/imagen/.test(rc) && /No disponible por ahora: .*no están configurados/.test(rc) && /No se cobra nada/.test(rc), rc.slice(0, 200));
       ok(`${tag}: Recraft preseleccionado como proveedor principal`, await W().getByLabel("Ilustraciones Recraft").isChecked());
+      await W().getByRole("button", { name: "Siguiente", exact: true }).click(); await S.p.waitForTimeout(400);
+      const blocked = await W().getByRole("alert").textContent().catch(() => "");
+      ok(`${tag}: con Recraft no listo el asistente no avanza y explica por qué (no lo cambia solo)`, /Visuales/.test(await stepTitle()) && /No disponible por ahora/.test(blocked ?? "") && await W().getByLabel("Ilustraciones Recraft").isChecked(), String(blocked).slice(0, 160));
       ok(`${tag}: Pexels ya no aparece en el estudio`, (await W().locator('[data-testid="proveedor-pexels"]').count()) === 0);
       await W().getByLabel("Solo estudio y anfitriones (sin imágenes)").check();
     }
@@ -648,6 +651,8 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       "Víctor Albarrán: Gracias, Valeria. Son de los textos escritos más antiguos que conocemos.",
       "Valeria Montclair: ¿Qué contaban esas tablillas?", "Víctor Albarrán: Sobre todo cuentas, contratos y leyes.",
       "Valeria Montclair: Gracias, Víctor. Nos escuchamos pronto."].join("\n");
+    // Política de Recraft lista en la base desechable (activada, topes 10/50, línea base); el saldo se lee al arrancar.
+    await db.query("update pi_supply_policies set enabled=true, baseline=1, unit_cost_usd=1, daily_cap_usd=10, monthly_cap_usd=50, max_concurrent=1, max_daily_calls=250 where provider='recraft'");
     for (const [dev, opt] of [["escritorio", { viewport: { width: 1440, height: 900 } }], ["samsung", SAMSUNG13]]) {
       const t = `c13-${dev}`, S = await session(OWNER, t, opt);
       const W = () => S.p.getByTestId("podcast-wizard"), next = async () => { await W().getByRole("button", { name: "Siguiente" }).click(); await S.p.waitForTimeout(400); };
@@ -678,6 +683,8 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       await next(); await next();
       ok(`${t}: paso Visuales`, /Visuales/.test(await title()), await title());
       ok(`${t}: Recraft preseleccionado y Pexels ausente`, await W().getByLabel("Ilustraciones Recraft").isChecked() && (await W().locator('[data-testid="proveedor-pexels"]').count()) === 0);
+      const rc13 = await W().getByTestId("proveedor-recraft").textContent();
+      ok(`${t}: con la política lista, Recraft se ofrece sin aviso de bloqueo`, !/No disponible/.test(rc13), rc13.slice(0, 160));
       for (const st of ["moderno", "calido", "minimalista"]) {
         await W().getByTestId(`estudio-${st}`).click(); await S.p.waitForTimeout(500);
         // La tarjeta del estudio lleva su miniatura y debajo va la vista previa grande del elegido: se mira la grande.
@@ -695,6 +702,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       await S.p.evaluate(() => localStorage.removeItem("atomivid.podcast.asistente.v2"));
       await S.ctx.close();
     }
+    await db.query("update pi_supply_policies set enabled=false where provider='recraft'");
   }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).

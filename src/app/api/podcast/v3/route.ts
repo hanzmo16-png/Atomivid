@@ -6,6 +6,7 @@ import { studioAction } from "@/lib/podcast/v3/api";
 import { realLlm } from "@/lib/podcast/v3/adapters";
 import { STUDIO_TABLE } from "@/lib/podcast/v3/store";
 import { dispatchPodcastJob } from "@/lib/podcast/video-jobs";
+import { studioRecraftBlocker } from "@/lib/podcast/v3/readiness";
 import { studioGenerationEnabled } from "@/lib/podcast/v3/studio";
 
 export const maxDuration = 60;
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
     insert: async (row) => { const { data, error } = await service.from(STUDIO_TABLE).insert(row).select("id").single(); if (error) return /does not exist|schema cache|42P01|PGRST205/.test(`${error.code} ${error.message}`) ? "missing" : null; return data as { id: string }; },
     ownsAvatar: async (id) => { if (!/^[0-9a-f-]{36}$/i.test(id)) return false; const { data } = await service.from("avatars").select("id").eq("id", id).eq("user_id", user.id).eq("status", "ready").maybeSingle(); return !!data; },
     load: async () => null, authorize: async () => false, dispatch: (id) => dispatchPodcastJob(id, "studio"),
+    recraftBlocker: () => studioRecraftBlocker(service),
   }, body);
   return NextResponse.json(out.body, { status: out.status });
 }

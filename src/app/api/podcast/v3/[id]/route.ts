@@ -6,6 +6,7 @@ import { listAccountVoices } from "@/lib/podcast/voices";
 import { authorizeAction, episodeAction } from "@/lib/podcast/v3/api";
 import { STUDIO_COLUMNS, STUDIO_TABLE, type StudioEpisodeRow } from "@/lib/podcast/v3/store";
 import { dispatchPodcastJob } from "@/lib/podcast/video-jobs";
+import { studioRecraftBlocker } from "@/lib/podcast/v3/readiness";
 
 const BUCKET = "videos";
 
@@ -39,6 +40,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     insert: async () => null, load: (x) => load(service, x),
     authorize: async (x, usd) => { const { data } = await service.from(STUDIO_TABLE).update({ status: "authorized", authorized_usd: usd, authorized_at: new Date().toISOString(), error: null, updated_at: new Date().toISOString() }).eq("id", x).eq("user_id", user.id).in("status", ["draft", "failed"]).select("id"); return (data?.length ?? 0) === 1; },
     dispatch: (x) => dispatchPodcastJob(x, "studio"),
+    recraftBlocker: () => studioRecraftBlocker(service),
     markStale: async (x, startedBefore) => {
       const at = new Date().toISOString();
       const { data } = await service.from(STUDIO_TABLE).update({ status: "failed", error: "La generación se interrumpió. Lo ya pagado se conserva y se reutiliza al reintentar; no se cobra dos veces.", updated_at: at })

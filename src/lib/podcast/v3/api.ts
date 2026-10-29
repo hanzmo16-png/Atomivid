@@ -40,6 +40,8 @@ export type ApiDeps = {
   /** El avatar existente pertenece al usuario y está listo (aislamiento por usuario). */
   ownsAvatar?: (avatarId: string) => Promise<boolean>;
   env?: Record<string, string | undefined>;
+  /** Motivo por el que Recraft no puede producir hoy (null = listo). Solo lectura; sin él no se comprueba. */
+  recraftBlocker?: () => Promise<string | null>;
 };
 type Out = { status: number; body: Record<string, unknown> };
 export const STUDIO_MAX_AUTHORIZED_USD = 50;
@@ -63,7 +65,8 @@ export async function studioAction(d: ApiDeps, body: Record<string, unknown> | n
   if (!parsed.success) return { status: 400, body: { error: parsed.error.issues[0]?.message ?? "Datos inválidos.", path: parsed.error.issues[0]?.path } };
   const spec: Spec = parsed.data;
   // Proveedor visual elegido: si no está disponible se rechaza con el motivo; nunca se sustituye en silencio.
-  try { requireProvider(spec.visual.provider, d.env ?? process.env); } catch (e) { if (e instanceof ProviderUnavailableError) return { status: 409, body: { error: e.message, provider: spec.visual.provider } }; throw e; }
+  const recraftBlock = d.recraftBlocker ? await d.recraftBlocker() : null;
+  try { requireProvider(spec.visual.provider, d.env ?? process.env, recraftBlock); } catch (e) { if (e instanceof ProviderUnavailableError) return { status: 409, body: { error: e.message, provider: spec.visual.provider } }; throw e; }
   let voices: AccountVoice[];
   try { voices = await d.voices(); } catch { return { status: 503, body: { error: "No se pudieron consultar las voces; inténtalo más tarde." } }; }
   const env = d.env ?? process.env;
@@ -82,7 +85,7 @@ export async function studioAction(d: ApiDeps, body: Record<string, unknown> | n
   const estimate = { lines: pf.estimate.lines, totalUsd: pf.estimate.totalUsd, assumptions: pf.estimate.assumptions, rates: pf.estimate.rates, turns: pf.turns.length, mood: pf.mood,
     shots: pf.plan.shots.reduce<Record<string, number>>((m, s) => ({ ...m, [s.kind]: (m[s.kind] ?? 0) + 1 }), {}), overBudget: pf.estimate.totalUsd > spec.budget_usd,
     byProvider: pf.estimate.lines.reduce<Record<string, number>>((m, l) => ({ ...m, [l.provider]: Math.round(((m[l.provider] ?? 0) + l.usd) * 1e4) / 1e4 }), {}),
-    providers: visualProviders(d.env ?? process.env), lipTimeline: lipTimeline(pf.plan).slice(0, 40), coverage: shotCoverage(pf.plan),
+    providers: visualProviders(d.env ?? process.env, recraftBlock), lipTimeline: lipTimeline(pf.plan).slice(0, 40), coverage: shotCoverage(pf.plan),
     turnList: pf.turns.slice(0, 60).map((t) => ({ id: t.id, speaker: t.speaker, kind: t.kind, text: t.text.slice(0, 140) })) };
   if (b.action === "estimate") return { status: 200, body: { estimate } };
   if (b.action === "create") {
@@ -132,6 +135,11 @@ export async function authorizeAction(d: ApiDeps, id: string, body: Record<strin
   // Tope duro por autorización (independiente del presupuesto que escriba el usuario): un error o un abuso no puede
   // autorizar más de STUDIO_MAX_AUTHORIZED_USD por episodio.
   if (usd > STUDIO_MAX_AUTHORIZED_USD + 1e-9) return { status: 402, body: { error: `Por seguridad, un episodio no puede autorizar más de USD ${STUDIO_MAX_AUTHORIZED_USD}.` } };
+  // Recraft no listo (política o saldo): se rechaza ANTES de autorizar; el borrador queda intacto y nada se cobra.
+  if (spec.data.visual.provider === "recraft" && d.recraftBlocker) {
+    try { requireProvider("recraft", d.env ?? process.env, await d.recraftBlocker()); }
+    catch (e) { if (e instanceof ProviderUnavailableError) return { status: 409, body: { error: e.message, provider: "recraft" } }; throw e; }
+  }
   if (!(await d.authorize(id, usd))) return { status: 409, body: { error: "Otra solicitud cambió el episodio; recarga la página." } };
   const dispatched = await d.dispatch(id);
   return { status: 200, body: { ok: true, dispatched, note: dispatched ? null : "Autorizado. No pudimos confirmar el inicio del trabajo; pulsa «Reintentar» (no se cobra dos veces)." } };

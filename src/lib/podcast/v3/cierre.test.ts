@@ -151,3 +151,32 @@ test("F3 el route implementa markStale como mark-failed: CAS generating→failed
   assert.match(m, /state: "uncertain"/);
   assert.doesNotMatch(m, /released/);
 });
+
+// Producción 2026-10-29: la política «recraft» activada pero sin saldo verificable (baseline 0, sin FAL_ADMIN_KEY) dejaba
+// a Recraft «disponible» en el asistente; el bloqueo solo aparecía en el worker, después de autorizar. Ahora se ve antes.
+test("Recraft no listo: el asistente lo muestra con el motivo y se rechaza ANTES de autorizar (sin cargo)", async () => {
+  const { authorizeAction } = await import("./api");
+  const { visualProviders } = await import("./studio");
+  const { readinessMessage } = await import("./readiness");
+  const block = "los límites de gasto de Recraft todavía no están configurados";
+  const rc = visualProviders({}, block).find((p) => p.id === "recraft")!;
+  assert.equal(rc.available, false);
+  assert.match(rc.reason ?? "", /todavía no están configurados.*No se cobra nada.*Solo estudio y anfitriones/);
+  assert.equal(visualProviders({}, block).find((p) => p.id === "solo_set")!.available, true, "«Solo estudio» sigue disponible");
+  assert.equal(visualProviders({}, null).find((p) => p.id === "recraft")!.available, true);
+  const spec = (provider: string) => ({ version: STUDIO_VERSION, mode: "narracion", title: "T", script: "y".repeat(30), target_minutes: 1, participants: [{ id: "A", name: "A", voice_id: "voiceAnaHost1" }], visual: { provider }, music: {}, budget_usd: 10 });
+  for (const [provider, want] of [["recraft", 409], ["solo_set", 200]] as const) {
+    let authorized = 0, dispatched = 0;
+    const d = deps({ load: async () => ({ id: "e1", user_id: "u1", status: "draft", estimated_usd: 1, spec: spec(provider) }) as never,
+      authorize: async () => { authorized++; return true; }, dispatch: async () => { dispatched++; return true; }, recraftBlocker: async () => block });
+    const r = await authorizeAction(d, "e1", { confirm: true, authorizedUsd: 2 });
+    assert.equal(r.status, want, JSON.stringify(r.body));
+    assert.deepEqual([authorized, dispatched], want === 409 ? [0, 0] : [1, 1]);
+    if (want === 409) assert.match(String(r.body.error), /Recraft.*no está disponible.*todavía no están configurados/);
+  }
+  const est = await studioAction(deps({ recraftBlocker: async () => block }), { action: "estimate", spec: spec("recraft") });
+  assert.equal(est.status, 409, "la estimación con Recraft también muestra el motivo");
+  // El worker (si llega a correr) explica el bloqueo en español, sin códigos internos.
+  assert.equal(readinessMessage({ provider: "recraft", reason: "supplier balance unavailable" }), "Recraft (ilustraciones): no se pudo verificar un saldo suficiente.");
+  assert.equal(readinessMessage({ provider: "x", reason: "otra" }), "x: otra.");
+});

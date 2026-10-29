@@ -38,3 +38,31 @@ export function studioSpendByProvider(rows: { provider: string; state: string; r
   }
   return out as StudioSpend24h;
 }
+
+/**
+ * ¿Puede Recraft producir hoy? Misma regla que Long Form (recraftProductionBlocker: política configurada y activada,
+ * saldo de fal.ai verificable, no en rojo). Solo lectura. Un error al consultar también bloquea (falla cerrado).
+ */
+export async function studioRecraftBlocker(service: Pick<import("@supabase/supabase-js").SupabaseClient, "rpc">, env: Record<string, string | undefined> = process.env): Promise<string | null> {
+  const { recraftProductionBlocker } = await import("@/lib/video/long-form/recraft-readiness");
+  try { return await recraftProductionBlocker(service, env); } catch { return "no se pudo comprobar el estado de Recraft"; }
+}
+
+const PROVIDER_NAME: Record<string, string> = { elevenlabs: "ElevenLabs (voz)", heygen: "HeyGen (avatar)", recraft: "Recraft (ilustraciones)", production: "Atomicvid" };
+const REASON: Record<string, string> = {
+  "supplier balance unavailable": "no se pudo verificar un saldo suficiente",
+  "supplier unconfigured": "no tiene límites de gasto configurados",
+  "daily request quota": "alcanzó su cuota diaria de llamadas",
+  "daily request quota unavailable": "no se pudo leer su cuota diaria",
+  "provider funded spend ceiling": "alcanzaría su tope de gasto diario o mensual",
+  "spend unavailable": "no se pudo leer el gasto acumulado",
+  "global funded spend ceiling": "se alcanzaría el tope de gasto global diario o mensual",
+  "funded global budget unconfigured": "el presupuesto global no está configurado",
+  "supply policies unavailable": "no se pudieron leer las políticas de gasto",
+};
+/** Motivo de bloqueo previo legible (ProviderNotReadyError lo guarda en el episodio y se ve en «Tus episodios»). */
+export function readinessMessage(failure: { provider: string; reason: string } | undefined): string {
+  const who = PROVIDER_NAME[failure?.provider ?? ""] ?? failure?.provider ?? "un proveedor";
+  const why = REASON[failure?.reason ?? ""] ?? failure?.reason ?? "no está disponible";
+  return `${who}: ${why}.`;
+}
