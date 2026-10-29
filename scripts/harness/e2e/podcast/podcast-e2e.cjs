@@ -504,8 +504,29 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       let r2; for (let i = 0; i < 40; i++) { r2 = (await db.query("select id, status from podcast_studio_episodes where id=$1", [row0.id])).rows[0]; if (r2?.status === "authorized") break; await S.p.waitForTimeout(250); }
       ok(`${tag}: el reintento vuelve a autorizar el MISMO episodio (no crea otro)`, r2?.status === "authorized" && (await db.query("select count(*)::int n from podcast_studio_episodes where user_id=$1 and title=$2", [OWNER.id, m.title])).rows[0].n === 1, r2?.status);
     }
+    // Avance real (incidente ec30c594): mientras el worker trabaja, la BASE recibe el avance (antes un `void` sobre la
+    // consulta perezosa no enviaba nada) y la PÁGINA lo muestra; nunca retrocede ni marca 100 % antes de «ready».
+    const samples = [], uiPcts = []; let sampling = true;
+    const sampler = (async () => { while (sampling) {
+      const r = (await db.query("select status, progress from podcast_studio_episodes where id=$1", [row0.id]).catch(() => ({ rows: [] }))).rows[0];
+      if (r?.status === "generating" && r.progress) samples.push(r.progress);
+      const t = await W().getByTestId("atom-progress-pct").first().textContent({ timeout: 500 }).catch(() => null);
+      const st = await W().getByTestId("atom-progress").first().getAttribute("data-state", { timeout: 500 }).catch(() => null);
+      if (t && st) uiPcts.push([st, Number(t.replace("%", ""))]);
+      await new Promise((x) => setTimeout(x, 250));
+    } })();
     const w = await worker(row0.id, "studio");
+    sampling = false; await sampler;
     const row = (await db.query("select * from podcast_studio_episodes where id=$1", [row0.id])).rows[0];
+    if (!opts.failTtsCall) {
+      const pcts = samples.map((x) => x.pct), mono = pcts.every((v, i) => i === 0 || v >= pcts[i - 1]);
+      ok(`${tag}: el avance llega a la base durante la generación (${samples.length} lecturas, etapas ${[...new Set(samples.map((x) => x.stage))].join("→")})`, samples.length >= 2 && new Set(samples.map((x) => x.stage)).size >= 2, JSON.stringify(pcts.slice(0, 12)));
+      ok(`${tag}: el avance guardado nunca retrocede ni llega a 100 % antes de «ready»`, mono && pcts.every((v) => v <= 99), JSON.stringify(pcts.slice(-12)));
+      const st = row.progress?.stages ?? {};
+      ok(`${tag}: hitos durables por etapa en el episodio terminado (voces ${st.voces?.done}/${st.voces?.total})`, row.status === "ready" && st.voces?.total > 0 && st.voces.done === st.voces.total && (row.progress.activity ?? []).some((a) => a.text === "Archivo final guardado"), JSON.stringify(Object.keys(st)));
+      const live = uiPcts.filter(([s]) => s !== "listo").map(([, v]) => v), uiMono = live.every((v, i) => i === 0 || v >= live[i - 1]);
+      ok(`${tag}: la página muestra el avance sin retroceder y el 100 % solo con «listo» (${uiPcts.length} lecturas)`, uiPcts.length > 0 && uiMono && live.every((v) => v < 100) && uiPcts.filter(([s]) => s === "listo").every(([, v]) => v === 100), JSON.stringify(uiPcts.slice(-10)));
+    }
     ok(`${tag}: el costo liquidado no supera lo autorizado`, Number(row.cost_usd) <= Number(row.authorized_usd) + 1e-6, `${row.cost_usd} / ${row.authorized_usd}`);
     if (opts.failTtsCall) {
       const dup = (await db.query("select key from podcast_studio_operations where episode_id=$1 group by key having count(*) > 1", [row0.id])).rows;

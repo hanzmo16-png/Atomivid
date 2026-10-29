@@ -9,7 +9,7 @@ import { safeParseJsonResponse } from "@/lib/http/safe-json";
 import { classifyClientFetchError } from "@/lib/http/client-error";
 import { MODE_LABEL, MOODS, MOOD_LABEL } from "@/lib/podcast/v3/spec";
 import { STUDIOS, type StudioId } from "@/lib/podcast/v3/studios";
-import { progressView } from "@/lib/podcast/v3/progress";
+import { progressView, type LedgerActivity } from "@/lib/podcast/v3/progress";
 import { AtomProgress } from "@/components/podcast/AtomProgress";
 import { StudioPreview, type PreviewHost } from "@/components/podcast/StudioPreview";
 import { HostPicker, type HostCard } from "@/components/podcast/HostPicker";
@@ -20,7 +20,7 @@ export type WizardVoice = { voiceId: string; name: string; available: boolean; n
 export type WizardAvatar = { id: string; name: string };
 type LipSeg = { start: number; end: number; shot: string; speaker: "A" | "B" | null; lips: { A: string; B: string } };
 type Estimate = { lines: { concept: string; detail: string; usd: number; provider: string }[]; totalUsd: number; assumptions: string[]; turns: number; mood: string; shots: Record<string, number>; overBudget: boolean; byProvider?: Record<string, number>; lipTimeline?: LipSeg[]; coverage?: Record<string, boolean>; turnList?: { id: string; speaker: "A" | "B"; kind: string; text: string }[] };
-type Status = { episode: { status: string; progress: unknown; updated_at?: string | null; error: string | null; cost_usd: number | null }; video_url: string | null; audio_url: string | null };
+type Status = { episode: { status: string; progress: unknown; updated_at?: string | null; error: string | null; cost_usd: number | null; output?: "audio" | "video"; audio_path?: string | null }; activity?: LedgerActivity | null; video_url: string | null; audio_url: string | null };
 /** Anfitrión del catálogo con lo que la página necesita: tarjeta (foto, muestra de voz) y recorte para la vista previa. */
 export type WizardHost = HostCard & { cutout: PreviewHost };
 
@@ -337,7 +337,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
           </>))}
           {started && (
             <div data-testid="wizard-progress">
-              <AtomProgress view={status ? progressView(status.episode) : progressView({ status: "authorized" })} />
+              <AtomProgress view={status ? progressView(status.episode, undefined, status.activity) : progressView({ status: "authorized" })} />
               {status?.episode.status === "failed" && <p className="mt-2">No se pudo terminar. No se te cobra un episodio no entregado.</p>}
               {status?.episode.error && <p className="mt-2 text-danger">{status.episode.error}</p>}
               {status?.episode.status === "failed" && <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={() => { set({ draftId: d.episodeId, episodeId: null, authorized: false }); }}>Reintentar (no se cobra dos veces lo ya generado)</Button>}
