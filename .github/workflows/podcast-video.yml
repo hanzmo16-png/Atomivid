@@ -30,7 +30,8 @@ concurrency:
   cancel-in-progress: false
 jobs:
   produce:
-    runs-on: ubuntu-latest
+    # Imagen fijada: «ubuntu-latest» pasó a ubuntu-26.04 (Python 3.14) y rompió las dependencias del estudio (2026-10-29).
+    runs-on: ubuntu-24.04
     # Up to ~1 h may be a Pexels rate-limit wait on a 30-minute episode (~120 scenes); the run stays alive.
     timeout-minutes: 200
     steps:
@@ -59,10 +60,11 @@ jobs:
         if: steps.due.outputs.go == 'true' && github.event.client_payload.kind != 'notices'
       # Estudio compartido: recorte de los participantes (RobustVideoMatting en CPU) y verificación visual de las
       # ilustraciones (CLIP multilingüe en CPU). Modelos abiertos, sin coste. Versiones fijadas.
-      - run: |
-          python3 -m pip install -q --disable-pip-version-check "onnxruntime==1.31.1" "numpy==2.2.6" "opencv-python-headless==4.10.0.84" "pillow==11.0.0"
-          python3 -m pip install -q --disable-pip-version-check --index-url https://download.pytorch.org/whl/cpu "torch==2.5.1"
-          python3 -m pip install -q --disable-pip-version-check "sentence-transformers==3.3.1"
+      - uses: actions/setup-python@v5
+        if: steps.due.outputs.go == 'true' && (github.event.client_payload.kind == 'studio' || inputs.kind == 'studio')
+        with:
+          python-version: "3.12"
+      - run: bash scripts/podcast-3-0/install-python-deps.sh
         if: steps.due.outputs.go == 'true' && (github.event.client_payload.kind == 'studio' || inputs.kind == 'studio')
       - name: Produce
         if: steps.due.outputs.go == 'true'
