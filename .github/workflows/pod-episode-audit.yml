@@ -1,0 +1,27 @@
+# Auditoría de SOLO LECTURA de un episodio del estudio (USD 0). No escribe, no despacha, no reintenta.
+name: pod-episode-audit
+on:
+  workflow_dispatch:
+    inputs:
+      episode_id: { description: "podcast_studio_episodes.id", required: true }
+  push:
+    branches: [claude/puertas-merge]
+    paths: [".github/workflows/pod-episode-audit.yml"]
+permissions:
+  contents: read
+jobs:
+  audit:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          EPISODE_ID: ${{ inputs.episode_id }}
+        run: npx tsx scripts/qa/real/pod-episode-audit.ts
