@@ -38,3 +38,23 @@ test("vista previa del estudio: fondo con el cuadro de neón, anfitriones en sus
   assert.deepEqual(order, ["/podcast/estudios/calido.jpg", "https://x/a.png", "/podcast/estudios/calido-frente.png"], "fondo → persona → mesa");
   assert.match(html, /left:\s*1\d(\.\d+)?%/, "A queda en el lado izquierdo");
 });
+
+test("indicador del átomo con el libro real (ec30c594): etapa, cuentas por etapa, última actividad; diseño de móvil sin desbordes", async () => {
+  const { readFileSync } = await import("node:fs");
+  const path = await import("node:path");
+  const { ledgerActivity } = await import("@/lib/podcast/v3/progress");
+  const ledger = ledgerActivity(JSON.parse(readFileSync(path.join(__dirname, "../../lib/podcast/v3/__fixtures__/ec30c594-ledger-1824.json"), "utf8")));
+  const now = Date.parse("2026-10-29T18:24:39Z");
+  const html = renderToStaticMarkup(<AtomProgress now={now} view={progressView({ status: "generating", progress: null, updated_at: "2026-10-29T14:34:45Z" }, now, ledger)} />);
+  assert.match(html, /data-state="procesando"/); assert.doesNotMatch(html, />0%</); assert.match(html, />30%</);
+  assert.match(html, /Etapa: Avatares · 7 listas/);
+  assert.match(html, /Última actividad hace menos de 1 min: Generando clip de avatar 8/);
+  assert.match(html, /data-stage="voces" data-state="hecha"[^>]*>✓ Voces 43</); assert.match(html, /data-stage="imagenes" data-state="hecha"[^>]*>✓ Imágenes 21</);
+  assert.match(html, /data-stage="avatares" data-state="activa"/); assert.match(html, /Actividad reciente/);
+  // Móvil: etapas en dos columnas que se recortan (truncate/min-w-0) en lugar de desbordar.
+  assert.match(html, /grid min-w-0 grid-cols-2/); assert.match(html, /min-w-0 truncate/);
+  const compact = renderToStaticMarkup(<AtomProgress compact now={now} view={progressView({ status: "generating", progress: null }, now, ledger)} />);
+  assert.match(compact, /Última actividad/); assert.doesNotMatch(compact, /atom-progress-stages/);
+  const stale = renderToStaticMarkup(<AtomProgress now={now + 11 * 60_000} view={progressView({ status: "generating", progress: null }, now + 11 * 60_000, ledger)} />);
+  assert.match(stale, /El procesador no responde/); assert.match(stale, /no envía señales \(hace 11 min\)/); assert.match(stale, />30%</);
+});

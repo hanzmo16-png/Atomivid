@@ -13,6 +13,7 @@ import { generateConversation, type LlmFn } from "./script";
 import { estimateHeygenCost } from "@/lib/providers/avatar/heygen";
 import { getPricingConfig } from "@/lib/billing/pricing";
 import type { StudioEpisodeRow } from "./store";
+import { ledgerActivity, type LedgerOp } from "./progress";
 import { requireProvider, ProviderUnavailableError, visualProviders, lipTimeline, shotCoverage } from "./studio";
 
 /** Proveedores de PLANIFICACIÓN (sin red, sin costo): solo para estimar; nunca generan medios. */
@@ -165,12 +166,15 @@ export function ownStudioAsset(userId: string, episodeId: string, p: string | nu
  * del episodio; enlaces solo cuando está «ready». Solo audio no firma MP4. Separado de Next para probar aislamiento
  * y descarga sin red.
  */
-export async function episodeAction(userId: string, row: StudioEpisodeRow | "missing" | null, sign: (path: string, name: string) => Promise<string | null>): Promise<Out> {
+export async function episodeAction(userId: string, row: StudioEpisodeRow | "missing" | null, sign: (path: string, name: string) => Promise<string | null>,
+  /** Operaciones del libro del episodio (solo mientras se produce): la actividad real, resumida; nunca filas crudas. */
+  ops?: () => Promise<LedgerOp[] | null>): Promise<Out> {
   if (row === "missing") return { status: 503, body: { error: "Requiere la migración del estudio." } };
   if (!row || row.user_id !== userId) return { status: 404, body: { error: "Episodio no encontrado." } };
   const audioOnly = (() => { const s = StudioSpec.safeParse(row.spec); return s.success && s.data.output === "audio"; })();
   const signOwn = async (p: string | null, name: string) => (!p || !ownStudioAsset(userId, row.id, p) ? null : sign(p, name));
   const { spec: _spec, ...pub } = row;
-  return { status: 200, body: { episode: pub, video_url: row.status === "ready" && !audioOnly ? await signOwn(row.video_path, `${row.title}.mp4`) : null,
+  const activity = ops && (row.status === "generating" || row.status === "authorized") ? await ops().then((x) => (x ? ledgerActivity(x) : null)).catch(() => null) : null;
+  return { status: 200, body: { episode: { ...pub, output: audioOnly ? "audio" : "video" }, activity, video_url: row.status === "ready" && !audioOnly ? await signOwn(row.video_path, `${row.title}.mp4`) : null,
     audio_url: row.status === "ready" ? await signOwn(row.audio_path, `${row.title}.${row.audio_path?.split(".").pop() ?? "mp3"}`) : null } };
 }

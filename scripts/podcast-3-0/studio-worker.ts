@@ -181,11 +181,13 @@ export async function runStudioJob(episodeId: string) {
     images: realRecraftImages({ styleRefs, readTicket }), director: localDirector({ dir }), matte: realMatter({ model: await matterModel() }) };
   console.log("STUDIO_PROVIDERS", simulated ? "mock" : "real adapter (untested live)");
   // Avance real (progress.ts) + latido: mientras un proveedor trabaja sin informar (un clip de avatar tarda minutos), el
-  // último avance se reescribe con la hora actual para que la página distinga «trabajando» de «sin noticias».
-  let last: import("../../src/lib/podcast/v3/progress").StudioProgress | null = null;
-  const write = (p: import("../../src/lib/podcast/v3/progress").StudioProgress) => { last = p; void service.from(STUDIO_TABLE).update({ progress: p, updated_at: new Date().toISOString() }).eq("id", episodeId).eq("status", "generating"); };
-  const progress = (p: import("../../src/lib/podcast/v3/progress").StudioProgress) => write(p);
-  const beat = setInterval(() => { if (last) write({ ...last, updatedAt: new Date().toISOString() }); }, 45_000);
+  // último avance se reescribe con la hora actual para que la página distinga «trabajando» de «sin respuesta». Cada
+  // escritura se ESPERA (progress-writer.ts): un `void` sobre la consulta perezosa de Supabase no enviaba nada.
+  const { createProgressWriter } = await import("../../src/lib/podcast/v3/progress-writer");
+  const writer = createProgressWriter(async (p) => await service.from(STUDIO_TABLE).update({ progress: p, updated_at: new Date().toISOString() }).eq("id", episodeId).eq("status", "generating"));
+  const write = (p: import("../../src/lib/podcast/v3/progress").StudioProgress) => writer.push(p);
+  const progress = write;
+  const beat = setInterval(() => writer.beat(), 45_000);
   try {
     const r = await runEpisode(spec, { owner, episode: episodeId, dir, providers, small: simulated, ledger: supabaseStudioLedger(service, owner), guard: supabaseRunGuard(service), authorizedUsd: Number(row.authorized_usd), authorizationRef: row.authorized_at ?? null, onProgress: progress, artifacts, rates });
     // Guardado: la última etapa; el 100 % solo llega con «ready», cuando el archivo ya está en el almacenamiento.
@@ -195,13 +197,17 @@ export async function runStudioJob(episodeId: string) {
     if (r.mp4) write(progressRecord(stages, "guardado", 1, 2));
     const audio = await upload(`${base}/episodio.${spec.audio_export}`, r.audio, spec.audio_export === "mp3" ? "audio/mpeg" : "audio/wav");
     clearInterval(beat);
-    await service.from(STUDIO_TABLE).update({ status: "ready", video_path: video, audio_path: audio, cost_usd: r.spentUsd, progress: { stage: "guardado", pct: 100, done: 1, total: 1, estimate: true, updatedAt: new Date().toISOString() },
+    await writer.flush();
+    const doneAt = new Date().toISOString();
+    await service.from(STUDIO_TABLE).update({ status: "ready", video_path: video, audio_path: audio, cost_usd: r.spentUsd, progress: { ...(writer.last ?? {}), stage: "guardado", pct: 100, done: 1, total: 1, estimate: true, updatedAt: doneAt,
+      activity: [...(writer.last?.activity ?? []), { at: doneAt, text: "Archivo final guardado" }].slice(-6) },
       result: { duration: r.durationSeconds, lufs: r.lufs, true_peak: r.truePeak, music: r.musicTrack, mood: r.mood, shots: r.plan.shots.map((s) => ({ kind: s.kind, speaker: s.speaker, start: s.start, end: s.end, label: s.label ?? null })), providers: r.providers,
         // Podcast 2.1: línea de tiempo de labios por segmento y su verificación contra la voz real (nadie habla fuera de su turno).
         lips: lipTimeline(r.plan).map((x) => ({ start: x.start, end: x.end, shot: x.shot, A: x.lips.A, B: x.lips.B })), lip_violations: lipViolations(lipTimeline(r.plan), r.timeline), coverage: shotCoverage(r.plan) }, error: null, updated_at: new Date().toISOString() }).eq("id", episodeId);
-    console.log("STUDIO_READY", JSON.stringify({ usd: r.spentUsd, paid: r.paidOps, reused: r.reusedOps }));
+    console.log("STUDIO_READY", JSON.stringify({ usd: r.spentUsd, paid: r.paidOps, reused: r.reusedOps, progress: writer.stats }));
   } catch (e) {
     clearInterval(beat);
+    await writer.flush();
     if (!studioRunErrorFailsEpisode(e)) { console.log("STUDIO_DUPLICATE"); return; }
     const msg = e instanceof Error ? e.message.slice(0, 400) : "Error";
     await service.from(STUDIO_TABLE).update({ status: "failed", error: msg, updated_at: new Date().toISOString() }).eq("id", episodeId);

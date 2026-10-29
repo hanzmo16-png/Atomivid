@@ -4,7 +4,7 @@ import { podcastUser } from "@/lib/podcast/auth";
 import { studioGenerationEnabled } from "@/lib/podcast/v3/studio";
 import { listAccountVoices } from "@/lib/podcast/voices";
 import { authorizeAction, episodeAction } from "@/lib/podcast/v3/api";
-import { STUDIO_COLUMNS, STUDIO_TABLE, type StudioEpisodeRow } from "@/lib/podcast/v3/store";
+import { STUDIO_COLUMNS, STUDIO_OPS_TABLE, STUDIO_TABLE, type StudioEpisodeRow } from "@/lib/podcast/v3/store";
 import { dispatchPodcastJob } from "@/lib/podcast/video-jobs";
 import { studioRecraftBlocker } from "@/lib/podcast/v3/readiness";
 
@@ -24,7 +24,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   const service = createServiceClient();
   const row = await load(service, id);
-  const out = await episodeAction(user.id, row, async (p, name) => (await service.storage.from(BUCKET).createSignedUrl(p, 3600, { download: name })).data?.signedUrl ?? null);
+  const out = await episodeAction(user.id, row, async (p, name) => (await service.storage.from(BUCKET).createSignedUrl(p, 3600, { download: name })).data?.signedUrl ?? null,
+    // Solo lectura: tipo, estado y horas de las operaciones del episodio (sin importes ni resultados).
+    async () => (await service.from(STUDIO_OPS_TABLE).select("provider,op,state,created_at,updated_at").eq("episode_id", id).eq("user_id", user.id).order("created_at", { ascending: false }).limit(500)).data ?? null);
   return NextResponse.json(out.body, { status: out.status });
 }
 

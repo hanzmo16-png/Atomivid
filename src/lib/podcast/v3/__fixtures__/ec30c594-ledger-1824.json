@@ -1,0 +1,452 @@
+[
+{
+"provider": "heygen",
+"op": "avatar_prepare",
+"state": "settled",
+"created_at": "2026-10-29T17:55:17.730266+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:55:19.274428+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:55:22.277587+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:55:24.171251+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:55:26.141932+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:55:27.906374+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:55:29.731522+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:55:31.331274+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:55:33.271997+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:55:35.077697+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:55:37.136409+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:55:38.268984+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:55:40.132559+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:55:42.102782+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:55:43.623263+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:55:45.278394+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:55:47.036624+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:55:48.463682+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:55:49.975955+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:55:51.417647+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:55:53.371692+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:55:55.109029+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:55:57.310909+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:55:59.14987+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:56:01.232468+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:56:02.928423+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:56:04.385192+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:56:05.55131+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:56:07.374496+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:56:08.797117+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:56:10.508536+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:56:11.923795+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:56:14.618269+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:56:15.976517+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:56:17.879768+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:56:19.298432+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:56:20.846783+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:56:22.841126+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:56:24.061285+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:56:25.844299+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:56:27.620118+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:56:29.604232+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:56:30.750867+00:00"
+},
+{
+"provider": "elevenlabs",
+"op": "tts",
+"state": "settled",
+"created_at": "2026-10-29T17:56:32.10256+00:00"
+},
+{
+"provider": "clip",
+"op": "guion_visual",
+"state": "settled",
+"created_at": "2026-10-29T17:57:16.941662+00:00"
+},
+{
+"provider": "recraft",
+"op": "ilustracion",
+"state": "settled",
+"created_at": "2026-10-29T17:57:17.495586+00:00"
+},
+{
+"provider": "recraft",
+"op": "ilustracion",
+"state": "settled",
+"created_at": "2026-10-29T17:57:44.14167+00:00"
+},
+{
+"provider": "recraft",
+"op": "ilustracion",
+"state": "settled",
+"created_at": "2026-10-29T17:58:02.806409+00:00"
+},
+{
+"provider": "recraft",
+"op": "ilustracion",
+"state": "settled",
+"created_at": "2026-10-29T17:58:15.685388+00:00"
+},
+{
+"provider": "recraft",
+"op": "ilustracion",
+"state": "settled",
+"created_at": "2026-10-29T17:58:30.11056+00:00"
+},
+{
+"provider": "recraft",
+"op": "ilustracion",
+"state": "settled",
+"created_at": "2026-10-29T17:58:45.406996+00:00"
+},
+{
+"provider": "recraft",
+"op": "ilustracion",
+"state": "settled",
+"created_at": "2026-10-29T17:59:08.200894+00:00"
+},
+{
+"provider": "recraft",
+"op": "ilustracion",
+"state": "settled",
+"created_at": "2026-10-29T17:59:23.004258+00:00"
+},
+{
+"provider": "recraft",
+"op": "ilustracion",
+"state": "settled",
+"created_at": "2026-10-29T17:59:41.640635+00:00"
+},
+{
+"provider": "recraft",
+"op": "ilustracion",
+"state": "settled",
+"created_at": "2026-10-29T17:59:56.124043+00:00"
+},
+{
+"provider": "recraft",
+"op": "ilustracion",
+"state": "settled",
+"created_at": "2026-10-29T18:00:11.589102+00:00"
+},
+{
+"provider": "recraft",
+"op": "ilustracion",
+"state": "settled",
+"created_at": "2026-10-29T18:00:27.956948+00:00"
+},
+{
+"provider": "recraft",
+"op": "ilustracion",
+"state": "settled",
+"created_at": "2026-10-29T18:00:44.063605+00:00"
+},
+{
+"provider": "recraft",
+"op": "ilustracion",
+"state": "settled",
+"created_at": "2026-10-29T18:01:00.77668+00:00"
+},
+{
+"provider": "recraft",
+"op": "ilustracion",
+"state": "settled",
+"created_at": "2026-10-29T18:01:12.990136+00:00"
+},
+{
+"provider": "recraft",
+"op": "ilustracion",
+"state": "settled",
+"created_at": "2026-10-29T18:01:29.701496+00:00"
+},
+{
+"provider": "recraft",
+"op": "ilustracion",
+"state": "settled",
+"created_at": "2026-10-29T18:01:44.0413+00:00"
+},
+{
+"provider": "recraft",
+"op": "ilustracion",
+"state": "settled",
+"created_at": "2026-10-29T18:01:56.040168+00:00"
+},
+{
+"provider": "recraft",
+"op": "ilustracion",
+"state": "settled",
+"created_at": "2026-10-29T18:02:08.001224+00:00"
+},
+{
+"provider": "recraft",
+"op": "ilustracion",
+"state": "settled",
+"created_at": "2026-10-29T18:02:25.463595+00:00"
+},
+{
+"provider": "recraft",
+"op": "ilustracion",
+"state": "settled",
+"created_at": "2026-10-29T18:02:39.635144+00:00"
+},
+{
+"provider": "clip",
+"op": "verificacion",
+"state": "settled",
+"created_at": "2026-10-29T18:02:54.137436+00:00"
+},
+{
+"provider": "heygen",
+"op": "avatar_clip",
+"state": "settled",
+"created_at": "2026-10-29T18:03:26.08172+00:00"
+},
+{
+"provider": "heygen",
+"op": "avatar_clip",
+"state": "settled",
+"created_at": "2026-10-29T18:07:07.501786+00:00"
+},
+{
+"provider": "heygen",
+"op": "avatar_clip",
+"state": "settled",
+"created_at": "2026-10-29T18:10:42.882179+00:00"
+},
+{
+"provider": "heygen",
+"op": "avatar_clip",
+"state": "settled",
+"created_at": "2026-10-29T18:12:27.391274+00:00"
+},
+{
+"provider": "heygen",
+"op": "avatar_clip",
+"state": "settled",
+"created_at": "2026-10-29T18:15:07.302126+00:00"
+},
+{
+"provider": "heygen",
+"op": "avatar_clip",
+"state": "settled",
+"created_at": "2026-10-29T18:17:47.9032+00:00"
+},
+{
+"provider": "heygen",
+"op": "avatar_clip",
+"state": "settled",
+"created_at": "2026-10-29T18:20:57.546038+00:00"
+},
+{
+"provider": "heygen",
+"op": "avatar_clip",
+"state": "reserved",
+"created_at": "2026-10-29T18:23:56.142576+00:00"
+}
+]
