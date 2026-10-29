@@ -95,7 +95,7 @@ for (const [label, opts] of [["escritorio", { viewport: { width: 1366, height: 9
     await W().getByTestId("costo-por-proveedor").waitFor({ timeout: 60000 }).catch(() => {});
     const est = await W().getByTestId("wizard-estimate").innerText().catch(() => "");
     ok(`${label}: estimación por proveedor antes de autorizar (${recraftBlocked ? "solo estudio" : "con Recraft"})`,
-      /ElevenLabs/.test(est) && /HeyGen/.test(est) && (recraftBlocked ? !/Recraft/.test(est) : /Recraft/.test(est)), est.replace(/\s+/g, " ").slice(0, 400));
+      /ElevenLabs/.test(est) && /HeyGen/.test(est) && (recraftBlocked ? /Recraft 0 ilustraciones.*?0\.00/.test(est.replace(/\s+/g, " ")) : /Recraft [1-9]\d* ilustraciones/.test(est.replace(/\s+/g, " "))), est.replace(/\s+/g, " ").slice(0, 400));
     await shot("4-presupuesto"); await noHScroll("presupuesto");
     // Indicador de «Tus episodios» (episodios ya existentes: solo se mira).
     const prog = p.getByTestId("atom-progress");
