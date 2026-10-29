@@ -78,11 +78,24 @@ for (const [label, opts] of [["escritorio", { viewport: { width: 1366, height: 9
       await W().getByTestId(`studio-preview-${s}`).last().screenshot({ path: path.join(EVID, `${label}-3-estudio-${s}.png`) }).catch(() => {});
     }
     await shot("3-visuales"); await noHScroll("visuales");
+    // Estado REAL de Recraft (política y saldo): si hoy no puede producir, el motivo se ve y el asistente no avanza con él;
+    // entonces se sigue con «Solo estudio y anfitriones». Si está listo, la estimación lo incluye.
+    const rc = (await W().getByTestId("proveedor-recraft").innerText()).replace(/\s+/g, " ");
+    const recraftBlocked = /No disponible/.test(rc);
+    console.log(`RECRAFT ${label} ${JSON.stringify({ blocked: recraftBlocked, text: rc.slice(0, 240) })}`);
+    if (recraftBlocked) {
+      ok(`${label}: Recraft no listo muestra el motivo y que no se cobra`, /No se cobra nada/.test(rc), rc.slice(0, 240));
+      await W().getByRole("button", { name: "Siguiente", exact: true }).click(); await p.waitForTimeout(600);
+      const al = await W().getByRole("alert").innerText().catch(() => "");
+      ok(`${label}: con Recraft no listo el asistente no avanza y lo explica`, /Visuales/.test(await title()) && /No disponible/.test(al), al.slice(0, 200));
+      await W().getByLabel("Solo estudio y anfitriones (sin imágenes)").check();
+    }
     await next();
     await W().getByRole("button", { name: "Calcular costo" }).click().catch(() => {});
     await W().getByTestId("costo-por-proveedor").waitFor({ timeout: 60000 }).catch(() => {});
     const est = await W().getByTestId("wizard-estimate").innerText().catch(() => "");
-    ok(`${label}: la estimación incluye Recraft`, /recraft/i.test(est), est.replace(/\s+/g, " ").slice(0, 400));
+    ok(`${label}: estimación por proveedor antes de autorizar (${recraftBlocked ? "solo estudio" : "con Recraft"})`,
+      /ElevenLabs/.test(est) && /HeyGen/.test(est) && (recraftBlocked ? !/Recraft/.test(est) : /Recraft/.test(est)), est.replace(/\s+/g, " ").slice(0, 400));
     await shot("4-presupuesto"); await noHScroll("presupuesto");
     // Indicador de «Tus episodios» (episodios ya existentes: solo se mira).
     const prog = p.getByTestId("atom-progress");
