@@ -31,7 +31,7 @@ if [ ! -d "$MUSIC" ]; then MUSIC="$E2E_HOME/synth/musica"; mkdir -p "$MUSIC"
 cd "$REPO"; set -a; . "$E2E_HOME/secrets/next.env"; set +a
 export NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54821 ELEVENLABS_API_KEY=local-fake-elevenlabs VOICE_PROVIDER=elevenlabs PODCAST_V2_ENABLED=1 PODCAST_V3_ENABLED=1 PODCAST_V3_PROVIDERS=mock \
   PRIVATE_VOICE_GRANTS="DuroPruebaLocal03=pilot-owner@local.test" AVATAR_PREPARATION_OWNER_EMAIL=intruso@local.test PODCAST_MUSIC_DIR=$MUSIC \
-  MOCK_EL_URL=http://127.0.0.1:54870 MOCK_PEXELS_URL=http://127.0.0.1:54872 PEXELS_API_KEY=local-fake-pexels E2E_DISPATCH_URL=http://127.0.0.1:54871/ RENDER_WORKER=github-actions E2E_EGRESS_LOG="$L/egress.jsonl" NODE_OPTIONS="--require $INFRA/next-intercept.cjs" NEXT_TELEMETRY_DISABLED=1
+  MOCK_EL_URL=http://127.0.0.1:54870 MOCK_PEXELS_URL=http://127.0.0.1:54872 PEXELS_API_KEY=local-fake-pexels FAL_ADMIN_KEY=local-fake-fal-admin E2E_DISPATCH_URL=http://127.0.0.1:54871/ RENDER_WORKER=github-actions E2E_EGRESS_LOG="$L/egress.jsonl" NODE_OPTIONS="--require $INFRA/next-intercept.cjs" NEXT_TELEMETRY_DISABLED=1
 env | grep -E '^(NEXT_PUBLIC_SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY|NEXT_PUBLIC_SUPABASE_ANON_KEY|ELEVENLABS_API_KEY|PRIVATE_VOICE_GRANTS|PODCAST_V2_ENABLED|PODCAST_V3_ENABLED|PODCAST_V3_PROVIDERS|PODCAST_MUSIC_DIR|INTERNAL_PRODUCTION_OWNER_USER_ID|MOCK_EL_URL|MOCK_PEXELS_URL|PEXELS_API_KEY|NODE_OPTIONS|E2E_EGRESS_LOG)=' > "$E2E_HOME/secrets/podcast-worker.env"; chmod 600 "$E2E_HOME/secrets/podcast-worker.env"
 bg next npx next dev -p 3300 -H 127.0.0.1
 for i in $(seq 1 90); do curl -s -o /dev/null --max-time 120 http://127.0.0.1:3300/login && break; sleep 2; done

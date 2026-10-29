@@ -46,10 +46,14 @@ export type VisualProvider = { id: VisualProviderId; label: string; available: b
  * palabras de la búsqueda y daban por pertinentes fotos ajenas: avión, huevos de Pascua, ropa); otros módulos lo siguen
  * usando. Recraft se puede apagar con PODCAST_STUDIO_RECRAFT=0; el generador comprueba FAL_KEY antes de cualquier cargo.
  */
-export function visualProviders(env: Env = process.env): VisualProvider[] {
+export function visualProviders(env: Env = process.env, recraftBlock: string | null = null): VisualProvider[] {
   const off = env.PODCAST_STUDIO_RECRAFT === "0";
+  // `recraftBlock`: motivo real por el que Recraft no puede producir hoy (política, saldo; recraftProductionBlocker, la
+  // misma regla que Long Form). Se muestra en el asistente y se rechaza antes de autorizar: nunca se descubre tras pagar.
+  const reason = off ? "No disponible: Recraft está desactivado en el estudio (PODCAST_STUDIO_RECRAFT=0)."
+    : recraftBlock ? `No disponible por ahora: ${recraftBlock}. No se cobra nada; elige «Solo estudio y anfitriones».` : null;
   return [
-    { id: "recraft", label: "Ilustraciones Recraft", available: !off, reason: off ? "No disponible: Recraft está desactivado en el estudio (PODCAST_STUDIO_RECRAFT=0)." : null, usdPerImage: RECRAFT_USD_PER_IMAGE },
+    { id: "recraft", label: "Ilustraciones Recraft", available: !reason, reason, usdPerImage: RECRAFT_USD_PER_IMAGE },
     { id: "solo_set", label: "Solo estudio y anfitriones (sin imágenes)", available: true, reason: null, usdPerImage: 0 },
   ];
 }
@@ -57,8 +61,8 @@ export class ProviderUnavailableError extends Error {
   constructor(public provider: string, public why: string) { super(`El proveedor elegido (${provider}) no está disponible: ${why} No se sustituye por otro; elige uno disponible.`); this.name = "ProviderUnavailableError"; }
 }
 /** Devuelve el proveedor elegido o lanza: jamás cae a otro. */
-export function requireProvider(id: string, env: Env = process.env): VisualProvider {
-  const p = visualProviders(env).find((x) => x.id === id);
+export function requireProvider(id: string, env: Env = process.env, recraftBlock: string | null = null): VisualProvider {
+  const p = visualProviders(env, recraftBlock).find((x) => x.id === id);
   if (!p) throw new ProviderUnavailableError(id, "proveedor desconocido.");
   if (!p.available) throw new ProviderUnavailableError(p.label, p.reason ?? "");
   return p;

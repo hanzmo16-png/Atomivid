@@ -112,7 +112,7 @@ export async function runStudioJob(episodeId: string) {
   // Misma regla de producción que el resto de Atomicvid (saldo verificado + topes diarios/mensuales por proveedor y
   // global), ANTES de cualquier cargo. Lo que el estudio gastó en 24 h se suma a la demanda (su libro no está en pi_*).
   const readiness = async (needs: import("../../src/lib/podcast/v3/pipeline").ProviderNeeds) => {
-    const [{ ensureJobSupplyReady }, { studioSupplyDemands, studioSpendByProvider, unsupportedSpend }] = await Promise.all([import("../../src/lib/supply/readiness"), import("../../src/lib/podcast/v3/readiness")]);
+    const [{ ensureJobSupplyReady }, { studioSupplyDemands, studioSpendByProvider, unsupportedSpend, readinessMessage }] = await Promise.all([import("../../src/lib/supply/readiness"), import("../../src/lib/podcast/v3/readiness")]);
     const blocked = unsupportedSpend(needs, true); if (blocked) return blocked;
     const { data: recent, error: recentError } = await service.from(STUDIO_OPS_TABLE).select("provider,state,reserved_usd,actual_usd").gte("created_at", new Date(Date.now() - 24 * 3600_000).toISOString());
     if (recentError) return "No se pudo leer el gasto reciente del estudio.";
@@ -120,7 +120,7 @@ export async function runStudioJob(episodeId: string) {
     if (!demands.length) return null;
     const r = await ensureJobSupplyReady(service, demands);
     console.log("STUDIO_READINESS", JSON.stringify({ demands, ready: r.ready, failure: r.failure ?? null, providers: r.providers.map((p) => ({ p: p.provider, level: p.level, free: p.free, ok: p.ok, failure: p.failure ?? null })) }));
-    return r.ready ? null : `${r.failure?.provider ?? "proveedor"}: ${r.failure?.reason ?? "no disponible"}`;
+    return r.ready ? null : readinessMessage(r.failure);
   };
   // Arnés E2E local: proveedores simulados (nunca en producción).
   const simulated = process.env.PODCAST_V3_PROVIDERS === "mock" && process.env.ATOMIVID_RUNTIME !== "production";
