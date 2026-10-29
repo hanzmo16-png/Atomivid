@@ -52,9 +52,14 @@ for (const [label, opts] of [["escritorio", { viewport: { width: 1366, height: 9
     await W().getByRole("button", { name: "Siguiente", exact: true }).click(); await p.waitForTimeout(500);
     await W().getByLabel("Título del episodio").fill("Podcast nuevo de prueba (no se genera)");
     await W().getByLabel("Tema", { exact: true }).fill("Las pirámides de Egipto");
+    await W().getByLabel("Guion").fill(["Valeria Montclair: Hoy hablamos de las pirámides de Egipto.", "Víctor Albarrán: Se construyeron hace más de cuatro mil quinientos años.", "Valeria Montclair: ¿Cómo movían esos bloques?", "Víctor Albarrán: Con rampas, trineos y mucha organización."].join("\n"));
     // Avanza como el usuario hasta «Generación».
     for (let i = 0; i < 12 && !/Generación/.test(await title()); i++) {
-      await W().getByRole("button", { name: "Siguiente", exact: true }).click(); await p.waitForTimeout(900);
+      if (/Participantes/.test(await title())) {
+        await W().getByRole("radiogroup", { name: /Participante A/ }).getByTestId("anfitrion-valeria").getByRole("radio").click().catch(() => {});
+        await W().getByRole("radiogroup", { name: /Participante B/ }).getByTestId("anfitrion-victor").getByRole("radio").click().catch(() => {});
+      }
+      await W().getByRole("button", { name: "Siguiente", exact: true }).click(); await p.waitForTimeout(1500);
       const al = await W().getByRole("alert").innerText().catch(() => ""); if (al) console.log(`ALERT ${label} ${await title()}: ${al.slice(0, 160)}`);
     }
     console.log(`STEP ${label} ${await title()}`);
