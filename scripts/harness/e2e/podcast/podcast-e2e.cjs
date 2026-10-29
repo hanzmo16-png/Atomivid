@@ -441,14 +441,14 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     await snap("paso06-musica"); await next();
     if (m.mode !== "Solo audio") {
       // Recraft es el proveedor principal del estudio (con precio por imagen) y Pexels ya no se ofrece. Aquí su política de
-      // gasto está cerrada (como la dejó la migración): el asistente lo dice ANTES de autorizar y no avanza con él; nunca lo
-      // sustituye solo. Con la política lista (caso 13) se ofrece y se estima. Este E2E no sale a fal.ai.
+      // gasto está cerrada (como la dejó la migración): el asistente lo dice ANTES de autorizar y no deja elegirlo. Con la
+      // política lista (caso 13) se ofrece, queda elegido y se estima. Este E2E no sale a fal.ai.
       const rc = await W().getByTestId("proveedor-recraft").textContent();
       ok(`${tag}: Recraft con precio por imagen y, sin política lista, el motivo en pantalla`, /USD 0\.035\/imagen/.test(rc) && /No disponible por ahora: .*no están configurados/.test(rc) && /No se cobra nada/.test(rc), rc.slice(0, 200));
-      ok(`${tag}: Recraft preseleccionado como proveedor principal`, await W().getByLabel("Ilustraciones Recraft").isChecked());
-      await W().getByRole("button", { name: "Siguiente", exact: true }).click(); await S.p.waitForTimeout(400);
-      const blocked = await W().getByRole("alert").textContent().catch(() => "");
-      ok(`${tag}: con Recraft no listo el asistente no avanza y explica por qué (no lo cambia solo)`, /Visuales/.test(await stepTitle()) && /No disponible por ahora/.test(blocked ?? "") && await W().getByLabel("Ilustraciones Recraft").isChecked(), String(blocked).slice(0, 160));
+      // Un proveedor no disponible no queda presentado como listo: deshabilitado, sin marcar, con «No disponible», y la
+      // opción disponible queda elegida a la vista (la producción nunca sustituye proveedores).
+      ok(`${tag}: Recraft no listo: deshabilitado, sin marcar y con la etiqueta «No disponible»`, await W().getByLabel("Ilustraciones Recraft").isDisabled() && !(await W().getByLabel("Ilustraciones Recraft").isChecked()) && /No disponible\b/.test(rc) && (await W().getByTestId("proveedor-recraft").getAttribute("data-available")) === "0");
+      ok(`${tag}: «Solo estudio y anfitriones» queda elegido y disponible`, await W().getByLabel("Solo estudio y anfitriones (sin imágenes)").isChecked() && (await W().getByTestId("proveedor-solo_set").getAttribute("data-available")) === "1");
       ok(`${tag}: Pexels ya no aparece en el estudio`, (await W().locator('[data-testid="proveedor-pexels"]').count()) === 0);
       await W().getByLabel("Solo estudio y anfitriones (sin imágenes)").check();
     }
@@ -704,9 +704,62 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     }
     await db.query("update pi_supply_policies set enabled=false where provider='recraft'");
   }
+  if (cases.includes("14")) {
+    // Avatares guardados de la cuenta (defecto real del 2026-10-28: el dueño no encontraba su avatar porque solo aparecía
+    // tras descubrir «Personalizado»). Dos avatares listos FICTICIOS («Hans» y «Valeria»), sin proveedores ni red.
+    const SAVED = [["aaaaaaaa-0000-4000-8000-000000000014", "Hans — Estudio podcast (ficticio)"], ["aaaaaaaa-0000-4000-8000-000000000015", "Valeria Montclair (ficticia)"]];
+    for (const [id, name] of SAVED) await db.query("insert into public.avatars (id,user_id,name,provider,provider_avatar_id,status,consent_given) values ($1,$2,$3,'heygen','asset:simulado','ready',true) on conflict (id) do nothing", [id, OWNER.id, name]);
+    const SAMSUNG14 = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2.75, isMobile: true, hasTouch: true, userAgent: "Mozilla/5.0 (Linux; Android 14; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36" };
+    const SCRIPT = ["Hans: Bienvenidos. Hoy hablamos de los volcanes de Islandia.", "Valeria: Gracias, Hans. Islandia está sobre una dorsal oceánica.",
+      "Hans: ¿Y por eso tiene tantas erupciones?", "Valeria: Exacto, y además hay un punto caliente debajo.", "Hans: Gracias, Valeria. Hasta la próxima."].join("\n");
+    const [H, V] = SAVED.map(([id]) => id);
+    for (const [dev, opt] of [["escritorio", { viewport: { width: 1366, height: 900 } }], ["samsung", SAMSUNG14]]) {
+      const t = `c14-${dev}`, S = await session(OWNER, t, opt);
+      const W = () => S.p.getByTestId("podcast-wizard"), next = async () => { await W().getByRole("button", { name: "Siguiente", exact: true }).click(); await S.p.waitForTimeout(400); };
+      const title = async () => (await W().getByTestId("wizard-step-title").textContent()) ?? "";
+      const wide = async (n) => { const o = await S.p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth); ok(`${t}: ${n} sin desbordamiento horizontal`, o <= 1, `${o}px`); };
+      const draft = () => S.p.evaluate(() => JSON.parse(localStorage.getItem("atomivid.podcast.asistente.v2") || "null"));
+      await S.p.goto(`${BASE}/dashboard/podcast`); await S.p.evaluate(() => localStorage.removeItem("atomivid.podcast.asistente.v2")); await S.p.reload();
+      await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
+      await W().getByTestId("modalidad-dialogo").click(); await next();
+      await W().getByLabel("Título del episodio").fill(`E2E avatar propio ${dev}`); await W().getByLabel("Tema", { exact: true }).fill("Los volcanes de Islandia");
+      await W().getByLabel("Guion").fill(SCRIPT); await next();
+      ok(`${t}: paso Participantes`, /Participantes/.test(await title()), await title());
+      const GA = W().getByTestId("avatares-guardados-A"), GB = W().getByTestId("avatares-guardados-B");
+      ok(`${t}: desde un borrador nuevo, los avatares guardados se ven sin pulsar «Personalizado» (A y B)`, await GA.isVisible() && await GB.isVisible() && /Hans — Estudio podcast/.test(await GA.textContent()) && /Valeria Montclair/.test(await GA.textContent()));
+      // Primero el catálogo (como haría alguien que explora), luego cambia a su avatar guardado.
+      await W().getByRole("radiogroup", { name: /Participante A/ }).getByTestId("anfitrion-victor").getByRole("radio").click();
+      await GA.getByTestId(`avatar-guardado-A-${H}`).click();
+      let dd = await draft();
+      ok(`${t}: A deja el catálogo y usa «Hans» guardado (nombre del avatar, sin voz del catálogo)`, dd.participants[0].host === null && dd.participants[0].avatar?.kind === "existente" && dd.participants[0].avatar.avatar_id === H && /Hans/.test(dd.participants[0].name) && dd.participants[0].voice_id === "", JSON.stringify(dd.participants[0]).slice(0, 200));
+      ok(`${t}: cambiar de opción no borra título, tema ni guion`, dd.title === `E2E avatar propio ${dev}` && dd.topic === "Los volcanes de Islandia" && dd.script === SCRIPT);
+      ok(`${t}: el avatar que usa A no se puede repetir en B`, await GB.getByTestId(`avatar-guardado-B-${H}`).isDisabled());
+      await GB.getByTestId(`avatar-guardado-B-${V}`).click();
+      // Vuelta al catálogo y otra vez al avatar guardado: nada se pierde.
+      await W().getByRole("radiogroup", { name: /Participante A/ }).getByTestId("anfitrion-ximena").getByRole("radio").click();
+      dd = await draft(); ok(`${t}: A puede volver al catálogo (rostro y voz emparejados)`, dd.participants[0].host === "ximena" && dd.participants[0].avatar?.kind === "catalogo" && !!dd.participants[0].voice_id);
+      await GA.getByTestId(`avatar-guardado-A-${H}`).click();
+      dd = await draft(); ok(`${t}: y de nuevo a su avatar guardado, con el guion intacto`, dd.participants[0].avatar?.avatar_id === H && dd.participants[1].avatar?.avatar_id === V && dd.script === SCRIPT);
+      await shot(S.p, `${t}-01-avatares-guardados`); await wide("participantes");
+      await next();
+      ok(`${t}: paso Voces (la voz del avatar guardado se elige aparte)`, /Voces/.test(await title()) && await W().getByLabel("Voz A").isVisible(), await title());
+      await W().getByLabel("Voz A").selectOption(ANA); await W().getByLabel("Voz B").selectOption(LEO); await next();
+      ok(`${t}: paso Avatares con los guardados ya elegidos`, (await W().getByLabel("Avatar A").inputValue()) === H && (await W().getByLabel("Avatar B").inputValue()) === V);
+      ok(`${t}: en el selector de B, el avatar de A aparece deshabilitado`, await W().getByLabel("Avatar B").locator(`option[value="${H}"]`).isDisabled());
+      await wide("avatares"); await next(); await next();
+      await W().getByLabel("Solo estudio y anfitriones (sin imágenes)").check(); await next();
+      await W().getByTestId("wizard-estimate").locator("table").waitFor(); await next();
+      await W().getByTestId("wizard-preview").waitFor();
+      const res = (await W().getByTestId("resumen-participantes").textContent()) ?? "";
+      ok(`${t}: el resumen previo dice qué avatar usa cada participante`, /avatar guardado «Hans — Estudio podcast \(ficticio\)»/.test(res) && /avatar guardado «Valeria Montclair \(ficticia\)»/.test(res), res.slice(0, 240));
+      await shot(S.p, `${t}-02-resumen`); await wide("resumen");
+      await S.p.evaluate(() => localStorage.removeItem("atomivid.podcast.asistente.v2"));
+      await S.ctx.close();
+    }
+  }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
-  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34 };
+  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 14: 26 };
   const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[a-d]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name)) || (c === "12" && /^c12-/.test(r.name))).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));

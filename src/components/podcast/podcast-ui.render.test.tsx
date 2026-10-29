@@ -29,7 +29,7 @@ test("selector de anfitriones: foto, nombre, descripción y muestra de voz; uno 
   assert.match(html, /Valeria Montclair/); assert.match(html, /voz Callie/); assert.match(html, /Muestra de voz de Valeria Montclair/);
   assert.match(html, /aria-checked="true"[^>]*>[\s\S]*Valeria/);
   assert.match(html, /opacity-50" data-testid="anfitrion-victor"/);
-  assert.match(html, /Personalizado/);
+  assert.match(html, /Otro \/ personalizado/);
 });
 
 test("vista previa del estudio: fondo con el cuadro de neón, anfitriones en sus asientos y la mesa delante", () => {
@@ -37,4 +37,18 @@ test("vista previa del estudio: fondo con el cuadro de neón, anfitriones en sus
   const order = [...html.matchAll(/src="([^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual(order, ["/podcast/estudios/calido.jpg", "https://x/a.png", "/podcast/estudios/calido-frente.png"], "fondo → persona → mesa");
   assert.match(html, /left:\s*1\d(\.\d+)?%/, "A queda en el lado izquierdo");
+});
+
+// Defecto real (2026-10-28): el dueño no encontraba su avatar; solo aparecía tras pulsar «Personalizado».
+test("avatares guardados: visibles con nombre y foto firmada; el que usa el otro participante no se repite", async () => {
+  const { SavedAvatarPicker } = await import("./SavedAvatarPicker");
+  const avatars = [{ id: "h", name: "Hans — Estudio podcast", photoUrl: "https://x/firmada-h.jpg" }, { id: "v", name: "Valeria Montclair", photoUrl: null }];
+  const html = renderToStaticMarkup(<SavedAvatarPicker label="O usa un avatar guardado" who="B" avatars={avatars} selected="v" disabledIds={["h"]} onSelect={() => {}} />);
+  assert.match(html, /Hans — Estudio podcast/); assert.match(html, /Valeria Montclair/);
+  assert.match(html, /src="https:\/\/x\/firmada-h.jpg"/);
+  assert.match(html, /aria-checked="true"[^>]*data-testid="avatar-guardado-B-v"/);
+  assert.match(html, /disabled=""[^>]*data-testid="avatar-guardado-B-h"/);
+  assert.match(html, /Ya lo usa el otro participante/);
+  const none = renderToStaticMarkup(<SavedAvatarPicker label="x" who="A" avatars={[]} selected={null} onSelect={() => {}} />);
+  assert.match(none, /Aún no tienes avatares guardados listos/);
 });

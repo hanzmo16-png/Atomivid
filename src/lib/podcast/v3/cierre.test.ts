@@ -180,3 +180,34 @@ test("Recraft no listo: el asistente lo muestra con el motivo y se rechaza ANTES
   assert.equal(readinessMessage({ provider: "recraft", reason: "supplier balance unavailable" }), "Recraft (ilustraciones): no se pudo verificar un saldo suficiente.");
   assert.equal(readinessMessage({ provider: "x", reason: "otra" }), "x: otra.");
 });
+
+test("avatar guardado: cambiar entre catálogo y avatar propio no pierde el episodio; duplicado bloqueado en diálogo", async () => {
+  const { withHost, withSavedAvatar, avatarSummary, stepErrors, STEP } = await import("./wizard");
+  const hans = { id: "h", name: "Hans — Estudio podcast" }, val = { id: "v", name: "Valeria Montclair" };
+  const base: WizardDraft = { ...defaultDraft(), mode: "dialogo", modality: "dialogo", count: 2, title: "T", topic: "volcanes", script: "Hans: hola\nValeria: hola" };
+  const a1 = withHost(base.participants[0], "victor");
+  const a2 = withSavedAvatar(a1, hans);
+  assert.deepEqual([a2.host, a2.avatar, a2.name, a2.voice_id], [null, { kind: "existente", avatar_id: "h" }, "Hans — Estudio podcast", ""], "deja el catálogo y pide la voz aparte");
+  assert.equal(withSavedAvatar({ ...base.participants[0], name: "Hans G." }, hans).name, "Hans G.", "un nombre escrito a mano se respeta");
+  const back = withHost(a2, "ximena");
+  assert.equal(back.avatar.kind, "catalogo"); assert.equal(back.host, "ximena");
+  assert.equal(avatarSummary(a2, [hans, val]), "avatar guardado «Hans — Estudio podcast»");
+  assert.equal(avatarSummary(back, [hans, val]), "anfitrión del catálogo");
+  const dup: WizardDraft = { ...base, participants: [withSavedAvatar(base.participants[0], hans), withSavedAvatar(base.participants[1], hans)] };
+  assert.ok(stepErrors(dup, STEP.avatares, { unavailableVoices: [] }).some((e) => /mismo avatar guardado/.test(e)));
+  const ok2: WizardDraft = { ...base, participants: [withSavedAvatar(base.participants[0], hans), withSavedAvatar(base.participants[1], val)] };
+  assert.ok(!stepErrors(ok2, STEP.avatares, { unavailableVoices: [] }).some((e) => /mismo avatar/.test(e)));
+  assert.equal(ok2.script, base.script); assert.equal(ok2.topic, base.topic);
+});
+
+test("paso Visuales: un proveedor no disponible nunca queda preseleccionado como listo", async () => {
+  const { withAvailableProvider } = await import("./wizard");
+  const { visualProviders } = await import("./studio");
+  const blocked = visualProviders({}, "el saldo de fal.ai no se puede verificar en este entorno");
+  const d = { ...defaultDraft() };
+  assert.equal(d.provider, "recraft");
+  assert.equal(withAvailableProvider(d, blocked).provider, "solo_set", "Recraft bloqueado → se muestra elegida la opción disponible");
+  assert.equal(withAvailableProvider(d, visualProviders({}, null)).provider, "recraft", "Recraft listo → sigue siendo el principal");
+  assert.equal(withAvailableProvider({ ...d, provider: "solo_set" as const }, visualProviders({}, null)).provider, "solo_set", "una elección disponible del usuario se respeta");
+  assert.equal(withAvailableProvider(d, []).provider, "recraft", "sin lista de proveedores no se toca nada");
+});
