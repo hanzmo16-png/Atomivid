@@ -1,0 +1,49 @@
+# Entorno Python del worker del estudio (USD 0, sin proveedores ni base de datos): misma imagen, mismo Python y MISMO
+# script de instalación que podcast-video.yml, y ejecución real de las dos piezas Python (recorte RVM y verificación
+# visual CLIP) sobre material sintético. Nació del episodio ec30c594 (2026-10-29): «ubuntu-latest» pasó a Python 3.14 y
+# la instalación falló antes de producir; esta comprobación lo habría detectado sin tocar ningún episodio.
+name: podcast-studio-env
+on:
+  pull_request:
+    paths: [".github/workflows/podcast-video.yml", ".github/workflows/podcast-studio-env.yml", "scripts/podcast-3-0/**"]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 9 * * 1"
+permissions:
+  contents: read
+jobs:
+  env:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - name: La imagen y el Python coinciden con podcast-video.yml
+        run: |
+          grep -q "runs-on: ubuntu-24.04" .github/workflows/podcast-video.yml || { echo "::error::podcast-video.yml no usa ubuntu-24.04"; exit 1; }
+          grep -q 'python-version: "3.12"' .github/workflows/podcast-video.yml || { echo "::error::podcast-video.yml no fija Python 3.12"; exit 1; }
+          grep -q "scripts/podcast-3-0/install-python-deps.sh" .github/workflows/podcast-video.yml || { echo "::error::podcast-video.yml no usa el script de instalación"; exit 1; }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+      - name: Instalación (mismo script que el worker)
+        run: bash scripts/podcast-3-0/install-python-deps.sh
+      - name: Recorte RVM real sobre un clip sintético
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          curl -sSfL -o rvm.onnx https://github.com/PeterL1n/RobustVideoMatting/releases/download/v1.0.0/rvm_mobilenetv3_fp32.onnx
+          echo "88d4531297118f595bf2fd60f6f566aec2e559393802d1f436c380f0cbbd2828  rvm.onnx" | sha256sum -c -
+          ffmpeg -v error -y -f lavfi -i "color=c=0x406080:s=512x512:d=1,format=yuv420p" -vf "drawbox=x=176:y=96:w=160:h=320:color=0xd0a080:t=fill" -r 25 clip.mp4
+          python3 "$GITHUB_WORKSPACE/scripts/podcast-3-0/matte.py" rvm.onnx clip.mp4 fg.mp4 alpha.mp4 --extend 0.3
+          for f in fg.mp4 alpha.mp4; do d=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$f"); echo "$f $d s"; python3 -c "import sys; assert float(sys.argv[1]) > 0.5" "$d"; done
+          echo "RVM_OK"
+      - name: Verificación visual CLIP real sobre imágenes sintéticas
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          ffmpeg -v error -y -f lavfi -i "color=c=0x2060c0:s=512x512:d=1" -frames:v 1 cielo.png
+          printf '{"topic":"historia de los sumerios","items":[{"image":"%s/cielo.png","expected":"tablillas de arcilla con escritura cuneiforme"}]}' "$RUNNER_TEMP" > in.json
+          python3 "$GITHUB_WORKSPACE/scripts/podcast-3-0/verify-images.py" in.json out.json
+          python3 -c "import json; v=json.load(open('out.json'))['verdicts']; print(v); assert len(v)==1 and 'ok' in v[0]"
+          echo "CLIP_OK"

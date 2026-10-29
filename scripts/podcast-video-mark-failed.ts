@@ -2,6 +2,9 @@
 export {};
 import { readFile } from "node:fs/promises";
 
+/** Mensaje visible cuando el trabajo no llegó a empezar: nada se cobró y el inicio se puede volver a pedir. */
+const STUDIO_NOT_STARTED = "No se pudo iniciar la generación por un fallo del servidor (antes de cualquier cargo). Tu autorización se conserva: pulsa «Volver a pedir el inicio»; no se cobra otra vez.";
+
 async function main() {
   const fromFile = process.env.PODCAST_TOKEN_FILE ? (await readFile(`${process.env.PODCAST_TOKEN_FILE}.episode`, "utf8").catch(() => "")).trim() : "";
   const id = process.env.EPISODE_ID?.trim() || fromFile;
@@ -16,6 +19,18 @@ async function main() {
       .eq("id", id).eq("status", "generating").select("id");
     if (data?.length) await service.from("podcast_studio_operations").update({ state: "uncertain", updated_at: new Date().toISOString() }).eq("episode_id", id).eq("state", "reserved");
     console.log("STUDIO_MARKED_FAILED", data?.length ?? 0);
+    if (data?.length) return;
+    // El trabajo murió ANTES de tomar el episodio (p. ej. falló la instalación del entorno, 2026-10-29 ec30c594): sigue
+    // «authorized», sin ningún cargo, y la pantalla lo mostraba en 0 % sin explicación. Se deja autorizado (así «Volver a
+    // pedir el inicio» no vuelve a autorizar ni cobra) y se explica. Solo si ningún worker lo tomó tras esta autorización.
+    const { data: row } = await service.from("podcast_studio_episodes").select("status,authorized_at,run_started_at").eq("id", id).maybeSingle();
+    const r = row as { status: string; authorized_at: string | null; run_started_at: string | null } | null;
+    const notStarted = r?.status === "authorized" && !!r.authorized_at && (!r.run_started_at || Date.parse(r.run_started_at) < Date.parse(r.authorized_at));
+    if (notStarted) {
+      const { data: noted } = await service.from("podcast_studio_episodes").update({ error: STUDIO_NOT_STARTED, updated_at: new Date().toISOString() })
+        .eq("id", id).eq("status", "authorized").eq("authorized_at", r!.authorized_at!).select("id");
+      console.log("STUDIO_NOT_STARTED_NOTED", noted?.length ?? 0);
+    }
     return;
   }
   // The run token this job claimed (written by the worker right after its claim), when it got that far.

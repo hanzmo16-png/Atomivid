@@ -23,6 +23,10 @@ async function session(user, tag, device = null) {
   return { ctx, p };
 }
 const shot = (p, n) => p.screenshot({ path: path.join(OUT, `${n}.png`), fullPage: true });
+function markFailed(id, kind) {
+  const env = { ...process.env, ...Object.fromEntries(fs.readFileSync(path.join(E2E, "secrets/podcast-worker.env"), "utf8").trim().split("\n").map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)])), EPISODE_ID: id, JOB_KIND: kind, NPM_CONFIG_UPDATE_NOTIFIER: "false" };
+  return new Promise((res) => { const w = spawn("npx", ["tsx", "scripts/podcast-video-mark-failed.ts"], { cwd: REPO, env }); let o = ""; w.stdout.on("data", (d) => (o += d)); w.stderr.on("data", (d) => (o += d)); w.on("close", (c) => res({ code: c, out: o })); });
+}
 function worker(id, kind, extra = {}) {
   const env = { ...process.env, ...extra, ...Object.fromEntries(fs.readFileSync(path.join(E2E, "secrets/podcast-worker.env"), "utf8").trim().split("\n").map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)])), EPISODE_ID: id, JOB_KIND: kind, NPM_CONFIG_UPDATE_NOTIFIER: "false", ...extra };
   return new Promise((res) => { const w = spawn("npx", ["tsx", "scripts/podcast-video-worker.ts"], { cwd: REPO, env }); let o = ""; w.stdout.on("data", (d) => (o += d)); w.stderr.on("data", (d) => (o += d)); w.on("close", (c) => { fs.appendFileSync(path.join(OUT, `worker-${id}-${kind}.log`), o); res({ code: c, out: o, proc: w }); }); });
@@ -704,9 +708,33 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     }
     await db.query("update pi_supply_policies set enabled=false where provider='recraft'");
   }
+  if (cases.includes("15")) {
+    // Episodio real ec30c594 (2026-10-29): el job murió instalando el entorno, ANTES de tomar el episodio. mark-failed solo
+    // cerraba «generating» → el episodio quedó «authorized» en 0 % sin explicación. Ahora se explica y sigue autorizado.
+    const ins = (id, status, startedSql) => db.query(`insert into public.podcast_studio_episodes(id,user_id,title,mode,spec,status,authorized_usd,authorized_at,run_started_at) values ($1,$2,'c15','narracion','{"version":"podcast-studio/3"}',$3,2,now(),${startedSql})`, [id, OWNER.id, status]);
+    const A = "c15a0000-0000-4000-8000-000000000001", G = "c15a0000-0000-4000-8000-000000000002", S = "c15a0000-0000-4000-8000-000000000003";
+    await ins(A, "authorized", "null"); await ins(G, "generating", "now()"); await ins(S, "authorized", "now() + interval '1 minute'");
+    await db.query("insert into public.podcast_studio_operations(key,user_id,episode_id,provider,op,state,reserved_usd) values ('c15-op',$1,$2,'elevenlabs','tts','reserved',0.01)", [OWNER.id, G]);
+    const row = async (id) => (await db.query("select status,error,authorized_usd,authorized_at from public.podcast_studio_episodes where id=$1", [id])).rows[0];
+    const before = await row(A);
+    const ra = await markFailed(A, "studio");
+    const a = await row(A);
+    ok("c15: sin arrancar → sigue «authorized» con su autorización intacta", a.status === "authorized" && Number(a.authorized_usd) === 2 && +a.authorized_at === +before.authorized_at, JSON.stringify(a));
+    ok("c15: sin arrancar → el error explica que no se cobró y cómo reintentar", /No se pudo iniciar/.test(a.error ?? "") && /no se cobra otra vez/.test(a.error ?? "") && /STUDIO_NOT_STARTED_NOTED 1/.test(ra.out), `${a.error} | ${ra.out.slice(-160)}`);
+    await markFailed(G, "studio");
+    const g = await row(G), op = (await db.query("select state from public.podcast_studio_operations where key='c15-op'")).rows[0];
+    ok("c15: muerto durante la generación → «failed» y lo reservado pasa a «uncertain» (como antes)", g.status === "failed" && op.state === "uncertain", `${g.status} ${op.state}`);
+    await markFailed(S, "studio");
+    ok("c15: ya tomado por un worker tras esta autorización → no se toca", (await row(S)).error === null);
+    // La API ofrece volver a pedir el inicio sin cobrar: el episodio sigue autorizado y no hay operación nueva.
+    const ops = Number((await db.query("select count(*)::int n from public.podcast_studio_operations where episode_id=$1", [A])).rows[0].n);
+    ok("c15: ningún cargo ni reserva para el episodio que no arrancó", ops === 0, String(ops));
+    await db.query("delete from public.podcast_studio_operations where key='c15-op'");
+    await db.query("delete from public.podcast_studio_episodes where id = any($1)", [[A, G, S]]);
+  }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
-  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34 };
+  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 15: 5 };
   const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[a-d]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name)) || (c === "12" && /^c12-/.test(r.name))).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));
