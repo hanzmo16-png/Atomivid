@@ -24,6 +24,12 @@ export type OutputMediaMetrics = {
   audioKbps: number | null;
 };
 
+function tool(name: "ffmpeg" | "ffprobe"): string {
+  if (name === "ffmpeg" && process.env.FFMPEG_BIN) return process.env.FFMPEG_BIN;
+  if (name === "ffprobe" && process.env.FFPROBE_BIN) return process.env.FFPROBE_BIN;
+  return name;
+}
+
 function run(cmd: string, args: string[], opts: { cwd?: string } = {}): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const proc = spawn(cmd, args, { cwd: opts.cwd });
@@ -49,7 +55,7 @@ function parseRate(rate: string | undefined): number | null {
 /** Métricas reales del archivo (tamaño en disco + ffprobe). */
 export async function probeOutput(filePath: string): Promise<OutputMediaMetrics> {
   const stat = await fs.stat(filePath);
-  const { stdout } = await run("ffprobe", ["-v", "error", "-print_format", "json", "-show_format", "-show_streams", filePath]);
+  const { stdout } = await run(tool("ffprobe"), ["-v", "error", "-print_format", "json", "-show_format", "-show_streams", filePath]);
   const json = JSON.parse(stdout) as {
     format?: { duration?: string; bit_rate?: string };
     streams?: { codec_type?: string; codec_name?: string; width?: number; height?: number; avg_frame_rate?: string; r_frame_rate?: string; bit_rate?: string }[];
@@ -87,18 +93,24 @@ export async function sha256File(filePath: string): Promise<string> {
  * Ajusta el tamaño con x264 2-pass (bitrate medio exacto → tamaño
  * predecible) desde el archivo ya renderizado. Mantiene resolución, fps y
  * duración; `+faststart` para que el reproductor arranque sin descargar
- * todo el archivo.
+ * todo el archivo. La pista de subtítulos (mov_text), si existe, se copia:
+ * el mapeo por defecto de este 2-pass la descartaba y el MP4 entregado
+ * volvía a quedar con cero pistas de subtítulos.
  */
 export async function transcodeToFit(input: { sourcePath: string; outputPath: string; videoKbps: number; audioKbps: number }): Promise<void> {
   const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "atomivid-fit-"));
   const passlog = path.join(workDir, "pass");
   const common = ["-c:v", "libx264", "-preset", "medium", "-b:v", `${input.videoKbps}k`, "-maxrate", `${Math.round(input.videoKbps * 1.5)}k`, "-bufsize", `${input.videoKbps * 2}k`, "-pix_fmt", "yuv420p"];
+  const ffmpeg = tool("ffmpeg");
   try {
-    await run("ffmpeg", ["-y", "-i", input.sourcePath, ...common, "-pass", "1", "-passlogfile", passlog, "-an", "-f", "mp4", os.platform() === "win32" ? "NUL" : "/dev/null"]);
-    await run("ffmpeg", [
+    await run(ffmpeg, ["-y", "-i", input.sourcePath, "-map", "0:v:0", "-an", "-sn", ...common, "-pass", "1", "-passlogfile", passlog, "-f", "mp4", os.platform() === "win32" ? "NUL" : "/dev/null"]);
+    await run(ffmpeg, [
       "-y",
       "-i",
       input.sourcePath,
+      "-map", "0:v:0",
+      "-map", "0:a?",
+      "-map", "0:s?",
       ...common,
       "-pass",
       "2",
@@ -108,6 +120,8 @@ export async function transcodeToFit(input: { sourcePath: string; outputPath: st
       "aac",
       "-b:a",
       `${input.audioKbps}k`,
+      "-c:s",
+      "mov_text",
       "-movflags",
       "+faststart",
       input.outputPath,
