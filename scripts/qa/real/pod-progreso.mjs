@@ -49,12 +49,13 @@ for (const [label, opts] of [["escritorio", { viewport: { width: 1366, height: 9
   await ctx.addInitScript(() => { try { localStorage.setItem("atomivid_onboarding_completed_v1", "1"); } catch {} });
   const p = await ctx.newPage();
   const shot = (n) => p.screenshot({ path: path.join(EVID, `progreso-${label}-${n}.png`), fullPage: true }).catch(() => {});
-  let blocked = 0, served = -1;
+  // La secuencia solo avanza cuando el muestreo ya está listo (en móvil la página tarda más en cargar).
+  let blocked = 0, served = -1, go = false;
   // Nunca escribir: cualquier POST/PUT/PATCH/DELETE hacia la API del podcast se aborta.
   await p.route("**/api/podcast/**", async (route) => {
     const req = route.request();
     if (req.method() !== "GET") { blocked++; return route.abort(); }
-    if (req.url().includes(FAKE)) { served = Math.min(served + 1, SEQ.length - 1); return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SEQ[served].body) }); }
+    if (req.url().includes(FAKE)) { served = go ? Math.min(served + 1, SEQ.length - 1) : 0; return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(SEQ[served].body) }); }
     return route.continue();
   });
   try {
@@ -70,6 +71,7 @@ for (const [label, opts] of [["escritorio", { viewport: { width: 1366, height: 9
     await p.evaluate((fake) => { localStorage.setItem("atomivid.podcast.asistente.v2", JSON.stringify({ step: 9, episodeId: fake, authorized: true, title: "Validación (ficticio)" })); }, FAKE);
     await p.reload();
     await p.getByTestId("wizard-progress").waitFor({ timeout: 60000 });
+    go = true;
     const samples = [];
     const seen = new Set();
     for (let i = 0; i < 70 && !(samples.length && samples[samples.length - 1].state === "listo"); i++) {
