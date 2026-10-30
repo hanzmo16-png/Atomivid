@@ -55,9 +55,10 @@ export default async function DashboardLayout({
               Facturación
             </NavLink>
             {showLongFormDryRun && (
+              // xl, not sm: at 640px this label wrapped the header and the help click missed (M3-1).
               <NavLink
                 href="/dashboard/long-form/visual-test-v2"
-                className="hidden rounded-md px-3 py-2 text-sm font-medium transition-colors sm:inline-block"
+                className="hidden whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition-colors xl:inline-block"
               >
                 Dry Run Long Form
               </NavLink>

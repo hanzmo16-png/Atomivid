@@ -31,6 +31,15 @@ test("el enlace apunta exclusivamente a /dashboard/long-form/visual-test-v2 (sol
   assert.equal(/fetch\s*\(/.test(LAYOUT_SOURCE), false);
 });
 
+test("en el nav de escritorio el enlace no entra en el corte sm (640 px): ahí partía la cabecera y el clic de la ayuda no abría el diálogo", () => {
+  const start = LAYOUT_SOURCE.indexOf("showLongFormDryRun && (");
+  const desktop = LAYOUT_SOURCE.slice(start, LAYOUT_SOURCE.indexOf("showPodcast &&", start));
+  assert.ok(start !== -1 && desktop.length > 0);
+  assert.match(desktop, /whitespace-nowrap/);
+  assert.match(desktop, /xl:inline-block/);
+  assert.equal(desktop.includes("sm:inline-block"), false);
+});
+
 test("ambas apariciones del enlace (nav de escritorio y de móvil) están condicionadas por showLongFormDryRun", () => {
   const occurrences = (LAYOUT_SOURCE.match(/showLongFormDryRun && \(/g) ?? []).length;
   assert.equal(occurrences, 2);
