@@ -578,6 +578,36 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     ok(`${tag}: re-despacho de un episodio listo no regenera ni cobra`, /STUDIO_NOT_AUTHORIZED/.test(again.out));
     await S.p.reload(); await S.p.getByTestId("studio-episodes").waitFor(); await snap("paso10e-lista");
     ok(`${tag}: aparece en «Tus episodios»`, (await S.p.getByTestId("studio-episodes").textContent()).includes(m.title));
+    if (opts.secondEpisode) {
+      // Incidente 2026-10-29 (falso 0 % → 100 %): tras un episodio terminado, configurar OTRO desde el mismo asistente
+      // mostraba el anterior (listo) y no creaba nada. Control negativo primero: revisar sin cambiar no crea ni despacha.
+      const count = async () => (await db.query("select count(*)::int n from podcast_studio_episodes where user_id=$1", [OWNER.id])).rows[0].n;
+      const dlen = () => fs.readFileSync(path.join(E2E, "logs/dispatch.jsonl"), "utf8").length;
+      const back = async (re) => { for (let i = 0; i < 12 && !re.test(await stepTitle()); i++) { await W().getByRole("button", { name: "Atrás" }).click(); await S.p.waitForTimeout(250); } };
+      const forward = async () => { for (let i = 0; i < 12 && !/Generación/.test(await stepTitle()); i++) { await next(); await S.p.waitForTimeout(700); } };
+      const n0 = await count(), disp1 = dlen();
+      await back(/Vista previa/); await forward();
+      await W().getByTestId("wizard-progress").waitFor({ timeout: 15000 }).catch(() => {});
+      ok(`${tag}: revisar los pasos sin cambiar nada conserva el MISMO episodio (no crea ni despacha)`, await W().getByTestId("wizard-progress").getAttribute("data-episode").catch(() => null) === row.id && await count() === n0 && dlen() === disp1);
+      const t2 = `${m.title} (segundo)`;
+      await back(/Tema/); await W().getByLabel("Título del episodio").fill(t2); await forward(); await snap("paso11a-segundo-generacion");
+      const genBtn = W().getByRole("button", { name: "Generar episodio" });
+      await genBtn.waitFor({ timeout: 15000 }).catch(() => {});
+      ok(`${tag}: otra configuración → «Generación» pide generar el episodio NUEVO (sin avance ni 100 % del anterior)`, await genBtn.count() === 1 && await W().getByTestId("wizard-progress").count() === 0 && await W().getByTestId("wizard-player").count() === 0 && await count() === n0);
+      await W().getByLabel("Autorizo el cargo").check(); await genBtn.click(); await W().getByTestId("wizard-progress").waitFor();
+      let r2; for (let i = 0; i < 40; i++) { r2 = (await db.query("select * from podcast_studio_episodes where user_id=$1 and title=$2 order by created_at desc limit 1", [OWNER.id, t2])).rows[0]; if (r2?.status === "authorized") break; await S.p.waitForTimeout(250); }
+      const shownId = await W().getByTestId("wizard-progress").getAttribute("data-episode");
+      const st0 = await W().getByTestId("atom-progress").first().getAttribute("data-state"), pct0 = await W().getByTestId("atom-progress-pct").first().textContent();
+      ok(`${tag}: se crea y autoriza un episodio NUEVO y el indicador sigue a ese (nunca 100 % al empezar)`, !!r2 && r2.id !== row.id && r2.status === "authorized" && shownId === r2.id && st0 !== "listo" && pct0 !== "100%", JSON.stringify({ nuevo: r2?.id, mostrado: shownId, st0, pct0 }));
+      const w2 = await worker(r2.id, "studio");
+      const r2b = (await db.query("select status, video_path, audio_path from podcast_studio_episodes where id=$1", [r2.id])).rows[0];
+      await W().getByTestId("wizard-player").waitFor({ timeout: 30000 }).catch(() => {});
+      ok(`${tag}: el 100 % llega solo con el episodio NUEVO listo y su archivo`, w2.code === 0 && r2b.status === "ready" && !!r2b.audio_path && await W().getByTestId("atom-progress-pct").first().textContent() === "100%" && await W().getByTestId("wizard-progress").getAttribute("data-episode") === r2.id && await W().getByTestId("wizard-player").count() === 1, JSON.stringify(r2b));
+      const old1 = (await db.query("select status, video_path, audio_path from podcast_studio_episodes where id=$1", [row.id])).rows[0];
+      ok(`${tag}: el episodio anterior queda intacto (listo, mismos archivos)`, old1.status === "ready" && old1.video_path === row.video_path && old1.audio_path === row.audio_path);
+      ok(`${tag}: «Crear otro episodio» disponible al terminar`, await W().getByTestId("wizard-crear-otro").count() === 1);
+      await snap("paso11b-segundo-listo");
+    }
     await S.p.getByRole("button", { name: "Empezar de nuevo" }).click();
     const card = S.p.getByTestId(`studio-episode-${row.id}`);
     await card.getByTestId("studio-download-mp4").waitFor({ timeout: 20000 });
@@ -593,7 +623,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     { tag: "c10b", mode: "Presentador con avatar", title: "E2E estudio avatar", script: "Hola, hoy te cuento tres datos sobre volcanes.\n\nOlympus Mons está en Marte y es el volcán más alto.\n\nLos volcanes crean islas como Hawái.", count: 1, voices: [DURO], avatars: [AV[0][0]] },
     { tag: "c10c", mode: "Conversación con dos avatares", title: "E2E estudio conversación", topic: "la luna Europa", count: 2, voices: [ANA, LEO], avatars: [AV[0][0], AV[1][0]], format: "Vertical 9:16 (Reels/TikTok)", swap: true },
   ];
-  if (cases.includes("10")) for (const m of MODES) await studioFlow(s, m.tag, m);
+  if (cases.includes("10")) for (const m of MODES) await studioFlow(s, m.tag, m, m.tag === "c10d" ? { secondEpisode: true } : {});
   if (cases.includes("10")) {
     // Aislamiento del estudio: otra cuenta no puede ver, autorizar ni descargar episodios ajenos (ni su libro).
     const own = (await db.query("select id, status, video_path, authorized_usd from podcast_studio_episodes where user_id=$1 and video_path is not null order by created_at desc limit 1", [OWNER.id])).rows[0];
@@ -632,7 +662,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     await Sm.p.goto(`${BASE}/dashboard/podcast`);
     const smOverflow = await Sm.p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     ok("c11-samsung: portada 390×844 sin desbordamiento horizontal", smOverflow <= 1, `${smOverflow}px`);
-    await studioFlow(Sm, "c11-samsung", { ...MODES.find((x) => x.tag === "c10d"), title: "E2E samsung 390x844", voices: [DURO, LEO] });
+    await studioFlow(Sm, "c11-samsung", { ...MODES.find((x) => x.tag === "c10d"), title: "E2E samsung 390x844", voices: [DURO, LEO] }, { secondEpisode: true });
     await Sm.ctx.close();
     const So = await session(OTHER, "c11-samsung-otra", SAMSUNG);
     await So.p.goto(`${BASE}/dashboard/podcast`); await So.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();

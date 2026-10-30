@@ -32,6 +32,8 @@ export type WizardDraft = {
   set: StudioSet; swap: boolean; subtitles: boolean; avatarFrequency: number; avatarMaxSeconds: number; recreations: boolean;
   musicEnabled: boolean; mood: Mood | "auto"; volumeDb: number; stings: boolean; ambient: "ninguno" | "lluvia" | "viento" | "noche";
   format: "16:9" | "9:16"; audioExport: "mp3" | "wav"; budgetUsd: number; authorized: boolean; episodeId: string | null; draftId?: string | null;
+  /** Configuración con la que se creó `draftId`/`episodeId` (specKey). Si cambia, el borrador suelta ese episodio. */
+  boundSpec?: string | null;
 };
 const P = (name: string): WizardParticipant => ({ name, role: "", gender: "neutro", style: "", personality: "", voice_id: "", voice_kind: "sintetica", avatar: { kind: "ninguno" }, host: null });
 
@@ -120,6 +122,25 @@ export function stepErrors(d: WizardDraft, step: number, ctx: { unavailableVoice
 export const CONSENT_TEXT = "Confirmo que soy la persona de la foto o tengo su permiso expreso, y autorizo crear un avatar digital con ella para este podcast.";
 
 /** Especificación del estudio a partir del borrador. */
+/** Huella de lo que se produciría: exactamente lo que se envía al crear el episodio. */
+export function specKey(d: WizardDraft): string { return JSON.stringify(draftToSpec(d)); }
+
+/** El borrador deja de apuntar a un episodio: la próxima «Generación» crea uno nuevo (el anterior queda intacto). */
+export const releaseEpisode = (d: WizardDraft): WizardDraft => ({ ...d, episodeId: null, draftId: null, authorized: false, boundSpec: null });
+
+/**
+ * Incidente 2026-10-29 (falso 0 % → 100 %): el borrador guardado en el navegador conservaba `episodeId`/`draftId` de una
+ * producción terminada. Al volver atrás y configurar OTRO podcast, «Generación» mostraba el avance del episodio anterior
+ * (ya listo) y no creaba nada. Regla: un episodio queda ligado a la configuración con la que se creó (`boundSpec`);
+ * si cambia, el borrador lo suelta. Revisar los pasos sin cambiar nada no lo suelta (no se crea ni cobra otro).
+ * Borradores anteriores a esta regla (sin huella): se conservan solo mientras siguen en «Generación».
+ */
+export function bindEpisode(d: WizardDraft): WizardDraft {
+  if (!d.episodeId && !d.draftId) return d.boundSpec ? { ...d, boundSpec: null } : d;
+  if (d.boundSpec == null) return d.step === STEP.generacion ? { ...d, boundSpec: specKey(d) } : releaseEpisode(d);
+  return d.boundSpec === specKey(d) ? d : releaseEpisode(d);
+}
+
 export function draftToSpec(d: WizardDraft) {
   const ids = ["A", "B"] as const;
   return {
