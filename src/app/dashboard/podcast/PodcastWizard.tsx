@@ -13,7 +13,7 @@ import { progressView, type LedgerActivity } from "@/lib/podcast/v3/progress";
 import { AtomProgress } from "@/components/podcast/AtomProgress";
 import { StudioPreview, type PreviewHost } from "@/components/podcast/StudioPreview";
 import { HostPicker, type HostCard } from "@/components/podcast/HostPicker";
-import { CONSENT_TEXT, INTENSITY_DB, MODALITIES, MODALITY_LABEL, STEP, STEPS, STUDIO_BUDGET_MAX_USD, WIZARD_STORAGE_KEY, bindEpisode, defaultDraft, draftToSpec, releaseEpisode, specKey, draftToV2, durationFit, estimateMinutes, loadDraft, modalityToMode, stepErrors, voiceKindFor, withHost, withoutHost, withVoiceKinds, type Modality, type WizardDraft } from "@/lib/podcast/v3/wizard";
+import { CONSENT_TEXT, INTENSITY_DB, MODALITIES, MODALITY_LABEL, STEP, STEPS, STUDIO_BUDGET_MAX_USD, WIZARD_STORAGE_KEY, bindEpisode, defaultDraft, syncScriptNames, withOwnAvatar, draftToSpec, releaseEpisode, specKey, draftToV2, durationFit, estimateMinutes, loadDraft, modalityToMode, stepErrors, voiceKindFor, withHost, withoutHost, withVoiceKinds, type Modality, type WizardDraft } from "@/lib/podcast/v3/wizard";
 import type { VisualProvider } from "@/lib/podcast/v3/studio";
 
 export type WizardVoice = { voiceId: string; name: string; available: boolean; note: string | null; kind: "sintetica" | "clonada" };
@@ -36,7 +36,9 @@ const KIND_LABEL: Record<string, string> = { pregunta: "pregunta", respuesta: "r
 
 export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generationEnabled = v3Enabled, providers = [], previewNotice = null, hosts = [] }: { voices: WizardVoice[]; avatars: WizardAvatar[]; v2Enabled: boolean; v3Enabled: boolean; generationEnabled?: boolean; providers?: VisualProvider[]; previewNotice?: string | null; hosts?: WizardHost[] }) {
   const router = useRouter();
-  const [raw, setRaw] = useState<WizardDraft>(defaultDraft);
+  const [raw, setRawState] = useState<WizardDraft>(defaultDraft);
+  // Cualquier cambio del borrador mantiene el guion al día con los nombres de los participantes (syncScriptNames).
+  const setRaw = (u: WizardDraft | ((x: WizardDraft) => WizardDraft)) => setRawState((x) => syncScriptNames(x, typeof u === "function" ? u(x) : u));
   const [loaded, setLoaded] = useState(false);
   // El tipo de voz se deriva del catálogo en el render: un efecto con setState rompe el lint del repo
   // (react-hooks/set-state-in-effect) y un catálogo vacío no debe reescribir un clon ya guardado.
@@ -52,7 +54,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   // Borrador persistente: volver atrás o recargar no pierde nada.
   // Hidratación desde localStorage (solo existe en el cliente): un único setState al montar.
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { setRaw(loadDraft(localStorage.getItem(WIZARD_STORAGE_KEY))); setLoaded(true); }, []);
+  useEffect(() => { setRawState(loadDraft(localStorage.getItem(WIZARD_STORAGE_KEY))); setLoaded(true); }, []);
   useEffect(() => { if (loaded) localStorage.setItem(WIZARD_STORAGE_KEY, JSON.stringify(d)); }, [d, loaded]);
   const set = (patch: Partial<WizardDraft>) => setRaw((x) => ({ ...settle(x), ...patch }));
   const setP = (i: 0 | 1, patch: Partial<WizardDraft["participants"][0]>) => setRaw((x) => { const ps = [...x.participants] as WizardDraft["participants"]; ps[i] = { ...ps[i], ...patch }; return { ...x, participants: ps }; });
@@ -94,7 +96,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
       if (!generationEnabled && !studio && d.modality === "audio") {
         const r = await api("/api/podcast", draftToV2(withVoiceKinds(d, voices), v2Enabled));
         localStorage.removeItem(WIZARD_STORAGE_KEY);
-        setRaw(defaultDraft());
+        setRawState(defaultDraft());
         router.push(`/dashboard/podcast/${String(r.id)}`);
         return;
       }
@@ -213,7 +215,9 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
             <fieldset key={i} className="rounded border border-border p-2">
               <legend className="px-1">Avatar de {p.name}</legend>
               <select aria-label={`Avatar ${tag(i)}`} value={p.avatar.kind === "existente" ? p.avatar.avatar_id : p.avatar.kind === "foto" ? "__foto" : ""}
-                onChange={(e) => setP(i as 0 | 1, { avatar: e.target.value === "__foto" ? { kind: "foto", photo_path: "", consent: false, consent_at: null } : e.target.value ? { kind: "existente", avatar_id: e.target.value } : { kind: "ninguno" } })} className={input}>
+                onChange={(e) => { const v = e.target.value, own = avatars.find((a) => a.id === v);
+                  if (own) { setRaw((x) => { const ps = [...x.participants] as WizardDraft["participants"]; ps[i] = withOwnAvatar(ps[i], own, i as 0 | 1); return { ...x, participants: ps }; }); return; }
+                  setP(i as 0 | 1, { avatar: v === "__foto" ? { kind: "foto", photo_path: "", consent: false, consent_at: null } : { kind: "ninguno" } }); }} className={input}>
                 <option value="">Elige…</option>
                 {avatars.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                 <option value="__foto">Crear desde una foto</option>
@@ -371,7 +375,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
       <div className="sticky bottom-0 mt-4 flex justify-between gap-2 bg-canvas/95 py-2">
         <Button type="button" variant="ghost" size="sm" onClick={() => go(Math.max(0, d.step - 1))} disabled={d.step === 0 || busy}>Atrás</Button>
         <div className="flex gap-2">
-          <Button type="button" variant="ghost" size="sm" onClick={() => { localStorage.removeItem(WIZARD_STORAGE_KEY); setRaw(defaultDraft()); setEstimate(null); setStatus(null); setNote(null); setError(null); router.refresh(); }}>Empezar de nuevo</Button>
+          <Button type="button" variant="ghost" size="sm" onClick={() => { localStorage.removeItem(WIZARD_STORAGE_KEY); setRawState(defaultDraft()); setEstimate(null); setStatus(null); setNote(null); setError(null); router.refresh(); }}>Empezar de nuevo</Button>
           {d.step < STEP.generacion && <Button type="button" size="sm" onClick={next} disabled={busy}>Siguiente</Button>}
         </div>
       </div>

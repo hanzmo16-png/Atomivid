@@ -121,6 +121,45 @@ export function stepErrors(d: WizardDraft, step: number, ctx: { unavailableVoice
 
 export const CONSENT_TEXT = "Confirmo que soy la persona de la foto o tengo su permiso expreso, y autorizo crear un avatar digital con ella para este podcast.";
 
+/** Nombres por defecto de los participantes (antes de elegir anfitrión o escribir un nombre). */
+export const DEFAULT_NAMES = ["Anfitrión", "Invitado"] as const;
+const escapeRe = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Cambia un nombre en el guion: la etiqueta de cada turno («Nombre: …») y las menciones dentro del texto (palabra
+ * completa, respetando mayúsculas: «invitado» como palabra común no se toca). Auditoría 2026-10-30 (episodio 51883d1c):
+ * el guion se generaba antes de elegir a los participantes y salió con «me acompaña Invitado» y «Gracias a ti,
+ * Anfitrión» aunque B era Valeria Montclair.
+ */
+export function renameInScript(script: string, from: string, to: string): string {
+  const a = from.trim(), b = to.trim();
+  if (!script || !a || !b || a === b) return script;
+  const word = new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(a)}(?![\\p{L}\\p{N}])`, "gu");
+  return script.split("\n").map((line) => line.replace(word, b)).join("\n");
+}
+
+/** Mantiene el guion al día con los nombres: si un participante cambia de nombre, el guion lo sigue. */
+export function syncScriptNames(prev: WizardDraft, next: WizardDraft): WizardDraft {
+  let script = next.script;
+  next.participants.forEach((p, i) => {
+    const before = prev.participants[i]?.name ?? "";
+    if (before.trim() && p.name.trim() && before.trim() !== p.name.trim()) script = renameInScript(script, before, p.name);
+  });
+  return script === next.script ? next : { ...next, script };
+}
+
+/** Nombre de pila a partir del nombre de un avatar propio («Hans Estudio podcast» → «Hans»). */
+export function firstNameOf(avatarName: string): string {
+  const w = avatarName.trim().split(/\s+/)[0] ?? "";
+  return /^\p{Lu}[\p{L}'-]{1,30}$/u.test(w) ? w : "";
+}
+
+/** Elegir un avatar propio: si el participante seguía con el nombre por defecto, toma el nombre del avatar. */
+export function withOwnAvatar(p: WizardParticipant, avatar: { id: string; name: string }, i: 0 | 1): WizardParticipant {
+  const name = !p.name.trim() || p.name === DEFAULT_NAMES[i] ? firstNameOf(avatar.name) || p.name : p.name;
+  return { ...p, host: null, name, avatar: { kind: "existente", avatar_id: avatar.id } };
+}
+
 /** Especificación del estudio a partir del borrador. */
 /** Huella de lo que se produciría: exactamente lo que se envía al crear el episodio. */
 export function specKey(d: WizardDraft): string { return JSON.stringify(draftToSpec(d)); }

@@ -119,11 +119,22 @@ export function conversationPrompt(i: GenerateInput): string {
 }
 
 /** Respaldo determinista (sin red, sin costo): estructura de entrevista coherente con el tema. */
+/**
+ * Tema tal como lo escribió el usuario, limpio para decirlo en voz alta: sin signos de pregunta sueltos, espacios ni
+ * punto final. La plantilla no corrige ortografía (eso lo hace el guion con IA); por eso solo lo nombra en la apertura
+ * (auditoría 2026-10-30, episodio 51883d1c: «despurs de la muerte» se leyó literalmente cinco veces).
+ */
+export function cleanTopic(topic: string): string {
+  const t = topic.replace(/\s+/g, " ").replace(/^[¿¡"«\s]+|[?!.。"»\s]+$/g, "").trim();
+  return t ? t.charAt(0).toLowerCase() + t.slice(1) : "";
+}
+
 export function templateConversation(i: GenerateInput): Turn[] {
-  const t = i.topic.trim().replace(/[.。]+$/, "") || "nuestro tema";
+  const named = cleanTopic(i.topic) || "nuestro tema";
+  const t = "este tema";
   const H = i.hostName, G = i.guestName;
   const opening: [Speaker, string][] = [
-    ["A", `Bienvenidos a un nuevo episodio. Hoy hablamos de ${t}, y me acompaña ${G}${i.guestRole ? `, ${i.guestRole}` : ""}. ¡Gracias por venir!`],
+    ["A", `Bienvenidos a un nuevo episodio. Hoy hablamos de ${named}, y me acompaña ${G}${i.guestRole ? `, ${i.guestRole}` : ""}. ¡Gracias por venir!`],
     ["B", `Gracias a ti, ${H}. Es un tema que me apasiona y que mucha gente entiende a medias.`],
   ];
   const blocks: [Speaker, string][][] = [
