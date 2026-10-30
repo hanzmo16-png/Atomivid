@@ -22,8 +22,10 @@ import { studioRecraftBlocker } from "@/lib/podcast/v3/readiness";
 const STATUS: Record<PodcastEpisode["status"], string> = { draft: "Borrador", generating: "Generando", ready: "Listo", failed: "Con error" };
 const VIDEO: Record<string, string> = { scheduled: "programado", queued: "en cola", running: "en producción", ready: "entregado", failed: "con error", blocked: "detenido" };
 
-export default async function PodcastPage({ searchParams }: { searchParams: Promise<{ vista?: string }> }) {
-  const view = (await searchParams).vista === "archivados" ? "archivados" : "principal";
+export default async function PodcastPage({ searchParams }: { searchParams: Promise<{ vista?: string; idea?: string }> }) {
+  const sp = await searchParams;
+  const view = sp.vista === "archivados" ? "archivados" : "principal";
+  const idea = typeof sp.idea === "string" ? sp.idea.slice(0, 500) : "";
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
@@ -88,7 +90,7 @@ export default async function PodcastPage({ searchParams }: { searchParams: Prom
         </section>
       )}
       {voicesError && <p className="mt-3 text-sm text-danger">{voicesError}</p>}
-      <PodcastWizard voices={wizardVoices} avatars={avatars} v2Enabled={podcastV2Enabled()} v3Enabled={v3Enabled} generationEnabled={generationEnabled} providers={visualProviders(process.env, recraftBlock)} previewNotice={previewNotice} hosts={hosts} />
+      <PodcastWizard voices={wizardVoices} avatars={avatars} v2Enabled={podcastV2Enabled()} v3Enabled={v3Enabled} generationEnabled={generationEnabled} providers={visualProviders(process.env, recraftBlock)} previewNotice={previewNotice} hosts={hosts} initialIdea={idea} />
       <details className="mt-4 rounded-lg border border-border p-3">
         <summary className="cursor-pointer text-sm font-medium text-ink">Formulario clásico (grabación propia, guion A/B)</summary>
         <NewEpisode voices={voices} voicesError={voicesError} usdPer1kChars={getPricingConfig().elevenLabsUsdPer1kChars} maxChars={PODCAST_MAX_CHARS} v2Enabled={podcastV2Enabled()} />

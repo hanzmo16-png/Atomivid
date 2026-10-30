@@ -845,9 +845,46 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     await db.query("delete from public.podcast_studio_episodes where id = any($1)", [[R, F, G, D, O]]);
     await db.query(fs.readFileSync(path.join(REPO, "supabase/proposals/20261030170000_podcast_library_archive.rollback.sql"), "utf8")); await db.query("notify pgrst, 'reload schema'");
   }
+  if (cases.includes("17")) {
+    // Simple UX 1.0: el inicio pregunta «¿Qué quieres crear hoy?» con tres formatos, una idea y «Continuar», que lleva al
+    // flujo real de cada formato con la idea ya escrita. Menú del cliente sin herramientas internas. Samsung 390×844.
+    const MOB = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2.75, isMobile: true, hasTouch: true };
+    const S = await session(OWNER, "c17-inicio", MOB), p = S.p;
+    const home = async () => { await p.goto(`${BASE}/dashboard`); await p.getByTestId("crear-inicio").waitFor(); };
+    const go = async (fmt, idea, url) => { await home(); await p.getByTestId(`crear-${fmt}`).click(); await p.getByTestId("crear-idea").fill(idea); await p.getByTestId("crear-continuar").click(); await p.waitForURL(url, { timeout: 60000 }); };
+    await home(); await shot(p, "c17-01-inicio");
+    ok("c17: el inicio pregunta «¿Qué quieres crear hoy?»", (await p.getByRole("heading", { level: 1 }).first().innerText()).includes("¿Qué quieres crear hoy?"));
+    ok("c17: tres formatos: Reel, Podcast y Video de YouTube", (await p.locator('[data-testid^="crear-"][role="radio"]').allInnerTexts()).map((t) => t.split("\n")[0]).join("|") === "Reel|Podcast|Video de YouTube");
+    ok("c17: «Continuar» deshabilitado hasta elegir, y dice por qué", await p.getByTestId("crear-continuar").isDisabled() && /Elige/.test(await p.getByTestId("crear-motivo").innerText()));
+    const ov = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    ok("c17: 390 px sin desplazamiento horizontal", ov <= 1, `${ov}px`);
+    const links = async () => p.evaluate(() => [...document.querySelectorAll("header a[href]")].filter((a) => a.getBoundingClientRect().width > 0).map((a) => a.getAttribute("href")));
+    await p.locator('[data-testid="menu-movil"] summary').click(); await p.waitForTimeout(300); await shot(p, "c17-02-menu");
+    const nav = await links();
+    ok("c17: menú compacto con Mis proyectos, Facturación, Mi cuenta y Ayuda", ["/dashboard", "/dashboard/billing", "/dashboard/cuenta", "/dashboard/ayuda"].every((h) => nav.includes(h)), JSON.stringify(nav));
+    ok("c17: sin herramientas internas en la navegación", !nav.some((h) => /visual-test|command-center|admin|\/dev/.test(h || "")), JSON.stringify(nav));
+    await p.evaluate(() => { for (const k of Object.keys(localStorage)) if (/podcast/i.test(k)) localStorage.removeItem(k); });
+    const IDEA = "La vida después de conseguir la visa";
+    await go("podcast", IDEA, /\/dashboard\/podcast/);
+    await p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
+    const pd = await p.evaluate(() => JSON.parse(localStorage.getItem("atomivid.podcast.asistente.v2") || "null"));
+    ok("c17: Podcast abre el asistente con la idea como tema", pd?.topic === IDEA && pd?.title === IDEA, JSON.stringify({ topic: pd?.topic, title: pd?.title }));
+    await shot(p, "c17-03-podcast");
+    await go("youtube", IDEA, /\/dashboard\/long-form\/new/);
+    ok("c17: Video de YouTube abre su formulario con la idea como tema", (await p.locator("input[name=topic]").inputValue()) === IDEA);
+    await go("reel", IDEA, /\/dashboard\/new/);
+    ok("c17: Reel abre su formulario directamente con la idea escrita", (await p.locator("textarea#topic").inputValue()) === IDEA);
+    await shot(p, "c17-04-reel");
+    await p.goto(`${BASE}/dashboard/cuenta`); ok("c17: «Mi cuenta» muestra el correo", (await p.getByTestId("cuenta-correo").innerText()) === OWNER.email);
+    await p.goto(`${BASE}/dashboard/ayuda`); ok("c17: «Ayuda» explica cómo crear", /Elige qué crear/.test(await p.locator("main").innerText()));
+    await p.goto(`${BASE}/dashboard?created=1`);
+    ok("c17: a mitad de un flujo el historial va primero (sin el selector encima)", await p.getByTestId("crear-inicio").count() === 0 && await p.getByRole("heading", { name: "Mis proyectos" }).count() === 1);
+    await p.evaluate(() => { for (const k of Object.keys(localStorage)) if (/podcast/i.test(k)) localStorage.removeItem(k); });
+    await S.ctx.close();
+  }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
-  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 15: 5, 16: 13 };
+  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 15: 5, 16: 13, 17: 12 };
   const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[a-d]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name)) || (c === "12" && /^c12-/.test(r.name))).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));

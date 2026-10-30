@@ -44,6 +44,7 @@ export function NewVideoForm({
   avatarModeEnabled,
   existingAvatars,
   initialMode = "visual",
+  initialTopic = "",
   blockAvatarReconciliation = false,
   maxAvatarDurationSeconds = 45,
   reelVoiceSelectionEnabled = false,
@@ -54,6 +55,8 @@ export function NewVideoForm({
   existingAvatars: { id: string; name: string }[];
   /** Preselecciona "Video con avatar" cuando se llega desde ese tipo en el selector "¿Qué quieres crear?" (ContentTypeStep) — solo tiene efecto si avatarModeEnabled también es true. */
   initialMode?: VideoMode;
+  /** Idea escrita en el inicio («¿Qué quieres crear hoy?»): llega como tema ya escrito. */
+  initialTopic?: string;
   blockAvatarReconciliation?: boolean;
   maxAvatarDurationSeconds?: number;
   reelVoiceSelectionEnabled?: boolean;
@@ -110,7 +113,7 @@ export function NewVideoForm({
 
   // Checklist antes de generar (2026-10-18): «Crea mi guion» / «Usar mi propio guion», and the data the
   // server checks before the first paid call. Every change re-runs the check; an old answer is never current.
-  const [topic, setTopic] = useState("");
+  const [topic, setTopic] = useState(initialTopic.slice(0, 500));
   const [style, setStyle] = useState("");
   const [scriptChoice, setScriptChoice] = useState<ScriptChoice>("generated");
   const [ownText, setOwnText] = useState("");
