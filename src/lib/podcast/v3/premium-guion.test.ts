@@ -44,3 +44,17 @@ test("plantilla: el tema se limpia y solo se nombra en la apertura (no se repite
   assert.match(turns[0].text, /me acompaña Valeria Montclair/); assert.match(turns[1].text, /Gracias a ti, Hans\./);
   assert.doesNotMatch(all, /¿¿|\?\?/);
 });
+
+test("avatares propios con nombres genéricos: cada participante conserva un nombre distinto (E2E c10c)", async () => {
+  const { firstNameOf, withOwnAvatar, defaultDraft } = await import("./wizard");
+  assert.equal(firstNameOf("Avatar Hans (simulado)"), "Hans");
+  assert.equal(firstNameOf("Avatar Invitada (simulado)"), "Invitada");
+  assert.equal(firstNameOf("Hans — Estudio podcast"), "Hans");
+  assert.equal(firstNameOf("mi avatar"), "", "sin nombre propio no se inventa uno");
+  const [a, b] = defaultDraft().participants;
+  const A = withOwnAvatar(a, { id: "1", name: "Avatar Ana" }, 0, b.name);
+  const B = withOwnAvatar(b, { id: "2", name: "Avatar Ana" }, 1, A.name);
+  assert.equal(A.name, "Ana"); assert.notEqual(B.name, A.name, "nunca dos participantes con el mismo nombre");
+  assert.equal(B.name, "Invitado");
+});
+

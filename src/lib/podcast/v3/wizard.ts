@@ -182,15 +182,22 @@ export function syncScriptNames(prev: WizardDraft, next: WizardDraft): WizardDra
   return script === next.script ? next : { ...next, script };
 }
 
-/** Nombre de pila a partir del nombre de un avatar propio («Hans Estudio podcast» → «Hans»). */
+/** Palabras de un nombre de avatar que no son el nombre de la persona («Avatar Hans», «Mi avatar de estudio»). */
+const GENERIC_NAME_WORDS = new Set(["avatar", "mi", "el", "la", "de", "del", "foto", "estudio", "podcast", "nuevo", "nueva", "presentador", "presentadora"]);
+/** Nombre de pila a partir del nombre de un avatar propio («Hans Estudio podcast» → «Hans», «Avatar Hans» → «Hans»). */
 export function firstNameOf(avatarName: string): string {
-  const w = avatarName.trim().split(/\s+/)[0] ?? "";
+  const w = avatarName.trim().split(/\s+/).find((x) => !GENERIC_NAME_WORDS.has(x.toLowerCase())) ?? "";
   return /^\p{Lu}[\p{L}'-]{1,30}$/u.test(w) ? w : "";
 }
 
-/** Elegir un avatar propio: si el participante seguía con el nombre por defecto, toma el nombre del avatar. */
-export function withOwnAvatar(p: WizardParticipant, avatar: { id: string; name: string }, i: 0 | 1): WizardParticipant {
-  const name = !p.name.trim() || p.name === DEFAULT_NAMES[i] ? firstNameOf(avatar.name) || p.name : p.name;
+/**
+ * Elegir un avatar propio: si el participante seguía con el nombre por defecto, toma el nombre del avatar, salvo que ya
+ * lo tenga el otro participante (dos personas con el mismo nombre dejan el guion con un solo interlocutor).
+ */
+export function withOwnAvatar(p: WizardParticipant, avatar: { id: string; name: string }, i: 0 | 1, otherName = ""): WizardParticipant {
+  const fromAvatar = firstNameOf(avatar.name);
+  const free = fromAvatar && fromAvatar.toLowerCase() !== otherName.trim().toLowerCase() ? fromAvatar : "";
+  const name = !p.name.trim() || p.name === DEFAULT_NAMES[i] ? free || p.name : p.name;
   return { ...p, host: null, name, avatar: { kind: "existente", avatar_id: avatar.id } };
 }
 

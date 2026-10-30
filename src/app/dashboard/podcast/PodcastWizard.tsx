@@ -233,7 +233,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
               <legend className="px-1">Avatar de {p.name}</legend>
               <select aria-label={`Avatar ${tag(i)}`} value={p.avatar.kind === "existente" ? p.avatar.avatar_id : p.avatar.kind === "foto" ? "__foto" : ""}
                 onChange={(e) => { const v = e.target.value, own = avatars.find((a) => a.id === v);
-                  if (own) { setRaw((x) => { const ps = [...x.participants] as WizardDraft["participants"]; ps[i] = withOwnAvatar(ps[i], own, i as 0 | 1); return { ...x, participants: ps }; }); return; }
+                  if (own) { setRaw((x) => { const ps = [...x.participants] as WizardDraft["participants"]; ps[i] = withOwnAvatar(ps[i], own, i as 0 | 1, ps[i === 0 ? 1 : 0].name); return { ...x, participants: ps }; }); return; }
                   setP(i as 0 | 1, { avatar: v === "__foto" ? { kind: "foto", photo_path: "", consent: false, consent_at: null } : { kind: "ninguno" } }); }} className={input}>
                 <option value="">Elige…</option>
                 {avatars.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
