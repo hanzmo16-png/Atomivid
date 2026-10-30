@@ -15,14 +15,13 @@ const PAGE_SOURCE = readFileSync(join(DASHBOARD_DIR, "page.tsx"), "utf8");
 const REAL_BUTTON_SOURCE = readFileSync(join(DASHBOARD_DIR, "RealGenerateButton.tsx"), "utf8");
 const ROUTE_SOURCE = readFileSync(ROUTE_PATH, "utf8");
 
-test("route real/route.ts aplica el mismo gate de autorización (assertLongFormAccess) que el DRY_RUN", () => {
-  assert.ok(ROUTE_SOURCE.includes("assertLongFormAccess"));
+test("route real/route.ts delega la autorización en evaluateVisualTestV2RealRequest y no usa la allowlist de Long Form", () => {
+  assert.ok(ROUTE_SOURCE.includes("evaluateVisualTestV2RealRequest"));
+  assert.equal(ROUTE_SOURCE.includes("assertLongFormAccess"), false);
+  assert.equal(ROUTE_SOURCE.includes("VISUAL_TEST_V2_REAL_CONFIRM_VALUE"), false);
 });
 
-test("route real/route.ts exige el body estricto { confirm: VISUAL_TEST_V2_REAL_CONFIRM_VALUE } — no lee ningún otro campo del body", () => {
-  assert.ok(ROUTE_SOURCE.includes("VISUAL_TEST_V2_REAL_CONFIRM_VALUE"));
-  assert.ok(ROUTE_SOURCE.includes("keys.length !== 1"));
-  // El único campo que el código lee del body parseado es "confirm" — nunca .prompt/.count/.shotIds.
+test("route real/route.ts no lee prompts, cantidades ni costos del body", () => {
   assert.equal(/\.(prompt|count|shotIds|quantity|amountUsd)\b/.test(ROUTE_SOURCE), false);
 });
 
@@ -38,11 +37,15 @@ test("RealGenerateButton.tsx contiene el texto exacto del botón pedido", () => 
   assert.ok(REAL_BUTTON_SOURCE.includes("Generar 3 imágenes — máximo US$0.50"));
 });
 
-test("RealGenerateButton.tsx hace POST exclusivamente a /api/long-form/visual-test-v2/real con el confirm importado (nunca un literal duplicado a mano)", () => {
+test("RealGenerateButton.tsx hace POST exclusivamente a /api/long-form/visual-test-v2/real con el token emitido por el servidor, después de una confirmación visible", () => {
   assert.ok(REAL_BUTTON_SOURCE.includes('"/api/long-form/visual-test-v2/real"'));
   assert.ok(REAL_BUTTON_SOURCE.includes('method: "POST"'));
-  assert.ok(REAL_BUTTON_SOURCE.includes("VISUAL_TEST_V2_REAL_CONFIRM_VALUE"));
-  assert.ok(REAL_BUTTON_SOURCE.includes("confirm: VISUAL_TEST_V2_REAL_CONFIRM_VALUE"));
+  assert.ok(REAL_BUTTON_SOURCE.includes("confirm: spendAuthorizationToken"));
+  assert.ok(REAL_BUTTON_SOURCE.includes("Confirmación de gasto"));
+  assert.ok(REAL_BUTTON_SOURCE.includes('role="alertdialog"'));
+  assert.equal(REAL_BUTTON_SOURCE.includes("VISUAL_TEST_V2_REAL_CONFIRM_VALUE"), false);
+  assert.equal(REAL_BUTTON_SOURCE.includes("GENERATE_3_VISUAL_TEST_V2_IMAGES"), false);
+  assert.equal(REAL_BUTTON_SOURCE.includes("visual-test-v2-spend-auth"), false);
 });
 
 test("RealGenerateButton.tsx NO contiene ningún campo de formulario (sin <input>/<textarea>/<select>) — no puede aceptar prompts, cantidades ni costos editables", () => {
@@ -66,10 +69,12 @@ test("page.tsx calcula shotIds/costos en el servidor a partir del manifest real 
   assert.ok(PAGE_SOURCE.includes("RealGenerateButton"));
 });
 
-test("page.tsx sigue usando el mismo gate Long Form/allowlist (isLongFormEnabled + isLongFormAllowlisted + notFound) para AMBOS controles", () => {
-  assert.ok(PAGE_SOURCE.includes("isLongFormEnabled"));
-  assert.ok(PAGE_SOURCE.includes("isLongFormAllowlisted"));
+test("page.tsx usa el gate owner/admin (isCommandCenterAdmin + notFound) para ambos controles y emite la autorización en el servidor", () => {
+  assert.ok(PAGE_SOURCE.includes("isCommandCenterAdmin"));
+  assert.equal(PAGE_SOURCE.includes("isLongFormAllowlisted"), false);
   assert.ok(PAGE_SOURCE.includes("notFound"));
+  assert.ok(PAGE_SOURCE.includes("spendAuthorizationToken={spendAuthorization.token}"));
+  assert.ok(PAGE_SOURCE.includes("maxTotalUsd={spendAuthorization.maxUsd}"));
 });
 
 test("page.tsx mantiene también el botón de DRY_RUN existente (DryRunButton) — no se reemplaza, se añade al lado", () => {

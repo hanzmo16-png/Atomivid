@@ -15,10 +15,10 @@ const LAYOUT_SOURCE = readFileSync(
   "utf8",
 );
 
-test("layout.tsx calcula la visibilidad del acceso directo con el mismo gate Long Form/allowlist (isLongFormEnabled + isLongFormAllowlisted)", () => {
-  assert.ok(LAYOUT_SOURCE.includes("isLongFormEnabled"));
-  assert.ok(LAYOUT_SOURCE.includes("isLongFormAllowlisted"));
-  assert.ok(LAYOUT_SOURCE.includes("showLongFormDryRun"));
+test("layout.tsx muestra Dry Run Long Form solo a owner/admin (isCommandCenterAdmin), no a la allowlist de Long Form", () => {
+  assert.ok(LAYOUT_SOURCE.includes("showLongFormDryRun = isCommandCenterAdmin(user)"));
+  assert.equal(LAYOUT_SOURCE.includes("isLongFormAllowlisted"), false);
+  assert.equal(LAYOUT_SOURCE.includes("isLongFormEnabled"), false);
 });
 
 test("layout.tsx contiene el texto exacto del botón/enlace \"Dry Run Long Form\"", () => {

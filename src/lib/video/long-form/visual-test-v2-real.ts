@@ -45,6 +45,10 @@ import {
   VISUAL_TEST_V2_STORAGE_BUCKET,
   type ImageGenRecord,
 } from "./visual-test-v2-storage";
+import {
+  assertVisualTestV2SpendAuthorization,
+  type VerifiedVisualTestV2SpendAuthorization,
+} from "./visual-test-v2-spend-auth";
 
 /** Cierre explícito: exactamente estos 3 shots, en este orden — ningún otro id es alcanzable desde este mecanismo. */
 export const VISUAL_TEST_V2_REAL_SHOT_IDS = ["b1-s4", "b4-s2", "b8-s5"] as const;
@@ -95,9 +99,14 @@ function shotOrderIndex(shotId: string): number {
 
 export async function runVisualTestV2RealGeneration(
   supabase: SupabaseClient,
-  bucket: string = VISUAL_TEST_V2_STORAGE_BUCKET,
-  imageProvider: ImageProvider = openaiImageProvider,
+  authorization: VerifiedVisualTestV2SpendAuthorization,
+  options?: { bucket?: string; imageProvider?: ImageProvider },
 ): Promise<VisualTestV2RealResult> {
+  // Antes de leer Storage y antes de cualquier proveedor. Un caller HTTP no puede
+  // saltarse evaluateVisualTestV2RealRequest y aun así llegar aquí sin este objeto.
+  assertVisualTestV2SpendAuthorization(authorization);
+  const bucket = options?.bucket ?? VISUAL_TEST_V2_STORAGE_BUCKET;
+  const imageProvider = options?.imageProvider ?? openaiImageProvider;
   const manifest = buildVisualTestV2Manifest();
   assertValidVisualTestV2Manifest(manifest);
   const videoId = manifest.videoId;
