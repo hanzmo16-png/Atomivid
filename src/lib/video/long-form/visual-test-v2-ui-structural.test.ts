@@ -16,10 +16,11 @@ const DASHBOARD_DIR = join(__dirname, "..", "..", "..", "app", "dashboard", "lon
 const PAGE_SOURCE = readFileSync(join(DASHBOARD_DIR, "page.tsx"), "utf8");
 const BUTTON_SOURCE = readFileSync(join(DASHBOARD_DIR, "DryRunButton.tsx"), "utf8");
 
-test("page.tsx aplica el mismo gate Long Form/allowlist que el resto del producto (isLongFormEnabled + isLongFormAllowlisted)", () => {
-  assert.ok(PAGE_SOURCE.includes("isLongFormEnabled"));
-  assert.ok(PAGE_SOURCE.includes("isLongFormAllowlisted"));
+test("page.tsx aplica el gate owner/admin (isCommandCenterAdmin + notFound), no la allowlist de Long Form", () => {
+  assert.ok(PAGE_SOURCE.includes("isCommandCenterAdmin"));
+  assert.equal(PAGE_SOURCE.includes("isLongFormAllowlisted"), false);
   assert.ok(PAGE_SOURCE.includes("notFound"));
+  assert.ok(PAGE_SOURCE.includes("issueVisualTestV2SpendAuthorization"));
 });
 
 test("DryRunButton.tsx hace POST exclusivamente a /api/long-form/visual-test-v2 con el body literal fijo { mode: \"dry_run\" }", () => {

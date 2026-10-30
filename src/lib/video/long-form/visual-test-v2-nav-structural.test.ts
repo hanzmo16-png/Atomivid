@@ -15,10 +15,10 @@ const LAYOUT_SOURCE = readFileSync(
   "utf8",
 );
 
-test("layout.tsx calcula la visibilidad del acceso directo con el mismo gate Long Form/allowlist (isLongFormEnabled + isLongFormAllowlisted)", () => {
-  assert.ok(LAYOUT_SOURCE.includes("isLongFormEnabled"));
-  assert.ok(LAYOUT_SOURCE.includes("isLongFormAllowlisted"));
-  assert.ok(LAYOUT_SOURCE.includes("showLongFormDryRun"));
+test("layout.tsx muestra Dry Run Long Form solo a owner/admin (isCommandCenterAdmin), no a la allowlist de Long Form", () => {
+  assert.ok(LAYOUT_SOURCE.includes("showLongFormDryRun = isCommandCenterAdmin(user)"));
+  assert.equal(LAYOUT_SOURCE.includes("isLongFormAllowlisted"), false);
+  assert.equal(LAYOUT_SOURCE.includes("isLongFormEnabled"), false);
 });
 
 test("layout.tsx contiene el texto exacto del botón/enlace \"Dry Run Long Form\"", () => {
@@ -29,6 +29,15 @@ test("el enlace apunta exclusivamente a /dashboard/long-form/visual-test-v2 (sol
   assert.ok(LAYOUT_SOURCE.includes('href="/dashboard/long-form/visual-test-v2"'));
   assert.equal(LAYOUT_SOURCE.includes("/api/long-form/visual-test-v2"), false);
   assert.equal(/fetch\s*\(/.test(LAYOUT_SOURCE), false);
+});
+
+test("en el nav de escritorio el enlace no entra en el corte sm (640 px): ahí partía la cabecera y el clic de la ayuda no abría el diálogo", () => {
+  const start = LAYOUT_SOURCE.indexOf("showLongFormDryRun && (");
+  const desktop = LAYOUT_SOURCE.slice(start, LAYOUT_SOURCE.indexOf("showPodcast &&", start));
+  assert.ok(start !== -1 && desktop.length > 0);
+  assert.match(desktop, /whitespace-nowrap/);
+  assert.match(desktop, /xl:inline-block/);
+  assert.equal(desktop.includes("sm:inline-block"), false);
 });
 
 test("ambas apariciones del enlace (nav de escritorio y de móvil) están condicionadas por showLongFormDryRun", () => {
