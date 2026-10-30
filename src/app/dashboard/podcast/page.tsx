@@ -14,20 +14,29 @@ import { HOST_CATALOG } from "@/lib/podcast/v3/catalog";
 import { StudioEpisodeList } from "./StudioEpisodeList";
 import { voiceAvailability } from "@/lib/podcast/v3/spec";
 import { listStudioEpisodes } from "@/lib/podcast/v3/store";
+import { libraryView } from "@/lib/podcast/library";
+import { LibraryArchiveButton } from "./LibraryArchiveButton";
 import { studioFlagFor, studioGenerationEnabled, visualProviders } from "@/lib/podcast/v3/studio";
 import { studioRecraftBlocker } from "@/lib/podcast/v3/readiness";
 
 const STATUS: Record<PodcastEpisode["status"], string> = { draft: "Borrador", generating: "Generando", ready: "Listo", failed: "Con error" };
 const VIDEO: Record<string, string> = { scheduled: "programado", queued: "en cola", running: "en producción", ready: "entregado", failed: "con error", blocked: "detenido" };
 
-export default async function PodcastPage() {
+export default async function PodcastPage({ searchParams }: { searchParams: Promise<{ vista?: string }> }) {
+  const view = (await searchParams).vista === "archivados" ? "archivados" : "principal";
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   if (!canAccessLongFormBeta(user)) notFound();
   const service = createServiceClient();
-  const { data } = await service.from("podcast_episodes").select("id,title,status,source,duration_seconds,created_at,video_status,review_status").eq("user_id", user.id).order("created_at", { ascending: false }).limit(50);
-  const episodes = (data ?? []) as Pick<PodcastEpisode, "id" | "title" | "status" | "source" | "duration_seconds" | "created_at" | "video_status" | "review_status">[];
+  // Biblioteca limpia: con la marca de archivo si su columna ya existe (propuesta 20261030170000); si no, como antes.
+  const v2 = (cols: string) => service.from("podcast_episodes").select(cols).eq("user_id", user.id).order("created_at", { ascending: false }).limit(100);
+  const V2_COLS = "id,title,status,source,duration_seconds,created_at,video_status,review_status";
+  const withArchive = await v2(`${V2_COLS},archived_at`);
+  const archiveReady = !withArchive.error;
+  const { data } = archiveReady ? withArchive : await v2(V2_COLS);
+  type V2Row = Pick<PodcastEpisode, "id" | "title" | "status" | "source" | "duration_seconds" | "created_at" | "video_status" | "review_status"> & { archived_at?: string | null };
+  const allEpisodes = (data ?? []) as unknown as V2Row[];
   // Owner notices of the supervised productions (also sent through GitHub when the app is closed).
   const { data: noticeRows } = await service.from("production_notices").select("id,episode_id,kind,message,created_at,delivered_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5);
   const notices = (noticeRows ?? []) as { id: string; episode_id: string; kind: "delivered" | "blocked" | "budget"; message: string; created_at: string; delivered_at: string | null }[];
@@ -41,7 +50,11 @@ export default async function PodcastPage() {
   const generationEnabled = studioGenerationEnabled(user);
   const previewNotice = flag.source === "preview" ? "Vista previa (Vercel Preview): el estudio se muestra activado solo aquí. Puedes recorrer los 10 pasos y ver costos; la generación real está desactivada hasta aplicar la migración y PODCAST_V3_ENABLED=1." : null;
   // Los episodios ya hechos se listan siempre (escuchar y descargar no genera ni cobra), aunque la generación esté apagada.
-  const studioEpisodes = (await listStudioEpisodes(service, user.id)) ?? [];
+  const allStudio = (await listStudioEpisodes(service, user.id)) ?? [];
+  const studioEpisodes = libraryView(allStudio.map((e) => ({ ...e, kind: "studio" as const })), view);
+  const episodes = libraryView(allEpisodes.map((e) => ({ ...e, kind: "v2" as const })), view);
+  const archivedCount = libraryView(allStudio.map((e) => ({ ...e, kind: "studio" as const })), "archivados").length + libraryView(allEpisodes.map((e) => ({ ...e, kind: "v2" as const })), "archivados").length;
+  const empty = studioEpisodes.length === 0 && episodes.length === 0;
   const { data: avatarRows } = await service.from("avatars").select("id,name").eq("user_id", user.id).eq("status", "ready").order("created_at", { ascending: false }).limit(20);
   const avatars = (avatarRows ?? []) as WizardAvatar[];
   // Estado real de Recraft (política y saldo, solo lectura): el asistente muestra el motivo si hoy no puede producir.
@@ -80,14 +93,22 @@ export default async function PodcastPage() {
         <summary className="cursor-pointer text-sm font-medium text-ink">Formulario clásico (grabación propia, guion A/B)</summary>
         <NewEpisode voices={voices} voicesError={voicesError} usdPer1kChars={getPricingConfig().elevenLabsUsdPer1kChars} maxChars={PODCAST_MAX_CHARS} v2Enabled={podcastV2Enabled()} />
       </details>
-      <h2 className="mt-8 text-lg font-semibold text-ink">Tus episodios</h2>
-      <StudioEpisodeList episodes={studioEpisodes.map((e) => ({ id: e.id, title: e.title, status: e.status, mode: e.mode, cost_usd: e.cost_usd }))} />
-      {episodes.length === 0 ? <p className="mt-2 text-sm text-ink-muted">Todavía no hay episodios.</p> : (
+      <h2 id="episodios" className="mt-8 text-lg font-semibold text-ink">Tus episodios</h2>
+      <nav aria-label="Vista de episodios" className="mt-2 flex flex-wrap gap-2 text-sm" data-testid="biblioteca-vistas">
+        <Link href="/dashboard/podcast#episodios" aria-current={view === "principal" ? "page" : undefined} className={`rounded px-3 py-1 ${view === "principal" ? "bg-accent text-accent-ink" : "border border-border text-ink"}`}>Mis episodios</Link>
+        <Link href="/dashboard/podcast?vista=archivados#episodios" aria-current={view === "archivados" ? "page" : undefined} className={`rounded px-3 py-1 ${view === "archivados" ? "bg-accent text-accent-ink" : "border border-border text-ink"}`} data-testid="biblioteca-archivados">Archivados ({archivedCount})</Link>
+      </nav>
+      {view === "principal" && archivedCount > 0 && <p className="mt-2 text-xs text-ink-muted">Las pruebas sin terminar de hace más de 7 días y lo que archives están en «Archivados». No se borra nada.</p>}
+      {view === "archivados" && <p className="mt-2 text-xs text-ink-muted">Aquí están los episodios archivados y los proyectos sin terminar de hace más de 7 días. Sus archivos, enlaces y costos se conservan.</p>}
+      <StudioEpisodeList canArchive={archiveReady} episodes={studioEpisodes.map((e) => ({ id: e.id, title: e.title, status: e.status, mode: e.mode, cost_usd: e.cost_usd, archived: e.bucket === "archivado", stale: e.bucket === "antiguo" }))} />
+      {empty ? <p className="mt-2 text-sm text-ink-muted" data-testid="biblioteca-vacia">{view === "archivados" ? "No tienes episodios archivados." : archivedCount > 0 ? "No tienes episodios en curso ni terminados. Crea uno arriba o revisa «Archivados»." : "Todavía no hay episodios. Crea el primero arriba."}</p> : episodes.length > 0 && (
         <ul className="mt-2 grid gap-2">
           {episodes.map((e) => (
-            <li key={e.id} className="rounded-lg border border-border p-3 text-sm">
+            <li key={e.id} className="rounded-lg border border-border p-3 text-sm" data-testid={`episodio-v2-${e.id}`}>
               <Link href={`/dashboard/podcast/${e.id}`} className="font-medium text-ink underline">{e.title}</Link>
               <span className="ml-2 text-ink-muted">{STATUS[e.status]}{e.video_status && e.video_status !== "none" ? ` · video: ${VIDEO[e.video_status] ?? e.video_status}${e.video_status === "ready" ? (e.review_status === "approved" ? " (aprobado)" : e.review_status === "rejected" ? " (rechazado)" : " (por revisar)") : ""}` : ""} · {e.source === "upload" ? "grabación propia" : "voz sintética"}{e.duration_seconds ? ` · ${Math.round(Number(e.duration_seconds) / 60)} min` : ""}</span>
+              {e.bucket === "antiguo" && <p className="mt-1 text-xs text-ink-muted">Sin terminar desde hace más de 7 días.</p>}
+              {archiveReady && e.bucket !== "antiguo" && e.bucket !== "en_curso" && <LibraryArchiveButton kind="v2" id={e.id} title={e.title} archived={e.bucket === "archivado"} />}
             </li>
           ))}
         </ul>
