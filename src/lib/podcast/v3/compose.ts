@@ -176,33 +176,54 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
       if (general && !src.listenerMatte) throw new Error(`Plano general sin recorte de quien escucha (${shot.turn_id}).`);
       const st = studioDef(legacyStudio(o.set));
       const seat = seatOf(st, sp, o.swap);
+      const other = seatOf(st, sp === "A" ? "B" : "A", o.swap);
+      const side = (s: typeof seat) => (s === st.seats.A ? "izquierda" : "derecha");
       const span: [number, number] = [Math.min(st.seats.A.x, st.seats.B.x), Math.max(st.seats.A.x, st.seats.B.x)];
-      const cam = cameraFor(general ? "general" : "primer", seat, seat === st.seats.A ? "izquierda" : "derecha", o.frame, span);
-      const plates = await cameraPlates(dir, st, cam, o.frame);
-      const people: { m: Matte; seat: typeof seat }[] = [{ m: src.speakerMatte, seat }];
-      if (general) people.push({ m: src.listenerMatte!, seat: seatOf(st, sp === "A" ? "B" : "A", o.swap) });
-      const ins = ["-loop", "1", "-t", secs, "-i", plates.bg, "-loop", "1", "-t", secs, "-i", plates.front];
+      // Paneles del plano: uno a cuadro completo; en 9:16 el plano general es una pantalla dividida (cada uno en plano
+      // medio desde su asiento, A arriba): los dos sentados lado a lado en una franja vertical salían con la cara en ~5 %
+      // del alto (prueba F2, 2026-10-30).
+      type Panel = { cam: ReturnType<typeof cameraFor>; frame: { w: number; h: number }; people: { m: Matte; seat: typeof seat }[] };
+      const panels: Panel[] = [];
+      if (general && h > w) {
+        const half = { w, h: Math.round(h / 4) * 2 };
+        const top = st.seats.A === seat ? { m: src.speakerMatte, s: seat } : { m: src.listenerMatte!, s: other };
+        const bottom = top.s === seat ? { m: src.listenerMatte!, s: other } : { m: src.speakerMatte, s: seat };
+        for (const x of [top, bottom]) panels.push({ cam: cameraFor("primer", x.s, side(x.s), half), frame: half, people: [{ m: x.m, seat: x.s }] });
+      } else {
+        const people: { m: Matte; seat: typeof seat }[] = [{ m: src.speakerMatte, seat }];
+        if (general) people.push({ m: src.listenerMatte!, seat: other });
+        panels.push({ cam: cameraFor(general ? "general" : "primer", seat, side(seat), o.frame, span), frame: o.frame, people });
+      }
+      const ins: string[] = [];
       const parts: string[] = [];
-      let base = "[0:v]";
-      people.forEach(({ m, seat: s }, k) => {
-        const L = placeInSeat(m, s, cam);
-        const fi = 2 + k * 2, ai = fi + 1;
-        // Foto fija (quien escucha): un fotograma repetido; clip (quien habla): se alarga con su último fotograma si
-        // termina antes que el plano.
-        // Sin recorte (alfa null, solo pruebas) la persona entra opaca con su encuadre.
-        const alpha = m.alpha ?? m.fg;
-        if (m.still) ins.push("-loop", "1", "-t", secs, "-i", m.fg, "-loop", "1", "-t", secs, "-i", alpha);
-        else ins.push("-i", m.fg, "-i", alpha);
-        const pad = m.still ? "" : `,tpad=stop_mode=clone:stop_duration=${secs}`;
-        // La corrección de color va ANTES del alfa: «eq» solo admite YUV sin alfa y lo descartaba en silencio (prueba
-        // real 2026-10-28: cada persona salía como un rectángulo opaco con su fondo original).
-        const grade = `${gradeFilter(st)},format=rgb24`;
-        const merge = m.alpha ? `[${fi}:v]format=rgb24${pad},${grade}[f${k}];[${ai}:v]format=gray${pad}[a${k}];[f${k}][a${k}]alphamerge` : `[${fi}:v]format=rgb24${pad},${grade}`;
-        parts.push(`${merge},format=rgba,scale=${L.w}:${L.h}[p${k}]`);
-        parts.push(`${base}[p${k}]overlay=${L.x}:${L.y}:format=auto:eof_action=repeat[b${k}]`);
-        base = `[b${k}]`;
-      });
-      parts.push(`${base}[1:v]overlay=0:0:format=auto,${tail("trim=end_frame=" + frames)}`);
+      const outs: string[] = [];
+      for (const [pi, { cam, frame, people }] of panels.entries()) {
+        const plates = await cameraPlates(dir, st, cam, frame);
+        const b0 = ins.filter((x) => x === "-i").length;
+        ins.push("-loop", "1", "-t", secs, "-i", plates.bg, "-loop", "1", "-t", secs, "-i", plates.front);
+        let base = `[${b0}:v]`;
+        people.forEach(({ m, seat: s }, k) => {
+          const L = placeInSeat(m, s, cam);
+          const fi = b0 + 2 + k * 2, ai = fi + 1;
+          // Foto fija (quien escucha): un fotograma repetido; clip (quien habla): se alarga con su último fotograma si
+          // termina antes que el plano.
+          // Sin recorte (alfa null, solo pruebas) la persona entra opaca con su encuadre.
+          const alpha = m.alpha ?? m.fg;
+          if (m.still) ins.push("-loop", "1", "-t", secs, "-i", m.fg, "-loop", "1", "-t", secs, "-i", alpha);
+          else ins.push("-i", m.fg, "-i", alpha);
+          const pad = m.still ? "" : `,tpad=stop_mode=clone:stop_duration=${secs}`;
+          // La corrección de color va ANTES del alfa: «eq» solo admite YUV sin alfa y lo descartaba en silencio (prueba
+          // real 2026-10-28: cada persona salía como un rectángulo opaco con su fondo original).
+          const grade = `${gradeFilter(st)},format=rgb24`;
+          const merge = m.alpha ? `[${fi}:v]format=rgb24${pad},${grade}[f${k}];[${ai}:v]format=gray${pad}[a${k}];[f${k}][a${k}]alphamerge` : `[${fi}:v]format=rgb24${pad},${grade}`;
+          parts.push(`${merge.replace(/\[(f|a)(\d)\]/g, `[$1${pi}_$2]`)},format=rgba,scale=${L.w}:${L.h}[p${pi}_${k}]`);
+          parts.push(`${base}[p${pi}_${k}]overlay=${L.x}:${L.y}:format=auto:eof_action=repeat[b${pi}_${k}]`);
+          base = `[b${pi}_${k}]`;
+        });
+        parts.push(`${base}[${b0 + 1}:v]overlay=0:0:format=auto[q${pi}]`);
+        outs.push(`[q${pi}]`);
+      }
+      parts.push(`${outs.length > 1 ? `${outs.join("")}vstack=${outs.length}` : `${outs[0]}null`},${tail("trim=end_frame=" + frames)}`);
       args = [...ins, "-filter_complex", parts.join(";")];
       break;
     }

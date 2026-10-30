@@ -3,8 +3,8 @@
  * uno a cada lado de la mesa: se recorta a cada persona de su fondo original (matte.py) y se coloca por su CARA en su
  * asiento, con la mesa y los micrófonos delante (capa de primer término). Un único espacio virtual de 1920×1080 por
  * estudio y una «cámara» que lo encuadra:
- *  - plano general: el estudio completo, los dos en sus asientos;
- *  - primer plano: acercamiento al asiento de quien habla (misma posición: A a la izquierda, B a la derecha), con el
+ *  - plano general: plano de conjunto de los dos en sus asientos, con la mesa y un micrófono por asiento;
+ *  - primer plano (plano medio): acercamiento al asiento de quien habla (misma posición: A a la izquierda, B a la derecha), con el
  *    fondo desenfocado como una cámara real y la persona a su resolución propia (no se amplía el plano general).
  * Recursos fijos (sin coste por episodio): public/podcast/estudios/<id>.jpg (fondo con el cuadro de neón ATOMICVID) y
  * <id>-frente.png (primer término con alfa), construidos con scripts/podcast-3-0/build-studios.py desde studios.json.
@@ -61,25 +61,35 @@ export function seatOf(st: StudioDef, who: "A" | "B", swap: boolean): Seat {
  */
 export function cameraFor(kind: "general" | "primer", seat: Seat, side: "izquierda" | "derecha", fr: Frame, span?: [number, number]): Camera {
   if (kind === "general") {
-    // 9:16 con los dos asientos (span): la franja recorta los lados del estudio y abarca solo a los dos con margen de
-    // hombros; las personas salen ~1,4× más grandes que con el estudio entero (prueba real 2026-10-28: se veían diminutas).
-    const fit = fr.h > fr.w && span ? fr.w / Math.min(STUDIO_W, span[1] - span[0] + 2 * 2.4 * seat.faceH) : fr.w / STUDIO_W;
+    // Plano general = plano de conjunto de los dos a la mesa (span): abarca solo los dos asientos con margen de hombros.
+    // 9:16: una franja sobre el estudio desenfocado; las personas salen ~1,4× más grandes que con el estudio entero (prueba
+    // real 2026-10-28: se veían diminutas). 16:9: el estudio entero dejaba a cada persona en ~1/10 del alto con media
+    // pantalla de mesa (prueba real 51883d1c); ahora un plano de conjunto con las caras en el 40 % del alto y el fondo
+    // apenas desenfocado (profundidad de campo de una cámara real).
+    const vertical = fr.h > fr.w;
+    const fit = span ? fr.w / Math.min(STUDIO_W, span[1] - span[0] + 2 * (vertical ? 2.4 : 2.6) * seat.faceH) : fr.w / STUDIO_W;
     const zoom = Math.max(fr.w / STUDIO_W, fit);
     const ox = span ? Math.round(Math.min(Math.max(((span[0] + span[1]) / 2) * zoom - fr.w / 2, 0), STUDIO_W * zoom - fr.w)) : 0;
-    return { zoom, ox, oy: -Math.round((fr.h - STUDIO_H * zoom) / 2), blur: 0, frontBlur: 0 };
+    if (vertical || STUDIO_H * zoom <= fr.h) return { zoom, ox, oy: -Math.round((fr.h - STUDIO_H * zoom) / 2), blur: 0, frontBlur: 0 };
+    const oy = Math.round(Math.min(Math.max(seat.face * zoom - fr.h * 0.4, 0), STUDIO_H * zoom - fr.h));
+    const rel = zoom / (fr.w / STUDIO_W), px = Math.min(fr.w, fr.h) / STUDIO_H;
+    return { zoom, ox, oy, blur: Math.min(3, (rel - 1) * 2) * px, frontBlur: 0 };
   }
   const vertical = fr.h > fr.w;
   // 9:16: cara algo mayor para que los hombros de un retrato cerrado salgan por los bordes (no se ve dónde termina).
-  const faceH = fr.h * (vertical ? 0.18 : 0.26);
+  // 16:9: plano medio (cara ~1/5 del alto, pecho, mesa y micrófono en cuadro), no un primerísimo plano: con la cara en
+  // 1/4 del alto el micrófono de la mesa salía enorme y desenfocado (prueba real 51883d1c).
+  const faceH = fr.h * (vertical ? 0.18 : 0.2);
   const zoom = faceH / seat.faceH;
-  const cx = fr.w * (vertical ? 0.5 : side === "izquierda" ? 0.4 : 0.6), cy = fr.h * (vertical ? 0.34 : 0.38);
+  const cx = fr.w * (vertical ? 0.5 : side === "izquierda" ? 0.4 : 0.6), cy = fr.h * (vertical ? 0.34 : 0.36);
   // Sin salirse del fondo: el desplazamiento se limita al estudio ampliado (la persona se coloca con la MISMA cámara).
   const ox = Math.round(Math.min(Math.max(seat.x * zoom - cx, 0), STUDIO_W * zoom - fr.w));
   const oy = Math.round(Math.min(Math.max(seat.face * zoom - cy, 0), STUDIO_H * zoom - fr.h));
   // Desenfoque relativo al plano general del MISMO cuadro (en cuadros pequeños de prueba el zoom puede ser < 1).
   // El radio se escala con el tamaño del cuadro para que el desenfoque se vea igual en cualquier resolución.
   const rel = zoom / (fr.w / STUDIO_W), px = Math.min(fr.w, fr.h) / STUDIO_H;
-  return { zoom, ox, oy, blur: Math.max(0, Math.min(14, (rel - 1) * 3.2)) * px, frontBlur: Math.max(0, Math.min(22, (rel - 1) * 6)) * px };
+  // La mesa y el micrófono están a la misma distancia que quien habla (en foco, casi nítidos); el fondo sí se desenfoca.
+  return { zoom, ox, oy, blur: Math.max(0, Math.min(14, (rel - 1) * 3.2)) * px, frontBlur: Math.max(0, Math.min(2, (rel - 1) * 0.6)) * px };
 }
 
 const even = (n: number) => Math.max(2, Math.round(n / 2) * 2);
