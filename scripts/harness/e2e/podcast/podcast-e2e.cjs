@@ -810,6 +810,11 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     await load();
     ok("c16: sin la columna, la vista principal oculta la prueba vieja y muestra lo útil", await card(R).count() === 1 && await card(G).count() === 1 && await card(D).count() === 1 && await card(F).count() === 0);
     ok("c16: sin la columna no se ofrece «Archivar»", (await W().locator('[data-testid^="biblioteca-archivar-"]').count()) === 0);
+    ok("c16: sin la columna se explica que archivar a mano espera el cambio de base de datos", /pendiente de autorización/.test(await W().getByTestId("biblioteca-archivo-bloqueado").innerText()));
+    await load("?vista=archivados");
+    ok("c16: sin la columna, «Archivados» carga y agrupa la prueba vieja sin borrarla ni ofrecer «Restaurar»", await card(F).count() === 1 && (await W().locator('[data-testid^="biblioteca-restaurar-"]').count()) === 0);
+    await shot(W(), "c16-00-sin-columna-archivados");
+    await load();
     const m0 = await post({ kind: "studio", id: R, action: "archive" });
     ok("c16: sin la columna, archivar responde 409 con el motivo y no toca la fila", m0.status === 409 && /no está aplicado/.test(m0.body?.error ?? ""), JSON.stringify(m0));
     // 2) Con la migración (base desechable): marca de archivo por episodio.
@@ -817,6 +822,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     await db.query("notify pgrst, 'reload schema'"); await W().waitForTimeout(1500);
     const before = (await db.query("select status, video_path, cost_usd, created_at from public.podcast_studio_episodes where id=$1", [R])).rows[0];
     await load(); await shot(W(), "c16-01-principal");
+    ok("c16: con la columna desaparece el aviso de bloqueo", await W().getByTestId("biblioteca-archivo-bloqueado").count() === 0);
     const order = await W().getByTestId("studio-episodes").locator("li").evaluateAll((ls) => ls.map((l) => l.getAttribute("data-testid")));
     ok("c16: en curso antes que lo terminado en la vista principal", order.indexOf(`studio-episode-${G}`) >= 0 && order.indexOf(`studio-episode-${G}`) < order.indexOf(`studio-episode-${R}`), JSON.stringify(order.slice(0, 6)));
     ok("c16: lo que se está produciendo no ofrece «Archivar»", await W().getByTestId(`biblioteca-archivar-${G}`).count() === 0 && await W().getByTestId(`biblioteca-archivar-${R}`).count() === 1);
@@ -847,7 +853,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
   }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
-  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 15: 5, 16: 13 };
+  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 15: 5, 16: 16 };
   const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[a-d]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name)) || (c === "12" && /^c12-/.test(r.name))).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));

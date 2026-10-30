@@ -1,6 +1,8 @@
 /** Podcast — biblioteca limpia (T-20261030-1118): vistas, orden y archivar/restaurar sin borrar. Sin red ni base. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { ARCHIVE_COLUMN_MISSING, bucketOf, libraryAction, libraryView, type LibraryItem } from "./library";
 
 const NOW = Date.parse("2026-10-30T17:00:00Z");
@@ -57,4 +59,18 @@ test("en producción no se archiva; sin la columna no se escribe y se explica; p
   assert.equal(m.status, 409); assert.equal(m.body.error, ARCHIVE_COLUMN_MISSING); assert.equal(none.writes.length, 0);
   for (const bad of [null, {}, { kind: "x", id: id(5), action: "archive" }, { kind: "studio", id: "1; drop", action: "archive" }, { kind: "studio", id: id(5), action: "delete" }])
     assert.equal((await libraryAction("u1", bad, db.deps)).status, 400, JSON.stringify(bad));
+});
+
+test("cero borrado directo: la ruta y la página solo actualizan archived_at de filas del dueño", () => {
+  const read = (p: string) => readFileSync(path.join(__dirname, "../../..", p), "utf8");
+  const route = read("src/app/api/podcast/library/route.ts"), page = read("src/app/dashboard/podcast/page.tsx");
+  for (const src of [route, page]) {
+    assert.doesNotMatch(src, /\.delete\(|\.remove\(|\.upsert\(|\.insert\(/);
+    assert.doesNotMatch(src, /ledger|paid_operations|storage\.from\([^)]*\)\.(remove|move)/i);
+  }
+  assert.equal((route.match(/\.update\(/g) ?? []).length, 1);
+  assert.match(route, /\.update\(\{ archived_at: at \}\)\.eq\("id", id\)\.eq\("user_id", user\.id\)/);
+  assert.doesNotMatch(page, /\.update\(/);
+  // Sin la columna, la página no ofrece archivar y lo dice (el aviso solo aparece con archiveReady = false).
+  assert.match(page, /!archiveReady && <p[^>]*data-testid="biblioteca-archivo-bloqueado"/);
 });

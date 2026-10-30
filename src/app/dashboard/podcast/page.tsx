@@ -100,6 +100,9 @@ export default async function PodcastPage({ searchParams }: { searchParams: Prom
       </nav>
       {view === "principal" && archivedCount > 0 && <p className="mt-2 text-xs text-ink-muted">Las pruebas sin terminar de hace más de 7 días y lo que archives están en «Archivados». No se borra nada.</p>}
       {view === "archivados" && <p className="mt-2 text-xs text-ink-muted">Aquí están los episodios archivados y los proyectos sin terminar de hace más de 7 días. Sus archivos, enlaces y costos se conservan.</p>}
+      {/* Sin la columna archived_at (propuesta 20261030170000 aún no aplicada) no se consulta para escribir ni se ofrece
+          archivar: se dice por qué. La agrupación automática de lo viejo sigue funcionando sin escribir nada. */}
+      {!archiveReady && <p className="mt-2 text-xs text-ink-muted" data-testid="biblioteca-archivo-bloqueado">Archivar a mano estará disponible cuando se aplique un cambio de base de datos pendiente de autorización. Mientras tanto, los proyectos sin terminar de hace más de 7 días se agrupan solos en «Archivados».</p>}
       <StudioEpisodeList canArchive={archiveReady} episodes={studioEpisodes.map((e) => ({ id: e.id, title: e.title, status: e.status, mode: e.mode, cost_usd: e.cost_usd, archived: e.bucket === "archivado", stale: e.bucket === "antiguo" }))} />
       {empty ? <p className="mt-2 text-sm text-ink-muted" data-testid="biblioteca-vacia">{view === "archivados" ? "No tienes episodios archivados." : archivedCount > 0 ? "No tienes episodios en curso ni terminados. Crea uno arriba o revisa «Archivados»." : "Todavía no hay episodios. Crea el primero arriba."}</p> : episodes.length > 0 && (
         <ul className="mt-2 grid gap-2">
