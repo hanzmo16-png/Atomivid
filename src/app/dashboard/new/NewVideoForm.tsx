@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Field, INPUT_CLASS } from "@/components/ui/Field";
 import { AvatarFields } from "./AvatarFields";
+import { autoStyle } from "@/lib/ux/create-home";
 import { ReelVoicePicker } from "./ReelVoicePicker";
 import { ReelImageSourcePicker } from "./ReelImageSourcePicker";
 import { SubmitButton } from "./SubmitButton";
@@ -114,7 +115,10 @@ export function NewVideoForm({
   // Checklist antes de generar (2026-10-18): «Crea mi guion» / «Usar mi propio guion», and the data the
   // server checks before the first paid call. Every change re-runs the check; an old answer is never current.
   const [topic, setTopic] = useState(initialTopic.slice(0, 500));
-  const [style, setStyle] = useState("");
+  // Modo Automático (Simple UX 1.0): el estilo se elige a partir de la idea hasta que la persona lo cambie a mano.
+  const [style, setStyleState] = useState<string>(() => autoStyle(initialTopic));
+  const [styleTouched, setStyleTouched] = useState(false);
+  const setStyle = (v: string) => { setStyleTouched(true); setStyleState(v); };
   const [scriptChoice, setScriptChoice] = useState<ScriptChoice>("generated");
   const [ownText, setOwnText] = useState("");
   const [adaptAccepted, setAdaptAccepted] = useState(false);
@@ -177,7 +181,7 @@ export function NewVideoForm({
           className={INPUT_CLASS}
           placeholder={visualOwn ? "Ej: Mi historia de los lunes" : "Ej: 5 datos curiosos sobre el espacio que no sabías"}
           value={topic}
-          onChange={(e) => setTopic(e.target.value)}
+          onChange={(e) => { setTopic(e.target.value); if (!styleTouched) setStyleState(autoStyle(e.target.value)); }}
         />
       </Field>
 
@@ -222,7 +226,7 @@ export function NewVideoForm({
       {mode === "visual" && reelVoiceSelectionEnabled && <ReelVoicePicker key={language} language={language} />}
       {mode === "visual" && recraftReelEnabled && <ReelImageSourcePicker />}
 
-      <Field id="style" label="Estilo / tono">
+      <Field id="style" label="Estilo / tono" hint={styleTouched ? undefined : "Elegido automáticamente según tu idea. Puedes cambiarlo."}>
         <select id="style" name="style" required value={style} onChange={(e) => setStyle(e.target.value)} className={INPUT_CLASS}>
           <option value="" disabled>
             Selecciona un estilo

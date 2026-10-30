@@ -56,3 +56,19 @@ export function splitHistory<T extends { status: string; created_at: string }>(i
   const isOld = (r: T) => r.status === "failed" && Date.parse(r.created_at) < cut;
   return { visible: items.filter((r) => !isOld(r)), old: items.filter(isOld) };
 }
+
+/** Estilos del formulario de Reel (mismo orden y texto que NewVideoForm). */
+export const REEL_STYLES = ["Motivacional", "Educativo", "Humor", "Historias de terror", "Curiosidades", "Noticias / actualidad", "Storytelling personal"] as const;
+export type ReelStyle = (typeof REEL_STYLES)[number];
+const STYLE_HINTS: [ReelStyle, RegExp][] = [
+  ["Historias de terror", /\b(terror|miedo|paranormal|fantasma|leyenda urbana|creepy|horror|embrujad)/i],
+  ["Humor", /\b(humor|chiste|gracios|divertid|comedia|meme)/i],
+  ["Motivacional", /\b(motivaci|inspira|superaci|éxito|exito|disciplina|metas?\b|hábitos?|habitos?)/i],
+  ["Noticias / actualidad", /\b(noticia|actualidad|hoy|esta semana|último|ultimo|anuncio|elecci)/i],
+  ["Storytelling personal", /\b(mi historia|me pasó|me paso|mi vida|mi experiencia|cuando yo)/i],
+  ["Educativo", /\b(cómo|como funciona|aprende|explica|guía|guia|pasos|tutorial|qué es|que es)/i],
+];
+/** Modo Automático del Reel: el estilo se deduce de la idea (si nada encaja, «Curiosidades»). Siempre se puede cambiar. */
+export function autoStyle(idea: string): ReelStyle {
+  return STYLE_HINTS.find(([, re]) => re.test(idea))?.[0] ?? "Curiosidades";
+}

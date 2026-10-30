@@ -44,3 +44,17 @@ test("Podcast: la idea pasa a tema y título solo si el borrador no tiene tema n
   assert.equal(withIdea({ ...d, title: "Mi título" }, "idea").title, "Mi título");
   assert.equal(withIdea(d, "   ").topic, "");
 });
+
+test("Reel en modo Automático: el estilo sale de la idea (y siempre es uno de los del formulario)", async () => {
+  const { autoStyle, REEL_STYLES } = await import("./create-home");
+  const { readFileSync } = await import("node:fs");
+  const form = readFileSync(new URL("../../app/dashboard/new/NewVideoForm.tsx", import.meta.url), "utf8");
+  for (const s of REEL_STYLES) assert.ok(form.includes(`"${s}"`), `estilo «${s}» existe en el formulario`);
+  assert.equal(autoStyle("La leyenda urbana del fantasma del metro"), "Historias de terror");
+  assert.equal(autoStyle("5 chistes sobre programadores"), "Humor");
+  assert.equal(autoStyle("Cómo funciona un agujero negro"), "Educativo");
+  assert.equal(autoStyle("Hábitos de disciplina para lograr tus metas"), "Motivacional");
+  assert.equal(autoStyle("Mi historia: me pasó en un aeropuerto"), "Storytelling personal");
+  assert.equal(autoStyle("5 datos sobre el espacio"), "Curiosidades");
+  assert.equal(autoStyle(""), "Curiosidades");
+});
