@@ -41,6 +41,7 @@ on:
     paths: [".github/workflows/prueba-real.yml"]
 permissions:
   contents: write
+  actions: read
 concurrency:
   group: prueba-real-${{ inputs.caso == 'lf' && 'lf' || 'podcast' }}
   cancel-in-progress: false
@@ -103,6 +104,8 @@ jobs:
           if [ "$CASO" = ux-capturas ]; then
             # pod_episode_id opcional = URL de vista previa de Vercel del PR (solo atomivid-git-*.vercel.app); «despues» si se da.
             U="${{ inputs.pod_episode_id }}"
+            # o el id numérico de una corrida de podcast-3-0-e2e: se copian sus capturas (artefacto) a la evidencia cifrada.
+            if [[ "$U" =~ ^[0-9]+$ ]]; then gh run download "$U" -R "${{ github.repository }}" -n podcast-3-0-e2e -D "$EVID/e2e" && find "$EVID/e2e" -type f | wc -l && echo "RESULT ux-capturas: artefacto $U"; exit $?; fi
             if [ -n "$U" ]; then case "$U" in https://atomivid-git-*-atomivid.vercel.app) export POD_UI_URL="$U" UX_TAG=despues;; *) echo "::error::URL no permitida"; exit 1;; esac; fi
             node scripts/qa/real/ux-capturas.mjs; exit $?
           fi
