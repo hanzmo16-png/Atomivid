@@ -42,11 +42,13 @@ import {
   uploadVisualTestV2Image,
   visualTestV2ImagePath,
   computeChecksumSha256,
+  claimVisualTestV2SpendNonce,
   VISUAL_TEST_V2_STORAGE_BUCKET,
   type ImageGenRecord,
 } from "./visual-test-v2-storage";
 import {
   assertVisualTestV2SpendAuthorization,
+  VisualTestV2SpendAuthorizationError,
   type VerifiedVisualTestV2SpendAuthorization,
 } from "./visual-test-v2-spend-auth";
 
@@ -90,6 +92,16 @@ function nowIso(): string {
 
 function round4(n: number): number {
   return Math.round(n * 10000) / 10000;
+}
+
+async function consumeSpendNonce(
+  supabase: SupabaseClient,
+  bucket: string,
+  videoId: string,
+  authorization: VerifiedVisualTestV2SpendAuthorization,
+): Promise<void> {
+  const claimed = await claimVisualTestV2SpendNonce(supabase, bucket, videoId, authorization.nonce, authorization.userId);
+  if (claimed === "replay") throw new VisualTestV2SpendAuthorizationError("replay");
 }
 
 function shotOrderIndex(shotId: string): number {
@@ -143,6 +155,7 @@ export async function runVisualTestV2RealGeneration(
   }
 
   if (toGenerate.length === 0) {
+    await consumeSpendNonce(supabase, bucket, videoId, authorization);
     const ledger = await readVisualTestV2Ledger(supabase, bucket, videoId);
     return {
       videoId,
@@ -165,6 +178,7 @@ export async function runVisualTestV2RealGeneration(
   // Lanza VideoCostGuardExceededError si excedería el tope de $0.50 (categoría visual_test_v2) o el
   // hard stop de $3.00 (VIDEO #001) — ANTES de llamar a OpenAI para cualquiera de los shots pendientes.
   assertCanSpend(ledger, "visual_test_v2", projectedCostUsd);
+  await consumeSpendNonce(supabase, bucket, videoId, authorization);
 
   const generated: VisualTestV2RealShotResult[] = [];
   let totalSpentThisRunUsd = 0;

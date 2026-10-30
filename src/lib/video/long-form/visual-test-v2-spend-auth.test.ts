@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { isCommandCenterAdmin } from "@/lib/command-center/access";
 import type { ImageProvider, ImageGenerationRequest, GenerativeAsset } from "@/lib/providers/types";
 import { VISUAL_TEST_V2_REAL_CONFIRM_VALUE } from "./visual-test-v2-real-confirm";
 import { runVisualTestV2RealGeneration } from "./visual-test-v2-real";
@@ -11,6 +12,7 @@ import {
   issueVisualTestV2SpendAuthorization,
   verifyVisualTestV2SpendAuthorization,
   visualTestV2SpendAuthSecret,
+  VisualTestV2SpendAuthorizationError,
   VISUAL_TEST_V2_SPEND_AUTH_TTL_MS,
 } from "./visual-test-v2-spend-auth";
 
@@ -223,26 +225,78 @@ test("negativo: por encima del tope de US$0.50 el proveedor simulado no se llama
   assert.equal(getCallCount(), 0);
 });
 
-test("negativo: una segunda petición con la misma autorización reutiliza y no vuelve a llamar al proveedor", async () => {
+test("negativo: replay del mismo token se rechaza en el servidor y el proveedor no se vuelve a llamar", async () => {
   const { fake } = makeFakeSupabase();
-  const decision = evaluateVisualTestV2RealRequest(ADMIN, { confirm: tokenFor(ADMIN.id) }, {
-    env: ENV,
-    nowMs: NOW,
-    secret: SECRET,
-  });
+  const token = tokenFor(ADMIN.id);
+  const decision = evaluateVisualTestV2RealRequest(ADMIN, { confirm: token }, { env: ENV, nowMs: NOW, secret: SECRET });
   assert.equal(decision.ok, true);
   if (!decision.ok) return;
   const first = makeCountingImageProvider();
   await runVisualTestV2RealGeneration(fake, decision.authorization, { bucket: BUCKET, imageProvider: first.provider });
   assert.equal(first.getCallCount(), 3);
+  const replay = evaluateVisualTestV2RealRequest(ADMIN, { confirm: token }, { env: ENV, nowMs: NOW, secret: SECRET });
+  assert.equal(replay.ok, true, "el HMAC sigue vigente; el rechazo es el consumo único del nonce");
+  if (!replay.ok) return;
   const second = makeCountingImageProvider();
-  const again = await runVisualTestV2RealGeneration(fake, decision.authorization, {
+  await assert.rejects(
+    () => runVisualTestV2RealGeneration(fake, replay.authorization, { bucket: BUCKET, imageProvider: second.provider }),
+    (err: unknown) => err instanceof VisualTestV2SpendAuthorizationError && err.reason === "replay",
+  );
+  assert.equal(second.getCallCount(), 0);
+});
+
+test("un token nuevo, después de uno ya usado, reutiliza las imágenes y no gasta otra vez", async () => {
+  const { fake } = makeFakeSupabase();
+  const firstDecision = evaluateVisualTestV2RealRequest(ADMIN, { confirm: tokenFor(ADMIN.id) }, {
+    env: ENV,
+    nowMs: NOW,
+    secret: SECRET,
+  });
+  assert.equal(firstDecision.ok, true);
+  if (!firstDecision.ok) return;
+  await runVisualTestV2RealGeneration(fake, firstDecision.authorization, {
+    bucket: BUCKET,
+    imageProvider: makeCountingImageProvider().provider,
+  });
+  const secondDecision = evaluateVisualTestV2RealRequest(ADMIN, { confirm: tokenFor(ADMIN.id) }, {
+    env: ENV,
+    nowMs: NOW,
+    secret: SECRET,
+  });
+  assert.equal(secondDecision.ok, true);
+  if (!secondDecision.ok) return;
+  const second = makeCountingImageProvider();
+  const again = await runVisualTestV2RealGeneration(fake, secondDecision.authorization, {
     bucket: BUCKET,
     imageProvider: second.provider,
   });
   assert.equal(second.getCallCount(), 0);
   assert.equal(again.paidApisCalled, false);
-  assert.ok(again.shots.every((shot) => shot.status === "reused"));
+  assert.equal(again.ledgerVisualTestV2SpentUsd, 0.15);
+});
+
+test("acceso directo al API: una confirmación que solo existe en el cliente no autoriza el gasto", async () => {
+  const clientOnly = await attemptPaid(ADMIN, { confirm: "CONFIRMO_EN_EL_CLIENTE" });
+  assert.equal(clientOnly.status, 403);
+  assert.equal(clientOnly.calls, 0);
+  const extraField = await attemptPaid(ADMIN, { confirm: tokenFor(ADMIN.id), confirmed: true });
+  assert.equal(extraField.status, 400);
+  assert.equal(extraField.calls, 0);
+});
+
+test("nav y UI: el no-admin no es admin; el admin sí; el enlace del header solo cuelga de ese gate y no entra en sm", () => {
+  assert.equal(isCommandCenterAdmin(BETA, ENV), false);
+  assert.equal(isCommandCenterAdmin(ADMIN, ENV), true);
+  const layout = readFileSync("src/app/dashboard/layout.tsx", "utf8");
+  const page = readFileSync("src/app/dashboard/long-form/visual-test-v2/page.tsx", "utf8");
+  assert.match(layout, /showLongFormDryRun = isCommandCenterAdmin\(user\)/);
+  assert.equal(layout.includes("isLongFormAllowlisted"), false);
+  const desktop = layout.slice(layout.indexOf("showLongFormDryRun && ("), layout.indexOf("showPodcast &&", layout.indexOf("showLongFormDryRun && (")));
+  assert.match(desktop, /xl:inline-block/);
+  assert.equal(desktop.includes("sm:inline-block"), false);
+  assert.match(page, /isCommandCenterAdmin\(user\)/);
+  assert.match(page, /notFound\(\)/);
+  assert.equal(page.includes("isLongFormAllowlisted"), false);
 });
 
 test("positivo: admin con autorización vigente llega al adaptador simulado y el máximo mostrado es US$0.50", async () => {

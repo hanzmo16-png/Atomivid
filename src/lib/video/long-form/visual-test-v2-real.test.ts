@@ -163,12 +163,26 @@ test("2. segunda ejecución (mismo storage) → los 3 shots ya COMPLETED válido
   assert.equal(first.getCallCount(), 3);
 
   const second = makeCountingImageProvider();
-  const result = await runVisualTestV2RealGeneration(fake, AUTH, { bucket: BUCKET, imageProvider: second.provider });
+  const result = await runVisualTestV2RealGeneration(fake, spendAuthorization(), { bucket: BUCKET, imageProvider: second.provider });
 
   assert.equal(second.getCallCount(), 0);
   assert.ok(result.shots.every((s) => s.status === "reused"));
   assert.equal(result.paidApisCalled, false);
   assert.equal(result.totalSpentThisRunUsd, 0);
+});
+
+test("2b. repetir el mismo token (replay) se rechaza y el proveedor no vuelve a llamarse", async () => {
+  const { fake } = makeFakeSupabase();
+  const first = makeCountingImageProvider();
+  await runVisualTestV2RealGeneration(fake, AUTH, { bucket: BUCKET, imageProvider: first.provider });
+  assert.equal(first.getCallCount(), 3);
+
+  const second = makeCountingImageProvider();
+  await assert.rejects(
+    () => runVisualTestV2RealGeneration(fake, AUTH, { bucket: BUCKET, imageProvider: second.provider }),
+    (err: unknown) => err instanceof VisualTestV2SpendAuthorizationError && err.reason === "replay",
+  );
+  assert.equal(second.getCallCount(), 0);
 });
 
 test("3. un shot en estado STARTED sin COMPLETED (consumo incierto) → aborta TODO el lote antes de llamar al proveedor, incluso para los shots seguros", async () => {
@@ -328,7 +342,7 @@ test("10. cost guard contabiliza correctamente solo los shots nuevos — un rein
   });
 
   const second = makeCountingImageProvider();
-  const result = await runVisualTestV2RealGeneration(fake, AUTH, { bucket: BUCKET, imageProvider: second.provider });
+  const result = await runVisualTestV2RealGeneration(fake, spendAuthorization(), { bucket: BUCKET, imageProvider: second.provider });
   assert.equal(second.getCallCount(), 1);
   assert.equal(result.totalSpentThisRunUsd, 0.05);
   // Ledger acumulado: 0.15 de la primera corrida + 0.05 de esta = 0.20.

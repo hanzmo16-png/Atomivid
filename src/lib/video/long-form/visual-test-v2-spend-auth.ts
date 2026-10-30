@@ -18,16 +18,22 @@ export const VISUAL_TEST_V2_SPEND_AUTH_TTL_MS = 10 * 60 * 1000;
 const CLOCK_SKEW_MS = 60 * 1000;
 const KIND = "visual-test-v2-spend-authorization" as const;
 const PURPOSE = "atomivid:visual-test-v2-spend:v1";
+const NONCE_RE = /^[A-Za-z0-9_-]{8,128}$/;
 
 export type VerifiedVisualTestV2SpendAuthorization = {
   readonly kind: typeof KIND;
   readonly userId: string;
   readonly maxUsd: number;
+  readonly nonce: string;
 };
 
 export class VisualTestV2SpendAuthorizationError extends Error {
-  constructor() {
-    super("Visual Test V2 REAL: falta una autorización de gasto válida. No se llama al proveedor.");
+  constructor(readonly reason: "missing" | "replay" = "missing") {
+    super(
+      reason === "replay"
+        ? "Visual Test V2 REAL: esta autorización de gasto ya se usó. No se llama al proveedor."
+        : "Visual Test V2 REAL: falta una autorización de gasto válida. No se llama al proveedor.",
+    );
     this.name = "VisualTestV2SpendAuthorizationError";
   }
 }
@@ -86,12 +92,14 @@ export function issueVisualTestV2SpendAuthorization(input: {
   const userId = input.userId.trim();
   if (!userId || !input.secret) return null;
   const nowMs = input.nowMs ?? Date.now();
+  const nonce = input.nonce ?? randomBytes(16).toString("hex");
+  if (!NONCE_RE.test(nonce)) return null;
   const payload: TokenPayload = {
     v: 1,
     uid: userId,
     maxUsd: VISUAL_TEST_V2_MAX_USD,
     exp: nowMs + VISUAL_TEST_V2_SPEND_AUTH_TTL_MS,
-    nonce: input.nonce ?? randomBytes(16).toString("hex"),
+    nonce,
   };
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const sig = createHmac("sha256", input.secret).update(body).digest("base64url");
@@ -120,11 +128,11 @@ export function verifyVisualTestV2SpendAuthorization(
   if (payload.v !== 1) return null;
   if (payload.uid !== userId) return null;
   if (payload.maxUsd !== VISUAL_TEST_V2_MAX_USD) return null;
-  if (typeof payload.nonce !== "string" || payload.nonce.length < 8) return null;
+  if (typeof payload.nonce !== "string" || !NONCE_RE.test(payload.nonce)) return null;
   if (typeof payload.exp !== "number" || !Number.isFinite(payload.exp)) return null;
   if (nowMs >= payload.exp) return null;
   if (payload.exp - nowMs > VISUAL_TEST_V2_SPEND_AUTH_TTL_MS + CLOCK_SKEW_MS) return null;
-  return { kind: KIND, userId: payload.uid, maxUsd: payload.maxUsd };
+  return { kind: KIND, userId: payload.uid, maxUsd: payload.maxUsd, nonce: payload.nonce };
 }
 
 export function assertVisualTestV2SpendAuthorization(
@@ -135,9 +143,10 @@ export function assertVisualTestV2SpendAuthorization(
     authorization.kind !== KIND ||
     authorization.maxUsd !== VISUAL_TEST_V2_MAX_USD ||
     typeof authorization.userId !== "string" ||
-    authorization.userId.length === 0
+    authorization.userId.length === 0 ||
+    !NONCE_RE.test(authorization.nonce)
   ) {
-    throw new VisualTestV2SpendAuthorizationError();
+    throw new VisualTestV2SpendAuthorizationError("missing");
   }
 }
 
