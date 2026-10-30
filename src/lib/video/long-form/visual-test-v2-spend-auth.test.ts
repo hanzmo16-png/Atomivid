@@ -245,6 +245,94 @@ test("negativo: replay del mismo token se rechaza en el servidor y el proveedor 
   assert.equal(second.getCallCount(), 0);
 });
 
+/**
+ * Dos creates del mismo nonce se cruzan dentro de upload. El primero que
+ * reanuda escribe; el segundo ve el objeto y recibe el error de `upsert: false`.
+ * No usa temporizadores: la barrera abre solo cuando las dos llamadas ya están dentro.
+ */
+function makeConcurrentNonceSupabase() {
+  const files = new Map<string, Buffer>();
+  let nonceReads = 0;
+  let nonceWrites = 0;
+  let openReads: () => void = () => {};
+  let openWrites: () => void = () => {};
+  const reads = new Promise<void>((resolve) => {
+    openReads = resolve;
+  });
+  const writes = new Promise<void>((resolve) => {
+    openWrites = resolve;
+  });
+  const isNonce = (path: string) => path.includes("/spend-nonces/");
+  const fake = {
+    storage: {
+      from() {
+        return {
+          async download(path: string) {
+            if (isNonce(path) && nonceReads < 2) {
+              nonceReads += 1;
+              if (nonceReads === 2) openReads();
+              await reads;
+            }
+            const buf = files.get(path);
+            if (!buf) return { data: null, error: { message: "not found" } };
+            return {
+              data: {
+                async text() {
+                  return buf.toString("utf8");
+                },
+                async arrayBuffer() {
+                  return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+                },
+              },
+              error: null,
+            };
+          },
+          async upload(path: string, body: Buffer, options?: { upsert?: boolean }) {
+            if (isNonce(path) && nonceWrites < 2) {
+              nonceWrites += 1;
+              if (nonceWrites === 2) openWrites();
+              await writes;
+            }
+            if (isNonce(path) && options?.upsert === false && files.has(path)) {
+              return { error: { message: "The resource already exists" } };
+            }
+            files.set(path, Buffer.from(body));
+            return { error: null };
+          },
+        };
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any;
+  return fake;
+}
+
+test("dos llamadas concurrentes con el mismo token: una sola reclama el nonce y como máximo una llega al proveedor", async () => {
+  const claimSource = readFileSync("src/lib/video/long-form/visual-test-v2-storage.ts", "utf8");
+  assert.match(claimSource, /upsert:\s*false/);
+  const token = tokenFor(ADMIN.id, NOW);
+  const decision = evaluateVisualTestV2RealRequest(ADMIN, { confirm: token }, { env: ENV, nowMs: NOW, secret: SECRET });
+  assert.equal(decision.ok, true);
+  if (!decision.ok) return;
+  const fake = makeConcurrentNonceSupabase();
+  const provider = makeCountingImageProvider();
+  const run = () =>
+    runVisualTestV2RealGeneration(fake, decision.authorization, { bucket: BUCKET, imageProvider: provider.provider });
+  const settled = await Promise.allSettled([run(), run()]);
+  const fulfilled = settled.filter((item) => item.status === "fulfilled");
+  const rejected = settled.filter((item) => item.status === "rejected");
+  assert.equal(fulfilled.length, 1);
+  assert.equal(rejected.length, 1);
+  const failure = rejected[0];
+  assert.equal(failure.status, "rejected");
+  assert.ok(failure.reason instanceof VisualTestV2SpendAuthorizationError);
+  assert.equal(failure.reason.reason, "replay");
+  assert.equal(provider.getCallCount(), 3);
+  assert.equal(fulfilled[0].status, "fulfilled");
+  assert.equal(fulfilled[0].value.paidApisCalled, true);
+});
+
 test("un token nuevo, después de uno ya usado, reutiliza las imágenes y no gasta otra vez", async () => {
   const { fake } = makeFakeSupabase();
   const firstDecision = evaluateVisualTestV2RealRequest(ADMIN, { confirm: tokenFor(ADMIN.id) }, {

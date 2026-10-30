@@ -56,9 +56,10 @@ export function visualTestV2SpendNoncePath(videoId: string, nonce: string): stri
 }
 
 /**
- * Reserva el nonce una sola vez. `upsert: false` hace que un segundo upload
- * falle en Storage si otro request ganó la carrera. El proveedor no se llama
- * desde aquí.
+ * Reserva el nonce una sola vez. La lectura previa solo evita un upload
+ * innecesario. La creación condicional es `upsert: false`: si dos requests
+ * pasan la lectura vacía, el segundo upload falla porque el objeto ya existe
+ * y esta función lo trata como replay. El proveedor no se llama desde aquí.
  */
 export async function claimVisualTestV2SpendNonce(
   supabase: SupabaseClient,
