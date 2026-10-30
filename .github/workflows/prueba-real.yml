@@ -105,7 +105,8 @@ jobs:
             # pod_episode_id opcional = URL de vista previa de Vercel del PR (solo atomivid-git-*.vercel.app); «despues» si se da.
             U="${{ inputs.pod_episode_id }}"
             # o el id numérico de una corrida de podcast-3-0-e2e: se copian sus capturas (artefacto) a la evidencia cifrada.
-            if [[ "$U" =~ ^[0-9]+$ ]]; then gh run download "$U" -R "${{ github.repository }}" -n podcast-3-0-e2e -D "$EVID/e2e" && find "$EVID/e2e" -type f | wc -l && echo "RESULT ux-capturas: artefacto $U"; exit $?; fi
+            # (o «id:artefacto», p. ej. 123:simple-ux-home).
+            if [[ "$U" =~ ^([0-9]+)(:([a-z0-9-]+))?$ ]]; then A="${BASH_REMATCH[3]:-podcast-3-0-e2e}"; gh run download "${BASH_REMATCH[1]}" -R "${{ github.repository }}" -n "$A" -D "$EVID/e2e" && find "$EVID/e2e" -type f | wc -l && echo "RESULT ux-capturas: artefacto $U"; exit $?; fi
             if [ -n "$U" ]; then case "$U" in https://atomivid-git-*-atomivid.vercel.app) export POD_UI_URL="$U" UX_TAG=despues;; *) echo "::error::URL no permitida"; exit 1;; esac; fi
             node scripts/qa/real/ux-capturas.mjs; exit $?
           fi
