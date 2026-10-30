@@ -6,10 +6,7 @@ import { Logo } from "@/components/ui/Logo";
 import { LinkButton } from "@/components/ui/Button";
 import { Onboarding } from "@/components/onboarding/Onboarding";
 import { NavLink } from "./NavLink";
-import { isLongFormEnabled, isLongFormAllowlisted } from "@/lib/video/long-form/access";
-import { isCommandCenterAdmin } from "@/lib/command-center/access";
-import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
-import { studioFlagFor } from "@/lib/podcast/v3/studio";
+import { CLIENT_NAV } from "@/lib/ux/create-home";
 
 export default async function DashboardLayout({
   children,
@@ -25,87 +22,39 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  // Mismo gate Long Form/allowlist que ya usa /dashboard/long-form/visual-test-v2
-  // (isLongFormEnabled + isLongFormAllowlisted, access.ts) — este acceso
-  // directo es solo navegación, nunca hace ninguna llamada por su cuenta.
-  const showLongFormDryRun = isLongFormEnabled() && isLongFormAllowlisted(user);
-  // Command Center: owner/admin only (same gate as its page and API); plain navigation.
-  const showCommandCenter = isCommandCenterAdmin(user);
-  // Podcast (estudio audiovisual): mismo gate que la página /dashboard/podcast + interruptor del estudio
-  // (PODCAST_V3_ENABLED=1, piloto del dueño, o activado por defecto solo en Vercel Preview). Solo navegación.
-  const showPodcast = canAccessLongFormBeta(user) && studioFlagFor(user).enabled;
-
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-20 border-b border-border bg-canvas/90 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3.5 sm:px-6">
-          <Link href="/dashboard">
+        {/* Simple UX 1.0: menú del cliente (Mis proyectos, Facturación, Mi cuenta, Ayuda) y una sola acción principal
+            («Crear»). Las herramientas internas (pruebas, centro de mando) ya no están aquí: viven en «Mi cuenta» y solo
+            para quien tiene acceso. En móvil, un menú compacto (sin barra horizontal cortada). */}
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-4 py-3 sm:px-6">
+          <Link href="/dashboard" aria-label="Inicio">
             <Logo />
           </Link>
-          <nav className="flex items-center gap-1 sm:gap-2">
-            <NavLink
-              href="/dashboard"
-              exact
-              className="hidden rounded-md px-3 py-2 text-sm font-medium transition-colors sm:inline-block"
-            >
-              Historial
-            </NavLink>
-            <NavLink
-              href="/dashboard/billing"
-              className="hidden rounded-md px-3 py-2 text-sm font-medium transition-colors sm:inline-block"
-            >
-              Facturación
-            </NavLink>
-            {showLongFormDryRun && (
-              <NavLink
-                href="/dashboard/long-form/visual-test-v2"
-                className="hidden rounded-md px-3 py-2 text-sm font-medium transition-colors sm:inline-block"
-              >
-                Dry Run Long Form
+          <nav aria-label="Principal" className="hidden items-center gap-1 sm:flex">
+            {CLIENT_NAV.map((n) => (
+              <NavLink key={n.href} href={n.href} exact={n.href === "/dashboard"} className="rounded-md px-3 py-2 text-sm font-medium transition-colors">
+                {n.label}
               </NavLink>
-            )}
-            {showPodcast && (
-              <NavLink
-                href="/dashboard/podcast"
-                className="hidden rounded-md px-3 py-2 text-sm font-medium transition-colors sm:inline-block"
-              >
-                Podcast
-              </NavLink>
-            )}
-            {showCommandCenter && (
-              <NavLink
-                href="/dashboard/command-center"
-                className="hidden rounded-md px-3 py-2 text-sm font-medium transition-colors sm:inline-block"
-              >
-                Command Center
-              </NavLink>
-            )}
-            <LinkButton href="/dashboard/new" size="sm">
-              Nuevo video
-            </LinkButton>
-            <form action={signOut}>
-              <button
-                type="submit"
-                className="rounded-md px-2.5 py-2 text-sm font-medium text-ink-muted transition-colors hover:text-ink"
-                aria-label="Cerrar sesión"
-                title="Cerrar sesión"
-              >
-                Salir
-              </button>
-            </form>
+            ))}
+            <LinkButton href="/dashboard#crear" size="sm" className="ml-1">Crear</LinkButton>
           </nav>
-        </div>
-        <div className="border-t border-border px-4 py-2 sm:hidden">
-          <div className="flex gap-4 overflow-x-auto whitespace-nowrap text-sm font-medium">
-            <NavLink href="/dashboard" exact>
-              Historial
-            </NavLink>
-            <NavLink href="/dashboard/billing">Facturación</NavLink>
-            {showLongFormDryRun && (
-              <NavLink href="/dashboard/long-form/visual-test-v2">Dry Run Long Form</NavLink>
-            )}
-            {showPodcast && <NavLink href="/dashboard/podcast">Podcast</NavLink>}
-            {showCommandCenter && <NavLink href="/dashboard/command-center">Command Center</NavLink>}
+          <div className="flex items-center gap-2 sm:hidden">
+            <LinkButton href="/dashboard#crear" size="sm">Crear</LinkButton>
+            <details className="relative" data-testid="menu-movil">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center rounded-md border border-border px-3 text-sm font-medium text-ink">Menú</summary>
+              <nav aria-label="Menú" className="absolute right-0 mt-2 grid w-56 gap-1 rounded-xl border border-border bg-canvas p-2 shadow-lg">
+                {CLIENT_NAV.map((n) => (
+                  <NavLink key={n.href} href={n.href} exact={n.href === "/dashboard"} className="block min-h-11 rounded-md px-3 py-3 text-base">
+                    {n.label}
+                  </NavLink>
+                ))}
+                <form action={signOut}>
+                  <button type="submit" className="block min-h-11 w-full rounded-md px-3 py-3 text-left text-base text-ink-muted hover:text-ink">Cerrar sesión</button>
+                </form>
+              </nav>
+            </details>
           </div>
         </div>
       </header>

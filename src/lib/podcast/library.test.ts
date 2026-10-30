@@ -1,0 +1,60 @@
+/** Podcast — biblioteca limpia (T-20261030-1118): vistas, orden y archivar/restaurar sin borrar. Sin red ni base. */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { ARCHIVE_COLUMN_MISSING, bucketOf, libraryAction, libraryView, type LibraryItem } from "./library";
+
+const NOW = Date.parse("2026-10-30T17:00:00Z");
+const ago = (days: number) => new Date(NOW - days * 86_400_000).toISOString();
+const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+const it = (n: number, status: string, days: number, extra: Partial<LibraryItem> = {}): LibraryItem => ({ kind: "studio", id: id(n), status, created_at: ago(days), ...extra });
+
+test("vista principal: en curso primero, luego lo terminado; pruebas viejas sin terminar y archivados van a «Archivados»", () => {
+  const items = [it(1, "failed", 20), it(2, "ready", 3), it(3, "generating", 0.1), it(4, "draft", 10), it(5, "failed", 1), it(6, "ready", 1, { archived_at: ago(0.5) }), it(7, "ready", 40), it(8, "draft", 2)];
+  const main = libraryView(items, "principal", NOW);
+  assert.deepEqual(main.map((x) => [x.id.slice(-1), x.bucket]), [["3", "en_curso"], ["2", "listo"], ["7", "listo"], ["5", "fallo_reciente"], ["8", "borrador"]]);
+  const arch = libraryView(items, "archivados", NOW);
+  assert.deepEqual(arch.map((x) => [x.id.slice(-1), x.bucket]), [["6", "archivado"], ["4", "antiguo"], ["1", "antiguo"]]);
+  assert.equal(main.length + arch.length, items.length, "nada se pierde: cada episodio está en una de las dos vistas");
+});
+
+test("lo que está en producción nunca se oculta (aunque esté marcado o sea antiguo)", () => {
+  assert.equal(bucketOf(it(1, "generating", 30, { archived_at: ago(1) }), NOW), "en_curso");
+  assert.equal(bucketOf(it(2, "authorized", 30), NOW), "en_curso");
+  assert.equal(bucketOf({ kind: "v2", id: id(3), status: "ready", created_at: ago(30), video_status: "running" }, NOW), "en_curso");
+  assert.equal(bucketOf(it(4, "ready", 400), NOW), "listo", "un episodio terminado no caduca");
+});
+
+function fakeDb(rows: Record<string, { user_id: string; status: string; video_status?: string | null; archived_at: string | null; video_path?: string; cost_usd?: number }>, opts: { column?: boolean } = {}) {
+  const writes: { id: string; at: string | null }[] = [];
+  return { rows, writes, deps: {
+    load: async (_k: "studio" | "v2", x: string) => (opts.column === false ? "sin_columna" as const : rows[x] ? { ...rows[x] } : null),
+    setArchived: async (_k: "studio" | "v2", x: string, at: string | null) => { writes.push({ id: x, at }); rows[x] = { ...rows[x], archived_at: at }; return true; },
+  } };
+}
+
+test("archivar y restaurar solo cambia la marca del dueño; video, costos y estado intactos", async () => {
+  const db = fakeDb({ [id(1)]: { user_id: "u1", status: "ready", archived_at: null, video_path: "u1/e1/video.mp4", cost_usd: 5.29 } });
+  const a = await libraryAction("u1", { kind: "studio", id: id(1), action: "archive" }, db.deps);
+  assert.equal(a.status, 200); assert.ok(db.rows[id(1)].archived_at);
+  assert.equal(db.rows[id(1)].video_path, "u1/e1/video.mp4"); assert.equal(db.rows[id(1)].cost_usd, 5.29); assert.equal(db.rows[id(1)].status, "ready");
+  const r = await libraryAction("u1", { kind: "studio", id: id(1), action: "restore" }, db.deps);
+  assert.equal(r.status, 200); assert.equal(db.rows[id(1)].archived_at, null);
+});
+
+test("aislamiento: un episodio de otra cuenta responde como inexistente y no se escribe nada", async () => {
+  const db = fakeDb({ [id(2)]: { user_id: "u2", status: "ready", archived_at: null } });
+  const out = await libraryAction("u1", { kind: "v2", id: id(2), action: "archive" }, db.deps);
+  assert.equal(out.status, 404); assert.equal(db.writes.length, 0); assert.equal(db.rows[id(2)].archived_at, null);
+});
+
+test("en producción no se archiva; sin la columna no se escribe y se explica; peticiones inválidas se rechazan", async () => {
+  const db = fakeDb({ [id(3)]: { user_id: "u1", status: "generating", archived_at: null }, [id(4)]: { user_id: "u1", status: "ready", video_status: "queued", archived_at: null } });
+  assert.equal((await libraryAction("u1", { kind: "studio", id: id(3), action: "archive" }, db.deps)).status, 409);
+  assert.equal((await libraryAction("u1", { kind: "v2", id: id(4), action: "archive" }, db.deps)).status, 409);
+  assert.equal(db.writes.length, 0);
+  const none = fakeDb({ [id(5)]: { user_id: "u1", status: "ready", archived_at: null } }, { column: false });
+  const m = await libraryAction("u1", { kind: "studio", id: id(5), action: "archive" }, none.deps);
+  assert.equal(m.status, 409); assert.equal(m.body.error, ARCHIVE_COLUMN_MISSING); assert.equal(none.writes.length, 0);
+  for (const bad of [null, {}, { kind: "x", id: id(5), action: "archive" }, { kind: "studio", id: "1; drop", action: "archive" }, { kind: "studio", id: id(5), action: "delete" }])
+    assert.equal((await libraryAction("u1", bad, db.deps)).status, 400, JSON.stringify(bad));
+});

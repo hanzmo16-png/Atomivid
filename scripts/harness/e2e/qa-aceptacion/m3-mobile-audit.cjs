@@ -126,9 +126,15 @@ async function login(p) {
       await login(p); await skipTour(p);
       await audit(p, dev, "panel / historial");
       if (DEVICES[dev].isMobile) {
-        // Navegación móvil: cada sección principal es alcanzable sin la barra de escritorio (oculta por debajo de sm).
-        const nav = await p.evaluate(() => [...document.querySelectorAll("header a[href]")].filter((a) => { const r = a.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(a).visibility !== "hidden"; }).map((a) => a.getAttribute("href")));
-        check(`[${dev}] navegación móvil: Historial, Facturación y Nuevo video visibles en la cabecera`, ["/dashboard", "/dashboard/billing", "/dashboard/new"].every((h) => nav.includes(h)), nav);
+        // Navegación móvil (Simple UX 1.0): «Crear» siempre a la vista y un menú compacto con Mis proyectos, Facturación,
+        // Mi cuenta y Ayuda (sin barra horizontal cortada ni herramientas internas).
+        const visible = () => p.evaluate(() => [...document.querySelectorAll("header a[href]")].filter((a) => { const r = a.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(a).visibility !== "hidden"; }).map((a) => a.getAttribute("href")));
+        const crear = (await visible()).includes("/dashboard#crear");
+        await p.locator('[data-testid="menu-movil"] summary').click(); await sleep(300);
+        const nav = await visible();
+        check(`[${dev}] navegación móvil: «Crear» visible y el menú abre Mis proyectos, Facturación, Mi cuenta y Ayuda`, crear && ["/dashboard", "/dashboard/billing", "/dashboard/cuenta", "/dashboard/ayuda"].every((h) => nav.includes(h)), nav);
+        check(`[${dev}] navegación móvil: sin herramientas internas en el menú`, !nav.some((h) => /visual-test|command-center|admin/.test(h || "")), nav);
+        await p.locator('[data-testid="menu-movil"] summary').click();
       }
       await p.goto(`${BASE}/dashboard/new`); await skipTour(p); await audit(p, dev, "nuevo video: tipo de contenido");
       const types = await p.evaluate(() => [...document.querySelectorAll("button,[role=radio],label")].map((b) => (b.textContent || "").trim()).filter((t) => /Reel|Avatar|Long|Podcast|Documental/i.test(t)).slice(0, 10));

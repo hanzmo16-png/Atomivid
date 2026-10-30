@@ -793,9 +793,98 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     await db.query("delete from public.podcast_studio_operations where key='980a9fbda02b3e68f906ae9865bebde0842172b730db77b9486fe18d2474ac03'");
     await db.query("delete from public.podcast_studio_episodes where id = any($1)", [[A, G, S]]);
   }
+  if (cases.includes("16")) {
+    // Biblioteca limpia (T-20261030-1118): la lista mostraba pruebas, proyectos a medias y errores al inicio. Nada se
+    // borra: vista principal útil, «Archivados» aparte, archivar/restaurar solo marca archived_at del dueño. Móvil 390×844.
+    const MOB = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2.75, isMobile: true, hasTouch: true };
+    const S = await session(OWNER, "c16-biblioteca", MOB), W = () => S.p;
+    const post = (body) => W().evaluate(async (b) => { const r = await fetch("/api/podcast/library", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(b) }); return { status: r.status, body: await r.json().catch(() => null) }; }, body);
+    const ins = (id, user, title, status, days, extra = "") => db.query(`insert into public.podcast_studio_episodes(id,user_id,title,mode,spec,status,video_path,cost_usd,created_at,updated_at${extra ? "," + extra.split("=")[0] : ""}) values ($1,$2,$3,'dialogo','{"version":"podcast-studio/3"}',$4,$5,$6,now() - ($7 || ' days')::interval,now() - ($7 || ' days')::interval${extra ? "," + extra.split("=")[1] : ""})`, [id, user, title, status, status === "ready" ? `${user}/${id}/video.mp4` : null, status === "ready" ? 1.25 : null, String(days)]);
+    const R = "c16a0000-0000-4000-8000-000000000001", F = "c16a0000-0000-4000-8000-000000000002", G = "c16a0000-0000-4000-8000-000000000003", D = "c16a0000-0000-4000-8000-000000000004", O = "c16a0000-0000-4000-8000-000000000005";
+    await ins(R, OWNER.id, "c16 listo reciente", "ready", 1); await ins(F, OWNER.id, "c16 prueba fallida vieja", "failed", 20);
+    await ins(G, OWNER.id, "c16 en producción", "generating", 0, "run_started_at=now()"); await ins(D, OWNER.id, "c16 borrador reciente", "draft", 2);
+    await ins(O, OTHER.id, "c16 de otra cuenta", "ready", 1);
+    const card = (id) => W().getByTestId(`studio-episode-${id}`);
+    const load = async (q = "") => { await W().goto(`${BASE}/dashboard/podcast${q}`); await W().getByTestId("biblioteca-vistas").waitFor(); };
+    // 1) Sin la migración propuesta: la lista funciona igual, sin botones de archivar; archivar explica por qué y no escribe.
+    await load();
+    ok("c16: sin la columna, la vista principal oculta la prueba vieja y muestra lo útil", await card(R).count() === 1 && await card(G).count() === 1 && await card(D).count() === 1 && await card(F).count() === 0);
+    ok("c16: sin la columna no se ofrece «Archivar»", (await W().locator('[data-testid^="biblioteca-archivar-"]').count()) === 0);
+    const m0 = await post({ kind: "studio", id: R, action: "archive" });
+    ok("c16: sin la columna, archivar responde 409 con el motivo y no toca la fila", m0.status === 409 && /no está aplicado/.test(m0.body?.error ?? ""), JSON.stringify(m0));
+    // 2) Con la migración (base desechable): marca de archivo por episodio.
+    await db.query(fs.readFileSync(path.join(REPO, "supabase/proposals/20261030170000_podcast_library_archive.sql"), "utf8"));
+    await db.query("notify pgrst, 'reload schema'"); await W().waitForTimeout(1500);
+    const before = (await db.query("select status, video_path, cost_usd, created_at from public.podcast_studio_episodes where id=$1", [R])).rows[0];
+    await load(); await shot(W(), "c16-01-principal");
+    const order = await W().getByTestId("studio-episodes").locator("li").evaluateAll((ls) => ls.map((l) => l.getAttribute("data-testid")));
+    ok("c16: en curso antes que lo terminado en la vista principal", order.indexOf(`studio-episode-${G}`) >= 0 && order.indexOf(`studio-episode-${G}`) < order.indexOf(`studio-episode-${R}`), JSON.stringify(order.slice(0, 6)));
+    ok("c16: lo que se está produciendo no ofrece «Archivar»", await W().getByTestId(`biblioteca-archivar-${G}`).count() === 0 && await W().getByTestId(`biblioteca-archivar-${R}`).count() === 1);
+    await W().getByTestId(`biblioteca-archivar-${R}`).getByRole("button", { name: "Archivar" }).click();
+    ok("c16: archivar pide confirmación y dice que no se borra nada", /No se borra nada/.test(await W().getByRole("alertdialog").textContent()));
+    await shot(W(), "c16-02-confirmar");
+    await W().getByRole("alertdialog").getByRole("button", { name: "Archivar" }).click();
+    await card(R).waitFor({ state: "detached", timeout: 15000 }).catch(() => {});
+    const after = (await db.query("select status, video_path, cost_usd, created_at, archived_at from public.podcast_studio_episodes where id=$1", [R])).rows[0];
+    ok("c16: archivado sale de la vista principal y solo cambia archived_at (video, costo y estado intactos)", await card(R).count() === 0 && !!after.archived_at && after.status === before.status && after.video_path === before.video_path && Number(after.cost_usd) === Number(before.cost_usd) && +after.created_at === +before.created_at, JSON.stringify(after));
+    await load("?vista=archivados"); await shot(W(), "c16-03-archivados");
+    ok("c16: «Archivados» muestra lo archivado (con Restaurar) y la prueba vieja (sin borrar)", await card(R).count() === 1 && await card(F).count() === 1 && await W().getByTestId(`biblioteca-restaurar-${R}`).count() === 1);
+    const g = await post({ kind: "studio", id: G, action: "archive" }), o = await post({ kind: "studio", id: O, action: "archive" });
+    const oRow = (await db.query("select archived_at from public.podcast_studio_episodes where id=$1", [O])).rows[0], gRow = (await db.query("select archived_at from public.podcast_studio_episodes where id=$1", [G])).rows[0];
+    ok("c16: un episodio en producción no se archiva (409)", g.status === 409 && gRow.archived_at === null, JSON.stringify(g));
+    ok("c16: aislamiento: el de otra cuenta responde 404 y no cambia", o.status === 404 && oRow.archived_at === null, JSON.stringify(o));
+    await W().getByTestId(`biblioteca-restaurar-${R}`).getByRole("button", { name: "Restaurar" }).click();
+    await card(R).waitFor({ state: "detached", timeout: 15000 }).catch(() => {});
+    await load();
+    ok("c16: restaurar lo devuelve a la vista principal", await card(R).count() === 1 && (await db.query("select archived_at from public.podcast_studio_episodes where id=$1", [R])).rows[0].archived_at === null);
+    const ov = await W().evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    ok("c16: móvil 390×844 sin desbordamiento horizontal", ov <= 1, `${ov}px`);
+    const So = await session(OTHER, "c16-otra", MOB); await So.p.goto(`${BASE}/dashboard/podcast`);
+    ok("c16: la otra cuenta no ve los episodios del dueño", await So.p.getByTestId(`studio-episode-${R}`).count() === 0 && await So.p.getByTestId(`studio-episode-${O}`).count() === 1);
+    await So.ctx.close(); await S.ctx.close();
+    await db.query("delete from public.podcast_studio_episodes where id = any($1)", [[R, F, G, D, O]]);
+    await db.query(fs.readFileSync(path.join(REPO, "supabase/proposals/20261030170000_podcast_library_archive.rollback.sql"), "utf8")); await db.query("notify pgrst, 'reload schema'");
+  }
+  if (cases.includes("17")) {
+    // Simple UX 1.0: el inicio pregunta «¿Qué quieres crear hoy?» con tres formatos, una idea y «Continuar», que lleva al
+    // flujo real de cada formato con la idea ya escrita. Menú del cliente sin herramientas internas. Samsung 390×844.
+    const MOB = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2.75, isMobile: true, hasTouch: true };
+    const S = await session(OWNER, "c17-inicio", MOB), p = S.p;
+    const home = async () => { await p.goto(`${BASE}/dashboard`); await p.getByTestId("crear-inicio").waitFor(); };
+    const go = async (fmt, idea, url) => { await home(); await p.getByTestId(`crear-${fmt}`).click(); await p.getByTestId("crear-idea").fill(idea); await p.getByTestId("crear-continuar").click(); await p.waitForURL(url, { timeout: 60000 }); };
+    await home(); await shot(p, "c17-01-inicio");
+    ok("c17: el inicio pregunta «¿Qué quieres crear hoy?»", (await p.getByRole("heading", { level: 1 }).first().innerText()).includes("¿Qué quieres crear hoy?"));
+    ok("c17: tres formatos: Reel, Podcast y Video de YouTube", (await p.locator('[data-testid^="crear-"][role="radio"]').allInnerTexts()).map((t) => t.split("\n")[0]).join("|") === "Reel|Podcast|Video de YouTube");
+    ok("c17: «Continuar» deshabilitado hasta elegir, y dice por qué", await p.getByTestId("crear-continuar").isDisabled() && /Elige/.test(await p.getByTestId("crear-motivo").innerText()));
+    const ov = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    ok("c17: 390 px sin desplazamiento horizontal", ov <= 1, `${ov}px`);
+    const links = async () => p.evaluate(() => [...document.querySelectorAll("header a[href]")].filter((a) => a.getBoundingClientRect().width > 0).map((a) => a.getAttribute("href")));
+    await p.locator('[data-testid="menu-movil"] summary').click(); await p.waitForTimeout(300); await shot(p, "c17-02-menu");
+    const nav = await links();
+    ok("c17: menú compacto con Mis proyectos, Facturación, Mi cuenta y Ayuda", ["/dashboard", "/dashboard/billing", "/dashboard/cuenta", "/dashboard/ayuda"].every((h) => nav.includes(h)), JSON.stringify(nav));
+    ok("c17: sin herramientas internas en la navegación", !nav.some((h) => /visual-test|command-center|admin|\/dev/.test(h || "")), JSON.stringify(nav));
+    await p.evaluate(() => { for (const k of Object.keys(localStorage)) if (/podcast/i.test(k)) localStorage.removeItem(k); });
+    const IDEA = "La vida después de conseguir la visa";
+    await go("podcast", IDEA, /\/dashboard\/podcast/);
+    await p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
+    const pd = await p.evaluate(() => JSON.parse(localStorage.getItem("atomivid.podcast.asistente.v2") || "null"));
+    ok("c17: Podcast abre el asistente con la idea como tema", pd?.topic === IDEA && pd?.title === IDEA, JSON.stringify({ topic: pd?.topic, title: pd?.title }));
+    await shot(p, "c17-03-podcast");
+    await go("youtube", IDEA, /\/dashboard\/long-form\/new/);
+    ok("c17: Video de YouTube abre su formulario con la idea como tema", (await p.locator("input[name=topic]").inputValue()) === IDEA);
+    await go("reel", IDEA, /\/dashboard\/new/);
+    ok("c17: Reel abre su formulario directamente con la idea escrita", (await p.locator("textarea#topic").inputValue()) === IDEA);
+    await shot(p, "c17-04-reel");
+    await p.goto(`${BASE}/dashboard/cuenta`); ok("c17: «Mi cuenta» muestra el correo", (await p.getByTestId("cuenta-correo").innerText()) === OWNER.email);
+    await p.goto(`${BASE}/dashboard/ayuda`); ok("c17: «Ayuda» explica cómo crear", /Elige qué crear/.test(await p.locator("main").innerText()));
+    await p.goto(`${BASE}/dashboard?created=1`);
+    ok("c17: a mitad de un flujo el historial va primero (sin el selector encima)", await p.getByTestId("crear-inicio").count() === 0 && await p.getByRole("heading", { name: "Mis proyectos" }).count() === 1);
+    await p.evaluate(() => { for (const k of Object.keys(localStorage)) if (/podcast/i.test(k)) localStorage.removeItem(k); });
+    await S.ctx.close();
+  }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
-  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 15: 5 };
+  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 15: 5, 16: 13, 17: 12 };
   const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[a-d]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name)) || (c === "12" && /^c12-/.test(r.name))).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));

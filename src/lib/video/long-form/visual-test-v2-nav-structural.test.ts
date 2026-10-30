@@ -4,36 +4,28 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * Prueba estructural (lectura de código fuente, sin DOM) del acceso
- * directo "Dry Run Long Form" en el nav del dashboard — mismo principio
- * que render-route-cas.test.ts y visual-test-v2-ui-structural.test.ts:
- * confirma en el código fuente que las invariantes de seguridad/UX
- * siguen ahí, para que no se pierdan sin que un test falle.
+ * Prueba estructural (lectura de código fuente, sin DOM) del acceso directo a las pruebas sin costo de Long Form
+ * (visual-test-v2). Simple UX 1.0: ya no está en el menú del cliente (el dueño lo vio en un Samsung como «Dry Run Long
+ * Form» en la barra); vive en «Mi cuenta» → Herramientas internas, con el MISMO gate Long Form/allowlist.
  */
-const LAYOUT_SOURCE = readFileSync(
-  join(__dirname, "..", "..", "..", "app", "dashboard", "layout.tsx"),
-  "utf8",
-);
+const APP = join(__dirname, "..", "..", "..", "app", "dashboard");
+const LAYOUT_SOURCE = readFileSync(join(APP, "layout.tsx"), "utf8");
+const ACCOUNT_SOURCE = readFileSync(join(APP, "cuenta", "page.tsx"), "utf8");
 
-test("layout.tsx calcula la visibilidad del acceso directo con el mismo gate Long Form/allowlist (isLongFormEnabled + isLongFormAllowlisted)", () => {
-  assert.ok(LAYOUT_SOURCE.includes("isLongFormEnabled"));
-  assert.ok(LAYOUT_SOURCE.includes("isLongFormAllowlisted"));
-  assert.ok(LAYOUT_SOURCE.includes("showLongFormDryRun"));
+test("el menú del cliente no muestra herramientas internas (Dry Run, visual-test-v2, centro de mando)", () => {
+  assert.equal(/Dry Run|visual-test-v2|command-center|Command Center/.test(LAYOUT_SOURCE), false);
 });
 
-test("layout.tsx contiene el texto exacto del botón/enlace \"Dry Run Long Form\"", () => {
-  assert.ok(LAYOUT_SOURCE.includes("Dry Run Long Form"));
+test("«Mi cuenta» ofrece el acceso con el mismo gate Long Form/allowlist (isLongFormEnabled + isLongFormAllowlisted)", () => {
+  assert.ok(ACCOUNT_SOURCE.includes("isLongFormEnabled() && isLongFormAllowlisted(user)"));
+  assert.ok(ACCOUNT_SOURCE.includes('"/dashboard/long-form/visual-test-v2"'));
 });
 
-test("el enlace apunta exclusivamente a /dashboard/long-form/visual-test-v2 (solo navegación, sin ningún fetch/POST asociado)", () => {
-  assert.ok(LAYOUT_SOURCE.includes('href="/dashboard/long-form/visual-test-v2"'));
-  assert.equal(LAYOUT_SOURCE.includes("/api/long-form/visual-test-v2"), false);
-  assert.equal(/fetch\s*\(/.test(LAYOUT_SOURCE), false);
-});
-
-test("ambas apariciones del enlace (nav de escritorio y de móvil) están condicionadas por showLongFormDryRun", () => {
-  const occurrences = (LAYOUT_SOURCE.match(/showLongFormDryRun && \(/g) ?? []).length;
-  assert.equal(occurrences, 2);
+test("el acceso es solo navegación: sin fetch ni llamadas a la API de la prueba", () => {
+  for (const src of [LAYOUT_SOURCE, ACCOUNT_SOURCE]) {
+    assert.equal(src.includes("/api/long-form/visual-test-v2"), false);
+    assert.equal(/fetch\s*\(/.test(src), false);
+  }
 });
 
 test("layout.tsx no importa ni referencia ningún proveedor real de imagen/voz/footage ni process.env directamente", () => {

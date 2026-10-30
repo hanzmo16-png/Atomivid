@@ -255,3 +255,11 @@ export function durationFit(script: string, minutes: number): "ok" | "largo" | "
   const m = estimateMinutes(script);
   return m > minutes * (1 + DURATION_TOLERANCE) ? "largo" : m < minutes * (1 - DURATION_TOLERANCE) ? "corto" : "ok";
 }
+
+/** Idea escrita en el inicio: pasa a tema (y título) solo si el borrador no tiene tema ni un episodio en curso. */
+export function withIdea(d: WizardDraft, idea: string): WizardDraft {
+  const i = idea.replace(/\s+/g, " ").trim();
+  if (!i || d.topic.trim() || d.episodeId) return d;
+  return { ...d, topic: i.slice(0, 500), title: d.title.trim() ? d.title : i.slice(0, 120) };
+}
+

@@ -13,7 +13,7 @@ import { progressView, type LedgerActivity } from "@/lib/podcast/v3/progress";
 import { AtomProgress } from "@/components/podcast/AtomProgress";
 import { StudioPreview, type PreviewHost } from "@/components/podcast/StudioPreview";
 import { HostPicker, type HostCard } from "@/components/podcast/HostPicker";
-import { CONSENT_TEXT, INTENSITY_DB, MODALITIES, MODALITY_LABEL, SCREENS, SCREEN_SECTIONS, STEP, STUDIO_BUDGET_MAX_USD, screenErrors, screenOf, screenStart, withFormat, WIZARD_STORAGE_KEY, bindEpisode, defaultDraft, syncScriptNames, withOwnAvatar, draftToSpec, releaseEpisode, specKey, draftToV2, durationFit, estimateMinutes, loadDraft, modalityToMode, voiceKindFor, withHost, withoutHost, withVoiceKinds, type Modality, type WizardDraft } from "@/lib/podcast/v3/wizard";
+import { CONSENT_TEXT, INTENSITY_DB, MODALITIES, MODALITY_LABEL, SCREENS, SCREEN_SECTIONS, STEP, STUDIO_BUDGET_MAX_USD, screenErrors, screenOf, screenStart, withFormat, WIZARD_STORAGE_KEY, bindEpisode, defaultDraft, syncScriptNames, withIdea, withOwnAvatar, draftToSpec, releaseEpisode, specKey, draftToV2, durationFit, estimateMinutes, loadDraft, modalityToMode, voiceKindFor, withHost, withoutHost, withVoiceKinds, type Modality, type WizardDraft } from "@/lib/podcast/v3/wizard";
 import type { VisualProvider } from "@/lib/podcast/v3/studio";
 
 export type WizardVoice = { voiceId: string; name: string; available: boolean; note: string | null; kind: "sintetica" | "clonada" };
@@ -34,7 +34,7 @@ const MODE_HELP: Record<Modality, string> = {
 const SHOT_LABEL: Record<string, string> = { avatar_a: "Primer plano A", avatar_b: "Primer plano B", two_shot: "Plano general (los dos)", over_shoulder: "Sobre el hombro", imagen: "Imagen", recreacion: "Recreación", archivo: "Archivo", transicion: "Transición", titulo: "Título" };
 const KIND_LABEL: Record<string, string> = { pregunta: "pregunta", respuesta: "respuesta", comentario: "comentario", reaccion: "reacción", desacuerdo: "desacuerdo", transicion: "transición", apertura: "apertura", cierre: "cierre", narracion: "narración" };
 
-export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generationEnabled = v3Enabled, providers = [], previewNotice = null, hosts = [] }: { voices: WizardVoice[]; avatars: WizardAvatar[]; v2Enabled: boolean; v3Enabled: boolean; generationEnabled?: boolean; providers?: VisualProvider[]; previewNotice?: string | null; hosts?: WizardHost[] }) {
+export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generationEnabled = v3Enabled, providers = [], previewNotice = null, hosts = [], initialIdea = "" }: { initialIdea?: string; voices: WizardVoice[]; avatars: WizardAvatar[]; v2Enabled: boolean; v3Enabled: boolean; generationEnabled?: boolean; providers?: VisualProvider[]; previewNotice?: string | null; hosts?: WizardHost[] }) {
   const router = useRouter();
   const [raw, setRawState] = useState<WizardDraft>(defaultDraft);
   // Cualquier cambio del borrador mantiene el guion al día con los nombres de los participantes (syncScriptNames).
@@ -52,9 +52,11 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   const [status, setStatus] = useState<Status | null>(null);
   const poll = useRef<ReturnType<typeof setInterval> | null>(null);
   // Borrador persistente: volver atrás o recargar no pierde nada.
-  // Hidratación desde localStorage (solo existe en el cliente): un único setState al montar.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { setRawState(loadDraft(localStorage.getItem(WIZARD_STORAGE_KEY))); setLoaded(true); }, []);
+  // Hidratación desde localStorage (solo existe en el cliente): un único setState al montar. La idea escrita en el inicio
+  // («¿Qué quieres crear hoy?») llega como tema si el borrador aún no tiene uno; nunca pisa un borrador con tema ni uno que
+  // ya está produciendo (withIdea).
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+  useEffect(() => { setRawState(withIdea(loadDraft(localStorage.getItem(WIZARD_STORAGE_KEY)), initialIdea)); setLoaded(true); }, []);
   useEffect(() => { if (loaded) localStorage.setItem(WIZARD_STORAGE_KEY, JSON.stringify(d)); }, [d, loaded]);
   const set = (patch: Partial<WizardDraft>) => setRaw((x) => ({ ...settle(x), ...patch }));
   const setP = (i: 0 | 1, patch: Partial<WizardDraft["participants"][0]>) => setRaw((x) => { const ps = [...x.participants] as WizardDraft["participants"]; ps[i] = { ...ps[i], ...patch }; return { ...x, participants: ps }; });
