@@ -109,3 +109,10 @@ test("cero borrado directo: la ruta y la página solo actualizan archived_at de 
   // Sin la columna, la página no ofrece archivar y lo dice (el aviso solo aparece con archiveReady = false).
   assert.match(page, /!archiveReady && <p[^>]*data-testid="biblioteca-archivo-bloqueado"/);
 });
+
+test("el tope de 100 por fuente se aplica por actividad reciente (updated_at), no por fecha de creación", () => {
+  const read = (p: string) => readFileSync(path.join(__dirname, "../../..", p), "utf8");
+  const page = read("src/app/dashboard/podcast/page.tsx"), store = read("src/lib/podcast/v3/store.ts");
+  assert.match(page, /from\("podcast_episodes"\)[^;]*\.order\("updated_at", \{ ascending: false \}\)\.limit\(100\)/);
+  assert.match(store, /from\(STUDIO_TABLE\)[^;]*\.order\("updated_at", \{ ascending: false \}\)\.limit\(100\)/);
+});

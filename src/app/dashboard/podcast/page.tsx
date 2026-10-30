@@ -30,7 +30,7 @@ export default async function PodcastPage({ searchParams }: { searchParams: Prom
   if (!canAccessLongFormBeta(user)) notFound();
   const service = createServiceClient();
   // Biblioteca limpia: con la marca de archivo si su columna ya existe (propuesta 20261030170000); si no, como antes.
-  const v2 = (cols: string) => service.from("podcast_episodes").select(cols).eq("user_id", user.id).order("created_at", { ascending: false }).limit(100);
+  const v2 = (cols: string) => service.from("podcast_episodes").select(cols).eq("user_id", user.id).order("updated_at", { ascending: false }).limit(100);
   const V2_COLS = "id,title,status,source,duration_seconds,created_at,updated_at,video_status,review_status";
   const withArchive = await v2(`${V2_COLS},archived_at`);
   const archiveReady = !withArchive.error;

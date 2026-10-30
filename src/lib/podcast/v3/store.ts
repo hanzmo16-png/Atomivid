@@ -63,7 +63,8 @@ const toUuid = (hex: string) => { const h = (hex + "0".repeat(32)).slice(0, 32);
 
 export async function listStudioEpisodes(service: SupabaseClient, userId: string): Promise<(StudioEpisodeRow & { archived_at?: string | null })[] | null> {
   // Con la marca de archivo (biblioteca limpia) si su columna existe; sin ella, la lista sigue igual que antes.
-  const q = (cols: string) => service.from(STUDIO_TABLE).select(cols).eq("user_id", userId).order("created_at", { ascending: false }).limit(100);
+  // Tope de 100 por actividad reciente (updated_at): un episodio viejo editado hoy no queda fuera del tope.
+  const q = (cols: string) => service.from(STUDIO_TABLE).select(cols).eq("user_id", userId).order("updated_at", { ascending: false }).limit(100);
   let { data, error } = await q(`${STUDIO_COLUMNS},archived_at`);
   if (error) ({ data, error } = await q(STUDIO_COLUMNS));
   if (error) return null; // tabla ausente (migración no aplicada) → la lista de estudio simplemente no aparece
