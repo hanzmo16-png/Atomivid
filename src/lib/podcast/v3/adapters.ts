@@ -20,7 +20,7 @@ import { getPricingConfig } from "@/lib/billing/pricing";
 import { heygenAvatarProvider, estimateHeygenCost } from "@/lib/providers/avatar/heygen";
 import { ProviderRejectedError as StudioRejected, type SpendTicket } from "./cost";
 import type { AvatarProvider, ImageProvider, Matter, TtsProvider, TurnBrief, VisualDirector } from "./pipeline";
-import { keywords } from "./editorial";
+import { PAST_RE, SHOT_VARIETY, keywords, topicEra } from "./editorial";
 
 /** `rate`: tarifa de la estimación autorizada del episodio (si falta, la de la configuración). */
 export function realTts(language: "es" | "en", rate = getPricingConfig().elevenLabsUsdPer1kChars): TtsProvider {
@@ -86,7 +86,9 @@ export function realRecraftImages(deps: { styleRefs: () => Promise<string[]>; st
       const refusal = ticketRefusal(ticket, ticket ? await deps.readTicket(ticket) : { op: null, episode: null });
       if (refusal) throw new StudioRejected(`Recraft no se llamó: ${refusal}. No se generó ni cobró nada.`);
       if (!process.env.FAL_KEY?.trim()) throw new StudioRejected("Recraft no está configurado en el generador (FAL_KEY); no se generó ni cobró nada.");
-      const style = styleId ? { styleId } : { referenceImageUrls: await deps.styleRefs() };
+      // Tema de actualidad: las referencias (época antigua) solo aportan luz y color, no su contenido.
+      const match = req.styleMatch ? { match: req.styleMatch } : {};
+      const style = styleId ? { styleId, ...match } : { referenceImageUrls: await deps.styleRefs(), ...match };
       try {
         const r = await recraftImageProvider.generateImage!({ prompt: req.prompt, negativePrompt: req.negative, aspectRatio: req.aspect, style, disableRetries: true, maxCostUsd: RECRAFT_USD_PER_IMAGE + RECRAFT_USD_STYLE_CREATION } as never);
         if (r.styleId) styleId = r.styleId;
@@ -153,8 +155,6 @@ export function realDirector(ownerId: string, episodeId: string): VisualDirector
     } };
 }
 
-/** Pistas de que un turno habla de una escena del pasado (su ilustración es una reconstrucción → «Recreación»). */
-const PAST = /\b(antigu|histori|siglo|milenio|civilizaci|imperio|mesopotam|sumer|babilon|asiri|egipci|fara[oó]n|roman|griego|maya|azteca|inca|medieval|prehist|tablilla|cuneiform|arqueol|ruina|templo|zigurat)/i;
 
 /**
  * Director visual LOCAL (sin costo ni proveedor de pago): describe la imagen de cada turno a partir de su texto y del
@@ -166,11 +166,15 @@ export function localDirector(deps: { python?: string; dir: string }): VisualDir
   return { name: "clip", label: "real adapter (untested live)", briefUsd: 0, verifyUsd: 0, verifyBatchUsd: 0,
     async brief(input) {
       const topic = input.topic || input.title;
-      const briefs = input.turns.map((t) => {
+      const era = topicEra(topic, input.turns.map((t) => t.text));
+      const briefs = input.turns.map((t, i) => {
         const scene = (t.text.match(/[^.!?¿¡]+[.!?]?/g) ?? [t.text]).map((x) => x.trim()).filter((x) => x.length > 25).slice(0, 2).join(" ").slice(0, 260) || t.text.slice(0, 260);
         const subject = `${topic}: ${keywords(t.text).slice(0, 4).join(", ")}`.slice(0, 120);
-        return { turn_id: t.id, subject, recreation: PAST.test(`${topic} ${t.text}`),
-          prompt: `Cinematic documentary illustration, realistic lighting, no text. Tema del episodio: ${topic}. Escena que acompaña a: «${scene}»` };
+        // Encuadre distinto en cada turno y, en temas de actualidad, una escena del presente (no un documental histórico).
+        const shot = SHOT_VARIETY[i % SHOT_VARIETY.length];
+        const look = era === "actual" ? `Cinematic documentary photograph of a present-day scene, ${shot}, natural light, no text` : `Cinematic documentary illustration, ${shot}, realistic lighting, no text`;
+        return { turn_id: t.id, subject, era, recreation: era === "historica" && PAST_RE.test(`${topic} ${t.text}`),
+          prompt: `${look}. Tema del episodio: ${topic}. Escena que acompaña a: «${scene}»` };
       });
       return { briefs, actualUsd: 0 };
     },

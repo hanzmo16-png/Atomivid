@@ -112,7 +112,7 @@ test("asistente: 10 pasos en el orden pedido, persistencia y modalidades visible
   assert.equal(loadDraft(JSON.stringify({ ...defaultDraft(), set: "biblioteca" })).set, "calido", "escenario anterior → estudio compartido");
   const d = { ...defaultDraft(), step: STEP.musica, modality: "dialogo" as const, mode: "dialogo" as const, count: 2 as const, intensity: "alta" as const, ducking: false, provider: "recraft" as const };
   const back = loadDraft(JSON.stringify(d));
-  assert.equal(back.step, STEP.musica); assert.equal(back.intensity, "alta"); assert.equal(back.ducking, false);
+  assert.equal(back.step, STEP.visuales, "abre al inicio de su pantalla (Estilo)"); assert.equal(back.intensity, "alta"); assert.equal(back.ducking, false);
   assert.ok(stepErrors(d, STEP.visuales, { unavailableVoices: [], providers: visualProviders({ PODCAST_STUDIO_RECRAFT: "0" }) }).some((e) => /no se cambia automáticamente/.test(e)));
   assert.ok(stepErrors(d, STEP.avatares, { unavailableVoices: [] }).some((e) => /avatar/.test(e)));
   assert.deepEqual(stepErrors({ ...d, modality: "audio", mode: "narracion" }, STEP.avatares, { unavailableVoices: [] }), []);

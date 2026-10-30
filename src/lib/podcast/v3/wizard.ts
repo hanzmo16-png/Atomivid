@@ -12,6 +12,21 @@ export const STUDIO_BUDGET_MAX_USD = 50;
 export const STEPS = ["Modalidad", "Tema", "Participantes", "Voces", "Avatares", "Música", "Visuales", "Presupuesto", "Vista previa", "Generación"] as const;
 export const STEP = { modalidad: 0, tema: 1, participantes: 2, voces: 3, avatares: 4, musica: 5, visuales: 6, presupuesto: 7, vista: 8, generacion: 9 } as const;
 /**
+ * Premium 4.0: el asistente se recorre en 4 pantallas; cada una agrupa secciones (los pasos anteriores, que siguen siendo
+ * la unidad de validación). Primero QUIÉN habla (así el guion se escribe con sus nombres reales: episodio 51883d1c salió
+ * con «Anfitrión/Invitado»), luego QUÉ se dice, CÓMO se ve y suena, y PRODUCIR (costo, vista previa y autorización).
+ * `d.step` guarda la primera sección de la pantalla actual (o «generacion» cuando ya se pidió producir).
+ */
+export const SCREENS = ["Participantes", "Contenido", "Estilo", "Producir"] as const;
+export const SCREEN_SECTIONS: readonly (readonly number[])[] = [
+  [STEP.modalidad, STEP.participantes, STEP.voces, STEP.avatares],
+  [STEP.tema],
+  [STEP.visuales, STEP.musica],
+  [STEP.presupuesto, STEP.vista, STEP.generacion],
+];
+export const screenOf = (step: number): number => Math.max(0, SCREEN_SECTIONS.findIndex((g) => g.includes(step)));
+export const screenStart = (screen: number): number => SCREEN_SECTIONS[Math.min(Math.max(0, screen), SCREENS.length - 1)][0];
+/**
  * Modalidad visible para el usuario → modo del estudio.
  *  A «audio»: solo audio (1–2 voces, música opcional, MP3/WAV); NO se renderiza video.
  *  B «visual»: narración audiovisual con imágenes relacionadas, transiciones y música → MP4 + audio.
@@ -80,9 +95,28 @@ export function loadDraft(raw: string | null): WizardDraft {
     // Borradores anteriores: Pexels ya no está en el estudio (→ Recraft) y los escenarios de color pasan a su estudio compartido.
     if ((out.provider as string) === "pexels") out.provider = "recraft";
     if (!(STUDIO_IDS as readonly string[]).includes(out.set)) out.set = legacyStudio(out.set);
+    // Borradores del asistente de 10 pasos: se abren al inicio de la pantalla que contiene su paso (nada se pierde).
+    if (out.step !== STEP.generacion) out.step = screenStart(screenOf(Number(out.step) || 0));
     return out;
   }
   catch { return defaultDraft(); }
+}
+
+/** Errores que impiden salir de una pantalla: los de todas sus secciones (la autorización del cargo se pide al producir). */
+export function screenErrors(d: WizardDraft, screen: number, ctx: Parameters<typeof stepErrors>[2]): string[] {
+  return SCREEN_SECTIONS[screen].filter((s) => s !== STEP.generacion).flatMap((s) => stepErrors(d, s, ctx));
+}
+
+/**
+ * Formato de 1 o 2 personas, elegible en cualquier modalidad: en video con avatares, 2 personas = conversación
+ * (dos avatares) y 1 persona = presentador; en audio y narración, una voz o dos que se alternan.
+ */
+export function withFormat(d: WizardDraft, count: 1 | 2): WizardDraft {
+  if (d.modality === "avatar" || d.modality === "dialogo") {
+    const modality = count === 2 ? "dialogo" : "avatar";
+    return { ...d, count, modality, mode: modalityToMode(modality) };
+  }
+  return { ...d, count };
 }
 
 /** Errores que impiden avanzar desde un paso (mensajes para personas no técnicas). */
@@ -120,6 +154,52 @@ export function stepErrors(d: WizardDraft, step: number, ctx: { unavailableVoice
 }
 
 export const CONSENT_TEXT = "Confirmo que soy la persona de la foto o tengo su permiso expreso, y autorizo crear un avatar digital con ella para este podcast.";
+
+/** Nombres por defecto de los participantes (antes de elegir anfitrión o escribir un nombre). */
+export const DEFAULT_NAMES = ["Anfitrión", "Invitado"] as const;
+const escapeRe = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Cambia un nombre en el guion: la etiqueta de cada turno («Nombre: …») y las menciones dentro del texto (palabra
+ * completa, respetando mayúsculas: «invitado» como palabra común no se toca). Auditoría 2026-10-30 (episodio 51883d1c):
+ * el guion se generaba antes de elegir a los participantes y salió con «me acompaña Invitado» y «Gracias a ti,
+ * Anfitrión» aunque B era Valeria Montclair.
+ */
+export function renameInScript(script: string, from: string, to: string): string {
+  const a = from.trim(), b = to.trim();
+  if (!script || !a || !b || a === b) return script;
+  const word = new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(a)}(?![\\p{L}\\p{N}])`, "gu");
+  return script.split("\n").map((line) => line.replace(word, b)).join("\n");
+}
+
+/** Mantiene el guion al día con los nombres: si un participante cambia de nombre, el guion lo sigue. */
+export function syncScriptNames(prev: WizardDraft, next: WizardDraft): WizardDraft {
+  let script = next.script;
+  next.participants.forEach((p, i) => {
+    const before = prev.participants[i]?.name ?? "";
+    if (before.trim() && p.name.trim() && before.trim() !== p.name.trim()) script = renameInScript(script, before, p.name);
+  });
+  return script === next.script ? next : { ...next, script };
+}
+
+/** Palabras de un nombre de avatar que no son el nombre de la persona («Avatar Hans», «Mi avatar de estudio»). */
+const GENERIC_NAME_WORDS = new Set(["avatar", "mi", "el", "la", "de", "del", "foto", "estudio", "podcast", "nuevo", "nueva", "presentador", "presentadora"]);
+/** Nombre de pila a partir del nombre de un avatar propio («Hans Estudio podcast» → «Hans», «Avatar Hans» → «Hans»). */
+export function firstNameOf(avatarName: string): string {
+  const w = avatarName.trim().split(/\s+/).find((x) => !GENERIC_NAME_WORDS.has(x.toLowerCase())) ?? "";
+  return /^\p{Lu}[\p{L}'-]{1,30}$/u.test(w) ? w : "";
+}
+
+/**
+ * Elegir un avatar propio: si el participante seguía con el nombre por defecto, toma el nombre del avatar, salvo que ya
+ * lo tenga el otro participante (dos personas con el mismo nombre dejan el guion con un solo interlocutor).
+ */
+export function withOwnAvatar(p: WizardParticipant, avatar: { id: string; name: string }, i: 0 | 1, otherName = ""): WizardParticipant {
+  const fromAvatar = firstNameOf(avatar.name);
+  const free = fromAvatar && fromAvatar.toLowerCase() !== otherName.trim().toLowerCase() ? fromAvatar : "";
+  const name = !p.name.trim() || p.name === DEFAULT_NAMES[i] ? free || p.name : p.name;
+  return { ...p, host: null, name, avatar: { kind: "existente", avatar_id: avatar.id } };
+}
 
 /** Especificación del estudio a partir del borrador. */
 /** Huella de lo que se produciría: exactamente lo que se envía al crear el episodio. */

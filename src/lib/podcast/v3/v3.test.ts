@@ -231,7 +231,7 @@ test("composición: fotogramas acumulados = duración del audio (sincronía A/V)
 test("asistente: borrador persistente tolerante, validación por paso y especificación", () => {
   const d = { ...defaultDraft(), mode: "dialogo" as const, count: 2 as const, title: "T", script: "Ana: hola que tal\nLuis: muy bien gracias" };
   const restored = loadDraft(JSON.stringify({ ...d, step: 4 }));
-  assert.equal(restored.step, 4); assert.equal(restored.title, "T");
+  assert.equal(restored.step, 0, "«Avatares» del asistente de 10 pasos abre al inicio de Participantes"); assert.equal(restored.title, "T");
   assert.deepEqual(loadDraft("{roto"), defaultDraft());
   assert.ok(stepErrors(defaultDraft(), 0, { unavailableVoices: [] }).length);
   const p4 = stepErrors({ ...d, participants: [{ ...d.participants[0], voice_id: EL_DURO_VOICE_ID }, d.participants[1]] }, 3, { unavailableVoices: [EL_DURO_VOICE_ID] }); // paso «Voces»

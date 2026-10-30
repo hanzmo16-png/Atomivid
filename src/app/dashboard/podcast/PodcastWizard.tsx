@@ -13,7 +13,7 @@ import { progressView, type LedgerActivity } from "@/lib/podcast/v3/progress";
 import { AtomProgress } from "@/components/podcast/AtomProgress";
 import { StudioPreview, type PreviewHost } from "@/components/podcast/StudioPreview";
 import { HostPicker, type HostCard } from "@/components/podcast/HostPicker";
-import { CONSENT_TEXT, INTENSITY_DB, MODALITIES, MODALITY_LABEL, STEP, STEPS, STUDIO_BUDGET_MAX_USD, WIZARD_STORAGE_KEY, bindEpisode, defaultDraft, draftToSpec, releaseEpisode, specKey, draftToV2, durationFit, estimateMinutes, loadDraft, modalityToMode, stepErrors, voiceKindFor, withHost, withoutHost, withVoiceKinds, type Modality, type WizardDraft } from "@/lib/podcast/v3/wizard";
+import { CONSENT_TEXT, INTENSITY_DB, MODALITIES, MODALITY_LABEL, SCREENS, SCREEN_SECTIONS, STEP, STUDIO_BUDGET_MAX_USD, screenErrors, screenOf, screenStart, withFormat, WIZARD_STORAGE_KEY, bindEpisode, defaultDraft, syncScriptNames, withOwnAvatar, draftToSpec, releaseEpisode, specKey, draftToV2, durationFit, estimateMinutes, loadDraft, modalityToMode, voiceKindFor, withHost, withoutHost, withVoiceKinds, type Modality, type WizardDraft } from "@/lib/podcast/v3/wizard";
 import type { VisualProvider } from "@/lib/podcast/v3/studio";
 
 export type WizardVoice = { voiceId: string; name: string; available: boolean; note: string | null; kind: "sintetica" | "clonada" };
@@ -36,7 +36,9 @@ const KIND_LABEL: Record<string, string> = { pregunta: "pregunta", respuesta: "r
 
 export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generationEnabled = v3Enabled, providers = [], previewNotice = null, hosts = [] }: { voices: WizardVoice[]; avatars: WizardAvatar[]; v2Enabled: boolean; v3Enabled: boolean; generationEnabled?: boolean; providers?: VisualProvider[]; previewNotice?: string | null; hosts?: WizardHost[] }) {
   const router = useRouter();
-  const [raw, setRaw] = useState<WizardDraft>(defaultDraft);
+  const [raw, setRawState] = useState<WizardDraft>(defaultDraft);
+  // Cualquier cambio del borrador mantiene el guion al día con los nombres de los participantes (syncScriptNames).
+  const setRaw = (u: WizardDraft | ((x: WizardDraft) => WizardDraft)) => setRawState((x) => syncScriptNames(x, typeof u === "function" ? u(x) : u));
   const [loaded, setLoaded] = useState(false);
   // El tipo de voz se deriva del catálogo en el render: un efecto con setState rompe el lint del repo
   // (react-hooks/set-state-in-effect) y un catálogo vacío no debe reescribir un clon ya guardado.
@@ -52,12 +54,14 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   // Borrador persistente: volver atrás o recargar no pierde nada.
   // Hidratación desde localStorage (solo existe en el cliente): un único setState al montar.
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { setRaw(loadDraft(localStorage.getItem(WIZARD_STORAGE_KEY))); setLoaded(true); }, []);
+  useEffect(() => { setRawState(loadDraft(localStorage.getItem(WIZARD_STORAGE_KEY))); setLoaded(true); }, []);
   useEffect(() => { if (loaded) localStorage.setItem(WIZARD_STORAGE_KEY, JSON.stringify(d)); }, [d, loaded]);
   const set = (patch: Partial<WizardDraft>) => setRaw((x) => ({ ...settle(x), ...patch }));
   const setP = (i: 0 | 1, patch: Partial<WizardDraft["participants"][0]>) => setRaw((x) => { const ps = [...x.participants] as WizardDraft["participants"]; ps[i] = { ...ps[i], ...patch }; return { ...x, participants: ps }; });
   const unavailable = voices.filter((v) => !v.available).map((v) => v.voiceId);
-  const errs = stepErrors(d, d.step, { unavailableVoices: unavailable, providers });
+  const screen = screenOf(d.step);
+  const on = (section: number) => SCREEN_SECTIONS[screen].includes(section);
+  const errs = screenErrors(d, screen, { unavailableVoices: unavailable, providers });
   const studio = v3Enabled; // sin estudio, «Solo audio» usa el flujo actual (Podcast 2.x) y los modos con avatar quedan en espera
   const modeBlocked = !generationEnabled && d.mode !== null && (studio || d.modality !== "audio");
 
@@ -67,9 +71,10 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
     if (!out.ok) throw new Error(out.error);
     return out.data;
   }
-  async function run(fn: () => Promise<void>) { if (busy) return; setBusy(true); setError(null); try { await fn(); } catch (e) { setError(e instanceof Error && e.message ? e.message : classifyClientFetchError(e)); } finally { setBusy(false); } }
-  const go = (step: number) => { setError(null); set({ step }); };
-  const next = () => { if (errs.length) { setError(errs[0]); return; } if (d.step === STEP.visuales) void loadEstimate(); go(d.step + 1); };
+  async function run(fn: () => Promise<void>) { if (busy) return; setBusy(true); setError(null); try { await fn(); } catch (e) { setError(classifyClientFetchError(e)); } finally { setBusy(false); } }
+  // Navegación por pantallas (Participantes · Contenido · Estilo · Producir); errores de toda la pantalla, en español.
+  const go = (to: number) => { setError(null); set({ step: screenStart(to) }); };
+  const next = () => { if (errs.length) { setError(errs.slice(0, 3).join(" ")); return; } if (screen + 1 === SCREENS.length - 1) void loadEstimate(); go(screen + 1); };
 
   async function loadEstimate() {
     await run(async () => { const r = await api("/api/podcast/v3", { action: "estimate", spec: draftToSpec(withVoiceKinds(d, voices)) }); setEstimate(r.estimate as Estimate); });
@@ -90,11 +95,14 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   }
   async function authorizeAndGenerate() {
     if (!d.authorized) { setError("Marca la casilla para autorizar el cargo."); return; }
+    // Producir es la última pantalla (sin «Siguiente»): sus límites (tope por episodio) se comprueban al generar.
+    const blockers = screenErrors(d, SCREENS.length - 1, { unavailableVoices: unavailable, providers });
+    if (blockers.length) { setError(blockers[0]); return; }
     await run(async () => {
       if (!generationEnabled && !studio && d.modality === "audio") {
         const r = await api("/api/podcast", draftToV2(withVoiceKinds(d, voices), v2Enabled));
         localStorage.removeItem(WIZARD_STORAGE_KEY);
-        setRaw(defaultDraft());
+        setRawState(defaultDraft());
         router.push(`/dashboard/podcast/${String(r.id)}`);
         return;
       }
@@ -107,13 +115,13 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
     });
   }
   // Tras recargar en Presupuesto/Vista previa, la estimación (gratis, sin red de pago) se recalcula sola.
-  useEffect(() => { if (loaded && d.step >= STEP.presupuesto && d.step <= STEP.vista && !estimate && !busy) void loadEstimate(); }, [loaded, d.step]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (loaded && screen === SCREENS.length - 1 && !d.episodeId && !estimate && !busy) void loadEstimate(); }, [loaded, d.step]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!d.episodeId || d.step < STEP.generacion) return;
+    if (!d.episodeId || screen !== SCREENS.length - 1) return;
     const tick = async () => { try { const s = (await api(`/api/podcast/v3/${d.episodeId}`)) as unknown as Status; setStatus(s); if (s.episode.status === "ready" || s.episode.status === "failed") { if (poll.current) clearInterval(poll.current); } } catch { /* reintenta en el siguiente ciclo */ } };
     void tick(); poll.current = setInterval(tick, 4000);
     return () => { if (poll.current) clearInterval(poll.current); };
-  }, [d.episodeId, d.step]);
+  }, [d.episodeId, screen]);
 
   const input = "block w-full min-w-0 max-w-full rounded border border-border-strong bg-surface-raised px-3 py-2 text-base sm:text-sm";
   const choice = (on: boolean) => `rounded-lg border p-3 text-left text-sm ${on ? "border-accent bg-surface" : "border-border"}`;
@@ -129,15 +137,17 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
     <Card className="mt-4 min-w-0 max-w-full p-3 sm:p-4" data-testid="podcast-wizard" data-hydrated={loaded ? "1" : "0"} aria-busy={!loaded}>
       {previewNotice && <p className="mb-2 rounded bg-surface p-2 text-xs text-ink-muted" data-testid="preview-notice">{previewNotice}</p>}
       <ol className="flex min-w-0 max-w-full gap-1 overflow-x-auto pb-1 text-xs" aria-label="Pasos">
-        {STEPS.map((s, i) => (
-          <li key={s} className="shrink-0"><button type="button" onClick={() => i <= d.step && !(started && i < STEP.generacion && busy) && go(i)} disabled={i > d.step} aria-current={i === d.step ? "step" : undefined}
-            className={`rounded px-2 py-1 ${i === d.step ? "bg-accent text-accent-ink" : i < d.step ? "bg-surface text-ink" : "text-ink-muted"}`}>{i + 1}. {s}</button></li>
+        {SCREENS.map((s, i) => (
+          <li key={s} className="shrink-0"><button type="button" onClick={() => i <= screen && !(started && busy) && go(i)} disabled={i > screen} aria-current={i === screen ? "step" : undefined}
+            className={`rounded px-2 py-1 ${i === screen ? "bg-accent text-accent-ink" : i < screen ? "bg-surface text-ink" : "text-ink-muted"}`}>{i + 1}. {s}</button></li>
         ))}
       </ol>
-      <h2 className="mt-3 text-lg font-semibold text-ink" data-testid="wizard-step-title">Paso {d.step + 1} de {STEPS.length}: {STEPS[d.step]}</h2>
+      <h2 className="mt-3 text-lg font-semibold text-ink" data-testid="wizard-step-title">Paso {screen + 1} de {SCREENS.length}: {SCREENS[screen]}</h2>
+      {loaded && <p className="text-xs text-ink-muted" data-testid="wizard-autosave">Tu borrador se guarda automáticamente en este navegador.</p>}
 
-      {d.step === STEP.modalidad && (
+      {on(STEP.modalidad) && (
         <div className="mt-3 grid gap-2" role="radiogroup" aria-label="Modalidad">
+          <h3 className="text-sm font-semibold text-ink">Tipo de podcast</h3>
           {MODALITIES.map((m) => (
             <button key={m} type="button" role="radio" aria-checked={d.modality === m} className={choice(d.modality === m)} data-testid={`modalidad-${m}`}
               onClick={() => set({ modality: m, mode: modalityToMode(m), count: m === "dialogo" ? 2 : m === "avatar" ? 1 : d.count })}>
@@ -148,25 +158,32 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
         </div>
       )}
 
-      {d.step === STEP.tema && (
+      {on(STEP.tema) && (
         <div className="mt-3 grid gap-3 text-sm">
           <label>Título<input aria-label="Título del episodio" value={d.title} maxLength={200} onChange={(e) => set({ title: e.target.value })} className={input} /></label>
           <label>Tema<input aria-label="Tema" value={d.topic} maxLength={500} onChange={(e) => set({ topic: e.target.value })} className={input} placeholder="Por ejemplo: el misterio de la señal Wow!" /></label>
           <label>Idioma<select aria-label="Idioma" value={d.language} onChange={(e) => set({ language: e.target.value as "es" | "en" })} className={input}><option value="es">Español</option><option value="en">Inglés</option></select></label>
           <label>Duración objetivo: {d.minutes} min<input aria-label="Duración en minutos" type="range" min={1} max={30} value={d.minutes} onChange={(e) => set({ minutes: Number(e.target.value) })} className="w-full" /></label>
           {d.mode === "dialogo" && <Button type="button" variant="secondary" size="sm" onClick={generateScript} loading={busy} disabled={d.topic.trim().length < 3}>Generar conversación desde el tema</Button>}
+          {d.mode === "dialogo" && d.topic.trim().length < 3 && <p className="text-xs text-ink-muted" data-testid="motivo-generar-guion">Escribe el tema (al menos 3 letras) para generar la conversación, o pega tu guion abajo.</p>}
           <label>{d.mode === "dialogo" ? "Guion (una línea por turno: «Nombre: texto»)" : "Texto del episodio (un párrafo por idea)"}
             <textarea aria-label="Guion" value={d.script} rows={8} onChange={(e) => set({ script: e.target.value })} className={input} /></label>
           <p className="text-xs text-ink-muted">{d.script.trim().length.toLocaleString("es-MX")} caracteres · ~{estimateMinutes(d.script).toFixed(1)} min de episodio (objetivo {d.minutes} min){durationFit(d.script, d.minutes) === "corto" ? " · más corto que la duración elegida" : durationFit(d.script, d.minutes) === "largo" ? " · más largo que la duración elegida: acórtalo" : ""}</p>
         </div>
       )}
 
-      {d.step === STEP.participantes && (
+      {on(STEP.participantes) && !!d.modality && (
         <div className="mt-3 grid gap-3 text-sm">
-          {(d.modality === "audio" || d.modality === "visual") && (
-            <div className="flex flex-wrap gap-4" role="radiogroup" aria-label="Número de voces">
-              <label><input type="radio" checked={d.count === 1} onChange={() => set({ count: 1 })} /> Una voz</label>
-              <label><input type="radio" checked={d.count === 2} onChange={() => set({ count: 2 })} /> Dos voces que se alternan</label>
+          <h3 className="text-sm font-semibold text-ink">Quién participa</h3>
+          {d.modality && (
+            <div className="flex flex-wrap gap-4" role="radiogroup" aria-label="Formato" data-testid="formato-personas">
+              {d.modality === "audio" || d.modality === "visual" ? (<>
+                <label><input type="radio" checked={d.count === 1} onChange={() => setRaw((x) => withFormat(settle(x), 1))} /> Una voz</label>
+                <label><input type="radio" checked={d.count === 2} onChange={() => setRaw((x) => withFormat(settle(x), 2))} /> Dos voces que se alternan</label>
+              </>) : (<>
+                <label><input type="radio" checked={d.count === 1} onChange={() => setRaw((x) => withFormat(settle(x), 1))} /> 1 persona (presentador)</label>
+                <label><input type="radio" checked={d.count === 2} onChange={() => setRaw((x) => withFormat(settle(x), 2))} /> 2 personas (conversación)</label>
+              </>)}
             </div>
           )}
           {active.map((p, i) => (<div key={i} className="grid min-w-0 gap-2">
@@ -189,8 +206,9 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
         </div>
       )}
 
-      {d.step === STEP.voces && (
+      {on(STEP.voces) && !!d.modality && (
         <div className="mt-3 grid min-w-0 gap-3 text-sm">
+          <h3 className="text-sm font-semibold text-ink">Voces</h3>
           {active.map((p, i) => p.host ? (
             <p key={i} className="text-ink" data-testid={`voz-incluida-${tag(i)}`}>Voz de {p.name}: <b>{hosts.find((h) => h.id === p.host)?.voiceName ?? "del anfitrión"}</b> (incluida con el anfitrión, no hay que elegirla).</p>
           ) : (
@@ -205,15 +223,18 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
         </div>
       )}
 
-      {d.step === STEP.avatares && (
+      {on(STEP.avatares) && !!d.modality && (
         <div className="mt-3 grid min-w-0 gap-3 text-sm">
+          <h3 className="text-sm font-semibold text-ink">Avatares</h3>
           {d.mode === "narracion" ? <p className="text-ink-muted" data-testid="avatares-no-aplica">{d.modality === "audio" ? "Solo audio" : "Narración con imágenes"}: no se usan avatares. Puedes seguir.</p> : active.map((p, i) => p.host ? (
             <p key={i} className="text-ink" data-testid={`avatar-incluido-${tag(i)}`}>Avatar de {p.name}: el del catálogo (ya preparado).</p>
           ) : (
             <fieldset key={i} className="rounded border border-border p-2">
               <legend className="px-1">Avatar de {p.name}</legend>
               <select aria-label={`Avatar ${tag(i)}`} value={p.avatar.kind === "existente" ? p.avatar.avatar_id : p.avatar.kind === "foto" ? "__foto" : ""}
-                onChange={(e) => setP(i as 0 | 1, { avatar: e.target.value === "__foto" ? { kind: "foto", photo_path: "", consent: false, consent_at: null } : e.target.value ? { kind: "existente", avatar_id: e.target.value } : { kind: "ninguno" } })} className={input}>
+                onChange={(e) => { const v = e.target.value, own = avatars.find((a) => a.id === v);
+                  if (own) { setRaw((x) => { const ps = [...x.participants] as WizardDraft["participants"]; ps[i] = withOwnAvatar(ps[i], own, i as 0 | 1, ps[i === 0 ? 1 : 0].name); return { ...x, participants: ps }; }); return; }
+                  setP(i as 0 | 1, { avatar: v === "__foto" ? { kind: "foto", photo_path: "", consent: false, consent_at: null } : { kind: "ninguno" } }); }} className={input}>
                 <option value="">Elige…</option>
                 {avatars.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                 <option value="__foto">Crear desde una foto</option>
@@ -227,35 +248,17 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
               )}
             </fieldset>
           ))}
-          {d.mode !== "narracion" && (<>
+          {d.mode !== "narracion" && (<details className="rounded border border-border p-2"><summary className="cursor-pointer text-ink-muted">Opciones avanzadas de avatar</summary><div className="mt-2 grid gap-2">
             <label>Frecuencia del avatar: {Math.round(d.avatarFrequency * 100)}% de los turnos<input aria-label="Frecuencia del avatar" type="range" min={0.1} max={1} step={0.1} value={d.avatarFrequency} onChange={(e) => set({ avatarFrequency: Number(e.target.value) })} className="w-full" /></label>
             <label>Duración máxima por aparición: {d.avatarMaxSeconds} s<input aria-label="Duración máxima del avatar" type="range" min={5} max={60} step={5} value={d.avatarMaxSeconds} onChange={(e) => set({ avatarMaxSeconds: Number(e.target.value) })} className="w-full" /></label>
             <p className="text-xs text-ink-muted">Segmentos cortos de avatar = menor costo. Solo mueve los labios quien habla; el otro queda en reposo. Cada avatar se genera por separado y se reutiliza.</p>
-          </>)}
+          </div></details>)}
         </div>
       )}
 
-      {d.step === STEP.musica && (
-        <div className="mt-3 grid gap-3 text-sm">
-          <label><input type="checkbox" aria-label="Música de fondo" checked={d.musicEnabled} onChange={(e) => set({ musicEnabled: e.target.checked })} /> Música de fondo (biblioteca propia con licencia CC0)</label>
-          {d.musicEnabled && (<>
-            <label>Estilo musical<select aria-label="Ambiente musical" value={d.mood} onChange={(e) => set({ mood: e.target.value as WizardDraft["mood"] })} className={input}>
-              <option value="auto">Automático según el guion</option>{MOODS.map((m) => <option key={m} value={m}>{MOOD_LABEL[m]}</option>)}</select></label>
-            <label>Intensidad<select aria-label="Intensidad de la música" value={d.intensity} onChange={(e) => { const v = e.target.value as WizardDraft["intensity"]; set({ intensity: v, volumeDb: INTENSITY_DB[v] }); }} className={input}>
-              <option value="suave">Suave</option><option value="media">Media</option><option value="alta">Alta</option></select></label>
-            <label><input type="checkbox" aria-label="Cortina de entrada" checked={d.intro} onChange={(e) => set({ intro: e.target.checked })} /> Cortina de entrada (intro)</label>
-            <label><input type="checkbox" aria-label="Cortina de cierre" checked={d.outro} onChange={(e) => set({ outro: e.target.checked })} /> Cortina de cierre (outro)</label>
-            <label><input type="checkbox" aria-label="Transiciones musicales" checked={d.stings} onChange={(e) => set({ stings: e.target.checked })} /> Transiciones entre bloques</label>
-            <label><input type="checkbox" aria-label="Ducking bajo el diálogo" checked={d.ducking} onChange={(e) => set({ ducking: e.target.checked })} /> Bajar la música cuando alguien habla (ducking)</label>
-            <label>Sonido ambiente<select aria-label="Sonido ambiente" value={d.ambient} onChange={(e) => set({ ambient: e.target.value as WizardDraft["ambient"] })} className={input}>
-              <option value="ninguno">Ninguno</option><option value="lluvia">Lluvia</option><option value="viento">Viento</option><option value="noche">Noche</option></select></label>
-          </>)}
-          <p className="text-xs text-ink-muted">El audio final se ajusta a −16 LUFS (pico real ≤ −1 dBTP).</p>
-        </div>
-      )}
-
-      {d.step === STEP.visuales && (
+      {on(STEP.visuales) && (
         <div className="mt-3 grid min-w-0 gap-3 text-sm">
+          <h3 className="text-sm font-semibold text-ink">Estudio e imágenes</h3>
           {d.modality === "audio" ? <p className="text-ink-muted" data-testid="solo-audio-sin-video">Solo audio: se exporta el archivo de audio. No se genera video ni se buscan imágenes.</p> : (
             <div className="grid min-w-0 gap-2" role="radiogroup" aria-label="Proveedor visual">
               {providers.map((p) => (
@@ -281,23 +284,48 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
             <StudioPreview studio={(STUDIOS.some((x) => x.id === d.set) ? d.set : "moderno") as StudioId} a={previewHost(0)} b={d.count === 2 ? previewHost(1) : null} swap={d.swap} className="mt-1" />
             <p className="text-xs text-ink-muted">Vista previa: los dos se sientan a cada lado de la mesa, con el cuadro ATOMICVID en la pared. {active.some((p) => !p.host) ? "Los participantes personalizados aparecen al producir (se recortan de su foto)." : ""}</p>
           </div>
-          {d.mode === "dialogo" && <label><input type="checkbox" checked={d.swap} onChange={(e) => set({ swap: e.target.checked })} /> Invertir posiciones (anfitrión a la derecha)</label>}
           <label><input type="checkbox" checked={d.subtitles} onChange={(e) => set({ subtitles: e.target.checked })} /> Subtítulos</label>
-          {d.provider === "recraft" && <label><input type="checkbox" checked={d.recreations} onChange={(e) => set({ recreations: e.target.checked })} /> Permitir recreaciones (se marcan «Recreación» en pantalla)</label>}
           <div className="flex flex-wrap gap-4" role="radiogroup" aria-label="Formato de video">
             <label><input type="radio" checked={d.format === "16:9"} onChange={() => set({ format: "16:9" })} /> Horizontal 16:9 (YouTube)</label>
             <label><input type="radio" checked={d.format === "9:16"} onChange={() => set({ format: "9:16" })} /> Vertical 9:16 (Reels/TikTok)</label>
           </div>
           </>)}
-          <div className="flex flex-wrap gap-4" role="radiogroup" aria-label="Formato de audio">
-            <label><input type="radio" checked={d.audioExport === "mp3"} onChange={() => set({ audioExport: "mp3" })} /> Audio MP3</label>
-            <label><input type="radio" checked={d.audioExport === "wav"} onChange={() => set({ audioExport: "wav" })} /> Audio WAV</label>
-          </div>
+          <details className="rounded border border-border p-2"><summary className="cursor-pointer text-ink-muted">Opciones avanzadas</summary><div className="mt-2 grid gap-2">
+            {d.modality !== "audio" && d.mode === "dialogo" && <label><input type="checkbox" checked={d.swap} onChange={(e) => set({ swap: e.target.checked })} /> Invertir posiciones (anfitrión a la derecha)</label>}
+            {d.modality !== "audio" && d.provider === "recraft" && <label><input type="checkbox" checked={d.recreations} onChange={(e) => set({ recreations: e.target.checked })} /> Permitir recreaciones (se marcan «Recreación» en pantalla)</label>}
+            <div className="flex flex-wrap gap-4" role="radiogroup" aria-label="Formato de audio">
+              <label><input type="radio" checked={d.audioExport === "mp3"} onChange={() => set({ audioExport: "mp3" })} /> Audio MP3</label>
+              <label><input type="radio" checked={d.audioExport === "wav"} onChange={() => set({ audioExport: "wav" })} /> Audio WAV</label>
+            </div>
+          </div></details>
         </div>
       )}
 
-      {d.step === STEP.presupuesto && (
+      {on(STEP.musica) && (
+        <div className="mt-3 grid gap-3 text-sm">
+          <h3 className="text-sm font-semibold text-ink">Música</h3>
+          <label><input type="checkbox" aria-label="Música de fondo" checked={d.musicEnabled} onChange={(e) => set({ musicEnabled: e.target.checked })} /> Música de fondo (biblioteca propia con licencia CC0)</label>
+          {d.musicEnabled && (<>
+            <label>Estilo musical<select aria-label="Ambiente musical" value={d.mood} onChange={(e) => set({ mood: e.target.value as WizardDraft["mood"] })} className={input}>
+              <option value="auto">Automático según el guion</option>{MOODS.map((m) => <option key={m} value={m}>{MOOD_LABEL[m]}</option>)}</select></label>
+            <details className="rounded border border-border p-2"><summary className="cursor-pointer text-ink-muted">Opciones avanzadas de música</summary><div className="mt-2 grid gap-2">
+            <label>Intensidad<select aria-label="Intensidad de la música" value={d.intensity} onChange={(e) => { const v = e.target.value as WizardDraft["intensity"]; set({ intensity: v, volumeDb: INTENSITY_DB[v] }); }} className={input}>
+              <option value="suave">Suave</option><option value="media">Media</option><option value="alta">Alta</option></select></label>
+            <label><input type="checkbox" aria-label="Cortina de entrada" checked={d.intro} onChange={(e) => set({ intro: e.target.checked })} /> Cortina de entrada (intro)</label>
+            <label><input type="checkbox" aria-label="Cortina de cierre" checked={d.outro} onChange={(e) => set({ outro: e.target.checked })} /> Cortina de cierre (outro)</label>
+            <label><input type="checkbox" aria-label="Transiciones musicales" checked={d.stings} onChange={(e) => set({ stings: e.target.checked })} /> Transiciones entre bloques</label>
+            <label><input type="checkbox" aria-label="Ducking bajo el diálogo" checked={d.ducking} onChange={(e) => set({ ducking: e.target.checked })} /> Bajar la música cuando alguien habla (ducking)</label>
+            <label>Sonido ambiente<select aria-label="Sonido ambiente" value={d.ambient} onChange={(e) => set({ ambient: e.target.value as WizardDraft["ambient"] })} className={input}>
+              <option value="ninguno">Ninguno</option><option value="lluvia">Lluvia</option><option value="viento">Viento</option><option value="noche">Noche</option></select></label>
+            </div></details>
+          </>)}
+          <p className="text-xs text-ink-muted">El audio final se ajusta a −16 LUFS (pico real ≤ −1 dBTP).</p>
+        </div>
+      )}
+
+      {on(STEP.presupuesto) && !started && (
         <div className="mt-3 grid min-w-0 gap-2 text-sm" data-testid="wizard-estimate">
+          <h3 className="text-sm font-semibold text-ink">Costo</h3>
           {!estimate ? <Button type="button" variant="secondary" size="sm" onClick={loadEstimate} loading={busy}>Calcular costo</Button> : (
             <>
               <div className="min-w-0 max-w-full overflow-x-auto"><table className="w-full text-left text-xs sm:text-sm"><thead><tr><th>Concepto</th><th>Proveedor</th><th>Detalle</th><th className="text-right">USD</th></tr></thead><tbody>
@@ -314,8 +342,9 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
         </div>
       )}
 
-      {d.step === STEP.vista && (
+      {on(STEP.vista) && !started && (
         <div className="mt-3 grid gap-2 text-sm" data-testid="wizard-preview">
+          <h3 className="text-sm font-semibold text-ink">Vista previa</h3>
           <p><b>{d.title}</b> · {d.modality ? MODALITY_LABEL[d.modality] : ""} · {d.minutes} min · {d.language === "es" ? "español" : "inglés"}</p>
           <p className="text-xs">Participantes: {active.map((p) => `${p.name} (${p.role || "sin rol"}${p.personality ? `, ${p.personality}` : ""})`).join(" · ")}</p>
           <p className="text-xs">Música: {d.musicEnabled ? `${d.mood === "auto" ? "automática" : MOOD_LABEL[d.mood as keyof typeof MOOD_LABEL]}, intensidad ${d.intensity}${d.intro ? ", intro" : ""}${d.outro ? ", outro" : ""}${d.ducking ? ", ducking" : ""}` : "sin música"} · −16 LUFS</p>
@@ -334,12 +363,14 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
         </div>
       )}
 
-      {d.step === STEP.generacion && (
+      {on(STEP.generacion) && (
         <div className="mt-3 grid gap-2 text-sm">
+          <h3 className="text-sm font-semibold text-ink">Producir</h3>
           {!started && (modeBlocked ? <p className="text-danger" data-testid="generacion-bloqueada">{previewNotice ? "En esta vista previa la generación está desactivada: se activa con la migración propuesta y PODCAST_V3_ENABLED=1. La configuración queda guardada." : "Este modo se activa cuando el propietario autorice la migración y el interruptor del estudio."}</p> : (<>
             <p>Se generará «{d.title}» ({d.modality ? MODALITY_LABEL[d.modality] : MODE_LABEL[d.mode ?? "narracion"]}). Costo estimado: <b>{estimate ? USD(estimate.totalUsd) : "—"}</b>. Nunca se cobrará más de <b>{USD(d.budgetUsd)}</b>.</p>
             <label><input type="checkbox" aria-label="Autorizo el cargo" checked={d.authorized} onChange={(e) => set({ authorized: e.target.checked })} /> Autorizo generar este episodio con un cargo máximo de {USD(d.budgetUsd)}.</label>
             <Button type="button" onClick={authorizeAndGenerate} loading={busy} disabled={!d.authorized || (estimate?.totalUsd ?? 0) > d.budgetUsd}>Generar episodio</Button>
+            {(!d.authorized || (estimate?.totalUsd ?? 0) > d.budgetUsd) && <p className="text-xs text-ink-muted" data-testid="motivo-generar">{(estimate?.totalUsd ?? 0) > d.budgetUsd ? "El costo estimado supera tu presupuesto máximo: súbelo o reduce las apariciones del avatar." : "Marca la casilla de autorización para poder generar."}</p>}
           </>))}
           {started && foreign && (
             <div data-testid="wizard-episodio-anterior" className="grid gap-2">
@@ -369,10 +400,10 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
       {note && <p className="mt-3 text-sm text-ink-muted">{note}</p>}
       {error && <p role="alert" className="mt-3 text-sm text-danger">{error}</p>}
       <div className="sticky bottom-0 mt-4 flex justify-between gap-2 bg-canvas/95 py-2">
-        <Button type="button" variant="ghost" size="sm" onClick={() => go(Math.max(0, d.step - 1))} disabled={d.step === 0 || busy}>Atrás</Button>
+        <Button type="button" variant="ghost" size="sm" onClick={() => go(Math.max(0, screen - 1))} disabled={screen === 0 || busy}>Atrás</Button>
         <div className="flex gap-2">
-          <Button type="button" variant="ghost" size="sm" onClick={() => { localStorage.removeItem(WIZARD_STORAGE_KEY); setRaw(defaultDraft()); setEstimate(null); setStatus(null); setNote(null); setError(null); router.refresh(); }}>Empezar de nuevo</Button>
-          {d.step < STEP.generacion && <Button type="button" size="sm" onClick={next} disabled={busy}>Siguiente</Button>}
+          <Button type="button" variant="ghost" size="sm" onClick={() => { localStorage.removeItem(WIZARD_STORAGE_KEY); setRawState(defaultDraft()); setEstimate(null); setStatus(null); setNote(null); setError(null); router.refresh(); }}>Empezar de nuevo</Button>
+          {screen < SCREENS.length - 1 && <Button type="button" size="sm" onClick={next} disabled={busy}>Siguiente</Button>}
         </div>
       </div>
     </Card>

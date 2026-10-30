@@ -19,7 +19,7 @@ import { FPS, frameFor, muxEpisode, renderShot, shotFrames, type SubtitleWord } 
 import type { Matte } from "./studios";
 import { progressRecord, stagesFor, type Stage, type StudioProgress } from "./progress";
 import { estimateEpisodeCost, opKey, paidOnce, releaseUndelivered, committedUsd, BudgetExceededError, UnauthorizedChargeError, type CostEstimate, type SpendTicket, type StudioLedger } from "./cost";
-import { keywords, salientTerms, planEpisode, planIssues, type EditorialPlan, type VisualAsset } from "./editorial";
+import { NEGATIVE_ACTUAL, keywords, salientTerms, planEpisode, planIssues, topicEra, type EditorialPlan, type VisualAsset } from "./editorial";
 import { autoMood, ensureBundledMusic } from "./music-library";
 import { estimateSeconds, narrationTurns, parseLabeledScript, type Turn } from "./script";
 import type { Mood, StudioSpec } from "./spec";
@@ -42,7 +42,7 @@ export type AvatarProvider = { name: string; label: ProviderLabel;
   prepare?: (photoRef: string) => Promise<{ ref: string; actualUsd: number }>; prepareUsd?: number };
 export type ImageProvider = { name: string; label: ProviderLabel;
   /** Ilustración generada (Recraft, de pago) para un turno: la descripción la escribe el director visual. */
-  generate?: (req: { prompt: string; negative: string; aspect: "16:9" | "9:16"; attempt: number }, dest: string, ticket?: SpendTicket) => Promise<{ actualUsd: number }>;
+  generate?: (req: { prompt: string; negative: string; aspect: "16:9" | "9:16"; attempt: number; styleMatch?: "precise" | "flexible" }, dest: string, ticket?: SpendTicket) => Promise<{ actualUsd: number }>;
   /** Costo por imagen y costo único de crear el estilo del episodio (primera imagen). */
   generateUsd?: number; styleUsd?: number;
   /** Banco de imágenes (solo planificación y pruebas). El estudio ya no busca fotos de archivo en producción. */
@@ -50,7 +50,7 @@ export type ImageProvider = { name: string; label: ProviderLabel;
   /** Recreación generada (de pago, flujo anterior). */
   recreate?: (prompt: string, dest: string) => Promise<{ actualUsd: number }>; recreateUsd?: number };
 /** Qué debe mostrar la imagen de un turno (lo escribe el director visual a partir del contenido de la intervención). */
-export type TurnBrief = { turn_id: string; prompt: string; subject: string; recreation: boolean };
+export type TurnBrief = { turn_id: string; prompt: string; subject: string; recreation: boolean; era?: "historica" | "actual" };
 /**
  * Director visual (de pago, Anthropic): describe la imagen de cada turno y COMPRUEBA cada imagen generada mirándola.
  * Las palabras del prompt no prueban lo que muestra la imagen: el veredicto sale de la imagen misma.
@@ -159,12 +159,16 @@ export function fallbackBrief(spec: StudioSpec, turnId: string, text: string): T
 async function visualBriefs(spec: StudioSpec, turns: Turn[], providers: Providers, pay: Pay): Promise<Map<string, TurnBrief>> {
   const out = new Map<string, TurnBrief>();
   const director = providers.director;
-  if (!director || !turns.length) { for (const t of turns) out.set(t.id, fallbackBrief(spec, t.id, t.text)); return out; }
-  const input = { topic: spec.topic, title: spec.title, language: spec.language, turns: turns.map((t) => ({ id: t.id, text: t.text })) };
-  const json = await pay(director.name, "guion_visual", input, director.briefUsd, async () => { const r = await director.brief(input); return { result: JSON.stringify(r.briefs), actualUsd: r.actualUsd }; });
   let list: TurnBrief[] = [];
-  try { list = JSON.parse(json) as TurnBrief[]; } catch { list = []; }
+  if (director && turns.length) {
+    const input = { topic: spec.topic, title: spec.title, language: spec.language, turns: turns.map((t) => ({ id: t.id, text: t.text })) };
+    const json = await pay(director.name, "guion_visual", input, director.briefUsd, async () => { const r = await director.brief(input); return { result: JSON.stringify(r.briefs), actualUsd: r.actualUsd }; });
+    try { list = JSON.parse(json) as TurnBrief[]; } catch { list = []; }
+  }
   for (const t of turns) out.set(t.id, list.find((b) => b.turn_id === t.id && b.prompt?.trim()) ?? fallbackBrief(spec, t.id, t.text));
+  // Directores que no dicen la época (el de IA, la alternativa): se deduce del tema y de los turnos.
+  const era = topicEra(spec.topic || spec.title, turns.map((t) => t.text));
+  for (const [k, b] of out) if (!b.era) out.set(k, { ...b, era });
   return out;
 }
 
@@ -378,7 +382,11 @@ export async function runEpisode(spec: StudioSpec, ctx: { owner: string; episode
         const prompt = attempt === 1 ? brief.prompt : `${brief.prompt}. The image must clearly show: ${brief.subject}. Do not include: ${reason || "anything unrelated to the topic"}.`;
         const payload = { prompt, aspect: spec.format, attempt };
         const file = await pay(ctx.providers.images.name, "ilustracion", payload, (ctx.providers.images.generateUsd ?? 0) + (ctx.providers.images.styleUsd ?? 0),
-          async (ticket) => { const r = await ctx.providers.images.generate!({ prompt, negative: NEGATIVE_IMAGE, aspect: spec.format, attempt }, dest, ticket); return { result: dest, actualUsd: r.actualUsd }; }, dest);
+          async (ticket) => {
+            const actual = brief.era === "actual";
+            const r = await ctx.providers.images.generate!({ prompt, negative: actual ? NEGATIVE_ACTUAL : NEGATIVE_IMAGE, aspect: spec.format, attempt, ...(actual ? { styleMatch: "flexible" as const } : {}) }, dest, ticket);
+            return { result: dest, actualUsd: r.actualUsd };
+          }, dest);
         return { image: file, brief, key: keyOf(ctx.providers.images.name, "ilustracion", payload) };
       };
       // Primera pasada: una ilustración por plano; luego UNA verificación del lote.

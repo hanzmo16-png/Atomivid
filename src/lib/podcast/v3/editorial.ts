@@ -144,3 +144,30 @@ export function planIssues(plan: EditorialPlan): string[] {
   for (const s of plan.shots) if (s.kind === "recreacion" && s.label !== "Recreación") out.push(`Recreación sin etiqueta en ${s.turn_id}.`);
   return out;
 }
+
+/** Pistas de que un texto habla del pasado (su ilustración es una reconstrucción → «Recreación»). */
+export const PAST_RE = /\b(antigu|histori|siglo|milenio|civilizaci|imperio|mesopotam|sumer|babilon|asiri|egipci|fara[oó]n|roman|griego|maya|azteca|inca|medieval|prehist|tablilla|cuneiform|arqueol|ruina|templo|zigurat)/i;
+/**
+ * Época visual del episodio. Episodio real 51883d1c («Vida después de la visa»): 27 ilustraciones de ruinas y arcos,
+ * porque todo episodio se ilustraba como documental histórico (referencias de estilo de un zigurat y un museo, y una lista
+ * negativa que prohibía aviones, coches y teléfonos). «historica» solo si el tema, o al menos un tercio de los turnos,
+ * habla del pasado; si no, «actual».
+ */
+export function topicEra(topic: string, texts: string[]): "historica" | "actual" {
+  if (PAST_RE.test(topic)) return "historica";
+  return texts.length && texts.filter((t) => PAST_RE.test(t)).length * 3 >= texts.length ? "historica" : "actual";
+}
+/** Encuadres que se alternan turno a turno: dos ilustraciones seguidas nunca comparten composición. */
+export const SHOT_VARIETY = [
+  "wide establishing shot",
+  "medium shot of people in a candid everyday moment",
+  "close-up of a meaningful object, shallow depth of field",
+  "over-the-shoulder view of a person doing an everyday task",
+  "street-level scene with depth and movement",
+  "interior scene with warm window light",
+  "symbolic still life on a table",
+  "high-angle view of the place",
+] as const;
+/** Lista negativa de un episodio de actualidad: lo antiguo no aparece y lo moderno (aviones, teléfonos…) sí puede. */
+export const NEGATIVE_ACTUAL = "text, letters, captions, watermarks, logos, ancient ruins, pyramids, ziggurats, stone arches, temples, museum display cases, archaeological artifacts, holiday decorations, clothing catalog, product photos";
+

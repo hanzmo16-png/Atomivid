@@ -1,5 +1,6 @@
 /** Podcast — estudios compartidos, avance por etapas, duración y subtítulos por palabra (puras, sin red ni ffmpeg). */
 import { test } from "node:test";
+import data from "./studios.json";
 import assert from "node:assert/strict";
 import { progressPct, progressView, stagesFor, stageMessage, STALE_MS } from "./progress";
 import { STUDIOS, STUDIO_IDS, cameraFor, legacyStudio, placeInSeat, seatOf, studioDef } from "./studios";
@@ -41,7 +42,11 @@ test("estudios: tres compartidos con asientos a cada lado; escenarios anteriores
   const faceTop = L.y + 200 * (L.h / 1280), faceH = 360 * (L.h / 1280);
   assert.ok(faceTop - faceH * 0.4 > 0, "la cabeza (con pelo) entra completa en el primer plano");
   assert.ok(faceTop + faceH < fr.h * 0.8, "los subtítulos (abajo) no tapan la cara");
-  assert.ok(close.blur > 0 && close.frontBlur > close.blur, "fondo desenfocado y primer término aún más");
+  assert.ok(close.blur > 0 && close.frontBlur < close.blur, "fondo desenfocado; mesa y micrófono (a la distancia de quien habla) casi nítidos");
+  // 16:9, plano general = plano de conjunto (prueba real 51883d1c: con el estudio entero cada cara medía ~1/10 del alto).
+  const W = cameraFor("general", st.seats.A, "izquierda", fr, [st.seats.A.x, st.seats.B.x]);
+  assert.ok(st.seats.A.faceH * W.zoom >= fr.h * 0.12, `caras visibles en el plano general (${(st.seats.A.faceH * W.zoom).toFixed(0)} px)`);
+  for (const seat of [st.seats.A, st.seats.B]) { const P = placeInSeat(m, seat, W), cx = P.x + 360 * (P.w / 720); assert.ok(cx > fr.w * 0.1 && cx < fr.w * 0.9, "los dos dentro del plano general"); }
   // 9:16, plano general: la franja abarca los dos asientos (más grandes que con el estudio entero) y ninguno se sale.
   const v = { w: 1080, h: 1920 }, span: [number, number] = [st.seats.A.x, st.seats.B.x];
   const vcam = cameraFor("general", st.seats.A, "izquierda", v, span);
@@ -53,6 +58,20 @@ test("estudios: tres compartidos con asientos a cada lado; escenarios anteriores
   const vc = placeInSeat(m, st.seats.B, cameraFor("primer", st.seats.B, "derecha", v, span));
   const vTop = vc.y + 200 * (vc.h / 1280), vFace = 360 * (vc.h / 1280);
   assert.ok(vTop - vFace * 0.4 > 0 && vTop + vFace < v.h * 0.8, "9:16, primer plano: cabeza completa y por encima de los subtítulos");
+});
+
+test("estudios premium: un micrófono por asiento apoyado en la mesa, junto a quien habla; sin micrófonos de atrezo en el centro", () => {
+  for (const s of data.studios as unknown as { id: string; props?: unknown[]; mics: { base_y: number; offset: number; scale: number }; seats: Record<"A" | "B", { x: number; face: number; faceH: number }>; desk?: { top: number; depth: number } }[]) {
+    assert.ok(!s.props?.length, `${s.id}: sin micrófonos sueltos en el centro de la mesa`);
+    assert.ok(s.mics.offset > 0.5 && s.mics.offset < 1.2, `${s.id}: micrófono al lado interior de cada cara, sin taparla`);
+    if (s.desk) assert.ok(s.mics.base_y >= s.desk.top && s.mics.base_y <= s.desk.top + s.desk.depth, `${s.id}: la base apoya en la cubierta de la mesa`);
+    for (const k of ["A", "B"] as const) {
+      const seat = s.seats[k];
+      // Personas sentadas a la mesa (no hundidas tras ella): la cubierta queda ~2–3 caras por debajo del centro de la cara.
+      const below = (s.mics.base_y - seat.face) / seat.faceH;
+      assert.ok(below > 2 && below < 3.6, `${s.id} ${k}: mesa a la altura de la cintura (${below.toFixed(2)} caras)`);
+    }
+  }
 });
 
 test("duración: el guion se ajusta a la duración pedida al ritmo real de las voces (sin acelerar la voz)", () => {

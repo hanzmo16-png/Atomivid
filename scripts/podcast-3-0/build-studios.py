@@ -164,6 +164,72 @@ def paste_props(dst, src_plate, props):
     return dst, mask_all
 
 
+def clean_plate(plate, ops):
+    """Quita del fondo los micrófonos y brazos que traía la imagen generada (quedaban DETRÁS de las personas y, en los
+    primeros planos, parecían salirles de la cabeza; prueba real 51883d1c). Cada operación delimita una caja; la máscara
+    son los píxeles oscuros de la caja (o un polígono) y se rellena según la pared:
+      - dx/dy: copia desplazada un número entero de paneles (paredes con módulos repetidos);
+      - vfill: interpolación vertical por columna con el grano de la pared (pilares, tela lisa);
+      - inpaint: para elementos finos sobre superficies lisas.
+    Con «poly» la máscara es el polígono entero (no solo lo oscuro).
+    Las operaciones se aplican en orden sobre la imagen ya limpiada (una copia puede tomar de una zona limpiada antes)."""
+    for c in ops:
+        x0, y0, x1, y1 = c["box"]
+        gray = cv2.cvtColor(plate, cv2.COLOR_BGR2GRAY)
+        roi = gray[y0:y1, x0:x1]
+        sel = roi < c.get("dark", 40)
+        if c.get("keepgreen"):  # las plantas no son micrófonos
+            hsv = cv2.cvtColor(plate, cv2.COLOR_BGR2HSV)[y0:y1, x0:x1]
+            sel &= ~((hsv[..., 0] > 28) & (hsv[..., 0] < 90) & (hsv[..., 1] > 50) & (roi > 35))
+        m = np.zeros((H, W), np.uint8)
+        if c.get("poly"):  # objeto con contorno conocido (base de un micrófono sobre la mesa): todo el polígono
+            cv2.fillPoly(m, [np.int32(c["poly"])], 255)
+        else:
+            m[y0:y1, x0:x1] = sel.astype(np.uint8) * 255
+        m = cv2.dilate(m, np.ones((7, 7), np.uint8), iterations=c.get("grow", 2))
+        m[:y0] = 0; m[y1:] = 0; m[:, :x0] = 0; m[:, x1:] = 0
+        if c.get("inpaint"):
+            plate = cv2.inpaint(plate, m, 7, cv2.INPAINT_TELEA)
+            continue
+        if c.get("vfill"):
+            f = plate.astype(np.float32)
+            b0, b1 = c["vfill"]
+            band = f[b0:b1, x0:x1]
+            grain = band - cv2.blur(band, (9, 9))
+            for x in range(x0, x1):
+                ys = np.where(m[:, x] > 0)[0]
+                if not len(ys): continue
+                for r in np.split(ys, np.where(np.diff(ys) > 1)[0] + 1):
+                    a, b = r[0] - 1, min(r[-1] + 1, H - 1)
+                    t = ((r - a) / max(1, b - a))[:, None]
+                    f[r, x] = f[a, x] * (1 - t) + f[b, x] * t + grain[(r - a) % len(grain), x - x0]
+            plate = np.clip(f, 0, 255).astype(np.uint8)
+            continue
+        src = np.roll(plate, (-c.get("dy", 0), -c["dx"]), axis=(0, 1))
+        a = cv2.GaussianBlur(m, (0, 0), 2).astype(np.float32)[..., None] / 255
+        plate = (src * a + plate * (1 - a)).astype(np.uint8)
+    return plate
+
+
+def seat_mics(st):
+    """Un micrófono por asiento (sustituye a los dos micrófonos «props» del centro de la mesa, que apuntaban hacia fuera
+    y en los primeros planos quedaban lejos de la boca). El recorte del micrófono apunta arriba a la derecha: el de B se
+    usa tal cual, a su lado interior; el de A, reflejado. La cabeza queda hacia el lado interior (offset × alto de cara) y
+    la base apoyada en la mesa (base_y), así que el micrófono nunca flota ni se hunde aunque cambie el asiento."""
+    m = st["mics"]
+    hx = m["head"][0]
+    x, y, w, h = cv2.boundingRect(np.int32(m["poly"]))
+    s = m["scale"]
+    out = []
+    for key, flip in (("A", True), ("B", False)):
+        seat = st["seats"][key]
+        tx = seat["x"] + (m["offset"] if flip else -m["offset"]) * seat["faceH"]
+        lx = (x + w - hx) if flip else (hx - x)
+        out.append({"from": m["from"], "poly": m["poly"], "scale": s, "flip": flip,
+                    "at": [int(round(tx - lx * s)), int(round(m["base_y"] - h * s))]})
+    return out
+
+
 def poly_mask(polys, feather=1.2):
     m = np.zeros((H, W), np.uint8)
     for p in polys:
@@ -182,12 +248,15 @@ def main():
         for r in st.get("inpaint", []):  # objetos que sobran en la imagen generada (p. ej. un letrero con texto inventado)
             m = poly_mask([r], 0)
             plate = cv2.inpaint(plate, m, 9, cv2.INPAINT_TELEA)
+        if st.get("clean"):
+            plate = clean_plate(plate, st["clean"])
         extra_fg = np.zeros((H, W), np.uint8)
         if st.get("desk"):
             plate, dm = build_desk(plate, st["desk"])
             extra_fg = np.maximum(extra_fg, dm)
-        if st.get("props"):
-            props = [{**p, "from": os.path.join(src_dir, p["from"])} for p in st["props"]]
+        props = st.get("props", []) + (seat_mics(st) if st.get("mics") else [])
+        if props:
+            props = [{**p, "from": os.path.join(src_dir, p["from"])} for p in props]
             plate, pm = paste_props(plate, None, props)
             extra_fg = np.maximum(extra_fg, pm)
         sg = st["sign"]

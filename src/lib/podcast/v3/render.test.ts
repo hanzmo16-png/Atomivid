@@ -390,11 +390,25 @@ test("estudio compartido: los dos sentados en el MISMO estudio, cada uno en su l
   // El fondo original de cada persona NO entra: fuera de su alfa solo se ve el estudio (gris del cuerpo limitado al alfa).
   const primer = await renderShot(dir, 2, { turn_id: "T002", speaker: "A", kind: "avatar_a", start: 0, end: 1, reason: "" }, 25, { speakerMatte: A }, o);
   const pr = share(primer, isRed);
-  assert.ok(pr.left > red.left * 3, `primer plano de A: cara mayor y en su lado (${JSON.stringify(pr)} vs ${red.left})`);
+  // El plano general ya es un plano de conjunto (caras grandes) y el primer plano un plano medio: ~1,7× (antes 3×,
+  // con el estudio entero y un primerísimo plano).
+  assert.ok(pr.left > red.left * 1.5, `primer plano de A: cara mayor y en su lado (${JSON.stringify(pr)} vs ${red.left})`);
   assert.ok(pr.top > 2, "la cabeza no queda cortada por arriba");
   assert.ok(lime(primer) < 20, `el fondo original (verde) no entra en el primer plano: ${lime(primer)} px`);
   const swapped = await renderShot(dir, 3, { turn_id: "T003", speaker: "A", kind: "two_shot", start: 0, end: 1, reason: "" }, 25, { speakerMatte: A, listenerMatte: B }, { ...o, swap: true });
   assert.ok(share(swapped, isRed).right > 50, "invertir posiciones: A pasa a la derecha");
+  // 9:16, plano general: pantalla dividida (A arriba, B abajo), cada cara grande en su mitad (no dos figuras diminutas).
+  const vf = frameFor("9:16", true);
+  const vg = await renderShot(dir, 4, { turn_id: "T004", speaker: "B", kind: "two_shot", start: 0, end: 1, reason: "" }, 25, { speakerMatte: B, listenerMatte: A }, { ...o, frame: vf });
+  const halves = (f: string, test: (r: number, g: number, b: number) => boolean) => {
+    const raw = f + ".v.rgb"; spawnSync("ffmpeg", ["-y", "-v", "error", "-ss", "0.5", "-i", f, "-frames:v", "1", "-vf", "format=rgb24", "-f", "rawvideo", raw]);
+    const b = readFileSync(raw), rows = b.length / 3 / vf.w; let up = 0, down = 0;
+    for (let i = 0; i + 2 < b.length; i += 3) if (test(b[i], b[i + 1], b[i + 2])) { if (Math.floor(i / 3 / vf.w) < rows / 2) up++; else down++; }
+    return { up, down };
+  };
+  const vr = halves(vg, isRed), vgr = halves(vg, isGreen);
+  assert.ok(vr.up > red.left && vr.down === 0, `9:16: A arriba y grande ${JSON.stringify(vr)}`);
+  assert.ok(vgr.down > 50 && vgr.up === 0, `9:16: B abajo ${JSON.stringify(vgr)}`);
   await rm(dir, { recursive: true, force: true });
 });
 
@@ -408,6 +422,9 @@ test("Recraft: una ilustración por turno, verificada mirando la imagen; la rech
   assert.ok(imageShots.length >= 2 && imageShots.every((s) => s.asset_id!.startsWith("rc-")), "cada imagen es la ilustración de SU turno");
   assert.equal(providers.calls.briefs, 1, "un solo guion visual por episodio");
   assert.deepEqual(providers.calls.verified, [imageShots.length, 1], "un lote con todas y otro con la regenerada");
+  // «Señal Wow» (1977) es de actualidad: sin lista negativa de documental histórico y con las referencias de estilo solo
+  // como luz y color (episodio real 51883d1c: todo salía en ruinas y arcos).
+  assert.ok(providers.calls.imageReqs.length > 0 && providers.calls.imageReqs.every((q) => q.styleMatch === "flexible" && /ancient ruins/.test(q.negative) && !/airplanes/.test(q.negative)), JSON.stringify(providers.calls.imageReqs[0]));
   const card = imageShots.filter((s) => s.card);
   assert.equal(card.length, 1, "la imagen que no pasa ni regenerada queda como tarjeta");
   assert.match(card[0].reason, /rechazada por la verificación/);
