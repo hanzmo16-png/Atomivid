@@ -172,7 +172,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
         </div>
       )}
 
-      {on(STEP.participantes) && (
+      {on(STEP.participantes) && !!d.modality && (
         <div className="mt-3 grid gap-3 text-sm">
           <h3 className="text-sm font-semibold text-ink">Quién participa</h3>
           {d.modality && (
@@ -206,7 +206,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
         </div>
       )}
 
-      {on(STEP.voces) && (
+      {on(STEP.voces) && !!d.modality && (
         <div className="mt-3 grid min-w-0 gap-3 text-sm">
           <h3 className="text-sm font-semibold text-ink">Voces</h3>
           {active.map((p, i) => p.host ? (
@@ -223,7 +223,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
         </div>
       )}
 
-      {on(STEP.avatares) && (
+      {on(STEP.avatares) && !!d.modality && (
         <div className="mt-3 grid min-w-0 gap-3 text-sm">
           <h3 className="text-sm font-semibold text-ink">Avatares</h3>
           {d.mode === "narracion" ? <p className="text-ink-muted" data-testid="avatares-no-aplica">{d.modality === "audio" ? "Solo audio" : "Narración con imágenes"}: no se usan avatares. Puedes seguir.</p> : active.map((p, i) => p.host ? (
