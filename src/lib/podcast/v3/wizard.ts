@@ -12,6 +12,21 @@ export const STUDIO_BUDGET_MAX_USD = 50;
 export const STEPS = ["Modalidad", "Tema", "Participantes", "Voces", "Avatares", "Música", "Visuales", "Presupuesto", "Vista previa", "Generación"] as const;
 export const STEP = { modalidad: 0, tema: 1, participantes: 2, voces: 3, avatares: 4, musica: 5, visuales: 6, presupuesto: 7, vista: 8, generacion: 9 } as const;
 /**
+ * Premium 4.0: el asistente se recorre en 4 pantallas; cada una agrupa secciones (los pasos anteriores, que siguen siendo
+ * la unidad de validación). Primero QUIÉN habla (así el guion se escribe con sus nombres reales: episodio 51883d1c salió
+ * con «Anfitrión/Invitado»), luego QUÉ se dice, CÓMO se ve y suena, y PRODUCIR (costo, vista previa y autorización).
+ * `d.step` guarda la primera sección de la pantalla actual (o «generacion» cuando ya se pidió producir).
+ */
+export const SCREENS = ["Participantes", "Contenido", "Estilo", "Producir"] as const;
+export const SCREEN_SECTIONS: readonly (readonly number[])[] = [
+  [STEP.modalidad, STEP.participantes, STEP.voces, STEP.avatares],
+  [STEP.tema],
+  [STEP.visuales, STEP.musica],
+  [STEP.presupuesto, STEP.vista, STEP.generacion],
+];
+export const screenOf = (step: number): number => Math.max(0, SCREEN_SECTIONS.findIndex((g) => g.includes(step)));
+export const screenStart = (screen: number): number => SCREEN_SECTIONS[Math.min(Math.max(0, screen), SCREENS.length - 1)][0];
+/**
  * Modalidad visible para el usuario → modo del estudio.
  *  A «audio»: solo audio (1–2 voces, música opcional, MP3/WAV); NO se renderiza video.
  *  B «visual»: narración audiovisual con imágenes relacionadas, transiciones y música → MP4 + audio.
@@ -80,9 +95,28 @@ export function loadDraft(raw: string | null): WizardDraft {
     // Borradores anteriores: Pexels ya no está en el estudio (→ Recraft) y los escenarios de color pasan a su estudio compartido.
     if ((out.provider as string) === "pexels") out.provider = "recraft";
     if (!(STUDIO_IDS as readonly string[]).includes(out.set)) out.set = legacyStudio(out.set);
+    // Borradores del asistente de 10 pasos: se abren al inicio de la pantalla que contiene su paso (nada se pierde).
+    if (out.step !== STEP.generacion) out.step = screenStart(screenOf(Number(out.step) || 0));
     return out;
   }
   catch { return defaultDraft(); }
+}
+
+/** Errores que impiden salir de una pantalla: los de todas sus secciones (la autorización del cargo se pide al producir). */
+export function screenErrors(d: WizardDraft, screen: number, ctx: Parameters<typeof stepErrors>[2]): string[] {
+  return SCREEN_SECTIONS[screen].filter((s) => s !== STEP.generacion).flatMap((s) => stepErrors(d, s, ctx));
+}
+
+/**
+ * Formato de 1 o 2 personas, elegible en cualquier modalidad: en video con avatares, 2 personas = conversación
+ * (dos avatares) y 1 persona = presentador; en audio y narración, una voz o dos que se alternan.
+ */
+export function withFormat(d: WizardDraft, count: 1 | 2): WizardDraft {
+  if (d.modality === "avatar" || d.modality === "dialogo") {
+    const modality = count === 2 ? "dialogo" : "avatar";
+    return { ...d, count, modality, mode: modalityToMode(modality) };
+  }
+  return { ...d, count };
 }
 
 /** Errores que impiden avanzar desde un paso (mensajes para personas no técnicas). */

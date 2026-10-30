@@ -389,30 +389,23 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     ok("c9: cada llamada de voz queda registrada una sola vez en el libro de costos (simulado)", keys.length === calls.length && new Set(keys).size === keys.length, `${keys.length} operaciones, ${new Set(keys).size} claves, ${calls.length} llamadas ${JSON.stringify(led)}`);
   }
 
-  // Flujo del estudio (10 pasos). `S` = sesión, `tag` = prefijo de capturas/comprobaciones, `m` = modalidad.
+  // Flujo del estudio (4 pantallas: Participantes · Contenido · Estilo · Producir). `S` = sesión, `tag` = prefijo de
+  // capturas/comprobaciones, `m` = modalidad.
   async function studioFlow(S, tag, m, opts = {}) {
     const W = () => S.p.getByTestId("podcast-wizard");
     const next = async () => W().getByRole("button", { name: "Siguiente" }).click();
     const stepTitle = async () => (await W().getByTestId("wizard-step-title").textContent()) ?? "";
     const snap = (n) => shot(S.p, `${tag}-${n}`);
+    // Las opciones avanzadas van plegadas (<details>): se abren para poder elegirlas.
+    const advanced = () => W().locator("details").evaluateAll((ds) => ds.forEach((d) => { d.open = true; }));
     const disp0 = fs.existsSync(path.join(E2E, "logs/dispatch.jsonl")) ? fs.readFileSync(path.join(E2E, "logs/dispatch.jsonl"), "utf8").length : 0;
     await S.p.goto(`${BASE}/dashboard/podcast`); await S.p.evaluate(() => localStorage.removeItem("atomivid.podcast.asistente.v2")); await S.p.reload(); await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
-    await W().getByRole("radio", { name: new RegExp(m.mode) }).click(); await snap("paso01-modalidad"); await next();
-    await W().getByLabel("Título del episodio").fill(m.title);
-    if (m.topic) {
-      await W().getByLabel("Tema").fill(m.topic);
-      await W().getByRole("button", { name: "Generar conversación desde el tema" }).click();
-      await S.p.waitForFunction(() => (document.querySelector('[aria-label="Guion"]')?.value ?? "").length > 50, null, { timeout: 30000 });
-      const sc = await W().getByLabel("Guion").inputValue();
-      ok(`${tag}: conversación generada por turnos con identidad (plantilla sin costo)`, /^\S[^:]{0,40}: /m.test(sc) && new Set(sc.split("\n").filter(Boolean).map((l) => l.split(":")[0])).size === 2 && /\?/.test(sc), `${sc.split("\n").length} turnos`);
-    } else await W().getByLabel("Guion").fill(m.script);
-    await snap("paso02-tema");
-    await next(); await W().getByRole("button", { name: "Atrás" }).click(); await S.p.reload(); await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
-    ok(`${tag}: atrás + recarga conserva el borrador`, (await W().getByLabel("Título del episodio").inputValue()) === m.title && /Paso 2/.test(await stepTitle()));
-    await next();
+    // Pantalla 1 — Participantes: modalidad, formato, quién habla, voces y avatares.
+    ok(`${tag}: el asistente empieza por Participantes (paso 1 de 4)`, /Paso 1 de 4: Participantes/.test(await stepTitle()), await stepTitle());
+    await W().getByRole("radio", { name: new RegExp(m.mode) }).click(); await snap("paso01-modalidad");
     if (m.count === 2 && (m.mode === "Solo audio" || m.mode === "Narración con imágenes")) await W().getByLabel("Dos voces que se alternan").check();
     if (m.count === 2) { await W().getByLabel("Personalidad A").fill("Curioso, hace preguntas"); await W().getByLabel("Personalidad B").fill("Escéptica, discrepa con datos"); await W().getByLabel("Género B").selectOption("femenino"); }
-    await snap("paso03-participantes"); await next();
+    await snap("paso01b-participantes");
     await W().getByLabel("Voz A").selectOption(m.voices[0]); if (m.count === 2) await W().getByLabel("Voz B").selectOption(m.voices[1]);
     const duroOpts = await W().locator('option[value="CeFSZuaHs4SxcBxb9nCr"]').evaluateAll((os) => os.map((o) => ({ disabled: o.disabled, text: o.textContent })));
     ok(`${tag}: El Duro real sin concesión aparece «No disponible» y no se puede elegir`, duroOpts.length > 0 && duroOpts.every((o) => o.disabled && /No disponible/.test(o.text)), JSON.stringify(duroOpts));
@@ -430,19 +423,33 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       } catch { kind = await S.p.evaluate(() => localStorage.getItem("atomivid.podcast.asistente.v2") || ""); }
       ok(`${tag}: con concesión, El Duro simulado se elige como voice_kind clonada`, kind === "clonada", String(kind).slice(0, 240));
     }
-    await snap("paso04-voces");
-    await W().getByRole("button", { name: "Atrás" }).click(); await S.p.reload(); await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
+    await snap("paso01c-voces");
+    await S.p.reload(); await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
     const keptVoice = await S.p.evaluate(() => { const d = JSON.parse(localStorage.getItem("atomivid.podcast.asistente.v2") || "null"); return d?.participants?.[0]?.voice_id ?? ""; });
-    ok(`${tag}: atrás + recarga conserva la voz elegida`, keptVoice === m.voices[0], keptVoice);
+    ok(`${tag}: recarga conserva la voz elegida`, keptVoice === m.voices[0], keptVoice);
     if (m.voices.includes(DURO)) {
       const kept = await S.p.evaluate((id) => { const d = JSON.parse(localStorage.getItem("atomivid.podcast.asistente.v2") || "null"); return (d?.participants || []).find((p) => p.voice_id === id)?.voice_kind; }, DURO);
-      ok(`${tag}: atrás + recarga conserva voice_kind clonada`, kept === "clonada", String(kept));
+      ok(`${tag}: recarga conserva voice_kind clonada`, kept === "clonada", String(kept));
     }
-    await next(); await next();
     if (m.avatars) { await W().getByLabel("Avatar A").selectOption(m.avatars[0]); if (m.avatars[1]) await W().getByLabel("Avatar B").selectOption(m.avatars[1]); }
-    await snap("paso05-avatares"); await next();
+    await snap("paso01d-avatares"); await next();
+    // Pantalla 2 — Contenido: el guion se escribe ya con los nombres de los participantes.
+    await W().getByLabel("Título del episodio").fill(m.title);
+    if (m.topic) {
+      await W().getByLabel("Tema").fill(m.topic);
+      await W().getByRole("button", { name: "Generar conversación desde el tema" }).click();
+      await S.p.waitForFunction(() => (document.querySelector('[aria-label="Guion"]')?.value ?? "").length > 50, null, { timeout: 30000 });
+      const sc = await W().getByLabel("Guion").inputValue();
+      ok(`${tag}: conversación generada por turnos con identidad (plantilla sin costo)`, /^\S[^:]{0,40}: /m.test(sc) && new Set(sc.split("\n").filter(Boolean).map((l) => l.split(":")[0])).size === 2 && /\?/.test(sc), `${sc.split("\n").length} turnos`);
+    } else await W().getByLabel("Guion").fill(m.script);
+    await snap("paso02-contenido");
+    await next(); await W().getByRole("button", { name: "Atrás" }).click(); await S.p.reload(); await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
+    ok(`${tag}: atrás + recarga conserva el borrador`, (await W().getByLabel("Título del episodio").inputValue()) === m.title && /Paso 2/.test(await stepTitle()));
+    await next();
+    // Pantalla 3 — Estilo: estudio, imágenes y música.
+    ok(`${tag}: pantalla Estilo`, /Paso 3 de 4: Estilo/.test(await stepTitle()), await stepTitle());
+    await advanced();
     await W().getByLabel("Ambiente musical").selectOption(m.mood ?? "auto"); if (m.intensity) await W().getByLabel("Intensidad de la música").selectOption(m.intensity);
-    await snap("paso06-musica"); await next();
     if (m.mode !== "Solo audio") {
       // Recraft es el proveedor principal del estudio (con precio por imagen) y Pexels ya no se ofrece. Aquí su política de
       // gasto está cerrada (como la dejó la migración): el asistente lo dice ANTES de autorizar y no avanza con él; nunca lo
@@ -452,41 +459,44 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       ok(`${tag}: Recraft preseleccionado como proveedor principal`, await W().getByLabel("Ilustraciones Recraft").isChecked());
       await W().getByRole("button", { name: "Siguiente", exact: true }).click(); await S.p.waitForTimeout(400);
       const blocked = await W().getByRole("alert").textContent().catch(() => "");
-      ok(`${tag}: con Recraft no listo el asistente no avanza y explica por qué (no lo cambia solo)`, /Visuales/.test(await stepTitle()) && /No disponible por ahora/.test(blocked ?? "") && await W().getByLabel("Ilustraciones Recraft").isChecked(), String(blocked).slice(0, 160));
+      ok(`${tag}: con Recraft no listo el asistente no avanza y explica por qué (no lo cambia solo)`, /Estilo/.test(await stepTitle()) && /No disponible por ahora/.test(blocked ?? "") && await W().getByLabel("Ilustraciones Recraft").isChecked(), String(blocked).slice(0, 160));
       ok(`${tag}: Pexels ya no aparece en el estudio`, (await W().locator('[data-testid="proveedor-pexels"]').count()) === 0);
       await W().getByLabel("Solo estudio y anfitriones (sin imágenes)").check();
     }
+    await advanced();
     if (m.swap) await W().getByLabel(/Invertir posiciones/).check();
     if (m.format) await W().getByLabel(m.format).check();
-    await snap("paso07-visuales");
+    await snap("paso03-estilo");
     const visualOverflow = await S.p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     ok(`${tag}: el paso visuales no desborda el ancho (${vw}px)`, visualOverflow <= 1, `${visualOverflow}px`);
     await next();
+    // Pantalla 4 — Producir: costo, vista previa y autorización juntos.
     await W().getByTestId("wizard-estimate").locator("table").waitFor();
     const est = await W().getByTestId("wizard-estimate").textContent();
     ok(`${tag}: costo estimado por proveedor ANTES de autorizar`, ["ElevenLabs", "HeyGen", "GitHub Actions", "Total estimado"].every((k) => est.includes(k)) && await W().getByTestId("costo-por-proveedor").isVisible(), est.slice(0, 160));
+    await W().getByRole("button", { name: "Generar episodio" }).isDisabled().then((d) => ok(`${tag}: sin autorización explícita no se puede generar`, d));
+    ok(`${tag}: el botón deshabilitado dice por qué`, /autorización/.test(await W().getByTestId("motivo-generar").textContent().catch(() => "")));
     if (opts.budgetCheck) {
       // Presupuesto: el tope de USD 50 por episodio se respeta en el asistente (no al final con un 402).
-      await W().getByLabel("Presupuesto máximo").fill("60"); await next();
+      await W().getByLabel("Presupuesto máximo").fill("60"); await W().getByLabel("Autorizo el cargo").check(); await W().getByRole("button", { name: "Generar episodio" }).click(); await S.p.waitForTimeout(400);
       const alert = await W().getByRole("alert").textContent().catch(() => "");
-      ok(`${tag}: presupuesto de USD 60 bloquea el avance con el motivo (tope USD 50)`, /Paso 8/.test(await stepTitle()) && /no puede autorizar más de USD 50/.test(alert ?? ""), String(alert).slice(0, 120));
-      await W().getByLabel("Presupuesto máximo").fill("10");
+      ok(`${tag}: presupuesto de USD 60 bloquea la generación con el motivo (tope USD 50)`, /Paso 4/.test(await stepTitle()) && /no puede autorizar más de USD 50/.test(alert ?? "") && await W().getByTestId("wizard-progress").count() === 0, String(alert).slice(0, 120));
+      await W().getByLabel("Autorizo el cargo").uncheck(); await W().getByLabel("Presupuesto máximo").fill("10");
     }
-    await snap("paso08-presupuesto"); await next();
+    await snap("paso04a-presupuesto");
     await W().getByTestId("wizard-preview").waitFor(); await W().getByTestId("preview-turnos").waitFor();
     if (m.count === 2 && m.avatars) {
       const tl = await W().getByTestId("preview-timeline").textContent(), cov = await W().getByTestId("cobertura-planos").textContent();
       ok(`${tag}: vista previa con plano general y primeros planos, labios solo de quien habla`, /✔ plano general/.test(cov) && /labios A: habla · B: reposo|labios A: reposo · B: habla/.test(tl) && !/labios A: habla · B: habla/.test(tl), cov);
     }
-    await snap("paso09-vista-previa"); await next();
-    await W().getByRole("button", { name: "Generar episodio" }).isDisabled().then((d) => ok(`${tag}: sin autorización explícita no se puede generar`, d));
-    await W().getByLabel("Autorizo el cargo").check(); await snap("paso10a-autorizar");
+    await snap("paso04b-vista-previa");
+    await W().getByLabel("Autorizo el cargo").check(); await snap("paso04c-autorizar");
     await W().getByRole("button", { name: "Generar episodio" }).click();
-    await W().getByTestId("wizard-progress").waitFor(); await snap("paso10b-progreso");
+    await W().getByTestId("wizard-progress").waitFor(); await snap("paso04d-progreso");
     let row0; for (let i = 0; i < 40; i++) { row0 = (await db.query("select * from podcast_studio_episodes where user_id=$1 and title=$2 order by created_at desc limit 1", [OWNER.id, m.title])).rows[0]; if (row0?.status === "authorized") break; await S.p.waitForTimeout(500); }
     ok(`${tag}: episodio autorizado y trabajo despachado`, row0?.status === "authorized" && fs.readFileSync(path.join(E2E, "logs/dispatch.jsonl"), "utf8").slice(disp0).includes(row0.id), row0?.status);
     // Recuperación: recargar a mitad de la generación vuelve al paso Generación con el mismo episodio.
-    await S.p.reload(); await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor(); await W().getByTestId("wizard-progress").waitFor({ timeout: 20000 }).catch(() => {}); ok(`${tag}: recarga durante la generación conserva el episodio y el paso`, /Paso 10/.test(await stepTitle()) && await W().getByTestId("wizard-progress").isVisible());
+    await S.p.reload(); await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor(); await W().getByTestId("wizard-progress").waitFor({ timeout: 20000 }).catch(() => {}); ok(`${tag}: recarga durante la generación conserva el episodio y el paso`, /Paso 4/.test(await stepTitle()) && await W().getByTestId("wizard-progress").isVisible());
     if (opts.failTtsCall) {
       // Fallo a mitad (ElevenLabs simulado rechaza la voz N, sin cargo) → episodio fallido; «Reintentar» en la interfaz;
       // el reintento reutiliza lo ya pagado y no cobra dos veces (cada clave del libro liquidada una sola vez).
@@ -586,13 +596,13 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       const count = async () => (await db.query("select count(*)::int n from podcast_studio_episodes where user_id=$1", [OWNER.id])).rows[0].n;
       const dlen = () => fs.readFileSync(path.join(E2E, "logs/dispatch.jsonl"), "utf8").length;
       const back = async (re) => { for (let i = 0; i < 12 && !re.test(await stepTitle()); i++) { await W().getByRole("button", { name: "Atrás" }).click(); await S.p.waitForTimeout(250); } };
-      const forward = async () => { for (let i = 0; i < 12 && !/Generación/.test(await stepTitle()); i++) { await next(); await S.p.waitForTimeout(700); } };
+      const forward = async () => { for (let i = 0; i < 6 && !/Producir/.test(await stepTitle()); i++) { await next(); await S.p.waitForTimeout(700); } };
       const n0 = await count(), disp1 = dlen();
-      await back(/Vista previa/); await forward();
+      await back(/Estilo/); await forward();
       await W().getByTestId("wizard-progress").waitFor({ timeout: 15000 }).catch(() => {});
       ok(`${tag}: revisar los pasos sin cambiar nada conserva el MISMO episodio (no crea ni despacha)`, await W().getByTestId("wizard-progress").getAttribute("data-episode").catch(() => null) === row.id && await count() === n0 && dlen() === disp1);
       const t2 = `${m.title} (segundo)`;
-      await back(/Tema/); await W().getByLabel("Título del episodio").fill(t2); await forward(); await snap("paso11a-segundo-generacion");
+      await back(/Contenido/); await W().getByLabel("Título del episodio").fill(t2); await forward(); await snap("paso11a-segundo-generacion");
       const genBtn = W().getByRole("button", { name: "Generar episodio" });
       await genBtn.waitFor({ timeout: 15000 }).catch(() => {});
       ok(`${tag}: otra configuración → «Generación» pide generar el episodio NUEVO (sin avance ni 100 % del anterior)`, await genBtn.count() === 1 && await W().getByTestId("wizard-progress").count() === 0 && await W().getByTestId("wizard-player").count() === 0 && await count() === n0);
@@ -717,10 +727,8 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       const wide = async (n) => { const o = await S.p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth); ok(`${t}: ${n} sin desbordamiento horizontal`, o <= 1, `${o}px`); };
       await S.p.goto(`${BASE}/dashboard/podcast`); await S.p.evaluate(() => localStorage.removeItem("atomivid.podcast.asistente.v2")); await S.p.reload();
       await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
-      await W().getByTestId("modalidad-dialogo").click(); await next();
-      await W().getByLabel("Título del episodio").fill(`E2E catálogo ${dev}`); await W().getByLabel("Tema", { exact: true }).fill("Los sumerios y la escritura cuneiforme");
-      await W().getByLabel("Guion").fill(SCRIPT); await next();
-      ok(`${t}: paso Participantes`, /Participantes/.test(await title()), await title());
+      ok(`${t}: paso Participantes primero`, /Participantes/.test(await title()), await title());
+      await W().getByTestId("modalidad-dialogo").click();
       const A = W().getByRole("radiogroup", { name: /Participante A/ }), B = W().getByRole("radiogroup", { name: /Participante B/ });
       ok(`${t}: catálogo con 3 anfitriones (foto, nombre, descripción)`, (await A.locator('[data-testid^="anfitrion-"]').count()) === 3 && /Valeria Montclair/.test(await A.textContent()) && /Víctor Albarrán/.test(await A.textContent()));
       const imgs = await A.locator("img").evaluateAll((els) => els.map((e) => e.complete && e.naturalWidth > 0));
@@ -731,14 +739,14 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       ok(`${t}: Valeria no se puede elegir dos veces`, await B.getByTestId("anfitrion-valeria").getByRole("radio").isDisabled());
       await B.getByTestId("anfitrion-victor").getByRole("radio").click();
       await shot(S.p, `${t}-01-anfitriones`); await wide("anfitriones");
-      await next();
-      ok(`${t}: paso Voces`, /Voces/.test(await title()), await title());
       const voces = await W().locator('[data-testid^="voz-incluida-"]').allTextContents();
       ok(`${t}: voz cargada automáticamente con el anfitrión (Callie para Valeria), sin selector`, voces.length === 2 && /Callie/.test(voces[0]) && (await W().locator('select[aria-label^="Voz "]').count()) === 0, JSON.stringify(voces));
-      await shot(S.p, `${t}-02-voces`); await next();
       ok(`${t}: avatares del catálogo incluidos`, (await W().locator('[data-testid^="avatar-incluido-"]').count()) === 2);
-      await next(); await next();
-      ok(`${t}: paso Visuales`, /Visuales/.test(await title()), await title());
+      await shot(S.p, `${t}-02-voces`); await next();
+      // Contenido: el guion ya se escribe con los nombres de los anfitriones elegidos.
+      await W().getByLabel("Título del episodio").fill(`E2E catálogo ${dev}`); await W().getByLabel("Tema", { exact: true }).fill("Los sumerios y la escritura cuneiforme");
+      await W().getByLabel("Guion").fill(SCRIPT); await next();
+      ok(`${t}: paso Estilo`, /Estilo/.test(await title()), await title());
       ok(`${t}: Recraft preseleccionado y Pexels ausente`, await W().getByLabel("Ilustraciones Recraft").isChecked() && (await W().locator('[data-testid="proveedor-pexels"]').count()) === 0);
       const rc13 = await W().getByTestId("proveedor-recraft").textContent();
       ok(`${t}: con la política lista, Recraft se ofrece sin aviso de bloqueo`, !/No disponible/.test(rc13), rc13.slice(0, 160));
