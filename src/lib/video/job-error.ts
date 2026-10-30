@@ -47,3 +47,12 @@ function classifyStoredText(detail: string): string {
   }
   return "No se pudo completar este intento. Tu solicitud sigue guardada. Revisa su estado y contacta al soporte si el problema continúa.";
 }
+
+/**
+ * Simple UX: en el historial el código de diagnóstico no va pegado al mensaje («… (Código: 0a1b2c3d)»); se separa para
+ * mostrarlo aparte como referencia para soporte. El texto y el código no cambian, solo dónde se muestran.
+ */
+export function splitSupportCode(message: string): { text: string; code: string | null } {
+  const m = /\s*\(Código: ([0-9a-f]{8})\)$/.exec(message);
+  return m ? { text: message.slice(0, m.index), code: m[1] } : { text: message, code: null };
+}

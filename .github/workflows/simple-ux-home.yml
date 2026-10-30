@@ -1,0 +1,70 @@
+# Simple UX — portada «¿Qué quieres crear hoy?» (T-20261030-1313-chatgpt-01). USD 0: sin secretos; todo en 127.0.0.1
+# con el mismo arnés que qa-aceptacion-ux (PG local, PostgREST, mocks). Pruebas unitarias de la portada y recorrido en
+# Samsung 390x844 y escritorio 1440x900 con capturas (artefacto simple-ux-home).
+name: simple-ux-home
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [claude/atomivid-mvp-setup-0079jv]
+    paths:
+      - ".github/workflows/simple-ux-home.yml"
+      - "scripts/harness/e2e/simple-ux/**"
+      - "src/components/dashboard/simple-create/**"
+      - "src/app/dashboard/page.tsx"
+      - "src/app/dashboard/new/**"
+      - "src/components/video/RequestCard.tsx"
+      - "src/lib/video/job-error*"
+permissions:
+  contents: read
+concurrency:
+  group: simple-ux-home-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  portada:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CI: "1"
+      E2E_HOME: ${{ github.workspace }}/.e2e-local
+      E2E_PGPORT: "55532"
+      E2E_TIMEOUT: "900"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Pruebas unitarias de la portada, del historial y del formulario del Reel
+        run: node --import tsx --test src/components/dashboard/simple-create/*.test.ts src/lib/video/job-error.test.ts src/app/dashboard/new/ContentTypeStep.render.test.tsx
+      - name: Dependencias del sistema
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -yq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -yq postgresql-17 espeak-ng ffmpeg xz-utils
+          sudo systemctl stop postgresql || true
+          echo "PG_BIN=/usr/lib/postgresql/17/bin" >> "$GITHUB_ENV"
+      - name: Arnés local
+        run: bash scripts/harness/e2e/infra/setup.sh
+      - name: Entorno base (Next 3100)
+        run: bash scripts/harness/e2e/infra/start.sh
+      - name: Portada en 390x844 y 1440x900
+        run: |
+          set +e; E2E_SCRIPT=simple-ux/home.cjs bash scripts/harness/e2e/infra/run-e2e.sh simple-home; code=$?
+          grep -q '^RESULTADO' "$E2E_HOME/out/simple-home.log" || { echo "::error::simple-home terminó sin RESULTADO"; [ "$code" = 0 ] && code=1; }
+          echo "::notice title=simple-ux-home::$(grep -E '^RESULTADO' "$E2E_HOME/out/simple-home.log" | tail -1)"
+          exit $code
+      - name: Ningún proveedor real contactado
+        if: always()
+        run: |
+          f="$E2E_HOME/logs/egress.jsonl"; [ -f "$f" ] || exit 0
+          if grep '"egress_refused"' "$f" | grep -Eiq 'elevenlabs|pexels|fal\.(ai|run)|openai|anthropic|recraft|heygen|d-id|supabase\.co|stripe'; then
+            echo "::error::intento de salida hacia un proveedor real"; exit 1; fi
+      - name: Evidencia (capturas y registro; sin secretos)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: simple-ux-home
+          retention-days: 14
+          path: |
+            .e2e-local/out/simple-home
+            .e2e-local/out/simple-home.log

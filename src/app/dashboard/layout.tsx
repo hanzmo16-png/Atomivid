@@ -100,9 +100,7 @@ export default async function DashboardLayout({
               Historial
             </NavLink>
             <NavLink href="/dashboard/billing">Facturación</NavLink>
-            {showLongFormDryRun && (
-              <NavLink href="/dashboard/long-form/visual-test-v2">Dry Run Long Form</NavLink>
-            )}
+            {/* El acceso al ensayo de Long Form no va en esta franja (< 640 px): es una herramienta interna de escritorio (xl). */}
             {showPodcast && <NavLink href="/dashboard/podcast">Podcast</NavLink>}
             {showCommandCenter && <NavLink href="/dashboard/command-center">Command Center</NavLink>}
           </div>
