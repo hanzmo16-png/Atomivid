@@ -13,11 +13,11 @@ import { fontFile } from "./compose";
 const hasEspeak = () => spawnSync("espeak-ng", ["--version"]).status === 0;
 const hashNum = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 
-export type MockCalls = { tts: string[]; avatar: string[]; images: string[]; recreate: string[]; prepare: string[]; briefs: number; verified: number[]; tickets: (SpendTicket | undefined)[] };
+export type MockCalls = { tts: string[]; avatar: string[]; images: string[]; imageReqs: { negative: string; styleMatch?: string }[]; recreate: string[]; prepare: string[]; briefs: number; verified: number[]; tickets: (SpendTicket | undefined)[] };
 export function mockProviders(opts: { failAvatarTimes?: number; failTtsRejectTimes?: number; rejectTtsCall?: number; usdPer1k?: number; tonesOnly?: boolean; ttsStretch?: number;
   /** Director simulado: rechaza en la verificación las imágenes cuyo prompt contiene alguna de estas palabras. */
   rejectImagesWith?: string[]; noDirector?: boolean } = {}): Providers & { calls: MockCalls } {
-  const calls: MockCalls = { tts: [], avatar: [], images: [], recreate: [], prepare: [], briefs: 0, verified: [], tickets: [] };
+  const calls: MockCalls = { tts: [], avatar: [], images: [], imageReqs: [], recreate: [], prepare: [], briefs: 0, verified: [], tickets: [] };
   let avatarFails = opts.failAvatarTimes ?? 0, ttsRejects = opts.failTtsRejectTimes ?? 0;
   const usdPer1k = opts.usdPer1k ?? 0.2;
   const tts: TtsProvider = {
@@ -61,7 +61,7 @@ export function mockProviders(opts: { failAvatarTimes?: number; failTtsRejectTim
   // Ilustraciones simuladas (como Recraft): una por turno, con el prompt escrito en la imagen.
   const images: ImageProvider = {
     name: "recraft-mock", label: "mock", generateUsd: 0.035, styleUsd: 0.005, recreateUsd: 0.035,
-    async generate(req, dest, ticket) { calls.images.push(req.prompt); calls.tickets.push(ticket); await card(dest, `ILUSTRACION SIMULADA\n${req.prompt.slice(0, 50)}`, hashNum(req.prompt)); return { actualUsd: 0.035 }; },
+    async generate(req, dest, ticket) { calls.images.push(req.prompt); calls.imageReqs.push({ negative: req.negative, styleMatch: req.styleMatch }); calls.tickets.push(ticket); await card(dest, `ILUSTRACION SIMULADA\n${req.prompt.slice(0, 50)}`, hashNum(req.prompt)); return { actualUsd: 0.035 }; },
     async recreate(prompt, dest) { calls.recreate.push(prompt); await card(dest, `RECREACION SIMULADA\n${prompt.slice(0, 50)}`, hashNum(prompt)); return { actualUsd: 0.035 }; },
   };
   const director: VisualDirector = { name: "director-mock", label: "mock", briefUsd: 0.04, verifyUsd: 0.002, verifyBatchUsd: 0.01,

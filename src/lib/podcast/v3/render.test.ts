@@ -422,6 +422,9 @@ test("Recraft: una ilustración por turno, verificada mirando la imagen; la rech
   assert.ok(imageShots.length >= 2 && imageShots.every((s) => s.asset_id!.startsWith("rc-")), "cada imagen es la ilustración de SU turno");
   assert.equal(providers.calls.briefs, 1, "un solo guion visual por episodio");
   assert.deepEqual(providers.calls.verified, [imageShots.length, 1], "un lote con todas y otro con la regenerada");
+  // «Señal Wow» (1977) es de actualidad: sin lista negativa de documental histórico y con las referencias de estilo solo
+  // como luz y color (episodio real 51883d1c: todo salía en ruinas y arcos).
+  assert.ok(providers.calls.imageReqs.length > 0 && providers.calls.imageReqs.every((q) => q.styleMatch === "flexible" && /ancient ruins/.test(q.negative) && !/airplanes/.test(q.negative)), JSON.stringify(providers.calls.imageReqs[0]));
   const card = imageShots.filter((s) => s.card);
   assert.equal(card.length, 1, "la imagen que no pasa ni regenerada queda como tarjeta");
   assert.match(card[0].reason, /rechazada por la verificación/);
