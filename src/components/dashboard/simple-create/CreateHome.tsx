@@ -17,7 +17,7 @@ const ICON: Record<CreateFormat, string> = {
  * acción («Continuar»), que abre el flujo real del formato. Nada se crea ni se cobra aquí: el presupuesto y la
  * autorización se piden después, en el flujo de cada formato.
  */
-export function CreateHome({ formats, greeting }: { formats: FormatOption[]; greeting?: string | null }) {
+export function CreateHome({ formats, subscriptionNeeded = false }: { formats: FormatOption[]; subscriptionNeeded?: boolean }) {
   const router = useRouter();
   const [format, setFormat] = useState<CreateFormat | null>(null);
   const [idea, setIdea] = useState("");
@@ -28,7 +28,6 @@ export function CreateHome({ formats, greeting }: { formats: FormatOption[]; gre
   const note = ideaNote(format, idea);
   return (
     <section aria-labelledby="crear-titulo" className="mx-auto w-full min-w-0 max-w-2xl" data-testid="crear-inicio">
-      {greeting && <p className="text-sm text-ink-muted">{greeting}</p>}
       <h1 id="crear-titulo" className="text-2xl font-bold text-ink sm:text-3xl">¿Qué quieres crear hoy?</h1>
       <div role="radiogroup" aria-label="Formato" className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
         {formats.map((f) => {
@@ -65,6 +64,12 @@ export function CreateHome({ formats, greeting }: { formats: FormatOption[]; gre
         <p className="mt-1 text-xs text-ink-muted">{mode === "auto" ? "Automático: elegimos estilo y detalles por ti; puedes cambiarlos después." : "Personalizado: tú eliges cada detalle en el siguiente paso."}</p>
       </fieldset>
       {note && <p className="mt-3 text-sm text-ink-muted" data-testid="crear-nota">{note}</p>}
+      {subscriptionNeeded && (
+        <p className="mt-3 rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm text-ink" data-testid="crear-aviso-suscripcion">
+          Para generar necesitas una suscripción activa. Puedes preparar tu idea ahora.{" "}
+          <Link href="/dashboard/billing" className="font-medium text-accent underline">Ver planes</Link>
+        </p>
+      )}
       <p className="mt-3 text-xs text-ink-muted">Nada se crea ni se cobra hasta que lo autorices.</p>
       <Button type="button" size="lg" className="mt-3 w-full sm:w-auto" disabled={!!reason || going} loading={going} data-testid="crear-continuar"
         onClick={() => { if (!format || reason) return; setGoing(true); router.push(continueHref(format, idea, mode)); }}>

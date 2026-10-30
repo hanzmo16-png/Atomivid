@@ -99,7 +99,6 @@ export default async function DashboardPage({
 
   const hasProcessing = (requests ?? []).some((r) => r.status === "processing");
   const internalOwner = isInternalProductionOwner(user);
-  const firstName = user?.email?.split("@")[0];
   const formats = createFormats({ podcast: canAccessLongFormBeta(user) && studioFlagFor(user).enabled, youtube: canAccessLongFormBeta(user) });
   // Server Component: se evalúa una sola vez por request en el servidor
   // (no hay re-render en el cliente que pueda desincronizarse), así que
@@ -118,7 +117,7 @@ export default async function DashboardPage({
 
       {!mid && (
         <div id="crear" className="scroll-mt-20">
-          <CreateHome formats={formats} greeting={firstName ? `Hola, ${firstName}` : null} />
+          <CreateHome formats={formats} subscriptionNeeded={!subscribed && !internalOwner} />
         </div>
       )}
 
@@ -126,7 +125,8 @@ export default async function DashboardPage({
       {mid && <p className="mt-1 text-sm"><Link href="/dashboard#crear" className="text-accent underline">Crear algo nuevo</Link></p>}
 
       <div className="mt-4 space-y-3">
-        {!subscribed && !internalOwner && (
+        {/* En la portada este aviso va junto a «Continuar»; aquí solo a mitad de un flujo. */}
+        {mid && !subscribed && !internalOwner && (
           <Alert tone="info">
             Necesitas una suscripción activa para generar videos.{" "}
             <Link href="/dashboard/billing" className="font-medium underline">
@@ -170,7 +170,7 @@ export default async function DashboardPage({
             }
             title="Todavía no has creado ningún contenido"
             description="Crea tu primera solicitud y podrás seguir su progreso desde aquí."
-            action={<LinkButton href="/dashboard/new">Crear contenido</LinkButton>}
+            action={<LinkButton href="/dashboard#crear">Crear contenido</LinkButton>}
           />
         </div>
       )) : (() => {
