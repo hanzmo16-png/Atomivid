@@ -13,9 +13,8 @@
  * — ver VISUAL_TEST_V2_REAL_MODE_LOCKED más abajo.
  *
  * Reutiliza, sin duplicar:
- *   - assertLongFormAccess (access.ts) para autorización — mismo gate de
- *     beta (LONG_FORM_ENABLED + allowlist por id/email) que ya usa el
- *     resto de Long Form.
+ *   - isCommandCenterAdmin (command-center/access.ts) para autorización.
+ *     La allowlist de Long Form NO abre esta herramienta interna.
  *   - buildVisualTestV2Manifest/shouldGenerate (visual-test-v2.ts) para
  *     los 3 shots aprobados y la idempotencia por archivo en disco.
  *   - assertCanSpend/readCostLedgerFromDisk (video-cost-guard.ts) para el
@@ -34,7 +33,7 @@ import {
   VideoCostGuardExceededError,
   type CostLedger,
 } from "./video-cost-guard";
-import { assertLongFormAccess, LongFormDisabledError, LongFormNotAllowlistedError } from "./access";
+import { isCommandCenterAdmin } from "@/lib/command-center/access";
 
 /** Los 3 shots aprobados por el usuario (sección 14/20 del handoff) — cualquier desviación del manifest real es un bug técnico, nunca un cambio editorial silencioso. */
 const EXPECTED_SHOT_IDS = ["b1-s4", "b4-s2", "b8-s5"] as const;
@@ -214,7 +213,11 @@ export function runVisualTestV2Preflight(options: VisualTestV2PreflightOptions =
   };
 }
 
-export type VisualTestV2AuthUser = { id?: string | null; email?: string | null } | null | undefined;
+export type VisualTestV2AuthUser = {
+  id?: string | null;
+  email?: string | null;
+  email_confirmed_at?: string | null;
+} | null | undefined;
 
 export type VisualTestV2RouteResult = { status: number; body: Record<string, unknown> };
 
@@ -234,13 +237,17 @@ export function evaluateVisualTestV2Request(
     return { status: 401, body: { error: "No autenticado" } };
   }
 
-  try {
-    assertLongFormAccess(user, options.env ?? process.env);
-  } catch (error) {
-    if (error instanceof LongFormDisabledError || error instanceof LongFormNotAllowlistedError) {
-      return { status: 403, body: { error: "No autorizado" } };
-    }
-    throw error;
+  const env = options.env ?? process.env;
+  const admin = isCommandCenterAdmin(
+    {
+      id: user.id ?? undefined,
+      email: user.email ?? undefined,
+      email_confirmed_at: user.email_confirmed_at ?? undefined,
+    },
+    env,
+  );
+  if (!admin) {
+    return { status: 403, body: { error: "No autorizado" } };
   }
 
   try {

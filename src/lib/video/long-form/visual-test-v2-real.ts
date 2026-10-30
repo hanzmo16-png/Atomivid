@@ -42,9 +42,15 @@ import {
   uploadVisualTestV2Image,
   visualTestV2ImagePath,
   computeChecksumSha256,
+  claimVisualTestV2SpendNonce,
   VISUAL_TEST_V2_STORAGE_BUCKET,
   type ImageGenRecord,
 } from "./visual-test-v2-storage";
+import {
+  assertVisualTestV2SpendAuthorization,
+  VisualTestV2SpendAuthorizationError,
+  type VerifiedVisualTestV2SpendAuthorization,
+} from "./visual-test-v2-spend-auth";
 
 /** Cierre explícito: exactamente estos 3 shots, en este orden — ningún otro id es alcanzable desde este mecanismo. */
 export const VISUAL_TEST_V2_REAL_SHOT_IDS = ["b1-s4", "b4-s2", "b8-s5"] as const;
@@ -88,6 +94,16 @@ function round4(n: number): number {
   return Math.round(n * 10000) / 10000;
 }
 
+async function consumeSpendNonce(
+  supabase: SupabaseClient,
+  bucket: string,
+  videoId: string,
+  authorization: VerifiedVisualTestV2SpendAuthorization,
+): Promise<void> {
+  const claimed = await claimVisualTestV2SpendNonce(supabase, bucket, videoId, authorization.nonce, authorization.userId);
+  if (claimed === "replay") throw new VisualTestV2SpendAuthorizationError("replay");
+}
+
 function shotOrderIndex(shotId: string): number {
   const i = (VISUAL_TEST_V2_REAL_SHOT_IDS as readonly string[]).indexOf(shotId);
   return i === -1 ? Number.MAX_SAFE_INTEGER : i;
@@ -95,9 +111,14 @@ function shotOrderIndex(shotId: string): number {
 
 export async function runVisualTestV2RealGeneration(
   supabase: SupabaseClient,
-  bucket: string = VISUAL_TEST_V2_STORAGE_BUCKET,
-  imageProvider: ImageProvider = openaiImageProvider,
+  authorization: VerifiedVisualTestV2SpendAuthorization,
+  options?: { bucket?: string; imageProvider?: ImageProvider },
 ): Promise<VisualTestV2RealResult> {
+  // Antes de leer Storage y antes de cualquier proveedor. Un caller HTTP no puede
+  // saltarse evaluateVisualTestV2RealRequest y aun así llegar aquí sin este objeto.
+  assertVisualTestV2SpendAuthorization(authorization);
+  const bucket = options?.bucket ?? VISUAL_TEST_V2_STORAGE_BUCKET;
+  const imageProvider = options?.imageProvider ?? openaiImageProvider;
   const manifest = buildVisualTestV2Manifest();
   assertValidVisualTestV2Manifest(manifest);
   const videoId = manifest.videoId;
@@ -134,6 +155,7 @@ export async function runVisualTestV2RealGeneration(
   }
 
   if (toGenerate.length === 0) {
+    await consumeSpendNonce(supabase, bucket, videoId, authorization);
     const ledger = await readVisualTestV2Ledger(supabase, bucket, videoId);
     return {
       videoId,
@@ -156,6 +178,7 @@ export async function runVisualTestV2RealGeneration(
   // Lanza VideoCostGuardExceededError si excedería el tope de $0.50 (categoría visual_test_v2) o el
   // hard stop de $3.00 (VIDEO #001) — ANTES de llamar a OpenAI para cualquiera de los shots pendientes.
   assertCanSpend(ledger, "visual_test_v2", projectedCostUsd);
+  await consumeSpendNonce(supabase, bucket, videoId, authorization);
 
   const generated: VisualTestV2RealShotResult[] = [];
   let totalSpentThisRunUsd = 0;

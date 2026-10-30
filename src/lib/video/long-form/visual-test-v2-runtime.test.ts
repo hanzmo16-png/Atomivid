@@ -14,9 +14,22 @@ import {
 } from "./visual-test-v2-runtime";
 import type { CostLedger } from "./video-cost-guard";
 
-const AUTHORIZED_ENV = {
+const ADMIN_ENV = {
+  COMMAND_CENTER_ADMIN_EMAILS: "admin@atomivid.test",
   LONG_FORM_ENABLED: "true",
-  LONG_FORM_ALLOWLIST_EMAILS: "owner@atomivid.test",
+  LONG_FORM_ALLOWLIST_EMAILS: "beta@atomivid.test,admin@atomivid.test",
+};
+
+const ADMIN_USER = {
+  id: "admin-1",
+  email: "admin@atomivid.test",
+  email_confirmed_at: "2026-01-01T00:00:00.000Z",
+};
+
+const BETA_USER = {
+  id: "beta-1",
+  email: "beta@atomivid.test",
+  email_confirmed_at: "2026-01-01T00:00:00.000Z",
 };
 
 function tmpDirs() {
@@ -212,32 +225,28 @@ test("evaluateVisualTestV2Request: request sin usuario (anónimo) → 401", () =
   assert.equal(result.status, 401);
 });
 
-test("evaluateVisualTestV2Request: usuario autenticado pero NO allowlisted → 403 (request sin autorización → reject)", () => {
+test("evaluateVisualTestV2Request: usuario de la allowlist Long Form que no es admin → 403", () => {
+  const result = evaluateVisualTestV2Request(BETA_USER, { mode: "dry_run" }, { env: ADMIN_ENV });
+  assert.equal(result.status, 403);
+});
+
+test("evaluateVisualTestV2Request: admin con email sin confirmar → 403", () => {
   const result = evaluateVisualTestV2Request(
-    { id: "user-1", email: "nadie@ejemplo.com" },
+    { ...ADMIN_USER, email_confirmed_at: undefined },
     { mode: "dry_run" },
-    { env: AUTHORIZED_ENV },
+    { env: ADMIN_ENV },
   );
   assert.equal(result.status, 403);
 });
 
-test("evaluateVisualTestV2Request: LONG_FORM_ENABLED apagado → 403 aunque el email esté en la allowlist", () => {
-  const result = evaluateVisualTestV2Request(
-    { id: "user-1", email: "owner@atomivid.test" },
-    { mode: "dry_run" },
-    { env: { LONG_FORM_ENABLED: "false", LONG_FORM_ALLOWLIST_EMAILS: "owner@atomivid.test" } },
-  );
-  assert.equal(result.status, 403);
-});
-
-test("evaluateVisualTestV2Request: usuario autorizado + dry_run → 200 con el reporte de preflight (request autorizado → preflight permitido)", () => {
+test("evaluateVisualTestV2Request: admin + dry_run → 200 aunque LONG_FORM_ENABLED esté apagado (el producto beta no es el gate)", () => {
   const { outputDir, ledgerPath, cleanup } = tmpDirs();
   try {
-    const result = evaluateVisualTestV2Request(
-      { id: "user-1", email: "owner@atomivid.test" },
-      { mode: "dry_run" },
-      { env: AUTHORIZED_ENV, outputDir, ledgerPath },
-    );
+    const result = evaluateVisualTestV2Request(ADMIN_USER, { mode: "dry_run" }, {
+      env: { COMMAND_CENTER_ADMIN_EMAILS: "admin@atomivid.test", LONG_FORM_ENABLED: "false" },
+      outputDir,
+      ledgerPath,
+    });
     assert.equal(result.status, 200);
     assert.equal((result.body as { paidApisCalled: boolean }).paidApisCalled, false);
     assert.equal((result.body as { realModeLocked: boolean }).realModeLocked, true);
@@ -246,28 +255,18 @@ test("evaluateVisualTestV2Request: usuario autorizado + dry_run → 200 con el r
   }
 });
 
-test("evaluateVisualTestV2Request: usuario autorizado pero mode:'real' → 403, nunca ejecuta preflight ni ninguna generación (real mode desactivado → imposible generar)", () => {
-  const result = evaluateVisualTestV2Request(
-    { id: "user-1", email: "owner@atomivid.test" },
-    { mode: "real" },
-    { env: AUTHORIZED_ENV },
-  );
+test("evaluateVisualTestV2Request: admin pero mode:'real' → 403, nunca ejecuta preflight ni ninguna generación (real mode desactivado → imposible generar)", () => {
+  const result = evaluateVisualTestV2Request(ADMIN_USER, { mode: "real" }, { env: ADMIN_ENV });
   assert.equal(result.status, 403);
 });
 
-test("evaluateVisualTestV2Request: body inválido (más de 1 campo) con usuario autorizado → 400", () => {
-  const result = evaluateVisualTestV2Request(
-    { id: "user-1", email: "owner@atomivid.test" },
-    { mode: "dry_run", shots: ["b1-s4"] },
-    { env: AUTHORIZED_ENV },
-  );
+test("evaluateVisualTestV2Request: body inválido (más de 1 campo) con admin → 400", () => {
+  const result = evaluateVisualTestV2Request(ADMIN_USER, { mode: "dry_run", shots: ["b1-s4"] }, { env: ADMIN_ENV });
   assert.equal(result.status, 400);
 });
 
-test("evaluateVisualTestV2Request: body ausente/no-JSON (null) con usuario autorizado → 400, mensaje seguro", () => {
-  const result = evaluateVisualTestV2Request({ id: "user-1", email: "owner@atomivid.test" }, null, {
-    env: AUTHORIZED_ENV,
-  });
+test("evaluateVisualTestV2Request: body ausente/no-JSON (null) con admin → 400, mensaje seguro", () => {
+  const result = evaluateVisualTestV2Request(ADMIN_USER, null, { env: ADMIN_ENV });
   assert.equal(result.status, 400);
 });
 

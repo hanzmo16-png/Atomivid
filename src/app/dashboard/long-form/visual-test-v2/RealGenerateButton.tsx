@@ -3,36 +3,30 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { summarizeRealRunResponse, type RealRunDisplayState } from "@/lib/video/long-form/visual-test-v2-real-display";
-import { VISUAL_TEST_V2_REAL_CONFIRM_VALUE } from "@/lib/video/long-form/visual-test-v2-real-confirm";
 
 /**
- * Segundo control, claramente separado del DRY_RUN — genera EXACTAMENTE
- * las 3 imágenes del Visual Test V2 con dinero real. `shotIds` /
- * `estimatedTotalUsd` / `maxTotalUsd` los calcula el servidor
- * (page.tsx, a partir del manifest real ya aprobado) y llegan aquí como
- * props de solo lectura — no hay ningún input en este componente, así que
- * no hay forma de editarlos desde el cliente. El POST manda
- * EXCLUSIVAMENTE el literal fijo { confirm: VISUAL_TEST_V2_REAL_CONFIRM_VALUE }
- * — nunca un prompt, cantidad, ni "mode" arbitrario.
+ * Generación real de las 3 imágenes del Visual Test V2. Los costos y el
+ * token de autorización los calcula el servidor y llegan como props de
+ * solo lectura. El primer click solo abre la confirmación visible; el
+ * POST ocurre después, con ese token. El servidor vuelve a exigir admin
+ * y un token válido — este componente no puede autorizar el gasto solo.
  */
 export function RealGenerateButton({
   shotIds,
   estimatedTotalUsd,
   maxTotalUsd,
+  spendAuthorizationToken,
 }: {
   shotIds: readonly string[];
   estimatedTotalUsd: number;
   maxTotalUsd: number;
+  spendAuthorizationToken: string;
 }) {
+  const [armed, setArmed] = useState(false);
   const [state, setState] = useState<RealRunDisplayState>({ kind: "idle" });
+  const maxLabel = `US$${maxTotalUsd.toFixed(2)}`;
 
   async function runReal() {
-    const confirmed = window.confirm(
-      `Vas a generar ${shotIds.length} imágenes REALES con OpenAI (costo estimado $${estimatedTotalUsd.toFixed(2)}, ` +
-        `hard stop $${maxTotalUsd.toFixed(2)}). Esto consume dinero real. ¿Confirmas?`,
-    );
-    if (!confirmed) return;
-
     setState({ kind: "loading" });
     let httpStatus: number;
     let body: unknown;
@@ -40,7 +34,7 @@ export function RealGenerateButton({
       const res = await fetch("/api/long-form/visual-test-v2/real", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ confirm: VISUAL_TEST_V2_REAL_CONFIRM_VALUE }),
+        body: JSON.stringify({ confirm: spendAuthorizationToken }),
       });
       httpStatus = res.status;
       body = await res.json().catch(() => null);
@@ -59,12 +53,37 @@ export function RealGenerateButton({
           {shotIds.length} imágenes: {shotIds.join(", ")}
         </p>
         <p>Costo estimado: US${estimatedTotalUsd.toFixed(2)}</p>
-        <p>Hard stop: US${maxTotalUsd.toFixed(2)}</p>
+        <p>Máximo autorizado: {maxLabel}</p>
       </div>
 
-      <Button type="button" variant="danger" onClick={runReal} loading={state.kind === "loading"}>
-        Generar 3 imágenes — máximo US$0.50
-      </Button>
+      {!armed ? (
+        <Button type="button" variant="secondary" onClick={() => setArmed(true)}>
+          Revisar costo antes de generar — máximo {maxLabel}
+        </Button>
+      ) : (
+        <div
+          role="alertdialog"
+          aria-labelledby="vt2-spend-confirm-title"
+          aria-describedby="vt2-spend-confirm-body"
+          className="space-y-3 rounded-lg border border-danger/50 bg-surface p-4"
+        >
+          <p id="vt2-spend-confirm-title" className="font-semibold text-ink">
+            Confirmación de gasto
+          </p>
+          <p id="vt2-spend-confirm-body" className="text-sm">
+            Vas a generar {shotIds.length} imágenes reales. El máximo es {maxLabel}. Esto consume dinero real y el
+            servidor volverá a comprobar la autorización antes de llamar al proveedor.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="danger" onClick={runReal} loading={state.kind === "loading"}>
+              Generar 3 imágenes — máximo US$0.50
+            </Button>
+            <Button type="button" variant="ghost" onClick={() => setArmed(false)} disabled={state.kind === "loading"}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      )}
 
       {state.kind === "error" && (
         <p role="alert" className="text-sm text-danger">

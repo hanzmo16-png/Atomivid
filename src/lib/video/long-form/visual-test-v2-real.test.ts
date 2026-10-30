@@ -7,11 +7,33 @@ import {
   VISUAL_TEST_V2_REAL_SHOT_IDS,
   VISUAL_TEST_V2_REAL_CONFIRM_VALUE,
 } from "./visual-test-v2-real";
+import {
+  issueVisualTestV2SpendAuthorization,
+  verifyVisualTestV2SpendAuthorization,
+  VisualTestV2SpendAuthorizationError,
+} from "./visual-test-v2-spend-auth";
 import { writeVisualTestV2ShotRecord, uploadVisualTestV2Image, visualTestV2ImagePath, writeVisualTestV2Ledger } from "./visual-test-v2-storage";
 import { VideoCostGuardExceededError, emptyLedger, recordSpend } from "./video-cost-guard";
 
 const BUCKET = "videos";
 const VIDEO_ID = "gobekli-tepe-001";
+const SPEND_SECRET = "visual-test-v2-unit-secret";
+const SPEND_NOW = 1_730_000_000_000;
+const SPEND_USER = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
+function spendAuthorization() {
+  const issued = issueVisualTestV2SpendAuthorization({
+    userId: SPEND_USER,
+    nowMs: SPEND_NOW,
+    secret: SPEND_SECRET,
+  });
+  if (!issued) throw new Error("no se pudo emitir la autorización de prueba");
+  const verified = verifyVisualTestV2SpendAuthorization(issued.token, SPEND_USER, SPEND_NOW, SPEND_SECRET);
+  if (!verified) throw new Error("no se pudo verificar la autorización de prueba");
+  return verified;
+}
+
+const AUTH = spendAuthorization();
 
 /** Fake mínimo de SupabaseClient — mismo patrón que visual-test-v2-storage.test.ts, un Map en memoria por test. */
 function makeFakeSupabase() {
@@ -105,10 +127,20 @@ test("VISUAL_TEST_V2_REAL_CONFIRM_VALUE es un valor no trivial (no vacío, no ge
   assert.ok(VISUAL_TEST_V2_REAL_CONFIRM_VALUE.length > 10);
 });
 
+test("sin autorización de gasto el proveedor no se llama, aunque el storage esté vacío", async () => {
+  const { fake } = makeFakeSupabase();
+  const { provider, getCallCount } = makeCountingImageProvider();
+  await assert.rejects(
+    () => runVisualTestV2RealGeneration(fake, undefined as never, { bucket: BUCKET, imageProvider: provider }),
+    (err: unknown) => err instanceof VisualTestV2SpendAuthorizationError,
+  );
+  assert.equal(getCallCount(), 0);
+});
+
 test("1. shots nuevos (sin registro previo) → genera los 3, sube, marca COMPLETED, actualiza el ledger, paidApisCalled true", async () => {
   const { fake } = makeFakeSupabase();
   const { provider, getCallCount } = makeCountingImageProvider();
-  const result = await runVisualTestV2RealGeneration(fake, BUCKET, provider);
+  const result = await runVisualTestV2RealGeneration(fake, AUTH, { bucket: BUCKET, imageProvider: provider });
 
   assert.equal(getCallCount(), 3);
   assert.equal(result.shots.length, 3);
@@ -127,16 +159,30 @@ test("1. shots nuevos (sin registro previo) → genera los 3, sube, marca COMPLE
 test("2. segunda ejecución (mismo storage) → los 3 shots ya COMPLETED válidos se reutilizan, el proveedor NO se llama", async () => {
   const { fake } = makeFakeSupabase();
   const first = makeCountingImageProvider();
-  await runVisualTestV2RealGeneration(fake, BUCKET, first.provider);
+  await runVisualTestV2RealGeneration(fake, AUTH, { bucket: BUCKET, imageProvider: first.provider });
   assert.equal(first.getCallCount(), 3);
 
   const second = makeCountingImageProvider();
-  const result = await runVisualTestV2RealGeneration(fake, BUCKET, second.provider);
+  const result = await runVisualTestV2RealGeneration(fake, spendAuthorization(), { bucket: BUCKET, imageProvider: second.provider });
 
   assert.equal(second.getCallCount(), 0);
   assert.ok(result.shots.every((s) => s.status === "reused"));
   assert.equal(result.paidApisCalled, false);
   assert.equal(result.totalSpentThisRunUsd, 0);
+});
+
+test("2b. repetir el mismo token (replay) se rechaza y el proveedor no vuelve a llamarse", async () => {
+  const { fake } = makeFakeSupabase();
+  const first = makeCountingImageProvider();
+  await runVisualTestV2RealGeneration(fake, AUTH, { bucket: BUCKET, imageProvider: first.provider });
+  assert.equal(first.getCallCount(), 3);
+
+  const second = makeCountingImageProvider();
+  await assert.rejects(
+    () => runVisualTestV2RealGeneration(fake, AUTH, { bucket: BUCKET, imageProvider: second.provider }),
+    (err: unknown) => err instanceof VisualTestV2SpendAuthorizationError && err.reason === "replay",
+  );
+  assert.equal(second.getCallCount(), 0);
 });
 
 test("3. un shot en estado STARTED sin COMPLETED (consumo incierto) → aborta TODO el lote antes de llamar al proveedor, incluso para los shots seguros", async () => {
@@ -154,7 +200,7 @@ test("3. un shot en estado STARTED sin COMPLETED (consumo incierto) → aborta T
 
   const { provider, getCallCount } = makeCountingImageProvider();
   await assert.rejects(
-    () => runVisualTestV2RealGeneration(fake, BUCKET, provider),
+    () => runVisualTestV2RealGeneration(fake, AUTH, { bucket: BUCKET, imageProvider: provider }),
     (err: unknown) => err instanceof VisualTestV2UncertainCostStateError && err.shotIds.includes("b4-s2"),
   );
   assert.equal(getCallCount(), 0);
@@ -168,7 +214,7 @@ test("4. costo proyectado excedería el tope de $0.50 de Visual Test V2 → abor
 
   const { provider, getCallCount } = makeCountingImageProvider();
   await assert.rejects(
-    () => runVisualTestV2RealGeneration(fake, BUCKET, provider),
+    () => runVisualTestV2RealGeneration(fake, AUTH, { bucket: BUCKET, imageProvider: provider }),
     (err: unknown) => err instanceof VideoCostGuardExceededError && err.reason === "visual_test_v2_cap",
   );
   assert.equal(getCallCount(), 0);
@@ -182,7 +228,7 @@ test("5. costo proyectado excedería el hard stop de $3.00 de VIDEO #001 → abo
 
   const { provider, getCallCount } = makeCountingImageProvider();
   await assert.rejects(
-    () => runVisualTestV2RealGeneration(fake, BUCKET, provider),
+    () => runVisualTestV2RealGeneration(fake, AUTH, { bucket: BUCKET, imageProvider: provider }),
     (err: unknown) => err instanceof VideoCostGuardExceededError && err.reason === "hard_stop",
   );
   assert.equal(getCallCount(), 0);
@@ -191,7 +237,7 @@ test("5. costo proyectado excedería el hard stop de $3.00 de VIDEO #001 → abo
 test("6. proveedor no disponible (sin OPENAI_API_KEY) con shots pendientes → lanza error explícito, nunca llama a generateImage", async () => {
   const { fake } = makeFakeSupabase();
   const { provider, getCallCount } = makeCountingImageProvider({ available: false });
-  await assert.rejects(() => runVisualTestV2RealGeneration(fake, BUCKET, provider), /OPENAI_API_KEY/);
+  await assert.rejects(() => runVisualTestV2RealGeneration(fake, AUTH, { bucket: BUCKET, imageProvider: provider }), /OPENAI_API_KEY/);
   assert.equal(getCallCount(), 0);
 });
 
@@ -217,7 +263,7 @@ test("7. reuso parcial: 1 shot ya completado y válido, 2 pendientes → el prov
   });
 
   const { provider, getCallCount } = makeCountingImageProvider();
-  const result = await runVisualTestV2RealGeneration(fake, BUCKET, provider);
+  const result = await runVisualTestV2RealGeneration(fake, AUTH, { bucket: BUCKET, imageProvider: provider });
 
   assert.equal(getCallCount(), 2);
   const b1 = result.shots.find((s) => s.shotId === "b1-s4")!;
@@ -247,7 +293,7 @@ test("8. archivo corrupto (checksum no coincide con un COMPLETED existente) → 
   await uploadVisualTestV2Image(fake, BUCKET, path, fakePngBuffer("corrupto"), "image/png");
 
   const { provider, getCallCount } = makeCountingImageProvider();
-  const result = await runVisualTestV2RealGeneration(fake, BUCKET, provider);
+  const result = await runVisualTestV2RealGeneration(fake, AUTH, { bucket: BUCKET, imageProvider: provider });
 
   assert.equal(getCallCount(), 3); // los 3 se regeneran: b8-s5 por corrupción, los otros 2 por no tener registro
   const b8 = result.shots.find((s) => s.shotId === "b8-s5")!;
@@ -271,7 +317,7 @@ test("9. record COMPLETED cuyo archivo nunca se subió (faltante) → se trata c
   });
 
   const { provider, getCallCount } = makeCountingImageProvider();
-  const result = await runVisualTestV2RealGeneration(fake, BUCKET, provider);
+  const result = await runVisualTestV2RealGeneration(fake, AUTH, { bucket: BUCKET, imageProvider: provider });
   assert.equal(getCallCount(), 3);
   assert.ok(result.shots.every((s) => s.status === "generated"));
 });
@@ -279,7 +325,7 @@ test("9. record COMPLETED cuyo archivo nunca se subió (faltante) → se trata c
 test("10. cost guard contabiliza correctamente solo los shots nuevos — un reintento con 1 pendiente solo suma su costo, no el de los ya reutilizados", async () => {
   const { fake } = makeFakeSupabase();
   const first = makeCountingImageProvider();
-  await runVisualTestV2RealGeneration(fake, BUCKET, first.provider);
+  await runVisualTestV2RealGeneration(fake, AUTH, { bucket: BUCKET, imageProvider: first.provider });
   assert.equal(first.getCallCount(), 3);
 
   // Borra (simulando pérdida del registro) solo el de b8-s5 para forzar una regeneración parcial.
@@ -296,7 +342,7 @@ test("10. cost guard contabiliza correctamente solo los shots nuevos — un rein
   });
 
   const second = makeCountingImageProvider();
-  const result = await runVisualTestV2RealGeneration(fake, BUCKET, second.provider);
+  const result = await runVisualTestV2RealGeneration(fake, spendAuthorization(), { bucket: BUCKET, imageProvider: second.provider });
   assert.equal(second.getCallCount(), 1);
   assert.equal(result.totalSpentThisRunUsd, 0.05);
   // Ledger acumulado: 0.15 de la primera corrida + 0.05 de esta = 0.20.
