@@ -73,7 +73,10 @@ for (const [label, opts] of [["escritorio", { viewport: { width: 1366, height: 9
     console.log(`AT_GENERACION ${label} ${JSON.stringify({ first: samples[0], last: samples[samples.length - 1] })}`);
     console.log(`REQUESTS ${label} ${JSON.stringify({ posts, getsPrev: gets.filter((g) => g.includes(PREV)).length })}`);
     const fin = samples[samples.length - 1];
-    ok(`${label}: REPRODUCE — en «Generación» del podcast nuevo no hay botón y el indicador marca 100 % (episodio anterior)`, !fin.gen && fin.state === "listo" && fin.pct === "100%", JSON.stringify(fin));
+    if (process.env.POD_EXPECT === "corregido") {
+      // Tras #251: el borrador viejo se suelta al cambiar la configuración → «Generar episodio» y nada del episodio anterior.
+      ok(`${label}: CORREGIDO — «Generación» del podcast nuevo ofrece «Generar episodio» y no muestra el episodio anterior`, samples.every((x) => x.gen && x.state === null && x.pct === null && !x.player && !x.cost), JSON.stringify(fin));
+    } else ok(`${label}: REPRODUCE — en «Generación» del podcast nuevo no hay botón y el indicador marca 100 % (episodio anterior)`, !fin.gen && fin.state === "listo" && fin.pct === "100%", JSON.stringify(fin));
     ok(`${label}: no se envió ninguna creación ni autorización (solo estimaciones)`, posts.every((x) => x.action === "estimate"), JSON.stringify(posts));
     await p.evaluate((k) => { try { localStorage.removeItem(k); } catch {} }, KEY);
   } catch (e) { ok(`${label}: recorrido sin errores`, false, String(e).slice(0, 200)); await shot("error"); }
