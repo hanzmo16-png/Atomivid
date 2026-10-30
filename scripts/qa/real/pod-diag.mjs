@@ -61,6 +61,10 @@ if (process.env.ELEVENLABS_API_KEY) {
   for (const v of voices) out("VOICE", v);
 }
 
+if (ep.audio_path) {
+  const { data } = await db.storage.from("videos").download(ep.audio_path);
+  if (data) fs.writeFileSync(path.join(EVID, `ep${path.extname(ep.audio_path)}`), Buffer.from(await data.arrayBuffer()));
+}
 if (ep.video_path) {
   const { data } = await db.storage.from("videos").download(ep.video_path);
   if (data) {
@@ -68,5 +72,8 @@ if (ep.video_path) {
     out("VIDEO", JSON.parse(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration:stream=codec_type,width,height", "-of", "json", f]).toString()));
     spawnSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-i", f, "-vf", "fps=1/6,scale=480:-2", path.join(EVID, "frames", "f%03d.jpg")]);
     spawnSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-i", f, "-vf", "fps=1/6,scale=320:-2,tile=8x8", "-frames:v", "1", path.join(EVID, "contact.jpg")]);
+    // Copia reducida del video (540p, CRF 30) para auditar composición y sincronía por segmentos sin superar 100 MB.
+    spawnSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-i", f, "-vf", "scale=-2:540", "-c:v", "libx264", "-preset", "veryfast", "-crf", "30", "-c:a", "aac", "-b:a", "96k", path.join(EVID, "ep-540p.mp4")]);
+    spawnSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-i", f, "-vf", "fps=1,scale=640:-2", "-q:v", "4", path.join(EVID, "frames", "s%04d.jpg")]);
   }
 }
