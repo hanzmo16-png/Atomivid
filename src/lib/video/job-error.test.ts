@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { renderFailureMessage } from "./job-error";
+import { renderFailureMessage, splitSupportCode } from "./job-error";
 test("provider URLs, tokens and arbitrary raw details do not reach the UI",()=>{
   for (const raw of ["failed https://private.test/photo?token=secret", "HTTP 403 private-key-secret", "timeout private-key-secret"]) {
     const message=renderFailureMessage(raw);
@@ -51,4 +51,10 @@ test("un mensaje SIN el código de diagnóstico (texto crudo real de run-job.ts)
   const message = renderFailureMessage(raw);
   assert.notEqual(message, raw);
   assert.equal(message, "No se pudo completar este intento. Tu solicitud sigue guardada. Revisa su estado y contacta al soporte si el problema continúa.");
+});
+
+test("splitSupportCode separa el código de diagnóstico sin cambiar el mensaje", () => {
+  assert.deepEqual(splitSupportCode("No se pudo generar el guion. (Código: 0a1b2c3d)"), { text: "No se pudo generar el guion.", code: "0a1b2c3d" });
+  assert.deepEqual(splitSupportCode("Sin código"), { text: "Sin código", code: null });
+  assert.deepEqual(splitSupportCode("Código en medio (Código: 0a1b2c3d) y más"), { text: "Código en medio (Código: 0a1b2c3d) y más", code: null });
 });

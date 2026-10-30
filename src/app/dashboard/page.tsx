@@ -20,6 +20,10 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { LinkButton } from "@/components/ui/Button";
 import Link from "next/link";
 import { DraftKeyRotation } from "./DraftKeyRotation";
+import { CreateHome } from "@/components/dashboard/simple-create/CreateHome";
+import { createFormats, midFlow, splitHistory } from "@/components/dashboard/simple-create/home";
+import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
+import { studioFlagFor } from "@/lib/podcast/v3/studio";
 
 export default async function DashboardPage({
   searchParams,
@@ -27,6 +31,9 @@ export default async function DashboardPage({
   searchParams: Promise<{ created?: string; draft?: string; existing?: string; script_job?: string }>;
 }) {
   const { created, draft, existing, script_job } = await searchParams;
+  // Simple UX 1.0: la pantalla empieza por «¿Qué quieres crear hoy?»; si se vuelve aquí a mitad de un flujo (solicitud
+  // recién creada, guion en preparación), el historial va primero para no esconder la acción pendiente.
+  const mid = midFlow({ created, draft, existing, script_job });
   const supabase = await createClient();
 
   const {
@@ -93,6 +100,7 @@ export default async function DashboardPage({
   const hasProcessing = (requests ?? []).some((r) => r.status === "processing");
   const internalOwner = isInternalProductionOwner(user);
   const firstName = user?.email?.split("@")[0];
+  const formats = createFormats({ podcast: canAccessLongFormBeta(user) && studioFlagFor(user).enabled, youtube: canAccessLongFormBeta(user) });
   // Server Component: se evalúa una sola vez por request en el servidor
   // (no hay re-render en el cliente que pueda desincronizarse), así que
   // Date.now() aquí es seguro pese a la regla de pureza de React.
@@ -108,27 +116,16 @@ export default async function DashboardPage({
     <div>
       <AutoRefresh active={hasProcessing || (scriptJobs ?? []).some(job => scriptJobView(job, nowMs).refresh)} />
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm text-ink-muted">
-            {firstName ? `Hola, ${firstName}` : "Tus videos"}
-          </p>
-          <h1 className="text-2xl font-bold text-ink">Tus videos</h1>
+      {!mid && (
+        <div id="crear" className="scroll-mt-20">
+          <CreateHome formats={formats} greeting={firstName ? `Hola, ${firstName}` : null} />
         </div>
-        <LinkButton href="/dashboard/new" className="w-full sm:w-auto">
-          Nuevo video
-        </LinkButton>
-      </div>
+      )}
+
+      <h2 id="proyectos" className={`${mid ? "" : "mt-12 "}text-xl font-semibold text-ink`}>Mis proyectos</h2>
+      {mid && <p className="mt-1 text-sm"><Link href="/dashboard#crear" className="text-accent underline">Crear algo nuevo</Link></p>}
 
       <div className="mt-4 space-y-3">
-        {internalOwner && (
-          <Alert tone="info">
-            Plan Propietario activo: producción al costo de proveedores, con los topes de gasto configurados.{" "}
-            <Link href="/dashboard/billing" className="font-medium underline">
-              Ver mi plan
-            </Link>
-          </Alert>
-        )}
         {!subscribed && !internalOwner && (
           <Alert tone="info">
             Necesitas una suscripción activa para generar videos.{" "}
@@ -176,20 +173,24 @@ export default async function DashboardPage({
             action={<LinkButton href="/dashboard/new">Crear contenido</LinkButton>}
           />
         </div>
-      )) : (
-        <ul className="mt-6 space-y-3">
-          {historyState.requests.map((req) => (
-            <li key={req.id}>
-              <RequestCard
-                request={req}
-                videoUrl={req.video_path ? videoUrlByPath.get(req.video_path) : null}
-                nowMs={nowMs}
-                avatarRecovery={avatarRecoveries.get(req.id)}
-              />
-            </li>
-          ))}
-        </ul>
-      )}
+      )) : (() => {
+        const { visible, old } = splitHistory(historyState.requests, nowMs);
+        const card = (req: (typeof visible)[number]) => (
+          <li key={req.id}>
+            <RequestCard request={req} videoUrl={req.video_path ? videoUrlByPath.get(req.video_path) : null} nowMs={nowMs} avatarRecovery={avatarRecoveries.get(req.id)} />
+          </li>
+        );
+        return (<>
+          {visible.length > 0 && <ul className="mt-6 space-y-3">{visible.map(card)}</ul>}
+          {old.length > 0 && (
+            <details className="mt-6 rounded-lg border border-border p-3" data-testid="proyectos-antiguos">
+              <summary className="cursor-pointer text-sm font-medium text-ink-muted">Proyectos antiguos sin terminar ({old.length})</summary>
+              <p className="mt-2 text-xs text-ink-muted">Pruebas y producciones que no terminaron hace más de 7 días. No se borró nada.</p>
+              <ul className="mt-3 space-y-3">{old.map(card)}</ul>
+            </details>
+          )}
+        </>);
+      })()}
     </div>
   );
 }
