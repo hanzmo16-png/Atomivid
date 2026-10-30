@@ -1,5 +1,5 @@
 import { isRenderStale } from "@/lib/video/render-guard";
-import { describeStoredFailure, renderFailureMessage } from "@/lib/video/job-error";
+import { describeStoredFailure, renderFailureMessage, splitSupportCode } from "@/lib/video/job-error";
 import { isNoRetryScriptMessage } from "@/lib/video/script-retry";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
@@ -88,7 +88,7 @@ export function RequestCard({
             {new Date(request.created_at).toLocaleString("es-MX")}
           </p>
           {request.status === "failed" && request.error_message && (
-            <p className="mt-2 max-w-md text-sm text-danger">{renderFailureMessage(request.error_message)}</p>
+            <FailureLine message={renderFailureMessage(request.error_message)} />
           )}
           {request.status === "processing" && !isStaleProcessing && stageLabel && (
             <p className="mt-2 flex items-center gap-1.5 text-sm text-ink-muted">
@@ -286,5 +286,16 @@ export function RequestCard({
         </p>
       )}
     </Card>
+  );
+}
+
+/** Mensaje de fallo en lenguaje simple; el código de diagnóstico va aparte, discreto, como referencia para soporte. */
+function FailureLine({ message }: { message: string }) {
+  const { text, code } = splitSupportCode(message);
+  return (
+    <div className="mt-2 max-w-md">
+      <p className="text-sm text-danger">{text}</p>
+      {code && <p className="mt-0.5 text-xs text-ink-muted" data-testid="referencia-soporte">Referencia para soporte: <span className="font-mono">{code}</span></p>}
+    </div>
   );
 }
