@@ -857,13 +857,26 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     ok("c16: móvil 390×844 sin desbordamiento horizontal", ov <= 1, `${ov}px`);
     const So = await session(OTHER, "c16-otra", MOB); await So.p.goto(`${BASE}/dashboard/podcast`);
     ok("c16: la otra cuenta no ve los episodios del dueño", await So.p.getByTestId(`studio-episode-${R}`).count() === 0 && await So.p.getByTestId(`studio-episode-${O}`).count() === 1);
-    await So.ctx.close(); await S.ctx.close();
-    await db.query("delete from public.podcast_studio_episodes where id = any($1)", [[R, F, G, D, O]]);
+    await So.ctx.close();
+    // Escritorio 1440×900 con la misma cuenta autorizada: misma secuencia unificada que en el móvil, sin desbordamiento.
+    const Sd = await session(OWNER, "c16-escritorio", { viewport: { width: 1440, height: 900 } });
+    const seqOf = (pg) => pg.getByTestId("studio-episodes").locator(":scope > li").evaluateAll((ls) => ls.map((l) => l.getAttribute("data-testid")));
+    for (const [q, name] of [["", "principal"], ["?vista=archivados", "archivados"]]) {
+      await load(q); await Sd.p.goto(`${BASE}/dashboard/podcast${q}`); await Sd.p.getByTestId("biblioteca-vistas").waitFor();
+      const sm = await seqOf(W()), sd = await seqOf(Sd.p);
+      ok(`c16: escritorio 1440 muestra la misma secuencia que el móvil (${name})`, sd.length > 0 && JSON.stringify(sd) === JSON.stringify(sm), JSON.stringify({ sm: sm.length, sd: sd.length }));
+      const ovd = await Sd.p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      ok(`c16: escritorio 1440 sin desbordamiento horizontal (${name})`, ovd <= 1, `${ovd}px`);
+      await shot(Sd.p, `c16-04-escritorio-${name}`);
+    }
+    await Sd.ctx.close(); await S.ctx.close();
+    await db.query("delete from public.podcast_studio_episodes where id = any($1)", [[R, F, G, D, O, FR, T]]);
+    await db.query("delete from public.podcast_episodes where id = $1", [V]);
     await db.query(fs.readFileSync(path.join(REPO, "supabase/proposals/20261030170000_podcast_library_archive.rollback.sql"), "utf8")); await db.query("notify pgrst, 'reload schema'");
   }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
-  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 15: 5, 16: 20 };
+  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 15: 5, 16: 24 };
   const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[a-d]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name)) || (c === "12" && /^c12-/.test(r.name))).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));
