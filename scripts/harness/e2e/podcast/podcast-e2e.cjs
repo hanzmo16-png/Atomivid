@@ -520,7 +520,9 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     const row = (await db.query("select * from podcast_studio_episodes where id=$1", [row0.id])).rows[0];
     if (!opts.failTtsCall) {
       const pcts = samples.map((x) => x.pct), mono = pcts.every((v, i) => i === 0 || v >= pcts[i - 1]);
-      ok(`${tag}: el avance llega a la base durante la generación (${samples.length} lecturas, etapas ${[...new Set(samples.map((x) => x.stage))].join("→")})`, samples.length >= 2 && new Set(samples.map((x) => x.stage)).size >= 2, JSON.stringify(pcts.slice(0, 12)));
+      // Varias lecturas durante la generación y al menos dos etapas: vistas al muestrear o guardadas como hitos (un episodio
+      // de solo audio es tan rápido que el muestreo puede ver una sola etapa).
+      ok(`${tag}: el avance llega a la base durante la generación (${samples.length} lecturas, etapas ${[...new Set(samples.map((x) => x.stage))].join("→")})`, samples.length >= 2 && (new Set(samples.map((x) => x.stage)).size >= 2 || Object.keys(row.progress?.stages ?? {}).length >= 2), JSON.stringify({ pcts: pcts.slice(0, 12), hitos: Object.keys(row.progress?.stages ?? {}) }));
       ok(`${tag}: el avance guardado nunca retrocede ni llega a 100 % antes de «ready»`, mono && pcts.every((v) => v <= 99), JSON.stringify(pcts.slice(-12)));
       const st = row.progress?.stages ?? {};
       ok(`${tag}: hitos durables por etapa en el episodio terminado (voces ${st.voces?.done}/${st.voces?.total})`, row.status === "ready" && st.voces?.total > 0 && st.voces.done === st.voces.total && (row.progress.activity ?? []).some((a) => a.text === "Archivo final guardado"), JSON.stringify(Object.keys(st)));
