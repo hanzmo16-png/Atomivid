@@ -79,6 +79,9 @@ export function ContentTypeStep({
   maxAvatarDurationSeconds = 45,
   reelVoiceSelectionEnabled = false,
   recraftReelEnabled = false,
+  initialType = null,
+  initialTopic = "",
+  initialAutoStyle = false,
 }: {
   createVideoRequestAction: (formData: FormData) => void;
   avatarModeEnabled: boolean;
@@ -89,8 +92,12 @@ export function ContentTypeStep({
   maxAvatarDurationSeconds?: number;
   reelVoiceSelectionEnabled?: boolean;
   recraftReelEnabled?: boolean;
+  /** Desde el inicio: formato ya elegido (salta el selector) e idea ya escrita. */
+  initialType?: "reel" | null;
+  initialTopic?: string;
+  initialAutoStyle?: boolean;
 }) {
-  const [selected, setSelected] = useState<ContentType | null>(null);
+  const [selected, setSelected] = useState<ContentType | null>(initialType);
 
   const renderForm = (mode: "reel" | "avatar") => (
     <NewVideoForm
@@ -101,6 +108,8 @@ export function ContentTypeStep({
       recraftReelEnabled={recraftReelEnabled}
       existingAvatars={existingAvatars}
       initialMode={mode === "avatar" ? "avatar" : "visual"}
+      initialTopic={initialTopic}
+      initialAutoStyle={initialAutoStyle}
       blockAvatarReconciliation={blockAvatarReconciliation}
     />
   );
