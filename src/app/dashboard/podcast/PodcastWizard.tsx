@@ -13,14 +13,14 @@ import { progressView, type LedgerActivity } from "@/lib/podcast/v3/progress";
 import { AtomProgress } from "@/components/podcast/AtomProgress";
 import { StudioPreview, type PreviewHost } from "@/components/podcast/StudioPreview";
 import { HostPicker, type HostCard } from "@/components/podcast/HostPicker";
-import { CONSENT_TEXT, INTENSITY_DB, MODALITIES, MODALITY_LABEL, STEP, STEPS, STUDIO_BUDGET_MAX_USD, WIZARD_STORAGE_KEY, defaultDraft, draftToSpec, draftToV2, durationFit, estimateMinutes, loadDraft, modalityToMode, stepErrors, voiceKindFor, withHost, withoutHost, withVoiceKinds, type Modality, type WizardDraft } from "@/lib/podcast/v3/wizard";
+import { CONSENT_TEXT, INTENSITY_DB, MODALITIES, MODALITY_LABEL, STEP, STEPS, STUDIO_BUDGET_MAX_USD, WIZARD_STORAGE_KEY, bindEpisode, defaultDraft, draftToSpec, releaseEpisode, specKey, draftToV2, durationFit, estimateMinutes, loadDraft, modalityToMode, stepErrors, voiceKindFor, withHost, withoutHost, withVoiceKinds, type Modality, type WizardDraft } from "@/lib/podcast/v3/wizard";
 import type { VisualProvider } from "@/lib/podcast/v3/studio";
 
 export type WizardVoice = { voiceId: string; name: string; available: boolean; note: string | null; kind: "sintetica" | "clonada" };
 export type WizardAvatar = { id: string; name: string };
 type LipSeg = { start: number; end: number; shot: string; speaker: "A" | "B" | null; lips: { A: string; B: string } };
 type Estimate = { lines: { concept: string; detail: string; usd: number; provider: string }[]; totalUsd: number; assumptions: string[]; turns: number; mood: string; shots: Record<string, number>; overBudget: boolean; byProvider?: Record<string, number>; lipTimeline?: LipSeg[]; coverage?: Record<string, boolean>; turnList?: { id: string; speaker: "A" | "B"; kind: string; text: string }[] };
-type Status = { episode: { status: string; progress: unknown; updated_at?: string | null; error: string | null; cost_usd: number | null; output?: "audio" | "video"; audio_path?: string | null }; activity?: LedgerActivity | null; video_url: string | null; audio_url: string | null };
+type Status = { episode: { id?: string; title?: string; status: string; progress: unknown; updated_at?: string | null; error: string | null; cost_usd: number | null; output?: "audio" | "video"; audio_path?: string | null }; activity?: LedgerActivity | null; video_url: string | null; audio_url: string | null };
 /** Anfitrión del catálogo con lo que la página necesita: tarjeta (foto, muestra de voz) y recorte para la vista previa. */
 export type WizardHost = HostCard & { cutout: PreviewHost };
 
@@ -40,7 +40,9 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   const [loaded, setLoaded] = useState(false);
   // El tipo de voz se deriva del catálogo en el render: un efecto con setState rompe el lint del repo
   // (react-hooks/set-state-in-effect) y un catálogo vacío no debe reescribir un clon ya guardado.
-  const d = useMemo(() => (loaded ? withVoiceKinds(raw, voices) : raw), [loaded, raw, voices]);
+  // El episodio del borrador queda ligado a su configuración (bindEpisode): otra configuración crea otro episodio.
+  const settle = (x: WizardDraft) => (loaded ? bindEpisode(withVoiceKinds(x, voices)) : x);
+  const d = useMemo(() => settle(raw), [loaded, raw, voices]); // eslint-disable-line react-hooks/exhaustive-deps
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -52,7 +54,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setRaw(loadDraft(localStorage.getItem(WIZARD_STORAGE_KEY))); setLoaded(true); }, []);
   useEffect(() => { if (loaded) localStorage.setItem(WIZARD_STORAGE_KEY, JSON.stringify(d)); }, [d, loaded]);
-  const set = (patch: Partial<WizardDraft>) => setRaw((x) => ({ ...x, ...patch }));
+  const set = (patch: Partial<WizardDraft>) => setRaw((x) => ({ ...settle(x), ...patch }));
   const setP = (i: 0 | 1, patch: Partial<WizardDraft["participants"][0]>) => setRaw((x) => { const ps = [...x.participants] as WizardDraft["participants"]; ps[i] = { ...ps[i], ...patch }; return { ...x, participants: ps }; });
   const unavailable = voices.filter((v) => !v.available).map((v) => v.voiceId);
   const errs = stepErrors(d, d.step, { unavailableVoices: unavailable, providers });
@@ -98,7 +100,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
       }
       // El borrador creado se guarda aparte: el paso de progreso solo aparece cuando la autorización quedó registrada.
       const created = d.draftId ? { id: d.draftId } : await api("/api/podcast/v3", { action: "create", spec: draftToSpec(withVoiceKinds(d, voices)) });
-      set({ draftId: String(created.id) });
+      set({ draftId: String(created.id), boundSpec: specKey(d) });
       const r = await api(`/api/podcast/v3/${String(created.id)}`, { confirm: true, authorizedUsd: d.budgetUsd });
       if (r.note) setNote(String(r.note));
       set({ step: STEP.generacion, episodeId: String(created.id) });
@@ -118,6 +120,10 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   const active = d.participants.slice(0, d.count);
   const tag = (i: number) => (i === 0 ? "A" : "B");
   const started = !!d.episodeId;
+  // Solo cuenta el estado del episodio de ESTE borrador (una respuesta de otro episodio nunca se muestra).
+  const cur = status && d.episodeId && status.episode.id === d.episodeId ? status : null;
+  // Borrador antiguo que sigue en «Generación» con un episodio de otro título: no se muestra su avance como si fuera este.
+  const foreign = !!cur && !!cur.episode.title && cur.episode.title !== d.title.trim();
   const previewHost = (i: 0 | 1): PreviewHost => hosts.find((h) => h.id === d.participants[i].host)?.cutout ?? null;
   return (
     <Card className="mt-4 min-w-0 max-w-full p-3 sm:p-4" data-testid="podcast-wizard" data-hydrated={loaded ? "1" : "0"} aria-busy={!loaded}>
@@ -335,21 +341,28 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
             <label><input type="checkbox" aria-label="Autorizo el cargo" checked={d.authorized} onChange={(e) => set({ authorized: e.target.checked })} /> Autorizo generar este episodio con un cargo máximo de {USD(d.budgetUsd)}.</label>
             <Button type="button" onClick={authorizeAndGenerate} loading={busy} disabled={!d.authorized || (estimate?.totalUsd ?? 0) > d.budgetUsd}>Generar episodio</Button>
           </>))}
-          {started && (
-            <div data-testid="wizard-progress">
-              <AtomProgress view={status ? progressView(status.episode, undefined, status.activity) : progressView({ status: "authorized" })} />
-              {status?.episode.status === "failed" && <p className="mt-2">No se pudo terminar. No se te cobra un episodio no entregado.</p>}
-              {status?.episode.error && <p className="mt-2 text-danger">{status.episode.error}</p>}
-              {status?.episode.status === "failed" && <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={() => { set({ draftId: d.episodeId, episodeId: null, authorized: false }); }}>Reintentar (no se cobra dos veces lo ya generado)</Button>}
-              {status?.episode.status === "authorized" && <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={() => void run(async () => { const again = await api(`/api/podcast/v3/${d.episodeId}`, { confirm: true }); if (again.note) setNote(String(again.note)); })}>Volver a pedir el inicio (no se cobra otra vez)</Button>}
-              <p className="mt-2 text-xs text-ink-muted">Puedes cerrar esta página: el episodio sigue generándose y aparecerá en «Tus episodios».</p>
+          {started && foreign && (
+            <div data-testid="wizard-episodio-anterior" className="grid gap-2">
+              <p>Esta pantalla seguía mostrando tu episodio anterior «{cur?.episode.title}», no la configuración actual. Ese episodio está en «Tus episodios».</p>
+              <Button type="button" onClick={() => set(releaseEpisode(d))}>Preparar el episodio con esta configuración</Button>
             </div>
           )}
-          {status?.video_url && <video data-testid="wizard-player" src={status.video_url} controls playsInline className="w-full rounded" />}
-          {status?.audio_url && <audio data-testid="wizard-audio-player" src={status.audio_url} controls className="w-full" />}
-          {status?.video_url && <a className="text-accent underline" href={status.video_url} data-testid="wizard-download-mp4">Descargar video (MP4)</a>}
-          {status?.audio_url && <a className="text-accent underline" href={status.audio_url} data-testid="wizard-download-audio">Descargar solo audio ({d.audioExport.toUpperCase()})</a>}
-          {status?.episode.cost_usd != null && <p className="text-ink-muted">Costo registrado: {USD(Number(status.episode.cost_usd))}</p>}
+          {started && !foreign && (
+            <div data-testid="wizard-progress" data-episode={d.episodeId ?? ""}>
+              <AtomProgress view={cur ? progressView(cur.episode, undefined, cur.activity) : progressView({ status: "authorized" })} />
+              {cur?.episode.status === "failed" && <p className="mt-2">No se pudo terminar. No se te cobra un episodio no entregado.</p>}
+              {cur?.episode.error && <p className="mt-2 text-danger">{cur.episode.error}</p>}
+              {cur?.episode.status === "failed" && <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={() => { set({ draftId: d.episodeId, episodeId: null, authorized: false }); }}>Reintentar (no se cobra dos veces lo ya generado)</Button>}
+              {cur?.episode.status === "authorized" && <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={() => void run(async () => { const again = await api(`/api/podcast/v3/${d.episodeId}`, { confirm: true }); if (again.note) setNote(String(again.note)); })}>Volver a pedir el inicio (no se cobra otra vez)</Button>}
+              {cur?.episode.status !== "ready" && <p className="mt-2 text-xs text-ink-muted">Puedes cerrar esta página: el episodio sigue generándose y aparecerá en «Tus episodios».</p>}
+              {cur?.episode.status === "ready" && <Button type="button" variant="secondary" size="sm" className="mt-2" data-testid="wizard-crear-otro" onClick={() => { set({ ...releaseEpisode(d), step: STEP.modalidad }); setStatus(null); }}>Crear otro episodio</Button>}
+            </div>
+          )}
+          {!foreign && cur?.video_url && <video data-testid="wizard-player" src={cur.video_url} controls playsInline className="w-full rounded" />}
+          {!foreign && cur?.audio_url && <audio data-testid="wizard-audio-player" src={cur.audio_url} controls className="w-full" />}
+          {!foreign && cur?.video_url && <a className="text-accent underline" href={cur.video_url} data-testid="wizard-download-mp4">Descargar video (MP4)</a>}
+          {!foreign && cur?.audio_url && <a className="text-accent underline" href={cur.audio_url} data-testid="wizard-download-audio">Descargar solo audio ({d.audioExport.toUpperCase()})</a>}
+          {!foreign && cur?.episode.cost_usd != null && <p className="text-ink-muted">Costo registrado: {USD(Number(cur.episode.cost_usd))}</p>}
         </div>
       )}
 
