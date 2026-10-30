@@ -6,7 +6,6 @@ import { Logo } from "@/components/ui/Logo";
 import { LinkButton } from "@/components/ui/Button";
 import { Onboarding } from "@/components/onboarding/Onboarding";
 import { NavLink } from "./NavLink";
-import { isLongFormEnabled, isLongFormAllowlisted } from "@/lib/video/long-form/access";
 import { isCommandCenterAdmin } from "@/lib/command-center/access";
 import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
 import { studioFlagFor } from "@/lib/podcast/v3/studio";
@@ -25,10 +24,9 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  // Mismo gate Long Form/allowlist que ya usa /dashboard/long-form/visual-test-v2
-  // (isLongFormEnabled + isLongFormAllowlisted, access.ts) — este acceso
-  // directo es solo navegación, nunca hace ninguna llamada por su cuenta.
-  const showLongFormDryRun = isLongFormEnabled() && isLongFormAllowlisted(user);
+  // Herramienta interna de Visual Test V2: solo owner/admin. La allowlist de
+  // Long Form no la muestra. El enlace es navegación; no llama a ningún API.
+  const showLongFormDryRun = isCommandCenterAdmin(user);
   // Command Center: owner/admin only (same gate as its page and API); plain navigation.
   const showCommandCenter = isCommandCenterAdmin(user);
   // Podcast (estudio audiovisual): mismo gate que la página /dashboard/podcast + interruptor del estudio
@@ -57,9 +55,10 @@ export default async function DashboardLayout({
               Facturación
             </NavLink>
             {showLongFormDryRun && (
+              // xl, not sm: at 640px this label wrapped the header and the help click missed (M3-1).
               <NavLink
                 href="/dashboard/long-form/visual-test-v2"
-                className="hidden rounded-md px-3 py-2 text-sm font-medium transition-colors sm:inline-block"
+                className="hidden whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition-colors xl:inline-block"
               >
                 Dry Run Long Form
               </NavLink>

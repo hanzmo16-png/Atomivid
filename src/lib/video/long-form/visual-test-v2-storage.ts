@@ -45,6 +45,41 @@ export function visualTestV2ImagePath(videoId: string, shotId: string, idempoten
   return `long-form/${videoId}/visual-test-v2/${shotId}-${idempotencyKey}.${extension}`;
 }
 
+const SPEND_NONCE_RE = /^[A-Za-z0-9_-]{8,128}$/;
+
+/** Un objeto por nonce en el bucket ya existente. Sin tabla ni migración. */
+export function visualTestV2SpendNoncePath(videoId: string, nonce: string): string {
+  if (!SPEND_NONCE_RE.test(nonce)) {
+    throw new Error("Visual Test V2: nonce de autorización inválido.");
+  }
+  return `long-form/${videoId}/state/visual-test-v2/spend-nonces/${nonce}.json`;
+}
+
+/**
+ * Reserva el nonce una sola vez. La lectura previa solo evita un upload
+ * innecesario. La creación condicional es `upsert: false`: si dos requests
+ * pasan la lectura vacía, el segundo upload falla porque el objeto ya existe
+ * y esta función lo trata como replay. El proveedor no se llama desde aquí.
+ */
+export async function claimVisualTestV2SpendNonce(
+  supabase: SupabaseClient,
+  bucket: string,
+  videoId: string,
+  nonce: string,
+  userId: string,
+): Promise<"claimed" | "replay"> {
+  const path = visualTestV2SpendNoncePath(videoId, nonce);
+  if (await downloadJson(supabase, bucket, path)) return "replay";
+  const body = Buffer.from(JSON.stringify({ nonce, userId, claimedAtIso: new Date().toISOString() }));
+  const { error } = await supabase.storage.from(bucket).upload(path, body, {
+    contentType: "application/json",
+    upsert: false,
+  });
+  if (!error) return "claimed";
+  if (await downloadJson(supabase, bucket, path)) return "replay";
+  throw new Error("Visual Test V2: no se pudo registrar la autorización de gasto. No se llama al proveedor.");
+}
+
 export type ImageGenRecordStatus = "STARTED" | "COMPLETED";
 
 export type ImageGenRecord = {
