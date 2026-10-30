@@ -100,7 +100,12 @@ jobs:
           if [ "$CASO" = pod-crear ]; then node scripts/qa/real/pod-crear.mjs; exit $?; fi
           if [ "$CASO" = pod-borrador ]; then node scripts/qa/real/pod-borrador.mjs; exit $?; fi
           if [ "$CASO" = pod-inicio ]; then node scripts/qa/real/pod-inicio.mjs; exit $?; fi
-          if [ "$CASO" = ux-capturas ]; then node scripts/qa/real/ux-capturas.mjs; exit $?; fi
+          if [ "$CASO" = ux-capturas ]; then
+            # pod_episode_id opcional = URL de vista previa de Vercel del PR (solo atomivid-git-*.vercel.app); «despues» si se da.
+            U="${{ inputs.pod_episode_id }}"
+            if [ -n "$U" ]; then case "$U" in https://atomivid-git-*-atomivid.vercel.app) export POD_UI_URL="$U" UX_TAG=despues;; *) echo "::error::URL no permitida"; exit 1;; esac; fi
+            node scripts/qa/real/ux-capturas.mjs; exit $?
+          fi
           if [ "$CASO" = pod-progreso ]; then node scripts/qa/real/pod-progreso.mjs; exit $?; fi
           if [ "$CASO" = pod-clips ]; then node scripts/qa/real/pod-clips.mjs; exit $?; fi
           if [ "$CASO" = pod-fragment ] || [ "$CASO" = pod-scan ] || [ "$CASO" = pod-remaster ] || [ "$CASO" = pod-calib ]; then
