@@ -40,9 +40,14 @@ test("en el nav de escritorio el enlace no entra en el corte sm (640 px): ahí p
   assert.equal(desktop.includes("sm:inline-block"), false);
 });
 
-test("ambas apariciones del enlace (nav de escritorio y de móvil) están condicionadas por showLongFormDryRun", () => {
+test("el enlace aparece una sola vez, condicionado por showLongFormDryRun, y nunca en la franja móvil (sm:hidden)", () => {
   const occurrences = (LAYOUT_SOURCE.match(/showLongFormDryRun && \(/g) ?? []).length;
-  assert.equal(occurrences, 2);
+  assert.equal(occurrences, 1);
+  const mobileStart = LAYOUT_SOURCE.indexOf('sm:hidden">');
+  const mobile = LAYOUT_SOURCE.slice(mobileStart, LAYOUT_SOURCE.indexOf("</header>", mobileStart));
+  assert.ok(mobileStart !== -1 && mobile.length > 0);
+  assert.equal(mobile.includes("visual-test-v2"), false);
+  assert.equal(mobile.includes("Dry Run Long Form"), false);
 });
 
 test("layout.tsx no importa ni referencia ningún proveedor real de imagen/voz/footage ni process.env directamente", () => {
