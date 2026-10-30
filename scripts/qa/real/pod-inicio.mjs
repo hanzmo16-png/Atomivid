@@ -56,12 +56,9 @@ for (const [label, opts] of [["escritorio", { viewport: { width: 1366, height: 9
     await p.evaluate(() => { try { for (const k of Object.keys(localStorage)) if (/podcast/i.test(k)) localStorage.removeItem(k); } catch {} });
     await p.reload();
     await p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor({ timeout: 60000 });
-    await W().getByTestId("modalidad-dialogo").click(); await next();
-    await W().getByLabel("Título del episodio").fill("Prueba de interfaz (no se genera)");
-    await W().getByLabel("Tema", { exact: true }).fill("Los sumerios y las tablillas cuneiformes");
-    await W().getByLabel("Guion").fill(SCRIPT);
-    await next();
-    ok(`${label}: paso Participantes`, /Participantes/.test(await title()), await title());
+    // Premium 4.0 (PR #252): 4 pantallas — Participantes (tipo, anfitriones, voces, avatares) → Contenido → Estilo → Producir.
+    ok(`${label}: paso 1 de 4 Participantes`, /Paso 1 de 4: Participantes/.test(await title()), await title());
+    await W().getByTestId("modalidad-dialogo").click();
     const grpA = W().getByRole("radiogroup", { name: /Participante A/ }), grpB = W().getByRole("radiogroup", { name: /Participante B/ });
     ok(`${label}: catálogo con 3 anfitriones`, (await grpA.locator('[data-testid^="anfitrion-"]').count()) === 3);
     // Espera real a que terminen de cargar (hasta 30 s) y mide tiempo y peso de cada foto (Resource Timing).
@@ -74,14 +71,16 @@ for (const [label, opts] of [["escritorio", { viewport: { width: 1366, height: 9
     await grpA.getByTestId("anfitrion-valeria").getByRole("radio").click();
     await grpB.getByTestId("anfitrion-victor").getByRole("radio").click();
     await shot("1-anfitriones"); await noHScroll("anfitriones");
-    await next();
     const voces = await W().locator('[data-testid^="voz-incluida-"]').allInnerTexts();
     ok(`${label}: voz cargada automáticamente (sin elegir)`, voces.length === 2 && /Callie/.test(voces[0]) && (await W().locator('select[aria-label^="Voz "]').count()) === 0, JSON.stringify(voces));
-    await shot("2-voces");
-    await next();
     ok(`${label}: avatares incluidos`, (await W().locator('[data-testid^="avatar-incluido-"]').count()) === 2);
-    await next(); await next();
-    ok(`${label}: paso Visuales`, /Visuales/.test(await title()), await title());
+    await shot("2-voces"); await next();
+    ok(`${label}: paso 2 de 4 Contenido`, /Paso 2 de 4: Contenido/.test(await title()), await title());
+    await W().getByLabel("Título del episodio").fill("Prueba de interfaz (no se genera)");
+    await W().getByLabel("Tema", { exact: true }).fill("Los sumerios y las tablillas cuneiformes");
+    await W().getByLabel("Guion").fill(SCRIPT);
+    await next();
+    ok(`${label}: paso 3 de 4 Estilo`, /Paso 3 de 4: Estilo/.test(await title()), await title());
     const provs = await W().locator('[data-testid^="proveedor-"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")));
     ok(`${label}: Recraft es el proveedor y Pexels no aparece`, provs.includes("proveedor-recraft") && !provs.some((x) => /pexels/.test(x)), JSON.stringify(provs));
     for (const s of ["moderno", "calido", "minimalista"]) {
@@ -103,7 +102,7 @@ for (const [label, opts] of [["escritorio", { viewport: { width: 1366, height: 9
       ok(`${label}: Recraft no listo muestra el motivo y que no se cobra`, /No se cobra nada/.test(rc), rc.slice(0, 240));
       await W().getByRole("button", { name: "Siguiente", exact: true }).click(); await p.waitForTimeout(600);
       const al = await W().getByRole("alert").innerText().catch(() => "");
-      ok(`${label}: con Recraft no listo el asistente no avanza y lo explica`, /Visuales/.test(await title()) && /No disponible/.test(al), al.slice(0, 200));
+      ok(`${label}: con Recraft no listo el asistente no avanza y lo explica`, /Estilo/.test(await title()) && /No disponible/.test(al), al.slice(0, 200));
       const solo = W().getByLabel("Solo estudio y anfitriones (sin imágenes)");
       await solo.check();
       ok(`${label}: «Solo estudio y anfitriones» sigue seleccionable`, await solo.isEnabled() && await solo.isChecked() && !/No disponible/.test(await W().getByTestId("proveedor-solo_set").innerText()));
@@ -115,11 +114,9 @@ for (const [label, opts] of [["escritorio", { viewport: { width: 1366, height: 9
     await W().getByTestId("costo-por-proveedor").waitFor({ timeout: 60000 }).catch(() => {});
     const est = (await W().getByTestId("wizard-estimate").innerText().catch(() => "")).replace(/\s+/g, " ");
     console.log(`ESTIMATE ${label} ${est.slice(0, 500)}`);
-    ok(`${label}: estimación cargada en Presupuesto`, /ElevenLabs/.test(est), est.slice(0, 200));
-    await next(); // Vista previa
+    ok(`${label}: estimación cargada en Producir`, /ElevenLabs/.test(est), est.slice(0, 200));
     console.log(`STEP ${label} ${await title()}`);
-    await shot("5-vista"); await next(); // Generación
-    console.log(`STEP ${label} ${await title()}`);
+    await shot("5-vista");
     await shot("6-generacion-antes");
     const blockedTxt = await W().getByTestId("generacion-bloqueada").innerText().catch(() => null);
     console.log(`MODE_BLOCKED ${label} ${JSON.stringify(blockedTxt)}`);
@@ -127,7 +124,7 @@ for (const [label, opts] of [["escritorio", { viewport: { width: 1366, height: 9
     const genCount = await gen.count();
     const disabledBefore = genCount ? await gen.isDisabled() : null;
     console.log(`GEN_BUTTON ${label} ${JSON.stringify({ count: genCount, disabledBefore, text: (await W().getByTestId("wizard-step-title").innerText().catch(() => "")) })}`);
-    ok(`${label}: el paso Generación muestra «Generar episodio»`, genCount === 1, blockedTxt ?? "");
+    ok(`${label}: Producir muestra «Generar episodio» (deshabilitado sin autorización, con su motivo)`, genCount === 1 && disabledBefore === true && /autoriz/i.test(await W().getByTestId("motivo-generar").innerText().catch(() => "")), blockedTxt ?? "");
     if (genCount === 1) {
       const box = W().getByLabel("Autorizo el cargo");
       await box.check();
