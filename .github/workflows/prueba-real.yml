@@ -92,7 +92,8 @@ jobs:
           ELEVENLABS_API_KEY: ${{ inputs.caso == 'pod-diag' && secrets.ELEVENLABS_API_KEY || '' }}
           FAL_KEY: ${{ (inputs.caso == 'pod-assets' || inputs.caso == 'pod-fragment') && secrets.FAL_KEY || '' }}
         run: |
-          if [ "$CASO" = pod-diag ]; then node scripts/qa/real/pod-diag.mjs; exit $?; fi
+          if [ "$CASO" = pod-diag ]; then rc=0; node scripts/qa/real/pod-diag.mjs || rc=$?
+            if [ -f "$RUNNER_TEMP/pod.wav" ]; then pip install -q faster-whisper==1.1.1 && python3 scripts/qa/real/pod-transcribe.py || rc=1; fi; exit $rc; fi
           if [ "$CASO" = lf-ui ]; then node scripts/qa/real/lf-ui.mjs; exit $?; fi
           if [ "$CASO" = pod-ui ]; then POD_UI_UNTIL="${{ (inputs.pod_episode_id == 'visuales' && 'visuales') || '' }}" node scripts/qa/real/pod-ui.mjs; exit $?; fi
           if [ "$CASO" = pod-borrador-fix ]; then POD_EXPECT=corregido node scripts/qa/real/pod-borrador.mjs; exit $?; fi

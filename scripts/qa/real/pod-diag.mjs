@@ -63,7 +63,10 @@ if (process.env.ELEVENLABS_API_KEY) {
 
 if (ep.audio_path) {
   const { data } = await db.storage.from("videos").download(ep.audio_path);
-  if (data) fs.writeFileSync(path.join(EVID, `ep${path.extname(ep.audio_path)}`), Buffer.from(await data.arrayBuffer()));
+  if (data) {
+    const a = path.join(EVID, `ep${path.extname(ep.audio_path)}`); fs.writeFileSync(a, Buffer.from(await data.arrayBuffer()));
+    spawnSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", "-i", a, "-ar", "16000", "-ac", "1", path.join(WORK, "pod.wav")]);
+  }
 }
 if (ep.video_path) {
   const { data } = await db.storage.from("videos").download(ep.video_path);
