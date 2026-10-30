@@ -11,10 +11,10 @@ import { PODCAST_MAX_CHARS, type PodcastEpisode } from "@/lib/podcast/episode";
 import { NewEpisode } from "./NewEpisode";
 import { PodcastWizard, type WizardAvatar, type WizardHost } from "./PodcastWizard";
 import { HOST_CATALOG } from "@/lib/podcast/v3/catalog";
-import { StudioEpisodeList } from "./StudioEpisodeList";
+import { StudioEpisodeCard } from "./StudioEpisodeList";
 import { voiceAvailability } from "@/lib/podcast/v3/spec";
 import { listStudioEpisodes } from "@/lib/podcast/v3/store";
-import { libraryView } from "@/lib/podcast/library";
+import { AUTO_GROUPED, libraryView } from "@/lib/podcast/library";
 import { LibraryArchiveButton } from "./LibraryArchiveButton";
 import { studioFlagFor, studioGenerationEnabled, visualProviders } from "@/lib/podcast/v3/studio";
 import { studioRecraftBlocker } from "@/lib/podcast/v3/readiness";
@@ -31,11 +31,11 @@ export default async function PodcastPage({ searchParams }: { searchParams: Prom
   const service = createServiceClient();
   // Biblioteca limpia: con la marca de archivo si su columna ya existe (propuesta 20261030170000); si no, como antes.
   const v2 = (cols: string) => service.from("podcast_episodes").select(cols).eq("user_id", user.id).order("created_at", { ascending: false }).limit(100);
-  const V2_COLS = "id,title,status,source,duration_seconds,created_at,video_status,review_status";
+  const V2_COLS = "id,title,status,source,duration_seconds,created_at,updated_at,video_status,review_status";
   const withArchive = await v2(`${V2_COLS},archived_at`);
   const archiveReady = !withArchive.error;
   const { data } = archiveReady ? withArchive : await v2(V2_COLS);
-  type V2Row = Pick<PodcastEpisode, "id" | "title" | "status" | "source" | "duration_seconds" | "created_at" | "video_status" | "review_status"> & { archived_at?: string | null };
+  type V2Row = Pick<PodcastEpisode, "id" | "title" | "status" | "source" | "duration_seconds" | "created_at" | "video_status" | "review_status"> & { updated_at?: string | null; archived_at?: string | null };
   const allEpisodes = (data ?? []) as unknown as V2Row[];
   // Owner notices of the supervised productions (also sent through GitHub when the app is closed).
   const { data: noticeRows } = await service.from("production_notices").select("id,episode_id,kind,message,created_at,delivered_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5);
@@ -51,10 +51,12 @@ export default async function PodcastPage({ searchParams }: { searchParams: Prom
   const previewNotice = flag.source === "preview" ? "Vista previa (Vercel Preview): el estudio se muestra activado solo aquí. Puedes recorrer los 10 pasos y ver costos; la generación real está desactivada hasta aplicar la migración y PODCAST_V3_ENABLED=1." : null;
   // Los episodios ya hechos se listan siempre (escuchar y descargar no genera ni cobra), aunque la generación esté apagada.
   const allStudio = (await listStudioEpisodes(service, user.id)) ?? [];
-  const studioEpisodes = libraryView(allStudio.map((e) => ({ ...e, kind: "studio" as const })), view);
-  const episodes = libraryView(allEpisodes.map((e) => ({ ...e, kind: "v2" as const })), view);
-  const archivedCount = libraryView(allStudio.map((e) => ({ ...e, kind: "studio" as const })), "archivados").length + libraryView(allEpisodes.map((e) => ({ ...e, kind: "v2" as const })), "archivados").length;
-  const empty = studioEpisodes.length === 0 && episodes.length === 0;
+  // Una sola secuencia (estudio + clásico): el orden en curso → terminado → borradores recientes es global, no por fuente.
+  type Entry = ({ kind: "studio" } & (typeof allStudio)[number]) | ({ kind: "v2" } & V2Row);
+  const all: Entry[] = [...allStudio.map((e) => ({ ...e, kind: "studio" as const })), ...allEpisodes.map((e) => ({ ...e, kind: "v2" as const }))];
+  const library = libraryView(all, view);
+  const archivedCount = libraryView(all, "archivados").length;
+  const empty = library.length === 0;
   const { data: avatarRows } = await service.from("avatars").select("id,name").eq("user_id", user.id).eq("status", "ready").order("created_at", { ascending: false }).limit(20);
   const avatars = (avatarRows ?? []) as WizardAvatar[];
   // Estado real de Recraft (política y saldo, solo lectura): el asistente muestra el motivo si hoy no puede producir.
@@ -98,24 +100,26 @@ export default async function PodcastPage({ searchParams }: { searchParams: Prom
         <Link href="/dashboard/podcast#episodios" aria-current={view === "principal" ? "page" : undefined} className={`rounded px-3 py-1 ${view === "principal" ? "bg-accent text-accent-ink" : "border border-border text-ink"}`}>Mis episodios</Link>
         <Link href="/dashboard/podcast?vista=archivados#episodios" aria-current={view === "archivados" ? "page" : undefined} className={`rounded px-3 py-1 ${view === "archivados" ? "bg-accent text-accent-ink" : "border border-border text-ink"}`} data-testid="biblioteca-archivados">Archivados ({archivedCount})</Link>
       </nav>
-      {view === "principal" && archivedCount > 0 && <p className="mt-2 text-xs text-ink-muted">Las pruebas sin terminar de hace más de 7 días y lo que archives están en «Archivados». No se borra nada.</p>}
-      {view === "archivados" && <p className="mt-2 text-xs text-ink-muted">Aquí están los episodios archivados y los proyectos sin terminar de hace más de 7 días. Sus archivos, enlaces y costos se conservan.</p>}
+      {view === "principal" && archivedCount > 0 && <p className="mt-2 text-xs text-ink-muted" data-testid="biblioteca-ocultos">Los episodios con error, los de prueba, los borradores de hace más de 7 días y lo que archives están en «Archivados» ({archivedCount}). No se borra nada.</p>}
+      {view === "archivados" && <p className="mt-2 text-xs text-ink-muted">Aquí están lo que archivaste y, agrupados solos, los episodios con error, los de prueba y los borradores de hace más de 7 días. Sus archivos, enlaces y costos se conservan.</p>}
       {/* Sin la columna archived_at (propuesta 20261030170000 aún no aplicada) no se consulta para escribir ni se ofrece
           archivar: se dice por qué. La agrupación automática de lo viejo sigue funcionando sin escribir nada. */}
-      {!archiveReady && <p className="mt-2 text-xs text-ink-muted" data-testid="biblioteca-archivo-bloqueado">Archivar a mano estará disponible cuando se aplique un cambio de base de datos pendiente de autorización. Mientras tanto, los proyectos sin terminar de hace más de 7 días se agrupan solos en «Archivados».</p>}
-      <StudioEpisodeList canArchive={archiveReady} episodes={studioEpisodes.map((e) => ({ id: e.id, title: e.title, status: e.status, mode: e.mode, cost_usd: e.cost_usd, archived: e.bucket === "archivado", stale: e.bucket === "antiguo" }))} />
-      {empty ? <p className="mt-2 text-sm text-ink-muted" data-testid="biblioteca-vacia">{view === "archivados" ? "No tienes episodios archivados." : archivedCount > 0 ? "No tienes episodios en curso ni terminados. Crea uno arriba o revisa «Archivados»." : "Todavía no hay episodios. Crea el primero arriba."}</p> : episodes.length > 0 && (
-        <ul className="mt-2 grid gap-2">
-          {episodes.map((e) => (
-            <li key={e.id} className="rounded-lg border border-border p-3 text-sm" data-testid={`episodio-v2-${e.id}`}>
+      {!archiveReady && <p className="mt-2 text-xs text-ink-muted" data-testid="biblioteca-archivo-bloqueado">Archivar a mano estará disponible cuando se aplique un cambio de base de datos pendiente de autorización. Mientras tanto, los episodios con error, los de prueba y los borradores de hace más de 7 días se agrupan solos en «Archivados», sin escribir nada.</p>}
+      {!empty && (
+        <ul className="mt-2 grid min-w-0 gap-2" data-testid="studio-episodes">
+          {library.map((e) => e.kind === "studio" ? (
+            <StudioEpisodeCard key={e.id} canArchive={archiveReady} episode={{ id: e.id, title: e.title, status: e.status, mode: e.mode, cost_usd: e.cost_usd, archived: e.bucket === "archivado", autoNote: AUTO_GROUPED[e.bucket] ?? null }} />
+          ) : (
+            <li key={e.id} className="min-w-0 rounded-lg border border-border p-3 text-sm" data-testid={`episodio-v2-${e.id}`}>
               <Link href={`/dashboard/podcast/${e.id}`} className="font-medium text-ink underline">{e.title}</Link>
               <span className="ml-2 text-ink-muted">{STATUS[e.status]}{e.video_status && e.video_status !== "none" ? ` · video: ${VIDEO[e.video_status] ?? e.video_status}${e.video_status === "ready" ? (e.review_status === "approved" ? " (aprobado)" : e.review_status === "rejected" ? " (rechazado)" : " (por revisar)") : ""}` : ""} · {e.source === "upload" ? "grabación propia" : "voz sintética"}{e.duration_seconds ? ` · ${Math.round(Number(e.duration_seconds) / 60)} min` : ""}</span>
-              {e.bucket === "antiguo" && <p className="mt-1 text-xs text-ink-muted">Sin terminar desde hace más de 7 días.</p>}
-              {archiveReady && e.bucket !== "antiguo" && e.bucket !== "en_curso" && <LibraryArchiveButton kind="v2" id={e.id} title={e.title} archived={e.bucket === "archivado"} />}
+              {AUTO_GROUPED[e.bucket] && <p className="mt-1 text-xs text-ink-muted">{AUTO_GROUPED[e.bucket]}</p>}
+              {archiveReady && !AUTO_GROUPED[e.bucket] && e.bucket !== "en_curso" && <LibraryArchiveButton kind="v2" id={e.id} title={e.title} archived={e.bucket === "archivado"} />}
             </li>
           ))}
         </ul>
       )}
+      {empty && <p className="mt-2 text-sm text-ink-muted" data-testid="biblioteca-vacia">{view === "archivados" ? "No tienes episodios archivados." : archivedCount > 0 ? "No tienes episodios en curso ni terminados. Crea uno arriba o revisa «Archivados»." : "Todavía no hay episodios. Crea el primero arriba."}</p>}
     </div>
   );
 }

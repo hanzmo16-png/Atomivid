@@ -804,6 +804,10 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     await ins(R, OWNER.id, "c16 listo reciente", "ready", 1); await ins(F, OWNER.id, "c16 prueba fallida vieja", "failed", 20);
     await ins(G, OWNER.id, "c16 en producción", "generating", 0, "run_started_at=now()"); await ins(D, OWNER.id, "c16 borrador reciente", "draft", 2);
     await ins(O, OTHER.id, "c16 de otra cuenta", "ready", 1);
+    // Corrección 1: error reciente y prueba (se agrupan solos) + un clásico creado hace un mes pero editado hace horas.
+    const FR = "c16a0000-0000-4000-8000-000000000006", T = "c16a0000-0000-4000-8000-000000000007", V = "c16b0000-0000-4000-8000-000000000001";
+    await ins(FR, OWNER.id, "c16 error reciente", "failed", 1); await ins(T, OWNER.id, "Prueba real C16", "ready", 1);
+    await db.query("insert into public.podcast_episodes(id,user_id,title,source,status,created_at,updated_at) values ($1,$2,'c16 clásico editado hoy','upload','ready',now() - interval '30 days',now() - interval '2 hours')", [V, OWNER.id]);
     const card = (id) => W().getByTestId(`studio-episode-${id}`);
     const load = async (q = "") => { await W().goto(`${BASE}/dashboard/podcast${q}`); await W().getByTestId("biblioteca-vistas").waitFor(); };
     // 1) Sin la migración propuesta: la lista funciona igual, sin botones de archivar; archivar explica por qué y no escribe.
@@ -811,8 +815,14 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     ok("c16: sin la columna, la vista principal oculta la prueba vieja y muestra lo útil", await card(R).count() === 1 && await card(G).count() === 1 && await card(D).count() === 1 && await card(F).count() === 0);
     ok("c16: sin la columna no se ofrece «Archivar»", (await W().locator('[data-testid^="biblioteca-archivar-"]').count()) === 0);
     ok("c16: sin la columna se explica que archivar a mano espera el cambio de base de datos", /pendiente de autorización/.test(await W().getByTestId("biblioteca-archivo-bloqueado").innerText()));
+    const seq = await W().getByTestId("studio-episodes").locator(":scope > li").evaluateAll((ls) => ls.map((l) => l.getAttribute("data-testid")));
+    ok("c16: una sola lista con orden global: el clásico editado hoy va antes que el de estudio de ayer", seq.indexOf(`episodio-v2-${V}`) >= 0 && seq.indexOf(`episodio-v2-${V}`) < seq.indexOf(`studio-episode-${R}`), JSON.stringify(seq.slice(0, 8)));
+    ok("c16: el error reciente y la prueba no están en la vista principal", await card(FR).count() === 0 && await card(T).count() === 0);
     await load("?vista=archivados");
     ok("c16: sin la columna, «Archivados» carga y agrupa la prueba vieja sin borrarla ni ofrecer «Restaurar»", await card(F).count() === 1 && (await W().locator('[data-testid^="biblioteca-restaurar-"]').count()) === 0);
+    ok("c16: sin la columna, «Archivados» también agrupa el error reciente y la prueba, y explica por qué", await card(FR).count() === 1 && await card(T).count() === 1 && /Episodio de prueba/.test(await card(T).innerText()) && /Con error/.test(await card(FR).innerText()));
+    const keep = (await db.query("select count(*)::int n from public.podcast_studio_episodes where id = any($1)", [[R, F, G, D, FR, T]])).rows[0].n;
+    ok("c16: agrupar no borra nada (las 6 filas del dueño siguen en la base)", keep === 6, String(keep));
     await shot(W(), "c16-00-sin-columna-archivados");
     await load();
     const m0 = await post({ kind: "studio", id: R, action: "archive" });
@@ -853,7 +863,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
   }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
-  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 15: 5, 16: 16 };
+  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 15: 5, 16: 20 };
   const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[a-d]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name)) || (c === "12" && /^c12-/.test(r.name))).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));
