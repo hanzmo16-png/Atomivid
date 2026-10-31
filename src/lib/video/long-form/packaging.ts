@@ -106,3 +106,6 @@ export function isLongFormPackaging(value: unknown): value is LongFormPackaging 
 
 /** Ruta canónica de la miniatura, junto al video final (ver output-finalize.ts). */
 export const canonicalThumbnailPath = (requestId: string) => `${requestId}/output/thumbnail.jpg`;
+
+/** Sidecar SRT del render, junto al MP4. El paquete de YouTube lo nombra `subtitles.<idioma>.srt`. */
+export const canonicalSubtitlePath = (requestId: string, language: "es" | "en" = "es") => `${requestId}/output/subtitles.${language}.srt`;

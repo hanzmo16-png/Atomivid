@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { canonicalThumbnailPath } from "@/lib/video/long-form/packaging";
+import { readLongFormDeliveryFacts } from "@/lib/video/long-form/delivered-duration";
 import { isProductionPlan } from "@/lib/video/long-form/production-plan-types";
 import { getSignedVideoUrl } from "@/lib/storage/signed-url";
 import { selectIfOwned, type OwnedRequestRow } from "@/lib/video/access";
@@ -79,16 +80,20 @@ export default async function VideoResultPage({
     Object.assign(request, { status: "failed", progress_stage: null, error_message: EXHAUSTED_ATTEMPT_CLOSED });
   }
 
-  const videoUrl =
-    request.status === "completed" && request.video_path
-      // A documentary can be ~0.5 GB: give a slow phone time to watch or download it before the link expires.
-      ? await getSignedVideoUrl(request.video_path, request.mode === "long_form" ? 6 * 3600 : 3600)
-      : null;
   // Miniatura de YouTube de Long Form (opcional): solo existe si se pidió al confirmar la producción.
   const plan = data?.long_form_production_plan;
   const thumbnailRequested = request.mode === "long_form" && isProductionPlan(plan) && plan.version >= 3 && plan.packaging?.thumbnail?.enabled === true;
-  const thumbnailUrl =
-    thumbnailRequested && request.status === "completed" ? await getSignedVideoUrl(canonicalThumbnailPath(request.id)) : null;
+  const service = createServiceClient();
+  const ttl = request.mode === "long_form" ? 6 * 3600 : 3600;
+  // A documentary can be ~0.5 GB: give a slow phone time to watch or download it before the link expires.
+  const [videoUrl, delivery, thumbnailUrl] = await Promise.all([
+    request.status === "completed" && request.video_path ? getSignedVideoUrl(request.video_path, ttl) : Promise.resolve(null),
+    request.mode === "long_form" && request.status === "completed"
+      ? readLongFormDeliveryFacts(service.storage.from("videos"), request).catch(() => ({ deliveredDurationSeconds: null, subtitlePath: null }))
+      : Promise.resolve({ deliveredDurationSeconds: null, subtitlePath: null }),
+    thumbnailRequested && request.status === "completed" ? getSignedVideoUrl(canonicalThumbnailPath(request.id), ttl) : Promise.resolve(null),
+  ]);
+  const subtitleUrl = delivery.subtitlePath ? await getSignedVideoUrl(delivery.subtitlePath, ttl) : null;
 
   // Server Component evaluado una vez por request (mismo patrón que
   // dashboard/page.tsx). AutoRefresh vuelve a pedir ESTA página al backend
@@ -114,7 +119,7 @@ export default async function VideoResultPage({
       <StartOutcomeProvider requestId={request.id} status={request.status} attempts={request.render_attempts}>
         <StartErrorNotice retryAvailable={request.render_attempts < MAX_RENDER_ATTEMPTS}
           supportRequired={request.status === "failed" && Boolean(request.error_message) && describeStoredFailure(request.error_message!).action === "support"} />
-        <ResultView request={request} videoUrl={videoUrl} thumbnailUrl={thumbnailUrl} thumbnailRequested={thumbnailRequested} nowMs={nowMs} avatarRecovery={avatarRecovery} />
+        <ResultView request={request} videoUrl={videoUrl} thumbnailUrl={thumbnailUrl} thumbnailRequested={thumbnailRequested} nowMs={nowMs} avatarRecovery={avatarRecovery} deliveredDurationSeconds={delivery.deliveredDurationSeconds} subtitleUrl={subtitleUrl} />
       </StartOutcomeProvider>
       {/* Long Form stopped for missing material before any spend: offer Configure again (the server re-checks spend). */}
       {request.mode === "long_form" && request.status === "failed" && isMaterialUnavailableFailure(request.error_message) && (

@@ -36,12 +36,15 @@ export function LongFormResult({
   requestId,
   videoUrl,
   thumbnailUrl,
+  subtitleUrl = null,
   thumbnailRequested,
   isLandscape,
 }: {
   requestId: string;
   videoUrl: string | null;
   thumbnailUrl: string | null;
+  /** SRT sidecar firmado. Ausente en videos anteriores a la pista de subtítulos. */
+  subtitleUrl?: string | null;
   thumbnailRequested: boolean;
   isLandscape: boolean;
 }) {
@@ -143,7 +146,31 @@ export function LongFormResult({
   }
 
   return (
-    <div className="flex flex-col items-center gap-4">
+    <div className="flex w-full flex-col items-center gap-4">
+      <div className="flex w-full max-w-md flex-col gap-2 sm:flex-row" data-testid="result-actions">
+        <button
+          type="button"
+          data-testid="play-video"
+          onClick={() => {
+            const el = videoRef.current;
+            if (!el) return;
+            el.scrollIntoView({ block: "nearest" });
+            void el.play();
+          }}
+          className="inline-flex flex-1 items-center justify-center rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-accent-ink hover:bg-accent-hover"
+        >
+          Reproducir
+        </button>
+        <a
+          href={asDownloadUrl(shown.video, "atomicvid-video.mp4")}
+          download
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border-strong px-4 py-2.5 text-sm font-medium text-ink hover:bg-surface-raised"
+        >
+          Descargar video
+        </a>
+      </div>
       <video
         ref={videoRef}
         src={shown.video}
@@ -158,15 +185,18 @@ export function LongFormResult({
       >
         Tu navegador no puede reproducir este video.
       </video>
-      <a
-        href={asDownloadUrl(shown.video, "atomicvid-video.mp4")}
-        download
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-1.5 rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-accent-ink hover:bg-accent-hover"
-      >
-        Descargar video
-      </a>
+      {subtitleUrl && (
+        <a
+          href={asDownloadUrl(subtitleUrl, "subtitles.srt")}
+          download
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid="download-subtitles"
+          className="inline-flex items-center gap-1.5 rounded-md border border-border px-4 py-2 text-sm font-medium text-ink hover:bg-surface-raised"
+        >
+          Descargar subtítulos
+        </a>
+      )}
       {shown.thumbnail && (
         <div className="flex w-full max-w-md flex-col items-center gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element -- URL firmada y temporal de Storage */}

@@ -18,6 +18,7 @@ import {
 import { LONG_FORM_DURATION_TOLERANCE } from "@/lib/video/long-form/duration-budget";
 import type { LongFormPackaging } from "@/lib/video/long-form/packaging";
 import { PackagingOptions } from "./PackagingOptions";
+import { PreProduceClarity } from "@/components/video/PreProduceClarity";
 import type { StrategyPreflight, VisualCheck } from "@/lib/video/long-form/production-preflight";
 import type { MaterialPlanCheck } from "@/lib/video/long-form/material-plan";
 import { materialBlockText } from "@/lib/video/long-form/material-gap-message";
@@ -230,6 +231,8 @@ export function ConfigureProduction({
   defaultPackaging,
   ownChannel = false,
   language = "es",
+  topic = "Este documental",
+  publicationTitle = null,
 }: {
   requestId: string;
   plans: Record<VisualStrategy, ProductionPlan>;
@@ -245,6 +248,9 @@ export function ConfigureProduction({
   ownChannel?: boolean;
   /** Idioma del documental: catálogo de voces de ese idioma. */
   language?: "es" | "en";
+  /** Tema de la solicitud y, si existe, el título propuesto por la revisión editorial. */
+  topic?: string;
+  publicationTitle?: string | null;
 }) {
   const router = useRouter();
   // Recraft first for new productions when this account may use it (owner decision 2026-10-21).
@@ -424,7 +430,27 @@ export function ConfigureProduction({
         <PackagingOptions value={packaging} onChange={setPackaging} onValidityChange={onValidityChange} disabled={loading} ownChannel={ownChannel} />
       )}
 
-      <div className="mt-6 flex flex-col gap-2 pb-8 sm:items-start">
+      <div className="sticky bottom-0 z-10 mt-6 border-t border-accent-border bg-surface pb-6 pt-3 sm:static sm:z-auto sm:border-t-0 sm:bg-transparent sm:pb-8 sm:pt-0">
+        <PreProduceClarity input={{
+          topic,
+          publicationTitle,
+          requestedDurationSeconds: plans[strategy].requestedDurationSeconds,
+          durationSeconds: plans[strategy].durationSeconds,
+          stockVideoCount: plans[strategy].stockVideoCount,
+          stockImageCount: plans[strategy].stockImageCount,
+          aiImageCount: plans[strategy].aiImageCount,
+          aiVideoClipCount: plans[strategy].aiVideoClipCount,
+          deterministicCount: plans[strategy].deterministicCount,
+          originals: Boolean(plans[strategy].imagePriority),
+          estimatedProviderCostUsd: plans[strategy].estimatedProviderCostUsd,
+          preflight: selectedPreflight ? {
+            limitUsd: selectedPreflight.limitUsd,
+            authorization: selectedPreflight.authorization
+              ? { authorizedCeilingUsd: selectedPreflight.authorization.authorizedCeilingUsd }
+              : null,
+          } : null,
+        }} />
+        <div className="mt-3 flex flex-col gap-2 sm:items-start">
         <Button type="button" onClick={handleConfirm} loading={loading} disabled={!packagingValid || !!blockedReason} className="w-full sm:w-auto">
           {loading ? "Confirmando…" : "Confirmar y generar video"}
         </Button>
@@ -440,6 +466,7 @@ export function ConfigureProduction({
             {error}
           </p>
         )}
+        </div>
       </div>
     </div>
   );

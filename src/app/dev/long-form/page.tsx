@@ -5,6 +5,7 @@ import { ResultView } from "@/components/video/ResultView";
 import { ProductionProgressCard } from "@/components/video/ProductionProgressCard";
 import { ConfigureProduction } from "@/app/dashboard/long-form/configure/[id]/ConfigureProduction";
 import { computeProductionPlan, REAL_LONG_FORM_PROVIDER_NAMES, VISUAL_STRATEGIES, type ProductionPlan, type VisualStrategy } from "@/lib/video/long-form/production-plan";
+import type { StrategyPreflight } from "@/lib/video/long-form/production-preflight";
 import { documentary180sFixture } from "@/lib/video/long-form/test-fixtures";
 import type { VideoRequestSummary } from "@/lib/video/request-view";
 
@@ -55,9 +56,23 @@ export default function DevLongFormPage() {
   const plans = Object.fromEntries(
     VISUAL_STRATEGIES.map((strategy) => [
       strategy,
-      computeProductionPlan({ beats: script.beats, topic: script.topic, strategy, providers: REAL_LONG_FORM_PROVIDER_NAMES, aiVideoEnabled: true }),
+      computeProductionPlan({ beats: script.beats, topic: script.topic, strategy, providers: REAL_LONG_FORM_PROVIDER_NAMES, aiVideoEnabled: true, requestedDurationSeconds: 180 }),
     ]),
   ) as Record<VisualStrategy, ProductionPlan>;
+  const preflight = Object.fromEntries(VISUAL_STRATEGIES.map((strategy) => {
+    const plan = plans[strategy];
+    const row: StrategyPreflight = {
+      strategy, estimatedUsd: plan.estimatedProviderCostUsd, limitUsd: 12, withinLimit: true,
+      authorization: {
+        admits: true, blockers: [], scriptSpentUsd: 0, voiceUsd: plan.estimatedVoiceCostUsd ?? 0,
+        imageUsd: plan.estimatedImageCostUsd ?? 0, videoUsd: plan.estimatedAiVideoCostUsd ?? 0, musicUsd: 0,
+        renderUsd: 1, subtotalUsd: plan.estimatedProviderCostUsd, contingencyPct: 20, proposedCeilingUsd: 12,
+        authorizedCeilingUsd: 12, contingencyClipped: false, userMessage: "Cabe dentro del tope. Aún no se cobra nada.",
+      },
+      providers: [], capacityReady: true, globalNote: null,
+    };
+    return [strategy, row];
+  })) as Record<VisualStrategy, StrategyPreflight>;
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-12 px-4 py-6">
@@ -68,6 +83,8 @@ export default function DevLongFormPage() {
         <ConfigureProduction
           requestId="dev-lf"
           plans={plans}
+          topic={script.topic}
+          preflight={preflight}
           ownChannel
           defaultPackaging={{
             cover: { enabled: true, style: "impacto", title: "Canal de *Panamá*", kicker: "Cavando una montaña" },
@@ -98,6 +115,12 @@ export default function DevLongFormPage() {
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-accent">Historial</h2>
         <div className="space-y-3">
           <RequestCard request={ASSETS} nowMs={NOW} />
+          <RequestCard request={request({
+            id: "dev-lf-stalled",
+            render_started_at: iso(2 * 60 * 60_000),
+            long_form_stage: "rendering",
+            long_form_progress: { stage: "rendering", unitsCompleted: 100, unitsTotal: 100, unitLabel: "fotogramas", updatedAt: iso(2 * 60 * 60_000) },
+          })} nowMs={NOW} />
           <RequestCard request={request({ status: "script_ready", long_form_confirmed_at: null, render_attempts: 0 })} nowMs={NOW} />
           <RequestCard request={LEGACY_FAILED} nowMs={NOW} />
           <RequestCard request={request({ status: "completed", video_path: "x.mp4" })} videoUrl="https://example.com/x.mp4" nowMs={NOW} />
@@ -110,6 +133,21 @@ export default function DevLongFormPage() {
           <ResultView request={ASSETS} nowMs={NOW} />
           <ResultView
             request={request({ status: "failed", error_message: "No se pudo completar este intento. (Código: 9f8e7d6c)" })}
+            nowMs={NOW}
+          />
+          <ResultView
+            request={request({
+              id: "dev-lf-stalled",
+              render_started_at: iso(2 * 60 * 60_000),
+              long_form_stage: "rendering",
+              long_form_progress: { stage: "rendering", unitsCompleted: 100, unitsTotal: 100, unitLabel: "fotogramas", updatedAt: iso(2 * 60 * 60_000) },
+            })}
+            nowMs={NOW}
+          />
+          <ResultView
+            request={request({ id: "dev-lf-done", status: "completed", video_path: "x.mp4", duration_seconds: 300 })}
+            videoUrl="https://example.com/x.mp4"
+            deliveredDurationSeconds={272.085}
             nowMs={NOW}
           />
         </Card>
