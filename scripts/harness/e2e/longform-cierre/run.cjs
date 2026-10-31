@@ -212,6 +212,8 @@ function reviewScript(script) {
     check("descarga = archivo guardado (sha256 idéntico) en escritorio, Pixel 7 y Samsung", fs.existsSync(stored) && ["desktop", "android", "samsung"].every((k) => files[k] && sha(files[k]) === sha(stored)), { stored: fs.existsSync(stored), sha256: fs.existsSync(stored) ? sha(stored) : null });
     const pr = ffprobe(files.desktop); const vs = pr.streams.find((s) => s.codec_type === "video"), as = pr.streams.find((s) => s.codec_type === "audio");
     check("MP4: H.264 1920×1080 (16:9) + AAC", vs?.codec_name === "h264" && vs.width === 1920 && vs.height === 1080 && as?.codec_name === "aac", { v: vs && `${vs.codec_name} ${vs.width}x${vs.height}`, a: as?.codec_name });
+    const subtitleTracks = pr.streams.filter((s) => s.codec_type === "subtitle");
+    check("MP4: pista de subtítulos tracks >= 1", subtitleTracks.length >= 1, { tracks: subtitleTracks.length, codecs: subtitleTracks.map((s) => s.codec_name) });
     const dur = Number(pr.format.duration); const narr = mockEvents().filter((e) => e.kind === "tts" && !e.fault).reduce((s, e) => s + (e.seconds || 0), 0);
     check("MP4: duración coherente con la narración (±15 %)", dur > 60 && Math.abs(dur - narr) / narr < 0.15, { mp4: dur, narracion: +narr.toFixed(1) });
     const manifest = { version: 1, expected: { width: 1920, height: 1080, durationSeconds: dur, durationTolerancePct: 2, videoCodec: "h264", audioCodec: "aac", requireAudio: true }, loudness: { integratedLufs: -16, toleranceLu: 2, truePeakDbtp: -1 } };
