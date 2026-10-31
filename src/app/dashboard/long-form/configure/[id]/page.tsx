@@ -174,6 +174,8 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
         visualBlockText={visual.ready ? null : visualBlockMessage(visual)}
         ownChannel={ownChannel}
         language={data.language === "en" ? "en" : "es"}
+        topic={data.topic}
+        publicationTitle={script.editorial?.version === "editorial-v2" && typeof script.editorial.publicationTitle === "string" ? script.editorial.publicationTitle : null}
         defaultPackaging={usesAnchoredVisuals(plans.balanced) ? defaultPackaging({ topic: script.topic || data.topic, ownChannel }) : undefined}
       />
     </div>

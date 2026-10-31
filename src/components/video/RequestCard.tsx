@@ -91,19 +91,30 @@ export function RequestCard({
           {request.status === "failed" && request.error_message && (
             <FailureLine message={renderFailureMessage(request.error_message)} />
           )}
-          {request.status === "processing" && !isStaleProcessing && stageLabel && (
-            <p className="mt-2 flex items-center gap-1.5 text-sm text-ink-muted">
+          {request.status === "processing" && !isStaleProcessing && isLongForm && (
+            <p className="mt-2 flex items-center gap-1.5 text-sm text-ink" data-testid="long-form-stage">
               <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-info motion-reduce:animate-none" aria-hidden="true" />
               <span className="min-w-0">
-                {stageLabel}…
+                Etapa: {stageLabel || "En cola"}
                 {longFormProgress && longFormProgress.unitsTotal > 0 && (
-                  <span className="tabular-nums">
+                  <span className="tabular-nums text-ink-muted">
                     {" "}
                     ({longFormProgress.unitsCompleted}/{longFormProgress.unitsTotal} {longFormProgress.unitLabel})
                   </span>
                 )}
-                {longFormPercent !== null && <span className="tabular-nums"> · {longFormPercent}%</span>}
+                {longFormPercent !== null && <span className="tabular-nums text-ink-muted"> · {longFormPercent}%</span>}
               </span>
+            </p>
+          )}
+          {request.status === "processing" && !isStaleProcessing && !isLongForm && stageLabel && (
+            <p className="mt-2 flex items-center gap-1.5 text-sm text-ink-muted">
+              <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-info motion-reduce:animate-none" aria-hidden="true" />
+              <span className="min-w-0">{stageLabel}…</span>
+            </p>
+          )}
+          {request.status === "processing" && isStaleProcessing && isLongForm && (
+            <p className="mt-2 text-sm font-medium text-ink" data-testid="long-form-stage-stalled">
+              Última etapa: {stageLabel || "En cola"}. Sin porcentaje: dejó de reportar avances.
             </p>
           )}
           {request.status === "processing" && isStaleProcessing && (
@@ -123,6 +134,19 @@ export function RequestCard({
           <Badge tone={STATUS_TONE[request.status] ?? "neutral"}>
             {request.status === "processing" && request.supply_wait_started_at ? "En espera" : STATUS_LABEL[request.status] ?? request.status}
           </Badge>
+          {isLongForm && (request.status === "processing" || request.status === "completed") && (
+            <Link
+              href={detailHref}
+              data-testid="open-project"
+              className={
+                request.status === "processing" && !isStaleProcessing && !request.supply_wait_started_at
+                  ? "inline-flex items-center justify-center rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:bg-accent-hover"
+                  : "inline-flex items-center justify-center rounded-md border border-border-strong px-3 py-1.5 text-xs font-medium text-ink hover:bg-surface-raised"
+              }
+            >
+              Abrir proyecto
+            </Link>
+          )}
 
           {request.status === "pending" && <GenerateButton {...pendingRequestCta(request.id, request.script_json)} />}
           {request.status === "script_ready" &&
@@ -272,12 +296,14 @@ export function RequestCard({
             >
               Descargar video
             </a>
-            <Link
-              href={detailHref}
-              className="inline-flex items-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-medium text-ink-muted transition-colors hover:text-ink"
-            >
-              Ver detalles
-            </Link>
+            {!isLongForm && (
+              <Link
+                href={detailHref}
+                className="inline-flex items-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-medium text-ink-muted transition-colors hover:text-ink"
+              >
+                Ver detalles
+              </Link>
+            )}
           </div>
         </div>
       )}

@@ -4,6 +4,7 @@ import { outputStatePath } from "./output-finalize";
 import {
   deliveredDurationSeconds,
   longFormDurationLabel,
+  measuredDurationNote,
   outputStateObjectPath,
   readLongFormDeliveryFacts,
   type DeliveryStorage,
@@ -23,6 +24,9 @@ test("la ficha dice la duración del archivo cuando no es la pedida, y no invent
   assert.equal(longFormDurationLabel(300, 300.4), "300s");
   assert.equal(longFormDurationLabel(300, null), "300s");
   assert.equal(longFormDurationLabel(90, 40), "40s (pedido 90s)");
+  assert.equal(measuredDurationNote(300, 272.085), "Duración del archivo: 4 min 32 s (pedido 5 min)");
+  assert.equal(measuredDurationNote(300, 300.4), null);
+  assert.equal(measuredDurationNote(300, null), null);
 });
 
 test("la lectura del dueño toma la medición y el SRT si existen, y sigue si Storage falla", async () => {

@@ -23,7 +23,7 @@ import {
   STATUS_TONE,
   type VideoRequestSummary,
 } from "@/lib/video/request-view";
-import { longFormDurationLabel } from "@/lib/video/long-form/delivered-duration";
+import { longFormDurationLabel, measuredDurationNote } from "@/lib/video/long-form/delivered-duration";
 
 /**
  * Contenido de la pantalla dedicada /dashboard/videos/[id] — puramente
@@ -76,6 +76,9 @@ export function ResultView({
   const needsSupport = request.status === "failed" && Boolean(request.error_message)
     && describeStoredFailure(request.error_message!).action === "support";
   const isLandscape = request.aspect_ratio === "16:9";
+  const measuredNote = isLongForm && request.status === "completed"
+    ? measuredDurationNote(request.duration_seconds, deliveredDurationSeconds)
+    : null;
   const reelPercent = isLongForm ? null : approximateRenderProgress(request.progress_stage);
   const stageLabel = isLongForm
     ? request.long_form_stage &&
@@ -187,6 +190,9 @@ export function ResultView({
         {request.status === "processing" && !waitingForSupply && stalled && (
           <Alert tone="warning" role="status">
             <p className="font-medium">Esta producción dejó de reportar avances.</p>
+            {isLongForm && (
+              <p className="mt-1" data-testid="long-form-stage-stalled">Última etapa: {stageLabel || "En cola"}.</p>
+            )}
             <p className="mt-1">No mostraremos un porcentaje antiguo como si siguiera avanzando.
               Revisa su estado antes de reintentar para evitar operaciones o costos duplicados.</p>
           </Alert>
@@ -236,8 +242,11 @@ export function ResultView({
         {/* Finished documentary: player continuity across link renewals lives in a client component,
             remounted per request so nothing carries over to another video or account. */}
         {request.status === "completed" && isLongForm && (
-          <LongFormResult key={request.id} requestId={request.id} videoUrl={videoUrl ?? null} thumbnailUrl={thumbnailUrl ?? null}
-            subtitleUrl={subtitleUrl} thumbnailRequested={thumbnailRequested} isLandscape={isLandscape} />
+          <div className="flex flex-col items-center gap-3">
+            {measuredNote && <p className="text-center text-sm font-medium text-ink" data-testid="measured-duration">{measuredNote}</p>}
+            <LongFormResult key={request.id} requestId={request.id} videoUrl={videoUrl ?? null} thumbnailUrl={thumbnailUrl ?? null}
+              subtitleUrl={subtitleUrl} thumbnailRequested={thumbnailRequested} isLandscape={isLandscape} />
+          </div>
         )}
         {request.status === "completed" && !isLongForm && videoUrl && (
           <div className="flex flex-col items-center gap-4">

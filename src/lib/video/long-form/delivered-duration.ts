@@ -21,6 +21,12 @@ export function longFormDurationLabel(requestedSeconds: number, measuredSeconds:
   return `${formatClock(measuredSeconds)} (pedido ${formatClock(requestedSeconds)})`;
 }
 
+/** Línea visible junto al reproductor. Null si no hay medición o coincide con lo pedido. */
+export function measuredDurationNote(requestedSeconds: number, measuredSeconds: number | null): string | null {
+  if (measuredSeconds === null || Math.abs(measuredSeconds - requestedSeconds) <= 1) return null;
+  return `Duración del archivo: ${longFormDurationLabel(requestedSeconds, measuredSeconds)}`;
+}
+
 function formatClock(seconds: number): string {
   const s = Math.max(0, Math.round(seconds));
   if (s < 120) return `${s}s`;
