@@ -152,7 +152,23 @@ export default async function DashboardPage({
       </div>
 
       {scriptJobsError && <Alert tone="danger">No se pudo consultar la preparación de guiones. No crees otra solicitud: vuelve a cargar el historial.</Alert>}
-      {(scriptJobs ?? []).length > 0 && <ul className="mt-6 space-y-3">{scriptJobs!.map(job => <li key={job.id}><ScriptJobCard job={job} nowMs={nowMs}/></li>)}</ul>}
+      {(() => {
+        // Mismo criterio que el historial: las preparaciones de guion que fallaron hace más de 7 días se pliegan (no se
+        // borra nada; siguen con su acción). La que se acaba de abrir (?script_job=) siempre queda a la vista.
+        const jobs = splitHistory((scriptJobs ?? []).filter((j) => j.id !== script_job), nowMs);
+        const visible = [...(scriptJobs ?? []).filter((j) => j.id === script_job), ...jobs.visible];
+        const item = (job: ScriptJobSummary) => <li key={job.id}><ScriptJobCard job={job} nowMs={nowMs}/></li>;
+        return (<>
+          {visible.length > 0 && <ul className="mt-6 space-y-3">{visible.map(item)}</ul>}
+          {jobs.old.length > 0 && (
+            <details className="mt-6 rounded-lg border border-border p-3" data-testid="guiones-antiguos">
+              <summary className="cursor-pointer text-sm font-medium text-ink-muted">Guiones antiguos sin terminar ({jobs.old.length})</summary>
+              <p className="mt-2 text-xs text-ink-muted">Preparaciones de guion que no terminaron hace más de 7 días. No se borró nada.</p>
+              <ul className="mt-3 space-y-3">{jobs.old.map(item)}</ul>
+            </details>
+          )}
+        </>);
+      })()}
       {historyState.kind === "error" ? (
         <div className="mt-4">
           <Alert tone="danger" role="alert">
