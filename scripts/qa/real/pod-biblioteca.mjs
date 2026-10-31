@@ -13,8 +13,10 @@ import { chromium } from "playwright";
 import { createClient } from "@supabase/supabase-js";
 
 const APP = process.env.POD_UI_URL, BYPASS = process.env.VERCEL_AUTOMATION_BYPASS_SECRET || "", EVID = process.env.EVID, OWNER = process.env.OWNER_ID;
-if (!APP || !/^https:\/\/atomivid-[a-z0-9-]+-atomivid\.vercel\.app$/.test(APP)) { console.log("FAIL pod-biblioteca: URL de vista previa no permitida"); process.exit(1); }
-if (!BYPASS) { console.log("FAIL pod-biblioteca: falta el secreto de bypass de Vercel"); process.exit(1); }
+// Producción (sesión del dueño, sin bypass) o una vista previa del PR (requiere el bypass de Vercel para automatización).
+const PRODUCTION = APP === "https://atomivid.vercel.app";
+if (!APP || !(PRODUCTION || /^https:\/\/atomivid-[a-z0-9-]+-atomivid\.vercel\.app$/.test(APP))) { console.log("FAIL pod-biblioteca: URL no permitida"); process.exit(1); }
+if (!PRODUCTION && !BYPASS) { console.log("FAIL pod-biblioteca: falta el secreto de bypass de Vercel (solo vistas previas)"); process.exit(1); }
 const { libraryView } = await import(process.env.LIBRARY_TS);
 const HOST = new URL(APP).hostname;
 const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
@@ -52,7 +54,7 @@ for (const [dev, opts] of Object.entries(DEVICES)) {
   await ctx.addInitScript(() => { try { localStorage.setItem("atomivid_onboarding_completed_v1", "1"); } catch {} });
   const p = await ctx.newPage(); p.setDefaultTimeout(60000);
   // Cookie de acceso de Vercel, una sola vez y solo en el origen de la vista previa.
-  await p.goto(`${APP}/?x-vercel-protection-bypass=${encodeURIComponent(BYPASS)}&x-vercel-set-bypass-cookie=samesitenone`, { waitUntil: "domcontentloaded" });
+  if (!PRODUCTION) await p.goto(`${APP}/?x-vercel-protection-bypass=${encodeURIComponent(BYPASS)}&x-vercel-set-bypass-cookie=samesitenone`, { waitUntil: "domcontentloaded" });
   const writes = []; p.on("request", (r) => { if (r.method() !== "GET" && !/_next|__nextjs/.test(r.url())) writes.push(r.method()); });
   for (const view of ["principal", "archivados"]) {
     const r = await p.goto(`${APP}/dashboard/podcast${view === "archivados" ? "?vista=archivados" : ""}`);
