@@ -1,0 +1,34 @@
+# Biblioteca de Podcast (PR #254) con los datos REALES de la cuenta dueña, SOLO LECTURA (USD 0): ejecuta el library.ts
+# exacto del SHA indicado sobre las mismas consultas que la página. Sin navegador, sin escritura; registro solo con conteos.
+name: pod-biblioteca-datos
+on:
+  workflow_dispatch:
+    inputs:
+      sha: { description: "SHA completo del PR cuyo library.ts se valida", required: true }
+  push:
+    branches: [claude/puertas-merge]
+    paths: [".github/workflows/pod-biblioteca-datos.yml"]
+permissions:
+  contents: read
+jobs:
+  datos:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: library.ts del SHA indicado
+        env: { SHA: "${{ inputs.sha }}" }
+        run: |
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::SHA completo requerido"; exit 1; }
+          git fetch -q --depth 1 "https://github.com/${{ github.repository }}.git" "$SHA"
+          git show FETCH_HEAD:src/lib/podcast/library.ts > "$RUNNER_TEMP/library.ts"
+      - env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LIBRARY_TS: ${{ runner.temp }}/library.ts
+        run: npx tsx scripts/qa/real/pod-biblioteca-datos.ts
