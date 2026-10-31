@@ -57,7 +57,10 @@ for (const [dev, opts] of Object.entries(DEVICES)) {
   if (!PRODUCTION) await p.goto(`${APP}/?x-vercel-protection-bypass=${encodeURIComponent(BYPASS)}&x-vercel-set-bypass-cookie=samesitenone`, { waitUntil: "domcontentloaded" });
   // Envíos no-GET: se registran método + host + ruta (sin consulta ni cuerpo) para distinguir escrituras de datos de
   // telemetría o renovación de sesión.
-  const writes = []; p.on("request", (r) => { if (r.method() !== "GET" && !/_next|__nextjs/.test(r.url())) { const u = new URL(r.url()); writes.push(`${r.method()} ${u.host === HOST ? "app" : u.host.replace(/^[^.]+\.supabase\.co$/, "supabase")}${u.pathname}`); } });
+  // La telemetría de Sentry (ingest.*.sentry.io) no escribe datos de la app: se cuenta aparte.
+  const writes = [], telemetry = []; p.on("request", (r) => { if (r.method() !== "GET" && !/_next|__nextjs/.test(r.url())) { const u = new URL(r.url()); (/\.ingest\.[a-z.]*sentry\.io$/.test(u.host) ? telemetry : writes).push(`${r.method()} ${u.host === HOST ? "app" : u.host.replace(/^[^.]+\.supabase\.co$/, "supabase")}${u.pathname}`); } });
+  // Errores de JavaScript en la página (excepciones sin capturar y console.error): solo se cuentan y se muestra el inicio.
+  const jsErrors = []; p.on("pageerror", (e) => jsErrors.push(`pageerror: ${String(e?.message ?? e).slice(0, 120)}`)); p.on("console", (m) => { if (m.type() === "error") jsErrors.push(`console: ${m.text().slice(0, 120)}`); });
   for (const view of ["principal", "archivados"]) {
     const r = await p.goto(`${APP}/dashboard/podcast${view === "archivados" ? "?vista=archivados" : ""}`);
     const status = r?.status() ?? null, loginRedirect = /\/login/.test(p.url());
@@ -79,7 +82,9 @@ for (const [dev, opts] of Object.entries(DEVICES)) {
     }
     await p.screenshot({ path: path.join(EVID, `${dev}-${view}.png`), fullPage: true });
   }
-  ok(`[${dev}] la biblioteca no envió escrituras (POST/PUT/PATCH/DELETE)`, writes.length === 0, writes.slice(0, 5));
+  ok(`[${dev}] la biblioteca no envió escrituras a la app ni a la base (POST/PUT/PATCH/DELETE)`, writes.length === 0, writes.slice(0, 5));
+  console.log(`INFO [${dev}] telemetría Sentry enviada: ${telemetry.length}`);
+  ok(`[${dev}] sin errores de JavaScript en la página`, jsErrors.length === 0, jsErrors.slice(0, 5));
   await ctx.close();
 }
 await browser.close();
