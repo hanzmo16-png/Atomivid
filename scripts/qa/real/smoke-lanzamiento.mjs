@@ -18,10 +18,10 @@ import { chromium } from "playwright";
 import { createClient } from "@supabase/supabase-js";
 
 const APP = "https://atomivid.vercel.app", HOST = new URL(APP).hostname, EVID = process.env.EVID, OWNER = process.env.OWNER_ID;
-// Qué está desplegado: «base» (solo lo de hoy), «258» o «259» (acumulativo: 259 implica 258).
+// Qué está desplegado: «base», «258», «259» o «263» (acumulativo: 263 implica 259 y 258).
 const LEVEL = process.env.SMOKE_LEVEL || "base";
-if (!["base", "258", "259"].includes(LEVEL)) { console.log("FAIL smoke-lanzamiento: SMOKE_LEVEL no válido"); process.exit(1); }
-const has258 = LEVEL !== "base", has259 = LEVEL === "259";
+if (!["base", "258", "259", "263"].includes(LEVEL)) { console.log("FAIL smoke-lanzamiento: SMOKE_LEVEL no válido"); process.exit(1); }
+const has258 = LEVEL !== "base", has259 = LEVEL === "259" || LEVEL === "263", has263 = LEVEL === "263";
 const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 fs.mkdirSync(EVID, { recursive: true });
 let fails = 0, passes = 0;
@@ -103,6 +103,20 @@ for (const [dev, opts] of Object.entries(DEVICES)) {
   await p.evaluate((k) => localStorage.removeItem(k), DRAFT);
   await wide("Podcast");
   await p.screenshot({ path: path.join(EVID, `${dev}-podcast.png`), fullPage: true });
+
+  // 2b) #263 desplegado: aviso de guion corto (solo existe en el código nuevo). Borrador LOCAL del navegador del smoke:
+  //     guion de ~0,5 min con 2 min pedidos en «Contenido». Nada se envía al servidor.
+  if (has263) {
+    await p.evaluate((k) => localStorage.setItem(k, JSON.stringify({ step: 1, modality: "audio", mode: "narracion", count: 2, title: "Smoke #263 (no se genera)", topic: "Los sumerios", minutes: 2,
+      script: "Ana: Bienvenidos. Hoy hablamos de los sumerios y de su escritura.\nLuis: Gracias, Ana. Marcaban tablillas de arcilla con un punzón." })), DRAFT);
+    await p.reload(); await p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
+    const notice = p.getByTestId("aviso-guion-corto");
+    const txt = (await notice.count()) ? await notice.innerText() : "";
+    ok(`[${dev}] #263 en producción: aviso de guion corto en Contenido`, /pediste 2 min/.test(txt) && /no se rellena/.test(txt), txt.slice(0, 160));
+    await wide("Contenido con aviso");
+    await p.screenshot({ path: path.join(EVID, `${dev}-aviso-guion-corto.png`), fullPage: true });
+    await p.evaluate((k) => localStorage.removeItem(k), DRAFT);
+  }
 
   // 3) Reproducción y descarga de un episodio existente (sin generar nada).
   if (readyStudio.length) {

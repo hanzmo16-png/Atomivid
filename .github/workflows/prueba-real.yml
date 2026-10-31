@@ -119,7 +119,7 @@ jobs:
             # Smoke posterior al despliegue en PRODUCCIÓN (USD 0, solo lectura). lf_request_id = SHA completo desplegado (su
             # library.ts calcula el orden esperado); pod_episode_id = nivel desplegado: base | 258 | 259.
             S="${{ inputs.lf_request_id }}"; [[ "$S" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::SHA completo requerido en lf_request_id"; exit 1; }
-            L="${{ inputs.pod_episode_id }}"; case "$L" in base|258|259) ;; *) echo "::error::pod_episode_id debe ser base, 258 o 259"; exit 1;; esac
+            L="${{ inputs.pod_episode_id }}"; case "$L" in base|258|259|263) ;; *) echo "::error::pod_episode_id debe ser base, 258, 259 o 263"; exit 1;; esac
             git fetch -q --depth 1 "https://github.com/${{ github.repository }}.git" "$S" && git show FETCH_HEAD:src/lib/podcast/library.ts > "$RUNNER_TEMP/library.ts"
             rc=0; POD_UI_URL=https://atomivid.vercel.app LIBRARY_TS="$RUNNER_TEMP/library.ts" npx tsx scripts/qa/real/pod-biblioteca.mjs || rc=1
             SMOKE_LEVEL="$L" node scripts/qa/real/smoke-lanzamiento.mjs || rc=1; exit $rc
