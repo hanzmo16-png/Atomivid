@@ -452,14 +452,15 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     await W().getByLabel("Ambiente musical").selectOption(m.mood ?? "auto"); if (m.intensity) await W().getByLabel("Intensidad de la música").selectOption(m.intensity);
     if (m.mode !== "Solo audio") {
       // Recraft es el proveedor principal del estudio (con precio por imagen) y Pexels ya no se ofrece. Aquí su política de
-      // gasto está cerrada (como la dejó la migración): el asistente lo dice ANTES de autorizar y no avanza con él; nunca lo
-      // sustituye solo. Con la política lista (caso 13) se ofrece y se estima. Este E2E no sale a fal.ai.
+      // gasto está cerrada (como la dejó la migración): el asistente lo dice ANTES de autorizar, no lo presenta como elegido
+      // (deshabilitado y sin marcar) y no avanza hasta que la persona elige otro; nunca lo sustituye solo. Con la política
+      // lista (caso 13) se ofrece y se estima. Este E2E no sale a fal.ai.
       const rc = await W().getByTestId("proveedor-recraft").textContent();
       ok(`${tag}: Recraft con precio por imagen y, sin política lista, el motivo en pantalla`, /USD 0\.035\/imagen/.test(rc) && /No disponible por ahora: .*no están configurados/.test(rc) && /No se cobra nada/.test(rc), rc.slice(0, 200));
-      ok(`${tag}: Recraft preseleccionado como proveedor principal`, await W().getByLabel("Ilustraciones Recraft").isChecked());
+      ok(`${tag}: Recraft no listo: deshabilitado, sin marcar y con «No disponible»`, await W().getByLabel("Ilustraciones Recraft").isDisabled() && !(await W().getByLabel("Ilustraciones Recraft").isChecked()) && (await W().getByTestId("proveedor-recraft").getAttribute("data-available")) === "0");
       await W().getByRole("button", { name: "Siguiente", exact: true }).click(); await S.p.waitForTimeout(400);
       const blocked = await W().getByRole("alert").textContent().catch(() => "");
-      ok(`${tag}: con Recraft no listo el asistente no avanza y explica por qué (no lo cambia solo)`, /Estilo/.test(await stepTitle()) && /No disponible por ahora/.test(blocked ?? "") && await W().getByLabel("Ilustraciones Recraft").isChecked(), String(blocked).slice(0, 160));
+      ok(`${tag}: con Recraft no listo el asistente no avanza y explica por qué (no lo cambia solo)`, /Estilo/.test(await stepTitle()) && /No disponible por ahora/.test(blocked ?? "") && !(await W().getByLabel("Solo estudio y anfitriones (sin imágenes)").isChecked()), String(blocked).slice(0, 160));
       ok(`${tag}: Pexels ya no aparece en el estudio`, (await W().locator('[data-testid="proveedor-pexels"]').count()) === 0);
       await W().getByLabel("Solo estudio y anfitriones (sin imágenes)").check();
     }
@@ -485,6 +486,10 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     }
     await snap("paso04a-presupuesto");
     await W().getByTestId("wizard-preview").waitFor(); await W().getByTestId("preview-turnos").waitFor();
+    if (m.avatars) {
+      const res = (await W().getByTestId("resumen-participantes").textContent()) ?? "";
+      ok(`${tag}: el resumen previo dice qué avatar guardado usa cada participante`, m.avatars.every((id) => res.includes(`avatar guardado «${AV.find(([x]) => x === id)?.[1]}»`)), res.slice(0, 240));
+    }
     if (m.count === 2 && m.avatars) {
       const tl = await W().getByTestId("preview-timeline").textContent(), cov = await W().getByTestId("cobertura-planos").textContent();
       ok(`${tag}: vista previa con plano general y primeros planos, labios solo de quien habla`, /✔ plano general/.test(cov) && /labios A: habla · B: reposo|labios A: reposo · B: habla/.test(tl) && !/labios A: habla · B: habla/.test(tl), cov);
@@ -769,6 +774,67 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     }
     await db.query("update pi_supply_policies set enabled=false where provider='recraft'");
   }
+  if (cases.includes("14")) {
+    // Avatares guardados (defecto real del 2026-10-28, PR #246): el dueño no encontraba su avatar porque, tras elegir un
+    // anfitrión del catálogo, solo volvía a verlo pulsando «Personalizado». Dos avatares listos FICTICIOS en la base
+    // desechable; sin proveedores ni red. Se recorre hasta Estilo sin generar ni estimar: ninguna petición de escritura.
+    const SAVED = [["c14a0000-0000-4000-8000-000000000001", "Hans Estudio (ficticio)"], ["c14a0000-0000-4000-8000-000000000002", "Valeria Guardada (ficticia)"]];
+    for (const [id, name] of SAVED) await db.query("insert into public.avatars (id,user_id,name,provider,provider_avatar_id,status,consent_given) values ($1,$2,$3,'heygen','asset:simulado','ready',true) on conflict (id) do nothing", [id, OWNER.id, name]);
+    const [H, V] = SAVED.map(([id]) => id), X = "c14a0000-0000-4000-8000-000000000003";
+    await db.query("insert into public.avatars (id,user_id,name,provider,provider_avatar_id,status,consent_given) values ($1,$2,'Avatar de otra cuenta (ficticio)','heygen','asset:simulado','ready',true) on conflict (id) do nothing", [X, OTHER.id]);
+    const counts = async () => (await db.query("select (select count(*) from public.avatars)::int a, (select count(*) from public.podcast_studio_episodes)::int e, (select count(*) from public.podcast_episodes)::int v")).rows[0];
+    const before = await counts();
+    const SAMSUNG14 = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2.75, isMobile: true, hasTouch: true, userAgent: "Mozilla/5.0 (Linux; Android 14; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36" };
+    for (const [dev, opt] of [["escritorio", { viewport: { width: 1366, height: 900 } }], ["samsung", SAMSUNG14]]) {
+      const t = `c14-${dev}`, S = await session(OWNER, t, opt);
+      const writes = []; S.p.on("request", (r) => { if (r.method() !== "GET" && r.url().startsWith(BASE)) writes.push(`${r.method()} ${r.url().replace(BASE, "")}`); });
+      const W = () => S.p.getByTestId("podcast-wizard"), next = async () => { await W().getByRole("button", { name: "Siguiente" }).click(); await S.p.waitForTimeout(400); };
+      const title = async () => (await W().getByTestId("wizard-step-title").textContent()) ?? "";
+      const wide = async (n) => { const o = await S.p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth); ok(`${t}: ${n} sin desbordamiento horizontal`, o <= 1, `${o}px`); };
+      const draft = () => S.p.evaluate(() => JSON.parse(localStorage.getItem("atomivid.podcast.asistente.v2") || "null"));
+      await S.p.goto(`${BASE}/dashboard/podcast`); await S.p.evaluate(() => localStorage.removeItem("atomivid.podcast.asistente.v2")); await S.p.reload();
+      await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
+      await W().getByTestId("modalidad-dialogo").click();
+      const A = W().getByRole("radiogroup", { name: /Participante A/ }), GA = W().getByTestId("avatares-guardados-A"), GB = W().getByTestId("avatares-guardados-B");
+      // Primero el catálogo (como haría alguien que explora): sus avatares guardados siguen a la vista, sin «Personalizado».
+      await A.getByTestId("anfitrion-victor").getByRole("radio").click();
+      ok(`${t}: con un anfitrión del catálogo elegido, los avatares guardados siguen visibles (A y B)`, await GA.isVisible() && await GB.isVisible() && /Hans Estudio/.test(await GA.textContent()) && /Valeria Guardada/.test(await GA.textContent()));
+      ok(`${t}: solo se listan avatares del dueño; el de otra cuenta no aparece`, (await GA.locator('[data-testid^="avatar-guardado-A-"]').count()) === (await db.query("select count(*)::int n from public.avatars where user_id=$1 and status='ready'", [OWNER.id])).rows[0].n && (await W().getByTestId(`avatar-guardado-A-${X}`).count()) === 0 && !/otra cuenta/.test(await GA.textContent()));
+      await GA.getByTestId(`avatar-guardado-A-${H}`).click();
+      let dd = await draft();
+      ok(`${t}: A deja el catálogo y usa su avatar guardado (nombre del avatar, voz aparte)`, dd.participants[0].host === null && dd.participants[0].avatar?.kind === "existente" && dd.participants[0].avatar.avatar_id === H && dd.participants[0].name === "Hans" && dd.participants[0].voice_id === "", JSON.stringify(dd.participants[0]).slice(0, 200));
+      ok(`${t}: el avatar que usa A no se puede repetir en B (tarjeta y selector)`, await GB.getByTestId(`avatar-guardado-B-${H}`).isDisabled() && await W().getByLabel("Avatar B").locator(`option[value="${H}"]`).isDisabled());
+      await GB.getByTestId(`avatar-guardado-B-${V}`).click();
+      await A.getByTestId("anfitrion-ximena").getByRole("radio").click();
+      dd = await draft(); ok(`${t}: A puede volver al catálogo (rostro y voz emparejados)`, dd.participants[0].host === "ximena" && dd.participants[0].avatar?.kind === "catalogo" && !!dd.participants[0].voice_id);
+      await GA.getByTestId(`avatar-guardado-A-${H}`).click();
+      dd = await draft(); ok(`${t}: y de nuevo a su avatar guardado sin perder el de B`, dd.participants[0].avatar?.avatar_id === H && dd.participants[1].avatar?.avatar_id === V);
+      ok(`${t}: los selectores de Avatares reflejan lo elegido`, (await W().getByLabel("Avatar A").inputValue()) === H && (await W().getByLabel("Avatar B").inputValue()) === V);
+      await W().getByLabel("Voz A").selectOption(ANA); await W().getByLabel("Voz B").selectOption(LEO);
+      await shot(S.p, `${t}-01-avatares-guardados`); await wide("participantes");
+      await next();
+      ok(`${t}: pasa a Contenido`, /Contenido/.test(await title()), await title());
+      await W().getByLabel("Título del episodio").fill(`E2E avatar guardado ${dev}`);
+      await W().getByLabel("Guion").fill("Hans: Bienvenidos, hoy hablamos de volcanes.\nValeria: Gracias, Hans. Islandia está sobre una dorsal.\nHans: Hasta la próxima.");
+      await next();
+      ok(`${t}: pasa a Estilo`, /Estilo/.test(await title()), await title());
+      await W().locator("details").evaluateAll((ds) => ds.forEach((d) => { d.open = true; }));
+      const rc = W().getByLabel("Ilustraciones Recraft"), solo = W().getByLabel("Solo estudio y anfitriones (sin imágenes)");
+      ok(`${t}: Recraft no disponible: deshabilitado, sin marcar y con «No disponible»`, await rc.isDisabled() && !(await rc.isChecked()) && /No disponible\b/.test(await W().getByTestId("proveedor-recraft").textContent()));
+      ok(`${t}: ninguna opción aparece elegida sola`, !(await solo.isChecked()));
+      await next();
+      ok(`${t}: sin elegir proveedor no avanza y lo explica (no se cambia automáticamente)`, /Estilo/.test(await title()) && /no se cambia automáticamente/.test((await W().getByRole("alert").textContent().catch(() => "")) ?? ""));
+      await solo.check();
+      ok(`${t}: la opción disponible queda elegida por la persona`, await solo.isChecked() && (await draft()).provider === "solo_set");
+      await shot(S.p, `${t}-02-proveedor`); await wide("estilo");
+      ok(`${t}: cero peticiones POST/PUT/PATCH/DELETE`, writes.length === 0, writes.join(", ").slice(0, 200));
+      await S.p.evaluate(() => localStorage.removeItem("atomivid.podcast.asistente.v2"));
+      await S.ctx.close();
+    }
+    await db.query("delete from public.avatars where id = any($1)", [[H, V, X]]);
+    const after = await counts();
+    ok("c14: la base queda igual (solo se quitan los 3 avatares ficticios del caso)", after.a === before.a - 3 && after.e === before.e && after.v === before.v, JSON.stringify({ before, after }));
+  }
   if (cases.includes("15")) {
     // Episodio real ec30c594 (2026-10-29): el job murió instalando el entorno, ANTES de tomar el episodio. mark-failed solo
     // cerraba «generating» → el episodio quedó «authorized» en 0 % sin explicación. Ahora se explica y sigue autorizado.
@@ -879,7 +945,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
   }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
-  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 15: 5, 16: 24 };
+  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 14: 32, 15: 5, 16: 24 };
   const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[a-d]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name)) || (c === "12" && /^c12-/.test(r.name))).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));

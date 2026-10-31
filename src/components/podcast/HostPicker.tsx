@@ -5,7 +5,7 @@ export type HostCard = { id: string; name: string; role: string; description: st
 
 /**
  * Selector de anfitriones (ampliable): foto, nombre, descripción y muestra de voz. Elegir uno carga su voz y su avatar;
- * «Personalizado» mantiene la configuración propia (tu avatar y tu voz, por separado).
+ * «Otro / personalizado» mantiene la configuración propia (tu avatar y tu voz, por separado).
  */
 export function HostPicker({ label, hosts, selected, onSelect, onCustom, disabledIds = [] }: {
   label: string; hosts: HostCard[]; selected: string | null; onSelect: (id: string) => void; onCustom: () => void; disabledIds?: string[];
@@ -33,7 +33,7 @@ export function HostPicker({ label, hosts, selected, onSelect, onCustom, disable
         })}
       </div>
       <button type="button" role="radio" aria-checked={selected === null} onClick={onCustom} className={`rounded-lg border p-2 text-left text-sm ${selected === null ? "border-accent bg-surface" : "border-border"}`}>
-        <span className="font-medium text-ink">Personalizado</span> <span className="text-ink-muted">— tu propio avatar y tu voz (se configuran en los pasos siguientes)</span>
+        <span className="font-medium text-ink">Otro / personalizado</span> <span className="text-ink-muted">— nombre, voz y avatar a tu elección, incluido crear uno desde una foto (en los pasos siguientes)</span>
       </button>
     </fieldset>
   );
