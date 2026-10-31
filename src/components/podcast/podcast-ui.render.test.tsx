@@ -58,3 +58,17 @@ test("indicador del átomo con el libro real (ec30c594): etapa, cuentas por etap
   const stale = renderToStaticMarkup(<AtomProgress now={now + 11 * 60_000} view={progressView({ status: "generating", progress: null }, now + 11 * 60_000, ledger)} />);
   assert.match(stale, /El procesador no responde/); assert.match(stale, /no envía señales \(hace 11 min\)/); assert.match(stale, />30%</);
 });
+
+// Defecto real (2026-10-28, PR #246): el dueño no encontraba su avatar; solo aparecía tras pulsar «Personalizado».
+test("avatares guardados: visibles con nombre y foto firmada; el que usa el otro participante no se repite", async () => {
+  const { SavedAvatarPicker } = await import("./SavedAvatarPicker");
+  const avatars = [{ id: "h", name: "Hans — Estudio podcast", photoUrl: "https://x/firmada-h.jpg" }, { id: "v", name: "Valeria Montclair", photoUrl: null }];
+  const html = renderToStaticMarkup(<SavedAvatarPicker label="O usa un avatar guardado" who="B" avatars={avatars} selected="v" disabledIds={["h"]} onSelect={() => {}} />);
+  assert.match(html, /Hans — Estudio podcast/); assert.match(html, /Valeria Montclair/);
+  assert.match(html, /src="https:\/\/x\/firmada-h.jpg"/);
+  assert.match(html, /aria-checked="true"[^>]*data-testid="avatar-guardado-B-v"/);
+  assert.match(html, /disabled=""[^>]*data-testid="avatar-guardado-B-h"/);
+  assert.match(html, /Ya lo usa el otro participante/);
+  const none = renderToStaticMarkup(<SavedAvatarPicker label="x" who="A" avatars={[]} selected={null} onSelect={() => {}} />);
+  assert.match(none, /Aún no tienes avatares guardados listos/);
+});

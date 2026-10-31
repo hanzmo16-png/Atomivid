@@ -138,6 +138,8 @@ export function stepErrors(d: WizardDraft, step: number, ctx: { unavailableVoice
     }
     if (d.count === 2 && active[0].voice_id && active[0].voice_id === active[1].voice_id) e.push("Los dos participantes necesitan voces distintas.");
   }
+  if (step === STEP.avatares && d.mode !== "narracion" && active.length === 2 && active[0].avatar.kind === "existente" && active[1].avatar.kind === "existente"
+    && active[0].avatar.avatar_id === active[1].avatar.avatar_id) e.push("Los dos participantes tienen el mismo avatar guardado; elige otro para uno de ellos.");
   if (step === STEP.avatares && d.mode !== "narracion") for (const p of active) {
     if (p.avatar.kind === "ninguno") e.push(`Elige un avatar para ${p.name}.`);
     if (p.avatar.kind === "foto" && !p.avatar.consent) e.push(`Marca el consentimiento para crear el avatar de ${p.name} desde su foto.`);
@@ -199,6 +201,13 @@ export function withOwnAvatar(p: WizardParticipant, avatar: { id: string; name: 
   const free = fromAvatar && fromAvatar.toLowerCase() !== otherName.trim().toLowerCase() ? fromAvatar : "";
   const name = !p.name.trim() || p.name === DEFAULT_NAMES[i] ? free || p.name : p.name;
   return { ...p, host: null, name, avatar: { kind: "existente", avatar_id: avatar.id } };
+}
+/**
+ * Avatar guardado elegido junto al catálogo: si venía de un anfitrión, se quitan su voz y su nombre (la voz se elige en
+ * Voces) y se aplica la misma regla de nombre que `withOwnAvatar`. Tema, guion y el resto del borrador no cambian.
+ */
+export function withSavedAvatar(p: WizardParticipant, avatar: { id: string; name: string }, i: 0 | 1, otherName = ""): WizardParticipant {
+  return withOwnAvatar(p.host ? { ...withoutHost(p), name: DEFAULT_NAMES[i] } : p, avatar, i, otherName);
 }
 
 /** Especificación del estudio a partir del borrador. */

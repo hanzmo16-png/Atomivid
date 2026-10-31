@@ -180,3 +180,20 @@ test("Recraft no listo: el asistente lo muestra con el motivo y se rechaza ANTES
   assert.equal(readinessMessage({ provider: "recraft", reason: "supplier balance unavailable" }), "Recraft (ilustraciones): no se pudo verificar un saldo suficiente.");
   assert.equal(readinessMessage({ provider: "x", reason: "otra" }), "x: otra.");
 });
+
+// Defecto real (2026-10-28, PR #246): el dueño no encontraba su avatar guardado y Recraft bloqueado aparecía elegido.
+test("avatar guardado: catálogo ↔ avatar propio sin perder el episodio; el mismo avatar en A y B se bloquea", async () => {
+  const { withHost, withSavedAvatar, stepErrors, STEP } = await import("./wizard");
+  const hans = { id: "h", name: "Hans Estudio" }, val = { id: "v", name: "Valeria Montclair" };
+  const base: WizardDraft = { ...defaultDraft(), mode: "dialogo", modality: "dialogo", count: 2, title: "T", topic: "volcanes", script: "Anfitrión: hola\nInvitado: hola" };
+  const fromHost = withSavedAvatar(withHost(base.participants[0], "victor"), hans, 0, "Invitado");
+  assert.deepEqual([fromHost.host, fromHost.avatar, fromHost.name, fromHost.voice_id], [null, { kind: "existente", avatar_id: "h" }, "Hans", ""], "deja el catálogo, toma el nombre del avatar y pide la voz aparte");
+  assert.equal(withSavedAvatar({ ...base.participants[0], name: "Hans G." }, hans, 0).name, "Hans G.", "un nombre escrito a mano se respeta");
+  const back = withHost(fromHost, "ximena");
+  assert.equal(back.avatar.kind, "catalogo"); assert.equal(back.host, "ximena");
+  const dup: WizardDraft = { ...base, participants: [withSavedAvatar(base.participants[0], hans, 0), withSavedAvatar(base.participants[1], hans, 1)] };
+  assert.ok(stepErrors(dup, STEP.avatares, { unavailableVoices: [] }).some((e) => /mismo avatar guardado/.test(e)));
+  const ok2: WizardDraft = { ...base, participants: [withSavedAvatar(base.participants[0], hans, 0), withSavedAvatar(base.participants[1], val, 1)] };
+  assert.ok(!stepErrors(ok2, STEP.avatares, { unavailableVoices: [] }).some((e) => /mismo avatar/.test(e)));
+  assert.equal(ok2.topic, base.topic); assert.equal(ok2.title, base.title);
+});
