@@ -1002,9 +1002,80 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     }
     ok("c18: el aviso no crea ni cobra nada", (await n18()) === b18);
   }
+  if (cases.includes("19")) {
+    // T-20261031-1910: biblioteca sin tope invisible (cursor (updated_at, id) en PostgREST real), archivado idempotente y
+    // tarjeta de estudio archivada que solo pide datos al abrirla. 150 episodios sintéticos (75 estudio + 75 clásico) con
+    // fechas repetidas en bloques de 7, todos «Listo» (vista principal). Móvil 390 y escritorio 1440. Base DESECHABLE.
+    const ids19 = { s: [], v: [] };
+    for (let n = 0; n < 75; n++) {
+      const sid = `c19a0000-0000-4000-8000-${String(n).padStart(12, "0")}`, vid = `c19b0000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+      ids19.s.push(sid); ids19.v.push(vid);
+      const ts = `now() - interval '${Math.floor(n / 7)} minutes' - interval '1 day'`;
+      await db.query(`insert into public.podcast_studio_episodes(id,user_id,title,mode,spec,status,cost_usd,created_at,updated_at) values ($1,$2,$3,'dialogo','{"version":"podcast-studio/3"}','ready',0.5,${ts},${ts})`, [sid, OWNER.id, `c19 estudio ${n}`]);
+      await db.query(`insert into public.podcast_episodes(id,user_id,title,source,status,created_at,updated_at) values ($1,$2,$3,'upload','ready',${ts},${ts})`, [vid, OWNER.id, `c19 clásico ${n}`]);
+    }
+    const all19 = [...ids19.s.map((x) => `studio-episode-${x}`), ...ids19.v.map((x) => `episodio-v2-${x}`)];
+    for (const [dev, opt] of [["movil", { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2.75, isMobile: true, hasTouch: true }], ["escritorio", { viewport: { width: 1440, height: 900 } }]]) {
+      const S = await session(OWNER, `c19-${dev}`, opt), P = S.p;
+      const v3gets = []; P.on("request", (r) => { const m = /\/api\/podcast\/v3\/([0-9a-f-]{36})$/.exec(new URL(r.url()).pathname); if (m && r.method() === "GET") v3gets.push(m[1]); });
+      await P.goto(`${BASE}/dashboard/podcast`); await P.getByTestId("biblioteca-vistas").waitFor({ timeout: 60000 });
+      const first = await P.getByTestId("studio-episodes").locator(":scope > li").count();
+      ok(`c19: ${dev} · primera carga muestra 50 y ofrece «Ver más»`, first === 50 && (await P.getByTestId("biblioteca-ver-mas").count()) === 1, String(first));
+      let clicks = 0;
+      // «Ver más» es navegación en la página (sin carga nueva): se espera a que la lista crezca, no a «networkidle».
+      const items = P.getByTestId("studio-episodes").locator(":scope > li");
+      while ((await P.getByTestId("biblioteca-ver-mas").count()) && clicks < 20) {
+        const before = await items.count();
+        await P.getByTestId("biblioteca-ver-mas").click();
+        await P.waitForFunction((n) => document.querySelectorAll('[data-testid="studio-episodes"] > li').length > n, before, { timeout: 30000 });
+        clicks++;
+      }
+      const seq = await P.getByTestId("studio-episodes").locator(":scope > li").evaluateAll((ls) => ls.map((l) => l.getAttribute("data-testid")));
+      const got = seq.filter((t) => all19.includes(t));
+      ok(`c19: ${dev} · «Ver más» hasta el final: los 150 aparecen, sin perder ni duplicar`, got.length === 150 && new Set(got).size === 150 && new Set(seq).size === seq.length, JSON.stringify({ got: got.length, uniq: new Set(got).size, total: seq.length, clicks }));
+      const ov = await P.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      ok(`c19: ${dev} · sin desbordamiento horizontal con la lista completa`, ov <= 1, `${ov}px`);
+      await shot(P, `c19-${dev}-lista`);
+      // Tarjeta de estudio archivada (archivar por la API del dueño): sin datos hasta abrirla; abrir no restaura.
+      const X = ids19.s[dev === "movil" ? 0 : 1];
+      const post = (b) => P.evaluate(async (body) => { const r = await fetch("/api/podcast/library", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }); return { status: r.status, body: await r.json().catch(() => null) }; }, b);
+      const a1 = await post({ kind: "studio", id: X, action: "archive" });
+      const at1 = (await db.query("select archived_at from public.podcast_studio_episodes where id=$1", [X])).rows[0].archived_at;
+      await P.waitForTimeout(1100);
+      const a2 = await post({ kind: "studio", id: X, action: "archive" });
+      const at2 = (await db.query("select archived_at from public.podcast_studio_episodes where id=$1", [X])).rows[0].archived_at;
+      ok(`c19: ${dev} · archivar dos veces conserva la fecha original (idempotente)`, a1.status === 200 && a2.status === 200 && a2.body?.unchanged === true && +at1 === +at2, JSON.stringify({ a1: a1.status, a2: a2.body, at1, at2 }));
+      v3gets.length = 0;
+      await P.goto(`${BASE}/dashboard/podcast?vista=archivados&mostrar=500`); await P.getByTestId("biblioteca-vistas").waitFor();
+      const card = P.getByTestId(`studio-episode-${X}`);
+      await P.waitForTimeout(1500);
+      ok(`c19: ${dev} · la tarjeta archivada no pide datos ni enlaces firmados hasta abrirla`, (await card.count()) === 1 && !v3gets.includes(X) && (await card.locator('[data-testid="studio-player"]').count()) === 0 && (await P.getByTestId(`studio-abrir-${X}`).count()) === 1, JSON.stringify({ gets: v3gets.filter((g) => g === X).length }));
+      await P.getByTestId(`studio-abrir-${X}`).click();
+      await P.getByTestId(`studio-abierto-${X}`).waitFor({ timeout: 15000 });
+      const txt = await P.getByTestId(`studio-abierto-${X}`).innerText();
+      const still = (await db.query("select archived_at from public.podcast_studio_episodes where id=$1", [X])).rows[0].archived_at;
+      ok(`c19: ${dev} · «Ver episodio» muestra su estado (GET propio) y no lo restaura`, v3gets.includes(X) && /Estado actual: Listo/.test(txt) && +still === +at1, txt.slice(0, 120));
+      const r1 = await post({ kind: "studio", id: X, action: "restore" }), r2 = await post({ kind: "studio", id: X, action: "restore" });
+      const after = (await db.query("select archived_at from public.podcast_studio_episodes where id=$1", [X])).rows[0].archived_at;
+      ok(`c19: ${dev} · restaurar dos veces → 200 y 200 sin cambios, sin archivar`, r1.status === 200 && r2.status === 200 && r2.body?.unchanged === true && after === null, JSON.stringify({ r1: r1.status, r2: r2.body }));
+      await S.ctx.close();
+    }
+    // Aislamiento: la otra cuenta no ve ninguno, no puede archivarlos (404) ni leer su estado (404).
+    const So = await session(OTHER, "c19-otra", { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    await So.p.goto(`${BASE}/dashboard/podcast?mostrar=500`); await So.p.getByTestId("biblioteca-vistas").waitFor();
+    const theirs = await So.p.locator('[data-testid^="studio-episode-c19"], [data-testid^="episodio-v2-c19"]').count();
+    const o = await So.p.evaluate(async (x) => { const a = await fetch("/api/podcast/library", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind: "studio", id: x, action: "archive" }) }); const g = await fetch(`/api/podcast/v3/${x}`); return { a: a.status, g: g.status }; }, ids19.s[2]);
+    const untouched = (await db.query("select archived_at from public.podcast_studio_episodes where id=$1", [ids19.s[2]])).rows[0].archived_at;
+    ok("c19: la otra cuenta no ve los 150, archivar responde 404, leer estado responde 404 y nada cambia", theirs === 0 && o.a === 404 && o.g === 404 && untouched === null, JSON.stringify({ theirs, ...o }));
+    await So.ctx.close();
+    const keep = (await db.query("select (select count(*) from public.podcast_studio_episodes where id = any($1))::int + (select count(*) from public.podcast_episodes where id = any($2))::int n", [ids19.s, ids19.v])).rows[0].n;
+    ok("c19: cero borrado: las 150 filas siguen en la base", keep === 150, String(keep));
+    await db.query("delete from public.podcast_studio_episodes where id = any($1)", [ids19.s]);
+    await db.query("delete from public.podcast_episodes where id = any($1)", [ids19.v]);
+  }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
-  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 14: 32, 15: 5, 16: 24, 17: 17, 18: 9 };
+  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 14: 32, 15: 5, 16: 24, 17: 17, 18: 9, 19: 16 };
   const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[a-d]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name)) || (c === "12" && /^c12-/.test(r.name))).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));

@@ -61,14 +61,50 @@ export function libraryView<T extends LibraryItem>(items: T[], view: "principal"
   const tagged = items.map((i) => ({ ...i, bucket: bucketOf(i, now) }));
   const hidden = (b: LibraryBucket) => b === "archivado" || b in AUTO_GROUPED;
   const keep = tagged.filter((i) => (view === "archivados" ? hidden(i.bucket) : !hidden(i.bucket)));
-  return keep.sort((a, b) => ORDER[a.bucket] - ORDER[b.bucket] || Date.parse(b.updated_at || b.created_at) - Date.parse(a.updated_at || a.created_at));
+  // Desempate por fuente e id: el orden es total y estable, así que paginar la vista nunca repite ni salta elementos.
+  return keep.sort((a, b) => ORDER[a.bucket] - ORDER[b.bucket] || Date.parse(b.updated_at || b.created_at) - Date.parse(a.updated_at || a.created_at)
+    || a.kind.localeCompare(b.kind) || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
 }
+
+/**
+ * Paginación por cursor (updated_at, id), sin tope invisible (T-20261031-1910, B3). Antes cada fuente traía solo sus 100
+ * episodios más recientes y el resto no aparecía en ninguna vista. `page(after, size)` devuelve la página siguiente ordenada
+ * por updated_at DESC, id DESC con la condición (updated_at, id) < after; aquí se recorren todas hasta agotar la fuente.
+ * Tope de seguridad muy alto (`maxRows`): si se alcanza, se informa (`truncated`) en lugar de ocultar en silencio.
+ */
+export type PageCursor = { updated_at: string; id: string };
+export const LIBRARY_PAGE = 100, LIBRARY_MAX_ROWS = 5000;
+export async function fetchAllByCursor<T extends { id: string; updated_at?: string | null }>(
+  page: (after: PageCursor | null, size: number) => Promise<T[] | null>, size = LIBRARY_PAGE, maxRows = LIBRARY_MAX_ROWS,
+): Promise<{ rows: T[]; truncated: boolean } | null> {
+  const rows: T[] = [];
+  let after: PageCursor | null = null;
+  for (;;) {
+    const chunk = await page(after, size);
+    if (!chunk) return rows.length ? { rows, truncated: true } : null;
+    rows.push(...chunk);
+    if (chunk.length < size) return { rows, truncated: false };
+    if (rows.length >= maxRows) return { rows, truncated: true };
+    const last = chunk[chunk.length - 1];
+    if (!last.updated_at) return { rows, truncated: true };
+    after = { updated_at: last.updated_at, id: last.id };
+  }
+}
+/** Filtro PostgREST de la página siguiente: (updated_at, id) < cursor, con el orden updated_at DESC, id DESC. */
+export const afterCursorFilter = (c: PageCursor) => `updated_at.lt."${c.updated_at}",and(updated_at.eq."${c.updated_at}",id.lt.${c.id})`;
+
+/** Cuántos elementos de la vista se muestran (de 50 en 50, «Ver más»); el orden total hace estable cada corte. */
+export const VIEW_STEP = 50;
+export const shownCount = (raw: string | string[] | undefined, total: number) => {
+  const n = Math.floor(Number(Array.isArray(raw) ? raw[0] : raw));
+  return Math.min(total, Math.max(VIEW_STEP, Number.isFinite(n) ? Math.ceil(n / VIEW_STEP) * VIEW_STEP : VIEW_STEP));
+};
 
 export const ARCHIVE_COLUMN_MISSING = "Archivar requiere un cambio de base de datos que aún no está aplicado. No se ocultó nada.";
 
 /** Archivar / restaurar un episodio propio. `setArchived` solo cambia `archived_at` de esa fila del dueño. */
 export async function libraryAction(userId: string, body: unknown, deps: {
-  load: (kind: LibraryKind, id: string) => Promise<(Pick<LibraryItem, "status" | "video_status"> & { user_id: string }) | null | "sin_columna">;
+  load: (kind: LibraryKind, id: string) => Promise<(Pick<LibraryItem, "status" | "video_status" | "archived_at"> & { user_id: string }) | null | "sin_columna">;
   setArchived: (kind: LibraryKind, id: string, at: string | null) => Promise<boolean>;
 }): Promise<{ status: number; body: Record<string, unknown> }> {
   const b = (body ?? {}) as { kind?: unknown; id?: unknown; action?: unknown };
@@ -81,7 +117,15 @@ export async function libraryAction(userId: string, body: unknown, deps: {
   // Un episodio ajeno se responde igual que uno inexistente (no se revela que existe).
   if (!row || row.user_id !== userId) return { status: 404, body: { error: "No encontramos ese episodio en tu cuenta." } };
   if (action === "archive" && inProgress({ kind, status: row.status, video_status: row.video_status })) return { status: 409, body: { error: "Este episodio se está produciendo; podrás archivarlo cuando termine." } };
-  const ok = await deps.setArchived(kind, id, action === "archive" ? new Date().toISOString() : null);
-  if (!ok) return { status: 409, body: { error: "No se pudo actualizar; vuelve a intentarlo." } };
-  return { status: 200, body: { ok: true, archived: action === "archive" } };
+  // Idempotente (B2): repetir «archivar» no reescribe la fecha y repetir «restaurar» no escribe nada.
+  const want = action === "archive";
+  if (!!row.archived_at === want) return { status: 200, body: { ok: true, archived: want, unchanged: true } };
+  const ok = await deps.setArchived(kind, id, want ? new Date().toISOString() : null);
+  if (!ok) {
+    // Dos peticiones a la vez: la escritura condicional de la otra ya dejó el estado pedido → misma respuesta, sin reescribir.
+    const again = await deps.load(kind, id);
+    if (again && again !== "sin_columna" && again.user_id === userId && !!again.archived_at === want) return { status: 200, body: { ok: true, archived: want, unchanged: true } };
+    return { status: 409, body: { error: "No se pudo actualizar; vuelve a intentarlo." } };
+  }
+  return { status: 200, body: { ok: true, archived: want } };
 }
