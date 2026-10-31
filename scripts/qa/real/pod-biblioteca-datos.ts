@@ -51,8 +51,12 @@ async function main() {
   ok("dentro de cada grupo, actividad más reciente primero", main.every((x, i) => i === 0 || main[i - 1].bucket !== x.bucket || act(main[i - 1]) >= act(x)));
   const classicEdited = v2.rows.filter((r) => r.updated_at && Date.parse(r.updated_at) - Date.parse(r.created_at) > 86_400_000).length;
   console.log(`INFO clásicos editados ≥1 día después de crearse: ${classicEdited} (su antigüedad se mide por updated_at)`);
-  const tests = all.filter((r) => lib.isTestTitle(r.title)).length;
-  console.log(`INFO títulos de prueba según la regla: ${tests}`);
+  const tests = all.filter((r) => lib.isTestTitle(r.title));
+  // Qué parte de la regla coincidió (sin imprimir títulos), para revisar que no se oculta un episodio real por error.
+  const why = (t: string) => { const x = t.trim().toLowerCase(); return x.startsWith("prueba real ") ? "«Prueba real »" : x.startsWith("qa ") ? "«QA »" : /^\[(test|prueba|qa)\]/.test(x) ? "[etiqueta]" : "(marca ficticio/simulado)"; };
+  const byRule: Record<string, number> = {};
+  for (const r of tests) byRule[why(r.title ?? "")] = (byRule[why(r.title ?? "")] ?? 0) + 1;
+  console.log(`INFO títulos de prueba según la regla: ${tests.length} ${JSON.stringify(byRule)} · en producción ahora: ${tests.filter((r) => ["generating", "authorized"].includes(r.status)).length}`);
   if (!(st.column && v2.column)) console.log("INFO sin columna archived_at: archivar/restaurar a mano no disponible (aviso en la página); la agrupación automática no escribe nada");
   console.log(`RESULT pod-biblioteca-datos: ${fails === 0 ? "OK" : "FALLA"} fail=${fails}`);
   process.exit(fails === 0 ? 0 : 1);
