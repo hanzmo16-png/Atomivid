@@ -55,7 +55,9 @@ for (const [dev, opts] of Object.entries(DEVICES)) {
   const p = await ctx.newPage(); p.setDefaultTimeout(60000);
   // Cookie de acceso de Vercel, una sola vez y solo en el origen de la vista previa.
   if (!PRODUCTION) await p.goto(`${APP}/?x-vercel-protection-bypass=${encodeURIComponent(BYPASS)}&x-vercel-set-bypass-cookie=samesitenone`, { waitUntil: "domcontentloaded" });
-  const writes = []; p.on("request", (r) => { if (r.method() !== "GET" && !/_next|__nextjs/.test(r.url())) writes.push(r.method()); });
+  // Envíos no-GET: se registran método + host + ruta (sin consulta ni cuerpo) para distinguir escrituras de datos de
+  // telemetría o renovación de sesión.
+  const writes = []; p.on("request", (r) => { if (r.method() !== "GET" && !/_next|__nextjs/.test(r.url())) { const u = new URL(r.url()); writes.push(`${r.method()} ${u.host === HOST ? "app" : u.host.replace(/^[^.]+\.supabase\.co$/, "supabase")}${u.pathname}`); } });
   for (const view of ["principal", "archivados"]) {
     const r = await p.goto(`${APP}/dashboard/podcast${view === "archivados" ? "?vista=archivados" : ""}`);
     const status = r?.status() ?? null, loginRedirect = /\/login/.test(p.url());
