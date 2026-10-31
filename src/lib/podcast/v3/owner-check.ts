@@ -19,7 +19,7 @@ export function validStudioOwnerSignature(secret: string | undefined, userId: st
 }
 
 /** Lado del generador: pregunta firmada a la app; `null` ante cualquier error o respuesta inesperada (fail closed). */
-async function askAppOwner(userId: string, env: Record<string, string | undefined>, fetchImpl: typeof fetch): Promise<{ owner?: unknown; internalOwner?: unknown } | null> {
+async function askAppOwner(userId: string, env: Record<string, string | undefined>, fetchImpl: typeof fetch): Promise<{ owner?: unknown; internalOwner?: unknown; beta?: unknown } | null> {
   const secret = env.SUPABASE_SERVICE_ROLE_KEY?.trim(), base = env.PODCAST_V3_APP_URL?.trim() || "https://atomivid.vercel.app";
   if (!secret || !UUID.test(userId)) return null;
   const { randomUUID } = await import("node:crypto");
@@ -29,8 +29,13 @@ async function askAppOwner(userId: string, env: Record<string, string | undefine
       headers: { "content-type": "application/json", "x-probe-nonce": nonce, "x-probe-time": timestamp, "x-probe-signature": studioOwnerSignature(secret, userId, nonce, timestamp) },
       body: JSON.stringify({ userId }) });
     if (!res.ok) return null;
-    return (await res.json()) as { owner?: unknown; internalOwner?: unknown };
+    return (await res.json()) as { owner?: unknown; internalOwner?: unknown; beta?: unknown };
   } catch { return null; }
+}
+
+/** ¿Es una cuenta de la beta de clientes de Podcast Studio según la app? (fail closed). */
+export async function askAppIsStudioBeta(userId: string, env: Record<string, string | undefined> = process.env, fetchImpl: typeof fetch = fetch): Promise<boolean> {
+  return (await askAppOwner(userId, env, fetchImpl))?.beta === true;
 }
 
 /** ¿Es la cuenta del dueño con el piloto del estudio activo? (fail closed). */

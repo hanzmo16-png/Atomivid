@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { podcastUser } from "@/lib/podcast/auth";
+import { studioUser } from "@/lib/podcast/auth";
 import { libraryAction, type LibraryKind } from "@/lib/podcast/library";
 import { STUDIO_TABLE } from "@/lib/podcast/v3/store";
 
@@ -9,7 +9,7 @@ const missingColumn = (e: { code?: string; message?: string }) => /archived_at|4
 
 /** Archivar / restaurar un episodio de Podcast del dueño (solo marca archived_at; no borra archivos, enlaces ni costos). */
 export async function POST(request: Request) {
-  const user = await podcastUser();
+  const user = await studioUser();
   if ("error" in user) return NextResponse.json({ error: user.error }, { status: user.status });
   const service = createServiceClient();
   const out = await libraryAction(user.id, await request.json().catch(() => null), {

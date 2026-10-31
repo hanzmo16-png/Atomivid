@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { podcastUser } from "@/lib/podcast/auth";
+import { studioUser } from "@/lib/podcast/auth";
+import { checkStudioSpend } from "@/lib/podcast/v3/entitlement";
 import { studioGenerationEnabled } from "@/lib/podcast/v3/studio";
 import { listAccountVoices } from "@/lib/podcast/voices";
 import { authorizeAction, episodeAction } from "@/lib/podcast/v3/api";
@@ -19,7 +20,7 @@ async function load(service: ReturnType<typeof createServiceClient>, id: string)
 
 /** Estado/progreso del episodio de estudio y enlaces de descarga firmados (solo el dueño). */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const user = await podcastUser();
+  const user = await studioUser();
   if ("error" in user) return NextResponse.json({ error: user.error }, { status: user.status });
   const { id } = await params;
   const service = createServiceClient();
@@ -32,7 +33,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
 /** Autorización explícita del cargo y despacho del trabajo (paso 10 del asistente). */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const user = await podcastUser();
+  const user = await studioUser();
   if ("error" in user) return NextResponse.json({ error: user.error }, { status: user.status });
   const { id } = await params;
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
@@ -43,6 +44,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     authorize: async (x, usd) => { const { data } = await service.from(STUDIO_TABLE).update({ status: "authorized", authorized_usd: usd, authorized_at: new Date().toISOString(), error: null, updated_at: new Date().toISOString() }).eq("id", x).eq("user_id", user.id).in("status", ["draft", "failed"]).select("id"); return (data?.length ?? 0) === 1; },
     dispatch: (x) => dispatchPodcastJob(x, "studio"),
     recraftBlocker: () => studioRecraftBlocker(service),
+    // Cliente beta: derecho del plan y saldo del mes, en el servidor (el dueño no pasa por aquí).
+    spendGuard: user.beta ? {
+      check: (usd, after) => checkStudioSpend(service, user.id, usd, process.env, new Date(), after),
+      revert: async (x) => { const { data } = await service.from(STUDIO_TABLE).update({ status: "draft", authorized_usd: null, authorized_at: null, updated_at: new Date().toISOString() })
+        .eq("id", x).eq("user_id", user.id).eq("status", "authorized").select("id"); return (data?.length ?? 0) === 1; },
+    } : undefined,
     markStale: async (x, startedBefore) => {
       const at = new Date().toISOString();
       const { data } = await service.from(STUDIO_TABLE).update({ status: "failed", error: "La generación se interrumpió. Lo ya pagado se conserva y se reutiliza al reintentar; no se cobra dos veces.", updated_at: at })

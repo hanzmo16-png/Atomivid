@@ -16,7 +16,7 @@ import { voiceAvailability } from "@/lib/podcast/v3/spec";
 import { listStudioEpisodes } from "@/lib/podcast/v3/store";
 import { AUTO_GROUPED, libraryView } from "@/lib/podcast/library";
 import { LibraryArchiveButton } from "./LibraryArchiveButton";
-import { studioFlagFor, studioGenerationEnabled, visualProviders } from "@/lib/podcast/v3/studio";
+import { studioBetaUser, studioFlagFor, studioGenerationEnabled, visualProviders } from "@/lib/podcast/v3/studio";
 import { studioRecraftBlocker } from "@/lib/podcast/v3/readiness";
 import { RECORDING_BUCKET } from "@/lib/video/avatar/recording";
 
@@ -28,7 +28,9 @@ export default async function PodcastPage({ searchParams }: { searchParams: Prom
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  if (!canAccessLongFormBeta(user)) notFound();
+  // Dueño (como hasta ahora) o cliente de la beta de Podcast Studio (solo el estudio; sin podcast clásico).
+  const owner = canAccessLongFormBeta(user), beta = !owner && studioBetaUser(user);
+  if (!owner && !beta) notFound();
   const service = createServiceClient();
   // Biblioteca limpia: con la marca de archivo si su columna ya existe (migración 20261030170000); si no, como antes.
   const v2 = (cols: string) => service.from("podcast_episodes").select(cols).eq("user_id", user.id).order("updated_at", { ascending: false }).limit(100);
@@ -79,7 +81,7 @@ export default async function PodcastPage({ searchParams }: { searchParams: Prom
     <div className="mx-auto w-full min-w-0 max-w-2xl">
       <h1 className="text-2xl font-bold text-ink">Podcast</h1>
       <p className="mt-1 text-sm text-ink-muted">Crea tu episodio paso a paso: narración, un avatar presentador o una conversación entre dos. En cada episodio fijas el presupuesto, produces el video (ahora o programado) y lo revisas. Nada se publica sin tu aprobación.</p>
-      <p className="mt-2 text-sm"><Link href="/dashboard/podcast/editor" className="text-accent underline">Ver entregas del editor externo</Link></p>
+      {owner && <p className="mt-2 text-sm"><Link href="/dashboard/podcast/editor" className="text-accent underline">Ver entregas del editor externo</Link></p>}
       {notices.length > 0 && (
         <section aria-label="Avisos" className="mt-4 rounded-lg border border-border p-3 text-sm">
           <h2 className="font-semibold text-ink">Avisos recientes</h2>
@@ -94,11 +96,11 @@ export default async function PodcastPage({ searchParams }: { searchParams: Prom
         </section>
       )}
       {voicesError && <p className="mt-3 text-sm text-danger">{voicesError}</p>}
-      <PodcastWizard voices={wizardVoices} avatars={avatars} v2Enabled={podcastV2Enabled()} v3Enabled={v3Enabled} generationEnabled={generationEnabled} providers={visualProviders(process.env, recraftBlock)} previewNotice={previewNotice} hosts={hosts} />
-      <details className="mt-4 rounded-lg border border-border p-3">
+      <PodcastWizard voices={wizardVoices} avatars={avatars} v2Enabled={owner && podcastV2Enabled()} v3Enabled={v3Enabled} generationEnabled={generationEnabled} providers={visualProviders(process.env, recraftBlock)} previewNotice={previewNotice} hosts={hosts} />
+      {owner && <details className="mt-4 rounded-lg border border-border p-3">
         <summary className="cursor-pointer text-sm font-medium text-ink">Formulario clásico (grabación propia, guion A/B)</summary>
         <NewEpisode voices={voices} voicesError={voicesError} usdPer1kChars={getPricingConfig().elevenLabsUsdPer1kChars} maxChars={PODCAST_MAX_CHARS} v2Enabled={podcastV2Enabled()} />
-      </details>
+      </details>}
       <h2 id="episodios" className="mt-8 text-lg font-semibold text-ink">Tus episodios</h2>
       <nav aria-label="Vista de episodios" className="mt-2 flex flex-wrap gap-2 text-sm" data-testid="biblioteca-vistas">
         <Link href="/dashboard/podcast#episodios" aria-current={view === "principal" ? "page" : undefined} className={`rounded px-3 py-1 ${view === "principal" ? "bg-accent text-accent-ink" : "border border-border text-ink"}`}>Mis episodios</Link>

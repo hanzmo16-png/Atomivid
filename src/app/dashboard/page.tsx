@@ -23,7 +23,7 @@ import { DraftKeyRotation } from "./DraftKeyRotation";
 import { CreateHome } from "@/components/dashboard/simple-create/CreateHome";
 import { createFormats, midFlow, splitHistory } from "@/components/dashboard/simple-create/home";
 import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
-import { studioFlagFor } from "@/lib/podcast/v3/studio";
+import { studioBetaUser, studioFlagFor } from "@/lib/podcast/v3/studio";
 
 export default async function DashboardPage({
   searchParams,
@@ -99,7 +99,7 @@ export default async function DashboardPage({
 
   const hasProcessing = (requests ?? []).some((r) => r.status === "processing");
   const internalOwner = isInternalProductionOwner(user);
-  const formats = createFormats({ podcast: canAccessLongFormBeta(user) && studioFlagFor(user).enabled, youtube: canAccessLongFormBeta(user) });
+  const formats = createFormats({ podcast: (canAccessLongFormBeta(user) || studioBetaUser(user)) && studioFlagFor(user).enabled, youtube: canAccessLongFormBeta(user) });
   // Server Component: se evalúa una sola vez por request en el servidor
   // (no hay re-render en el cliente que pueda desincronizarse), así que
   // Date.now() aquí es seguro pese a la regla de pureza de React.

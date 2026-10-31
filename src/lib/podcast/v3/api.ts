@@ -43,6 +43,12 @@ export type ApiDeps = {
   env?: Record<string, string | undefined>;
   /** Motivo por el que Recraft no puede producir hoy (null = listo). Solo lectura; sin él no se comprueba. */
   recraftBlocker?: () => Promise<string | null>;
+  /**
+   * Derecho y saldo del cliente beta (entitlement.ts), en el servidor: `check(usd)` antes de autorizar y `check(0, true)`
+   * después del CAS; si la segunda falla (otra autorización simultánea agotó el saldo), `revert` devuelve el episodio a
+   * borrador ANTES de despachar nada. Sin él (el dueño) no cambia nada.
+   */
+  spendGuard?: { check: (usd: number, after?: boolean) => Promise<{ ok: true } | { ok: false; status: 402 | 403; error: string }>; revert: (id: string) => Promise<boolean> };
 };
 type Out = { status: number; body: Record<string, unknown> };
 export const STUDIO_MAX_AUTHORIZED_USD = 50;
@@ -123,6 +129,11 @@ export async function authorizeAction(d: ApiDeps, id: string, body: Record<strin
   const notStarted = !row.run_started_at || (!!row.authorized_at && Date.parse(row.run_started_at) < Date.parse(row.authorized_at));
   if (row.status === "authorized" && notStarted) {
     if (body?.confirm !== true) return { status: 400, body: { error: "Confirma explícitamente el costo antes de generar." } };
+    // Cliente beta: tampoco se re-despacha un episodio autorizado si el saldo del mes ya no lo cubre.
+    if (d.spendGuard) {
+      const ok = await d.spendGuard.check(0, true);
+      if (!ok.ok) return { status: ok.status, body: { error: ok.error } };
+    }
     const dispatched = await d.dispatch(id);
     return { status: 200, body: { ok: true, dispatched, note: dispatched ? null : "Autorizado. No pudimos confirmar el inicio del trabajo; pulsa «Reintentar» (no se cobra dos veces)." } };
   }
@@ -141,7 +152,20 @@ export async function authorizeAction(d: ApiDeps, id: string, body: Record<strin
     try { requireProvider("recraft", d.env ?? process.env, await d.recraftBlocker()); }
     catch (e) { if (e instanceof ProviderUnavailableError) return { status: 409, body: { error: e.message, provider: "recraft" } }; throw e; }
   }
+  if (d.spendGuard) {
+    const pre = await d.spendGuard.check(usd);
+    if (!pre.ok) return { status: pre.status, body: { error: pre.error } };
+  }
   if (!(await d.authorize(id, usd))) return { status: 409, body: { error: "Otra solicitud cambió el episodio; recarga la página." } };
+  if (d.spendGuard) {
+    const post = await d.spendGuard.check(0, true);
+    if (!post.ok) {
+      // Nada se despachó ni se cobró: el episodio vuelve a borrador (si no se pudiera revertir, queda autorizado sin
+      // despachar y el cliente ve el motivo; el guard del worker exige la autorización vigente).
+      await d.spendGuard.revert(id);
+      return { status: post.status, body: { error: post.error } };
+    }
+  }
   const dispatched = await d.dispatch(id);
   return { status: 200, body: { ok: true, dispatched, note: dispatched ? null : "Autorizado. No pudimos confirmar el inicio del trabajo; pulsa «Reintentar» (no se cobra dos veces)." } };
 }

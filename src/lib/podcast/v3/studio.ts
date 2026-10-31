@@ -15,16 +15,27 @@ import type { Turn } from "./script";
 
 type Env = Record<string, string | undefined>;
 
-export type StudioFlag = { enabled: boolean; source: "env" | "owner" | "preview" | "off"; reason: string };
+export type StudioFlag = { enabled: boolean; source: "env" | "owner" | "beta" | "preview" | "off"; reason: string };
 type StudioUser = { id?: string; email_confirmed_at?: string | null } | null | undefined;
 /** Piloto del dueño: el estudio genera solo para la cuenta INTERNAL_PRODUCTION_OWNER_USER_ID (email confirmado), sin abrirlo a
  *  ninguna otra; se apaga con PODCAST_V3_OWNER_PILOT=0. Los topes de gasto y la autorización por episodio no cambian. */
 export function studioOwnerPilot(user: StudioUser, env: Env = process.env): boolean {
   return env.PODCAST_V3_OWNER_PILOT !== "0" && isInternalProductionOwner(user ? { id: user.id, email_confirmed_at: user.email_confirmed_at ?? undefined } : null, env);
 }
-/** La GENERACIÓN del estudio (despacho de trabajos y cobros autorizados): PODCAST_V3_ENABLED=1 o el piloto del dueño. */
+const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
+/**
+ * Beta de clientes: cuentas concretas (PODCAST_STUDIO_BETA_USER_IDS, ids separados por comas) con email confirmado.
+ * Independiente de los permisos del dueño: no da acceso a Long Form, Command Center ni al podcast clásico. Vacía o
+ * ausente = nadie (así se desactiva). Gastar exige además el derecho del plan (entitlement.ts), comprobado en el servidor.
+ */
+export function studioBetaUser(user: StudioUser, env: Env = process.env): boolean {
+  if (!user?.id || !user.email_confirmed_at) return false;
+  const ids = (env.PODCAST_STUDIO_BETA_USER_IDS ?? "").split(",").map((x) => x.trim().toLowerCase()).filter((x) => UUID.test(x));
+  return ids.includes(user.id.toLowerCase());
+}
+/** La GENERACIÓN del estudio (despacho de trabajos y cobros autorizados): PODCAST_V3_ENABLED=1, el piloto del dueño o la beta. */
 export function studioGenerationEnabled(user: StudioUser, env: Env = process.env): boolean {
-  return env.PODCAST_V3_ENABLED === "1" || studioOwnerPilot(user, env);
+  return env.PODCAST_V3_ENABLED === "1" || studioOwnerPilot(user, env) || studioBetaUser(user, env);
 }
 /** Visibilidad del estudio para una cuenta concreta (navegación y página): mismo criterio que `studioFlag`. */
 export function studioFlagFor(user: StudioUser, env: Env = process.env): StudioFlag {
@@ -34,6 +45,7 @@ export function studioFlagFor(user: StudioUser, env: Env = process.env): StudioF
 export function studioFlag(env: Env = process.env, user?: StudioUser): StudioFlag {
   if (env.PODCAST_V3_ENABLED === "1") return { enabled: true, source: "env", reason: "PODCAST_V3_ENABLED=1" };
   if (studioOwnerPilot(user, env)) return { enabled: true, source: "owner", reason: "Piloto del dueño (solo esta cuenta)" };
+  if (studioBetaUser(user, env)) return { enabled: true, source: "beta", reason: "Beta de clientes (PODCAST_STUDIO_BETA_USER_IDS)" };
   if (env.VERCEL_ENV === "preview" && env.PODCAST_STUDIO_PREVIEW !== "0") return { enabled: true, source: "preview", reason: "Vercel Preview: activado por defecto solo en Preview" };
   return { enabled: false, source: "off", reason: "Apagado (producción sin PODCAST_V3_ENABLED=1)" };
 }

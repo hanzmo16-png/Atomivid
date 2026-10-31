@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { podcastUser } from "@/lib/podcast/auth";
+import { studioUser } from "@/lib/podcast/auth";
 import { listAccountVoices } from "@/lib/podcast/voices";
 import { studioAction } from "@/lib/podcast/v3/api";
 import { realLlm } from "@/lib/podcast/v3/adapters";
@@ -13,7 +13,7 @@ export const maxDuration = 60;
 
 /** Podcast 3.0: guion (plantilla o LLM), estimación y creación de borrador. Ninguna acción genera medios ni cobra. */
 export async function POST(request: Request) {
-  const user = await podcastUser();
+  const user = await studioUser();
   if ("error" in user) return NextResponse.json({ error: user.error }, { status: user.status });
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const service = createServiceClient();
@@ -28,8 +28,9 @@ export async function POST(request: Request) {
   }
   const out = await studioAction({
     userId: user.id, viewer: user, voices: () => listAccountVoices(), enabled: studioGenerationEnabled(user),
-    // El LLM solo se usa si el dueño lo habilita (PODCAST_V3_LLM=1): pasa por el libro de gastos de Anthropic.
-    llm: studioGenerationEnabled(user) && process.env.PODCAST_V3_LLM === "1" ? realLlm(user.id, String(body?.topic ?? "").slice(0, 80)) : null,
+    // El LLM solo se usa si el dueño lo habilita (PODCAST_V3_LLM=1): pasa por el libro de gastos de Anthropic. Los clientes
+    // de la beta usan la plantilla gratuita (ese gasto no está cubierto por su derecho del plan).
+    llm: !user.beta && studioGenerationEnabled(user) && process.env.PODCAST_V3_LLM === "1" ? realLlm(user.id, String(body?.topic ?? "").slice(0, 80)) : null,
     insert: async (row) => { const { data, error } = await service.from(STUDIO_TABLE).insert(row).select("id").single(); if (error) return /does not exist|schema cache|42P01|PGRST205/.test(`${error.code} ${error.message}`) ? "missing" : null; return data as { id: string }; },
     ownsAvatar: async (id) => { if (!/^[0-9a-f-]{36}$/i.test(id)) return false; const { data } = await service.from("avatars").select("id").eq("id", id).eq("user_id", user.id).eq("status", "ready").maybeSingle(); return !!data; },
     load: async () => null, authorize: async () => false, dispatch: (id) => dispatchPodcastJob(id, "studio"),
