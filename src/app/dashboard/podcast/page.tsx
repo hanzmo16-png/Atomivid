@@ -14,7 +14,7 @@ import { HOST_CATALOG } from "@/lib/podcast/v3/catalog";
 import { StudioEpisodeCard } from "./StudioEpisodeList";
 import { voiceAvailability } from "@/lib/podcast/v3/spec";
 import { listStudioEpisodes } from "@/lib/podcast/v3/store";
-import { AUTO_GROUPED, afterCursorFilter, fetchAllByCursor, libraryView, shownCount, VIEW_STEP } from "@/lib/podcast/library";
+import { AUTO_GROUPED, incompleteLibraryNotice, libraryView, ownerRowsByCursor, shownCount, VIEW_STEP, type OwnerRowsClient } from "@/lib/podcast/library";
 import { LibraryArchiveButton } from "./LibraryArchiveButton";
 import { studioFlagFor, studioGenerationEnabled, visualProviders } from "@/lib/podcast/v3/studio";
 import { studioRecraftBlocker } from "@/lib/podcast/v3/readiness";
@@ -33,21 +33,13 @@ export default async function PodcastPage({ searchParams }: { searchParams: Prom
   const service = createServiceClient();
   // Biblioteca limpia: con la marca de archivo si su columna ya existe (migración 20261030170000); si no, como antes.
   // Todas las del dueño por páginas con cursor (updated_at, id): sin el tope invisible de 100 (T-20261031-1910, B3).
-  const v2 = async (cols: string) => {
-    let error = false;
-    const out = await fetchAllByCursor<{ id: string; updated_at: string }>(async (after, size) => {
-      let q = service.from("podcast_episodes").select(cols).eq("user_id", user.id);
-      if (after) q = q.or(afterCursorFilter(after));
-      const r = await q.order("updated_at", { ascending: false }).order("id", { ascending: false }).limit(size);
-      if (r.error) { error = true; return null; }
-      return r.data as unknown as { id: string; updated_at: string }[];
-    });
-    return { data: out?.rows ?? null, error: error && !out?.rows.length };
-  };
+  // `truncated` (una página intermedia falló o hay más del tope) se avisa en la lista (CORRECCION-1).
+  const v2 = (cols: string) => ownerRowsByCursor<{ id: string; updated_at: string }>(service as unknown as OwnerRowsClient, "podcast_episodes", cols, user.id);
   const V2_COLS = "id,title,status,source,duration_seconds,created_at,updated_at,video_status,review_status";
   const withArchive = await v2(`${V2_COLS},archived_at`);
-  const archiveReady = !withArchive.error;
-  const { data } = archiveReady ? withArchive : await v2(V2_COLS);
+  const archiveReady = withArchive !== null;
+  const v2Out = withArchive ?? (await v2(V2_COLS));
+  const data = v2Out?.rows ?? null;
   type V2Row = Pick<PodcastEpisode, "id" | "title" | "status" | "source" | "duration_seconds" | "created_at" | "video_status" | "review_status"> & { updated_at?: string | null; archived_at?: string | null };
   const allEpisodes = (data ?? []) as unknown as V2Row[];
   // Owner notices of the supervised productions (also sent through GitHub when the app is closed).
@@ -63,7 +55,9 @@ export default async function PodcastPage({ searchParams }: { searchParams: Prom
   const generationEnabled = studioGenerationEnabled(user);
   const previewNotice = flag.source === "preview" ? "Vista previa (Vercel Preview): el estudio se muestra activado solo aquí. Puedes recorrer los 10 pasos y ver costos; la generación real está desactivada hasta aplicar la migración y PODCAST_V3_ENABLED=1." : null;
   // Los episodios ya hechos se listan siempre (escuchar y descargar no genera ni cobra), aunque la generación esté apagada.
-  const allStudio = (await listStudioEpisodes(service, user.id)) ?? [];
+  const studioOut = await listStudioEpisodes(service, user.id);
+  const allStudio = studioOut?.rows ?? [];
+  const incompleteNotice = incompleteLibraryNotice({ studio: !!studioOut?.truncated, classic: !!v2Out?.truncated });
   // Una sola secuencia (estudio + clásico): el orden en curso → terminado → borradores recientes es global, no por fuente.
   type Entry = ({ kind: "studio" } & (typeof allStudio)[number]) | ({ kind: "v2" } & V2Row);
   const all: Entry[] = [...allStudio.map((e) => ({ ...e, kind: "studio" as const })), ...allEpisodes.map((e) => ({ ...e, kind: "v2" as const }))];
@@ -120,6 +114,7 @@ export default async function PodcastPage({ searchParams }: { searchParams: Prom
         <Link href="/dashboard/podcast#episodios" aria-current={view === "principal" ? "page" : undefined} className={`rounded px-3 py-1 ${view === "principal" ? "bg-accent text-accent-ink" : "border border-border text-ink"}`}>Mis episodios</Link>
         <Link href="/dashboard/podcast?vista=archivados#episodios" aria-current={view === "archivados" ? "page" : undefined} className={`rounded px-3 py-1 ${view === "archivados" ? "bg-accent text-accent-ink" : "border border-border text-ink"}`} data-testid="biblioteca-archivados">Archivados ({archivedCount})</Link>
       </nav>
+      {incompleteNotice && <p role="status" className="mt-2 rounded border border-border p-2 text-sm text-ink" data-testid="biblioteca-incompleta">{incompleteNotice}</p>}
       {view === "principal" && archivedCount > 0 && <p className="mt-2 text-xs text-ink-muted" data-testid="biblioteca-ocultos">Los episodios con error, los de prueba, los borradores de hace más de 7 días y lo que archives están en «Archivados» ({archivedCount}). No se borra nada.</p>}
       {view === "archivados" && <p className="mt-2 text-xs text-ink-muted">Aquí están lo que archivaste y, agrupados solos, los episodios con error, los de prueba y los borradores de hace más de 7 días. Sus archivos, enlaces y costos se conservan.</p>}
       {/* Sin la columna archived_at (migración 20261030170000 aún no aplicada) no se consulta para escribir ni se ofrece

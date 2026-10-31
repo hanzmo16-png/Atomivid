@@ -1035,6 +1035,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       ok(`c19: ${dev} · «Ver más» hasta el final: los 150 aparecen, sin perder ni duplicar`, got.length === 150 && new Set(got).size === 150 && new Set(seq).size === seq.length, JSON.stringify({ got: got.length, uniq: new Set(got).size, total: seq.length, clicks }));
       const ov = await P.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       ok(`c19: ${dev} · sin desbordamiento horizontal con la lista completa`, ov <= 1, `${ov}px`);
+      ok(`c19: ${dev} · lista completa: sin aviso falso de biblioteca incompleta`, (await P.getByTestId("biblioteca-incompleta").count()) === 0);
       await shot(P, `c19-${dev}-lista`);
       // Tarjeta de estudio archivada (archivar por la API del dueño): sin datos hasta abrirla; abrir no restaura.
       const X = ids19.s[dev === "movil" ? 0 : 1];
@@ -1075,7 +1076,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
   }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
-  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 14: 32, 15: 5, 16: 24, 17: 17, 18: 9, 19: 16 };
+  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 14: 32, 15: 5, 16: 24, 17: 17, 18: 9, 19: 18 };
   const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[a-d]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name)) || (c === "12" && /^c12-/.test(r.name))).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));

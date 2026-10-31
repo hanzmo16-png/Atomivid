@@ -70,7 +70,11 @@ export function libraryView<T extends LibraryItem>(items: T[], view: "principal"
  * Paginación por cursor (updated_at, id), sin tope invisible (T-20261031-1910, B3). Antes cada fuente traía solo sus 100
  * episodios más recientes y el resto no aparecía en ninguna vista. `page(after, size)` devuelve la página siguiente ordenada
  * por updated_at DESC, id DESC con la condición (updated_at, id) < after; aquí se recorren todas hasta agotar la fuente.
- * Tope de seguridad muy alto (`maxRows`): si se alcanza, se informa (`truncated`) en lugar de ocultar en silencio.
+ * `truncated` = la lista NO está completa y hay que decirlo (nunca se presenta como completa):
+ *  - una página intermedia falló (se devuelve lo leído);
+ *  - la fuente tiene MÁS de `maxRows` filas (tope de seguridad). Con exactamente `maxRows` no es truncada: al llegar al
+ *    tope se pide 1 fila más y solo si existe (o si esa consulta falla) se marca (CORRECCION-1, sin falso positivo).
+ * `null` = falló la primera página (p. ej. columna ausente): quien llama decide su alternativa, como antes.
  */
 export type PageCursor = { updated_at: string; id: string };
 export const LIBRARY_PAGE = 100, LIBRARY_MAX_ROWS = 5000;
@@ -80,15 +84,45 @@ export async function fetchAllByCursor<T extends { id: string; updated_at?: stri
   const rows: T[] = [];
   let after: PageCursor | null = null;
   for (;;) {
-    const chunk = await page(after, size);
+    const chunk = await page(after, Math.min(size, maxRows - rows.length));
     if (!chunk) return rows.length ? { rows, truncated: true } : null;
-    rows.push(...chunk);
-    if (chunk.length < size) return { rows, truncated: false };
-    if (rows.length >= maxRows) return { rows, truncated: true };
-    const last = chunk[chunk.length - 1];
-    if (!last.updated_at) return { rows, truncated: true };
+    const want = Math.min(size, maxRows - rows.length);
+    rows.push(...chunk.slice(0, want));
+    if (chunk.length < want) return { rows, truncated: false };
+    const last = rows[rows.length - 1];
+    if (!last?.updated_at) return { rows, truncated: true };
     after = { updated_at: last.updated_at, id: last.id };
+    if (rows.length >= maxRows) {
+      const extra = await page(after, 1);
+      return { rows, truncated: extra === null || extra.length > 0 };
+    }
   }
+}
+
+/** Mínimo del cliente de Supabase que usa `ownerRowsByCursor` (permite probar los llamadores reales sin red). */
+type OwnerQuery = PromiseLike<{ data: unknown; error: unknown }> & {
+  eq(col: string, v: string): OwnerQuery; or(f: string): OwnerQuery; order(col: string, o: { ascending: boolean }): OwnerQuery; limit(n: number): OwnerQuery;
+};
+export type OwnerRowsClient = { from(table: string): { select(cols: string): OwnerQuery } };
+/**
+ * Todas las filas del dueño de una tabla de la biblioteca (estudio o clásico), por páginas: SIEMPRE con `user_id`, orden
+ * (updated_at, id) DESC y el cursor de `afterCursorFilter`. Es la única consulta que usan `listStudioEpisodes` y la página.
+ */
+export async function ownerRowsByCursor<T extends { id: string; updated_at?: string | null }>(
+  client: OwnerRowsClient, table: string, cols: string, userId: string, size = LIBRARY_PAGE, maxRows = LIBRARY_MAX_ROWS,
+): Promise<{ rows: T[]; truncated: boolean } | null> {
+  return fetchAllByCursor<T>(async (after, n) => {
+    let q = client.from(table).select(cols).eq("user_id", userId);
+    if (after) q = q.or(afterCursorFilter(after));
+    const { data, error } = await q.order("updated_at", { ascending: false }).order("id", { ascending: false }).limit(n);
+    return error ? null : (data as T[]);
+  }, size, maxRows);
+}
+
+/** Aviso visible y no destructivo cuando alguna fuente quedó incompleta (nunca se presenta la lista como completa). */
+export function incompleteLibraryNotice(sources: { studio: boolean; classic: boolean }): string | null {
+  const which = [sources.studio && "de estudio", sources.classic && "clásicos"].filter(Boolean).join(" y ");
+  return which ? `No pudimos cargar todos tus episodios ${which}: esta lista puede estar incompleta. No se borró ni ocultó nada; recarga la página para volver a intentarlo.` : null;
 }
 /** Filtro PostgREST de la página siguiente: (updated_at, id) < cursor, con el orden updated_at DESC, id DESC. */
 export const afterCursorFilter = (c: PageCursor) => `updated_at.lt."${c.updated_at}",and(updated_at.eq."${c.updated_at}",id.lt.${c.id})`;
