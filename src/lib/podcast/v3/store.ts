@@ -61,8 +61,12 @@ export function supabaseRunGuard(service: SupabaseClient, staleMs = 45 * 60_000)
 }
 const toUuid = (hex: string) => { const h = (hex + "0".repeat(32)).slice(0, 32); return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`; };
 
-export async function listStudioEpisodes(service: SupabaseClient, userId: string): Promise<StudioEpisodeRow[] | null> {
-  const { data, error } = await service.from(STUDIO_TABLE).select(STUDIO_COLUMNS).eq("user_id", userId).order("created_at", { ascending: false }).limit(50);
+export async function listStudioEpisodes(service: SupabaseClient, userId: string): Promise<(StudioEpisodeRow & { archived_at?: string | null })[] | null> {
+  // Con la marca de archivo (biblioteca limpia) si su columna existe; sin ella, la lista sigue igual que antes.
+  // Tope de 100 por actividad reciente (updated_at): un episodio viejo editado hoy no queda fuera del tope.
+  const q = (cols: string) => service.from(STUDIO_TABLE).select(cols).eq("user_id", userId).order("updated_at", { ascending: false }).limit(100);
+  let { data, error } = await q(`${STUDIO_COLUMNS},archived_at`);
+  if (error) ({ data, error } = await q(STUDIO_COLUMNS));
   if (error) return null; // tabla ausente (migración no aplicada) → la lista de estudio simplemente no aparece
-  return data as StudioEpisodeRow[];
+  return data as unknown as (StudioEpisodeRow & { archived_at?: string | null })[];
 }
