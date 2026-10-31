@@ -33,6 +33,15 @@ async function main() {
     // Guiones de Podcast Studio con IA (últimos 3 días): estado y tiempos, sin textos ni ids de usuario.
     const { rows: pod } = await client.query("select j->>'status' status, j->>'method' method, j->>'created_at' created_at, j->>'updated_at' updated_at, j->>'reserved_usd' reserved_usd, j->>'committed_usd' committed_usd, j->>'error_code' error_code, left(coalesce(j->>'error_message', j->>'last_error', ''), 120) error from (select to_jsonb(p) j from public.pi_paid_operations p where provider='anthropic' and created_at > now() - interval '3 days') x where j::text like '%podcast-studio:%' order by j->>'created_at'");
     console.log("PODCAST_LLM", JSON.stringify(pod));
+    // Biblioteca (T-20261031-1808): ¿existe archived_at y está registrada la migración? Solo recuentos, sin ids ni títulos.
+    const { rows: cols } = await client.query("select table_name, column_name from information_schema.columns where table_schema='public' and column_name='archived_at' and table_name in ('podcast_episodes','podcast_studio_episodes') order by 1");
+    console.log("ARCHIVE_COLUMNS", JSON.stringify(cols));
+    const { rows: reg } = await client.query("select name from public._migrations_applied where name like '20261030170000%'").catch(() => ({ rows: [{ name: "registry-unavailable" }] }));
+    console.log("ARCHIVE_MIGRATION_REGISTRY", JSON.stringify(reg));
+    for (const t of cols.map((c: { table_name: string }) => c.table_name)) {
+      const { rows: [c] } = await client.query(`select count(*)::int total, count(archived_at)::int archived, count(distinct user_id)::int owners from public.${t}`);
+      console.log("ARCHIVE_COUNTS", t, JSON.stringify(c));
+    }
   } finally { await client.query("rollback"); await client.end(); }
 }
 main().catch((e) => { console.error(e instanceof Error ? e.message : "error"); process.exitCode = 1; });
