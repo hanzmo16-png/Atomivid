@@ -102,6 +102,21 @@ for (const [label, opts] of VIEWS) {
     await open("recarga(producir)", () => p.reload());
     await open("panel→podcast(producir)", async () => { await p.goto(`${APP}/dashboard`); await p.getByRole("link", { name: /Podcast/ }).first().click(); });
     await shot("5-reentrada");
+    // Borrador guardado ligado a un episodio que la API no devuelve (id inexistente) o con el proveedor por defecto
+    // (Recraft): ¿qué ve la persona al volver a entrar? Solo localStorage del navegador de prueba; nada en la base.
+    for (const [tag, patch] of [["episodio-inexistente", { step: 9, episodeId: "00000000-0000-4000-8000-000000000000" }], ["recraft-por-defecto", { step: 7, provider: "recraft", episodeId: null, draftId: null }]]) {
+      await p.evaluate(([k, pt]) => { const cur = JSON.parse(localStorage.getItem(k) || "{}"); localStorage.setItem(k, JSON.stringify({ ...cur, ...pt, boundSpec: null })); }, ["atomivid.podcast.asistente.v2", patch]);
+      const t0 = Date.now();
+      await p.reload(); await p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor({ timeout: 45000 }).catch(() => {});
+      await p.waitForTimeout(tag === "episodio-inexistente" ? 15000 : 8000);
+      const s2 = await state();
+      const view = await p.evaluate(() => ({ progress: !!document.querySelector('[data-testid="wizard-progress"]'), text: (document.querySelector('[data-testid="podcast-wizard"]')?.innerText ?? "").replace(/\s+/g, " ").slice(-400), estimate: !!document.querySelector('[data-testid="wizard-estimate"] table') }));
+      console.log(`CASE ${label} ${tag} ${JSON.stringify({ ms: Date.now() - t0, ...s2, ...view })}`);
+      flush(`caso-${tag}`); await shot(`6-${tag}`);
+      if (tag === "episodio-inexistente") ok(`${label}: borrador ligado a un episodio inexistente → la persona puede seguir (no queda cargando sin salida)`, !view.progress || s2.alert.length > 0, view);
+      else ok(`${label}: con Recraft por defecto la estimación llega`, view.estimate, view);
+    }
+    await p.evaluate(() => { for (const k of Object.keys(localStorage)) if (/podcast/i.test(k)) localStorage.removeItem(k); });
   } catch (e) {
     ok(`${label}: recorrido sin excepción`, false, String(e.message).split("\n")[0].slice(0, 200));
     console.log(`STATE ${label} ${JSON.stringify(await state().catch(() => null))}`); flush("excepcion"); await shot("excepcion");
