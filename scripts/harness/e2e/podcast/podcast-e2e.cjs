@@ -943,9 +943,41 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     await db.query("delete from public.podcast_episodes where id = $1", [V]);
     // La columna queda aplicada, igual que en el esquema de supabase/migrations.
   }
+  if (cases.includes("17")) {
+    // Reporte de Hans (2026-10-31): «pulsé Siguiente, apareció una carga, no se creó el episodio y después no pude volver a
+    // entrar». Un borrador guardado en el navegador y ligado a un episodio que la API no devuelve (inexistente o de otra
+    // cuenta → 404) dejaba el átomo «cargando» para siempre, y cada reingreso restauraba lo mismo. Móvil y escritorio.
+    const O17 = "c17a0000-0000-4000-8000-000000000001";
+    await db.query(`insert into public.podcast_studio_episodes(id,user_id,title,mode,spec,status) values ($1,$2,'c17 de otra cuenta','dialogo','{"version":"podcast-studio/3"}','ready')`, [O17, OTHER.id]);
+    const countOwn = async () => (await db.query("select count(*)::int n from public.podcast_studio_episodes where user_id=$1", [OWNER.id])).rows[0].n;
+    const before17 = await countOwn();
+    for (const [dev, opt] of [["movil", { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2.75, isMobile: true, hasTouch: true }], ["escritorio", { viewport: { width: 1440, height: 900 } }]]) {
+      for (const [kind, id] of [["inexistente", "c17f0000-0000-4000-8000-00000000dead"], ["otra-cuenta", O17]]) {
+        const S = await session(OWNER, `c17-${dev}-${kind}`, opt), P = S.p;
+        await P.goto(`${BASE}/dashboard/podcast`); await P.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor({ timeout: 60000 });
+        await P.evaluate(([k, ep]) => localStorage.setItem(k, JSON.stringify({ step: 9, modality: "dialogo", mode: "dialogo", count: 2, title: "Borrador de Hans", topic: "Los sumerios", episodeId: ep, boundSpec: null })), ["atomivid.podcast.asistente.v2", id]);
+        await P.reload(); await P.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor({ timeout: 60000 });
+        await P.getByText("No encontramos ese episodio").waitFor({ timeout: 20000 }).catch(() => {});
+        const v = await P.evaluate(() => ({ progress: !!document.querySelector('[data-testid="wizard-progress"]'), title: document.querySelector('[data-testid="wizard-step-title"]')?.textContent ?? "",
+          text: document.querySelector('[data-testid="podcast-wizard"]')?.textContent ?? "", draft: JSON.parse(localStorage.getItem("atomivid.podcast.asistente.v2") || "{}") }));
+        ok(`c17: ${dev} · episodio ${kind}: no queda «cargando» sin salida (vuelve a Producir con aviso)`, !v.progress && /Producir/.test(v.title) && /No encontramos ese episodio/.test(v.text), JSON.stringify({ progress: v.progress, title: v.title }));
+        ok(`c17: ${dev} · episodio ${kind}: el borrador suelta el episodio y conserva lo escrito`, v.draft.episodeId === null && v.draft.title === "Borrador de Hans" && v.draft.topic === "Los sumerios", JSON.stringify({ ep: v.draft.episodeId, title: v.draft.title }));
+        await shot(P, `c17-${dev}-${kind}`);
+        // Volver a entrar: abre normal (sin episodio ligado ni átomo cargando).
+        await P.goto(`${BASE}/dashboard/podcast`); await P.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor({ timeout: 60000 });
+        ok(`c17: ${dev} · episodio ${kind}: volver a entrar funciona`, (await P.getByTestId("wizard-progress").count()) === 0 && /Producir/.test(await P.getByTestId("wizard-step-title").innerText()));
+        const ovw = await P.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+        ok(`c17: ${dev} · episodio ${kind}: sin desbordamiento horizontal`, ovw <= 1, `${ovw}px`);
+        await S.ctx.close();
+      }
+    }
+    const o17 = (await db.query("select status from public.podcast_studio_episodes where id=$1", [O17])).rows[0];
+    ok("c17: nada se crea ni se toca (episodios del dueño iguales; el de la otra cuenta intacto)", (await countOwn()) === before17 && o17?.status === "ready", JSON.stringify({ before17, o17 }));
+    await db.query("delete from public.podcast_studio_episodes where id=$1", [O17]);
+  }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
-  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 14: 32, 15: 5, 16: 24 };
+  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 14: 32, 15: 5, 16: 24, 17: 17 };
   const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[a-d]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name)) || (c === "12" && /^c12-/.test(r.name))).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));
