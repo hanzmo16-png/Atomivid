@@ -30,6 +30,9 @@ async function main() {
     console.log("ANTHROPIC_SPEND", JSON.stringify(out));
     const { rows: held } = await client.query("select status, count(*)::int n, sum(reserved_usd)::numeric(12,4) reserved from public.pi_paid_operations where provider='anthropic' and status in ('RESERVED','SUBMITTED','PROVIDER_JOB_RECORDED','RECONCILIATION_REQUIRED') group by status");
     console.log("ANTHROPIC_OPEN", JSON.stringify(held));
+    // Guiones de Podcast Studio con IA (últimos 3 días): estado y tiempos, sin textos ni ids de usuario.
+    const { rows: pod } = await client.query("select j->>'status' status, j->>'method' method, j->>'created_at' created_at, j->>'updated_at' updated_at, j->>'reserved_usd' reserved_usd, j->>'committed_usd' committed_usd, j->>'error_code' error_code, left(coalesce(j->>'error_message', j->>'last_error', ''), 120) error from (select to_jsonb(p) j from public.pi_paid_operations p where provider='anthropic' and created_at > now() - interval '3 days') x where j::text like '%podcast-studio:%' order by j->>'created_at'");
+    console.log("PODCAST_LLM", JSON.stringify(pod));
   } finally { await client.query("rollback"); await client.end(); }
 }
 main().catch((e) => { console.error(e instanceof Error ? e.message : "error"); process.exitCode = 1; });
