@@ -6,6 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { LedgerRow, StudioLedger } from "./cost";
 import type { RunGuard } from "./pipeline";
+import { afterCursorFilter, fetchAllByCursor } from "../library";
 
 export const STUDIO_TABLE = "podcast_studio_episodes";
 export const STUDIO_OPS_TABLE = "podcast_studio_operations";
@@ -64,9 +65,19 @@ const toUuid = (hex: string) => { const h = (hex + "0".repeat(32)).slice(0, 32);
 export async function listStudioEpisodes(service: SupabaseClient, userId: string): Promise<(StudioEpisodeRow & { archived_at?: string | null })[] | null> {
   // Con la marca de archivo (biblioteca limpia) si su columna existe; sin ella, la lista sigue igual que antes.
   // Tope de 100 por actividad reciente (updated_at): un episodio viejo editado hoy no queda fuera del tope.
-  const q = (cols: string) => service.from(STUDIO_TABLE).select(cols).eq("user_id", userId).order("updated_at", { ascending: false }).limit(100);
-  let { data, error } = await q(`${STUDIO_COLUMNS},archived_at`);
-  if (error) ({ data, error } = await q(STUDIO_COLUMNS));
-  if (error) return null; // tabla ausente (migración no aplicada) → la lista de estudio simplemente no aparece
-  return data as unknown as (StudioEpisodeRow & { archived_at?: string | null })[];
+  // Todas las del dueño, por páginas con cursor (updated_at, id): sin el tope invisible de 100 (T-20261031-1910, B3).
+  type Row = StudioEpisodeRow & { archived_at?: string | null; updated_at: string };
+  const all = async (cols: string) => {
+    let failed = false;
+    const out = await fetchAllByCursor<Row>(async (after, size) => {
+      let q = service.from(STUDIO_TABLE).select(cols).eq("user_id", userId);
+      if (after) q = q.or(afterCursorFilter(after));
+      const { data, error } = await q.order("updated_at", { ascending: false }).order("id", { ascending: false }).limit(size);
+      if (error) { failed = true; return null; }
+      return data as unknown as Row[];
+    });
+    return failed && !out?.rows.length ? null : out?.rows ?? [];
+  };
+  const rows = (await all(`${STUDIO_COLUMNS},archived_at`)) ?? (await all(STUDIO_COLUMNS));
+  return rows; // null = tabla ausente (migración no aplicada) → la lista de estudio simplemente no aparece
 }

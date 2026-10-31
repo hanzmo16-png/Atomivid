@@ -14,7 +14,7 @@ import { HOST_CATALOG } from "@/lib/podcast/v3/catalog";
 import { StudioEpisodeCard } from "./StudioEpisodeList";
 import { voiceAvailability } from "@/lib/podcast/v3/spec";
 import { listStudioEpisodes } from "@/lib/podcast/v3/store";
-import { AUTO_GROUPED, libraryView } from "@/lib/podcast/library";
+import { AUTO_GROUPED, afterCursorFilter, fetchAllByCursor, libraryView, shownCount, VIEW_STEP } from "@/lib/podcast/library";
 import { LibraryArchiveButton } from "./LibraryArchiveButton";
 import { studioFlagFor, studioGenerationEnabled, visualProviders } from "@/lib/podcast/v3/studio";
 import { studioRecraftBlocker } from "@/lib/podcast/v3/readiness";
@@ -23,15 +23,27 @@ import { RECORDING_BUCKET } from "@/lib/video/avatar/recording";
 const STATUS: Record<PodcastEpisode["status"], string> = { draft: "Borrador", generating: "Generando", ready: "Listo", failed: "Con error" };
 const VIDEO: Record<string, string> = { scheduled: "programado", queued: "en cola", running: "en producción", ready: "entregado", failed: "con error", blocked: "detenido" };
 
-export default async function PodcastPage({ searchParams }: { searchParams: Promise<{ vista?: string }> }) {
-  const view = (await searchParams).vista === "archivados" ? "archivados" : "principal";
+export default async function PodcastPage({ searchParams }: { searchParams: Promise<{ vista?: string; mostrar?: string }> }) {
+  const sp = await searchParams;
+  const view = sp.vista === "archivados" ? "archivados" : "principal";
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   if (!canAccessLongFormBeta(user)) notFound();
   const service = createServiceClient();
   // Biblioteca limpia: con la marca de archivo si su columna ya existe (migración 20261030170000); si no, como antes.
-  const v2 = (cols: string) => service.from("podcast_episodes").select(cols).eq("user_id", user.id).order("updated_at", { ascending: false }).limit(100);
+  // Todas las del dueño por páginas con cursor (updated_at, id): sin el tope invisible de 100 (T-20261031-1910, B3).
+  const v2 = async (cols: string) => {
+    let error = false;
+    const out = await fetchAllByCursor<{ id: string; updated_at: string }>(async (after, size) => {
+      let q = service.from("podcast_episodes").select(cols).eq("user_id", user.id);
+      if (after) q = q.or(afterCursorFilter(after));
+      const r = await q.order("updated_at", { ascending: false }).order("id", { ascending: false }).limit(size);
+      if (r.error) { error = true; return null; }
+      return r.data as unknown as { id: string; updated_at: string }[];
+    });
+    return { data: out?.rows ?? null, error: error && !out?.rows.length };
+  };
   const V2_COLS = "id,title,status,source,duration_seconds,created_at,updated_at,video_status,review_status";
   const withArchive = await v2(`${V2_COLS},archived_at`);
   const archiveReady = !withArchive.error;
@@ -55,7 +67,11 @@ export default async function PodcastPage({ searchParams }: { searchParams: Prom
   // Una sola secuencia (estudio + clásico): el orden en curso → terminado → borradores recientes es global, no por fuente.
   type Entry = ({ kind: "studio" } & (typeof allStudio)[number]) | ({ kind: "v2" } & V2Row);
   const all: Entry[] = [...allStudio.map((e) => ({ ...e, kind: "studio" as const })), ...allEpisodes.map((e) => ({ ...e, kind: "v2" as const }))];
-  const library = libraryView(all, view);
+  const fullView = libraryView(all, view);
+  // De 50 en 50 («Ver más»): el orden de la vista es total (desempate por fuente e id), así que cada corte es estable.
+  const shown = shownCount(sp.mostrar, fullView.length);
+  const library = fullView.slice(0, shown);
+  const moreHref = `/dashboard/podcast?${view === "archivados" ? "vista=archivados&" : ""}mostrar=${shown + VIEW_STEP}#episodios`;
   const archivedCount = libraryView(all, "archivados").length;
   const empty = library.length === 0;
   const { data: avatarRows } = await service.from("avatars").select("id,name,source_photo_path,source_deleted_at").eq("user_id", user.id).eq("status", "ready").order("created_at", { ascending: false }).limit(20);
@@ -123,6 +139,7 @@ export default async function PodcastPage({ searchParams }: { searchParams: Prom
           ))}
         </ul>
       )}
+      {shown < fullView.length && <p className="mt-2 text-sm"><Link href={moreHref} scroll={false} className="text-accent underline" data-testid="biblioteca-ver-mas">Ver más ({fullView.length - shown} restantes)</Link></p>}
       {empty && <p className="mt-2 text-sm text-ink-muted" data-testid="biblioteca-vacia">{view === "archivados" ? "No tienes episodios archivados." : archivedCount > 0 ? "No tienes episodios en curso ni terminados. Crea uno arriba o revisa «Archivados»." : "Todavía no hay episodios. Crea el primero arriba."}</p>}
     </div>
   );
