@@ -14,7 +14,7 @@ import { AtomProgress } from "@/components/podcast/AtomProgress";
 import { StudioPreview, type PreviewHost } from "@/components/podcast/StudioPreview";
 import { HostPicker, type HostCard } from "@/components/podcast/HostPicker";
 import { SavedAvatarPicker } from "@/components/podcast/SavedAvatarPicker";
-import { CONSENT_TEXT, INTENSITY_DB, MODALITIES, MODALITY_LABEL, SCREENS, SCREEN_SECTIONS, STEP, STUDIO_BUDGET_MAX_USD, screenErrors, screenOf, screenStart, withFormat, WIZARD_STORAGE_KEY, bindEpisode, defaultDraft, syncScriptNames, withOwnAvatar, withSavedAvatar, draftToSpec, releaseEpisode, specKey, draftToV2, durationFit, estimateMinutes, loadDraft, modalityToMode, voiceKindFor, withHost, withoutHost, withVoiceKinds, type Modality, type WizardDraft } from "@/lib/podcast/v3/wizard";
+import { CONSENT_TEXT, INTENSITY_DB, MODALITIES, MODALITY_LABEL, SCREENS, SCREEN_SECTIONS, STEP, STUDIO_BUDGET_MAX_USD, screenErrors, screenOf, screenStart, withFormat, WIZARD_STORAGE_KEY, bindEpisode, defaultDraft, syncScriptNames, withOwnAvatar, withSavedAvatar, avatarSummary, draftToSpec, releaseEpisode, specKey, draftToV2, durationFit, estimateMinutes, loadDraft, modalityToMode, voiceKindFor, withHost, withoutHost, withVoiceKinds, type Modality, type WizardDraft } from "@/lib/podcast/v3/wizard";
 import type { VisualProvider } from "@/lib/podcast/v3/studio";
 
 export type WizardVoice = { voiceId: string; name: string; available: boolean; note: string | null; kind: "sintetica" | "clonada" };
@@ -356,7 +356,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
         <div className="mt-3 grid gap-2 text-sm" data-testid="wizard-preview">
           <h3 className="text-sm font-semibold text-ink">Vista previa</h3>
           <p><b>{d.title}</b> · {d.modality ? MODALITY_LABEL[d.modality] : ""} · {d.minutes} min · {d.language === "es" ? "español" : "inglés"}</p>
-          <p className="text-xs">Participantes: {active.map((p) => `${p.name} (${p.role || "sin rol"}${p.personality ? `, ${p.personality}` : ""})`).join(" · ")}</p>
+          <p className="text-xs" data-testid="resumen-participantes">Participantes: {active.map((p) => `${p.name} (${p.role || "sin rol"}${p.personality ? `, ${p.personality}` : ""}${d.mode !== "narracion" ? ` · ${avatarSummary(p, avatars)}` : ""})`).join(" · ")}</p>
           <p className="text-xs">Música: {d.musicEnabled ? `${d.mood === "auto" ? "automática" : MOOD_LABEL[d.mood as keyof typeof MOOD_LABEL]}, intensidad ${d.intensity}${d.intro ? ", intro" : ""}${d.outro ? ", outro" : ""}${d.ducking ? ", ducking" : ""}` : "sin música"} · −16 LUFS</p>
           {estimate?.coverage && d.mode === "dialogo" && <p className="text-xs" data-testid="cobertura-planos">Planos: {estimate.coverage.general ? "✔ plano general de los dos" : "✘ sin plano general"} · {estimate.coverage.primerPlanoA ? "✔" : "✘"} primer plano A · {estimate.coverage.primerPlanoB ? "✔" : "✘"} primer plano B</p>}
           {estimate?.turnList && (

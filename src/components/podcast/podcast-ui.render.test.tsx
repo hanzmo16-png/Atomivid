@@ -29,7 +29,7 @@ test("selector de anfitriones: foto, nombre, descripción y muestra de voz; uno 
   assert.match(html, /Valeria Montclair/); assert.match(html, /voz Callie/); assert.match(html, /Muestra de voz de Valeria Montclair/);
   assert.match(html, /aria-checked="true"[^>]*>[\s\S]*Valeria/);
   assert.match(html, /opacity-50" data-testid="anfitrion-victor"/);
-  assert.match(html, /Personalizado/);
+  assert.match(html, /Otro \/ personalizado/);
 });
 
 test("vista previa del estudio: fondo con el cuadro de neón, anfitriones en sus asientos y la mesa delante", () => {

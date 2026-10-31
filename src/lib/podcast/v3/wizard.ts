@@ -206,6 +206,13 @@ export function withOwnAvatar(p: WizardParticipant, avatar: { id: string; name: 
  * Avatar guardado elegido junto al catálogo: si venía de un anfitrión, se quitan su voz y su nombre (la voz se elige en
  * Voces) y se aplica la misma regla de nombre que `withOwnAvatar`. Tema, guion y el resto del borrador no cambian.
  */
+/** Resumen previo a generar: qué avatar usa cada participante. */
+export function avatarSummary(p: WizardParticipant, avatars: readonly { id: string; name: string }[]): string {
+  if (p.host || p.avatar.kind === "catalogo") return "anfitrión del catálogo";
+  if (p.avatar.kind === "existente") { const id = p.avatar.avatar_id; return `avatar guardado «${avatars.find((a) => a.id === id)?.name ?? "de tu cuenta"}»`; }
+  if (p.avatar.kind === "foto") return "avatar nuevo desde una foto";
+  return "sin avatar";
+}
 export function withSavedAvatar(p: WizardParticipant, avatar: { id: string; name: string }, i: 0 | 1, otherName = ""): WizardParticipant {
   return withOwnAvatar(p.host ? { ...withoutHost(p), name: DEFAULT_NAMES[i] } : p, avatar, i, otherName);
 }

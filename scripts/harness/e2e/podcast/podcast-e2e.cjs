@@ -486,6 +486,10 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     }
     await snap("paso04a-presupuesto");
     await W().getByTestId("wizard-preview").waitFor(); await W().getByTestId("preview-turnos").waitFor();
+    if (m.avatars) {
+      const res = (await W().getByTestId("resumen-participantes").textContent()) ?? "";
+      ok(`${tag}: el resumen previo dice qué avatar guardado usa cada participante`, m.avatars.every((id) => res.includes(`avatar guardado «${AV.find(([x]) => x === id)?.[1]}»`)), res.slice(0, 240));
+    }
     if (m.count === 2 && m.avatars) {
       const tl = await W().getByTestId("preview-timeline").textContent(), cov = await W().getByTestId("cobertura-planos").textContent();
       ok(`${tag}: vista previa con plano general y primeros planos, labios solo de quien habla`, /✔ plano general/.test(cov) && /labios A: habla · B: reposo|labios A: reposo · B: habla/.test(tl) && !/labios A: habla · B: habla/.test(tl), cov);

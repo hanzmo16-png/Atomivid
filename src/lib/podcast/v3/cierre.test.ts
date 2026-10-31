@@ -196,4 +196,7 @@ test("avatar guardado: catálogo ↔ avatar propio sin perder el episodio; el mi
   const ok2: WizardDraft = { ...base, participants: [withSavedAvatar(base.participants[0], hans, 0), withSavedAvatar(base.participants[1], val, 1)] };
   assert.ok(!stepErrors(ok2, STEP.avatares, { unavailableVoices: [] }).some((e) => /mismo avatar/.test(e)));
   assert.equal(ok2.topic, base.topic); assert.equal(ok2.title, base.title);
+  const { avatarSummary } = await import("./wizard");
+  assert.equal(avatarSummary(ok2.participants[0], [hans, val]), "avatar guardado «Hans Estudio»");
+  assert.equal(avatarSummary(back, [hans, val]), "anfitrión del catálogo");
 });
