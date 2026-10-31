@@ -793,9 +793,93 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     await db.query("delete from public.podcast_studio_operations where key='980a9fbda02b3e68f906ae9865bebde0842172b730db77b9486fe18d2474ac03'");
     await db.query("delete from public.podcast_studio_episodes where id = any($1)", [[A, G, S]]);
   }
+  if (cases.includes("16")) {
+    // Biblioteca limpia (T-20261030-1118): la lista mostraba pruebas, proyectos a medias y errores al inicio. Nada se
+    // borra: vista principal útil, «Archivados» aparte, archivar/restaurar solo marca archived_at del dueño. Móvil 390×844.
+    const MOB = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2.75, isMobile: true, hasTouch: true };
+    const S = await session(OWNER, "c16-biblioteca", MOB), W = () => S.p;
+    const post = (body) => W().evaluate(async (b) => { const r = await fetch("/api/podcast/library", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(b) }); return { status: r.status, body: await r.json().catch(() => null) }; }, body);
+    const ins = (id, user, title, status, days, extra = "") => db.query(`insert into public.podcast_studio_episodes(id,user_id,title,mode,spec,status,video_path,cost_usd,created_at,updated_at${extra ? "," + extra.split("=")[0] : ""}) values ($1,$2,$3,'dialogo','{"version":"podcast-studio/3"}',$4,$5,$6,now() - ($7 || ' days')::interval,now() - ($7 || ' days')::interval${extra ? "," + extra.split("=")[1] : ""})`, [id, user, title, status, status === "ready" ? `${user}/${id}/video.mp4` : null, status === "ready" ? 1.25 : null, String(days)]);
+    const R = "c16a0000-0000-4000-8000-000000000001", F = "c16a0000-0000-4000-8000-000000000002", G = "c16a0000-0000-4000-8000-000000000003", D = "c16a0000-0000-4000-8000-000000000004", O = "c16a0000-0000-4000-8000-000000000005";
+    await ins(R, OWNER.id, "c16 listo reciente", "ready", 1); await ins(F, OWNER.id, "c16 prueba fallida vieja", "failed", 20);
+    await ins(G, OWNER.id, "c16 en producción", "generating", 0, "run_started_at=now()"); await ins(D, OWNER.id, "c16 borrador reciente", "draft", 2);
+    await ins(O, OTHER.id, "c16 de otra cuenta", "ready", 1);
+    // Corrección 1: error reciente y prueba (se agrupan solos) + un clásico creado hace un mes pero editado hace horas.
+    const FR = "c16a0000-0000-4000-8000-000000000006", T = "c16a0000-0000-4000-8000-000000000007", V = "c16b0000-0000-4000-8000-000000000001";
+    await ins(FR, OWNER.id, "c16 error reciente", "failed", 1); await ins(T, OWNER.id, "Prueba real C16", "ready", 1);
+    await db.query("insert into public.podcast_episodes(id,user_id,title,source,status,created_at,updated_at) values ($1,$2,'c16 clásico editado hoy','upload','ready',now() - interval '30 days',now() - interval '2 hours')", [V, OWNER.id]);
+    const card = (id) => W().getByTestId(`studio-episode-${id}`);
+    const load = async (q = "") => { await W().goto(`${BASE}/dashboard/podcast${q}`); await W().getByTestId("biblioteca-vistas").waitFor(); };
+    // 1) Sin la migración (el arnés ya la aplicó desde supabase/migrations): se revierte en esta base DESECHABLE para probar
+    //    el modo sin columna — la lista funciona igual, sin botones de archivar; archivar explica por qué y no escribe.
+    await db.query(fs.readFileSync(path.join(REPO, "supabase/rollbacks/20261030170000_podcast_library_archive.rollback.sql"), "utf8"));
+    await db.query("notify pgrst, 'reload schema'"); await W().waitForTimeout(1500);
+    await load();
+    ok("c16: sin la columna, la vista principal oculta la prueba vieja y muestra lo útil", await card(R).count() === 1 && await card(G).count() === 1 && await card(D).count() === 1 && await card(F).count() === 0);
+    ok("c16: sin la columna no se ofrece «Archivar»", (await W().locator('[data-testid^="biblioteca-archivar-"]').count()) === 0);
+    ok("c16: sin la columna se explica que archivar a mano espera el cambio de base de datos", /pendiente de autorización/.test(await W().getByTestId("biblioteca-archivo-bloqueado").innerText()));
+    const seq = await W().getByTestId("studio-episodes").locator(":scope > li").evaluateAll((ls) => ls.map((l) => l.getAttribute("data-testid")));
+    ok("c16: una sola lista con orden global: el clásico editado hoy va antes que el de estudio de ayer", seq.indexOf(`episodio-v2-${V}`) >= 0 && seq.indexOf(`episodio-v2-${V}`) < seq.indexOf(`studio-episode-${R}`), JSON.stringify(seq.slice(0, 8)));
+    ok("c16: el error reciente y la prueba no están en la vista principal", await card(FR).count() === 0 && await card(T).count() === 0);
+    await load("?vista=archivados");
+    ok("c16: sin la columna, «Archivados» carga y agrupa la prueba vieja sin borrarla ni ofrecer «Restaurar»", await card(F).count() === 1 && (await W().locator('[data-testid^="biblioteca-restaurar-"]').count()) === 0);
+    ok("c16: sin la columna, «Archivados» también agrupa el error reciente y la prueba, y explica por qué", await card(FR).count() === 1 && await card(T).count() === 1 && /Episodio de prueba/.test(await card(T).innerText()) && /Con error/.test(await card(FR).innerText()));
+    const keep = (await db.query("select count(*)::int n from public.podcast_studio_episodes where id = any($1)", [[R, F, G, D, FR, T]])).rows[0].n;
+    ok("c16: agrupar no borra nada (las 6 filas del dueño siguen en la base)", keep === 6, String(keep));
+    await shot(W(), "c16-00-sin-columna-archivados");
+    await load();
+    const m0 = await post({ kind: "studio", id: R, action: "archive" });
+    ok("c16: sin la columna, archivar responde 409 con el motivo y no toca la fila", m0.status === 409 && /no está aplicado/.test(m0.body?.error ?? ""), JSON.stringify(m0));
+    // 2) Con la migración (base desechable): marca de archivo por episodio.
+    await db.query(fs.readFileSync(path.join(REPO, "supabase/migrations/20261030170000_podcast_library_archive.sql"), "utf8"));
+    await db.query("notify pgrst, 'reload schema'"); await W().waitForTimeout(1500);
+    const before = (await db.query("select status, video_path, cost_usd, created_at from public.podcast_studio_episodes where id=$1", [R])).rows[0];
+    await load(); await shot(W(), "c16-01-principal");
+    ok("c16: con la columna desaparece el aviso de bloqueo", await W().getByTestId("biblioteca-archivo-bloqueado").count() === 0);
+    const order = await W().getByTestId("studio-episodes").locator("li").evaluateAll((ls) => ls.map((l) => l.getAttribute("data-testid")));
+    ok("c16: en curso antes que lo terminado en la vista principal", order.indexOf(`studio-episode-${G}`) >= 0 && order.indexOf(`studio-episode-${G}`) < order.indexOf(`studio-episode-${R}`), JSON.stringify(order.slice(0, 6)));
+    ok("c16: lo que se está produciendo no ofrece «Archivar»", await W().getByTestId(`biblioteca-archivar-${G}`).count() === 0 && await W().getByTestId(`biblioteca-archivar-${R}`).count() === 1);
+    await W().getByTestId(`biblioteca-archivar-${R}`).getByRole("button", { name: "Archivar" }).click();
+    ok("c16: archivar pide confirmación y dice que no se borra nada", /No se borra nada/.test(await W().getByRole("alertdialog").textContent()));
+    await shot(W(), "c16-02-confirmar");
+    await W().getByRole("alertdialog").getByRole("button", { name: "Archivar" }).click();
+    await card(R).waitFor({ state: "detached", timeout: 15000 }).catch(() => {});
+    const after = (await db.query("select status, video_path, cost_usd, created_at, archived_at from public.podcast_studio_episodes where id=$1", [R])).rows[0];
+    ok("c16: archivado sale de la vista principal y solo cambia archived_at (video, costo y estado intactos)", await card(R).count() === 0 && !!after.archived_at && after.status === before.status && after.video_path === before.video_path && Number(after.cost_usd) === Number(before.cost_usd) && +after.created_at === +before.created_at, JSON.stringify(after));
+    await load("?vista=archivados"); await shot(W(), "c16-03-archivados");
+    ok("c16: «Archivados» muestra lo archivado (con Restaurar) y la prueba vieja (sin borrar)", await card(R).count() === 1 && await card(F).count() === 1 && await W().getByTestId(`biblioteca-restaurar-${R}`).count() === 1);
+    const g = await post({ kind: "studio", id: G, action: "archive" }), o = await post({ kind: "studio", id: O, action: "archive" });
+    const oRow = (await db.query("select archived_at from public.podcast_studio_episodes where id=$1", [O])).rows[0], gRow = (await db.query("select archived_at from public.podcast_studio_episodes where id=$1", [G])).rows[0];
+    ok("c16: un episodio en producción no se archiva (409)", g.status === 409 && gRow.archived_at === null, JSON.stringify(g));
+    ok("c16: aislamiento: el de otra cuenta responde 404 y no cambia", o.status === 404 && oRow.archived_at === null, JSON.stringify(o));
+    await W().getByTestId(`biblioteca-restaurar-${R}`).getByRole("button", { name: "Restaurar" }).click();
+    await card(R).waitFor({ state: "detached", timeout: 15000 }).catch(() => {});
+    await load();
+    ok("c16: restaurar lo devuelve a la vista principal", await card(R).count() === 1 && (await db.query("select archived_at from public.podcast_studio_episodes where id=$1", [R])).rows[0].archived_at === null);
+    const ov = await W().evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    ok("c16: móvil 390×844 sin desbordamiento horizontal", ov <= 1, `${ov}px`);
+    const So = await session(OTHER, "c16-otra", MOB); await So.p.goto(`${BASE}/dashboard/podcast`);
+    ok("c16: la otra cuenta no ve los episodios del dueño", await So.p.getByTestId(`studio-episode-${R}`).count() === 0 && await So.p.getByTestId(`studio-episode-${O}`).count() === 1);
+    await So.ctx.close();
+    // Escritorio 1440×900 con la misma cuenta autorizada: misma secuencia unificada que en el móvil, sin desbordamiento.
+    const Sd = await session(OWNER, "c16-escritorio", { viewport: { width: 1440, height: 900 } });
+    const seqOf = (pg) => pg.getByTestId("studio-episodes").locator(":scope > li").evaluateAll((ls) => ls.map((l) => l.getAttribute("data-testid")));
+    for (const [q, name] of [["", "principal"], ["?vista=archivados", "archivados"]]) {
+      await load(q); await Sd.p.goto(`${BASE}/dashboard/podcast${q}`); await Sd.p.getByTestId("biblioteca-vistas").waitFor();
+      const sm = await seqOf(W()), sd = await seqOf(Sd.p);
+      ok(`c16: escritorio 1440 muestra la misma secuencia que el móvil (${name})`, sd.length > 0 && JSON.stringify(sd) === JSON.stringify(sm), JSON.stringify({ sm: sm.length, sd: sd.length }));
+      const ovd = await Sd.p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      ok(`c16: escritorio 1440 sin desbordamiento horizontal (${name})`, ovd <= 1, `${ovd}px`);
+      await shot(Sd.p, `c16-04-escritorio-${name}`);
+    }
+    await Sd.ctx.close(); await S.ctx.close();
+    await db.query("delete from public.podcast_studio_episodes where id = any($1)", [[R, F, G, D, O, FR, T]]);
+    await db.query("delete from public.podcast_episodes where id = $1", [V]);
+    // La columna queda aplicada, igual que en el esquema de supabase/migrations.
+  }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
-  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 15: 5 };
+  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 15: 5, 16: 24 };
   const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[a-d]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name)) || (c === "12" && /^c12-/.test(r.name))).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));

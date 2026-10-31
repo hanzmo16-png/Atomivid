@@ -5,8 +5,12 @@ import { Button } from "@/components/ui/Button";
 import { safeParseJsonResponse } from "@/lib/http/safe-json";
 import { progressView, type LedgerActivity } from "@/lib/podcast/v3/progress";
 import { AtomProgress } from "@/components/podcast/AtomProgress";
+import { LibraryArchiveButton } from "./LibraryArchiveButton";
 
-export type StudioListEpisode = { id: string; title: string; status: string; mode: string; cost_usd: number | null };
+export type StudioListEpisode = { id: string; title: string; status: string; mode: string; cost_usd: number | null;
+  /** Biblioteca limpia: archivado por el dueño; `autoNote` = agrupado solo en «Archivados» (con error, de prueba o
+   *  sin terminar hace más de 7 días), sin escribir nada: se explica y no ofrece archivar/restaurar a mano. */
+  archived?: boolean; autoNote?: string | null };
 
 const STATUS: Record<string, string> = { draft: "Borrador", authorized: "Autorizado", generating: "Generando", ready: "Listo", failed: "Con error" };
 const MODE: Record<string, string> = { narracion: "narración", avatar: "avatar", dialogo: "conversación" };
@@ -34,7 +38,7 @@ export function StudioEpisodePlayback({ title, statusLabel, detail, videoUrl, au
   );
 }
 
-function StudioEpisodeCard({ episode }: { episode: StudioListEpisode }) {
+export function StudioEpisodeCard({ episode, canArchive }: { episode: StudioListEpisode; canArchive: boolean }) {
   const [media, setMedia] = useState<Media | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -85,16 +89,18 @@ function StudioEpisodeCard({ episode }: { episode: StudioListEpisode }) {
       />
       {(status === "authorized" || status === "generating") && <div className="mt-2"><AtomProgress compact view={progressView({ status, progress: media?.progress, updated_at: media?.updatedAt, output: media?.output, audio_path: media?.audioPath }, undefined, media?.activity)} /></div>}
       {note && <p className="mt-1 text-xs text-ink-muted">{note}</p>}
+      {episode.autoNote && <p className="mt-1 text-xs text-ink-muted">{episode.autoNote}</p>}
+      {canArchive && !episode.autoNote && status !== "authorized" && status !== "generating" && <LibraryArchiveButton kind="studio" id={episode.id} title={episode.title} archived={!!episode.archived} />}
     </li>
   );
 }
 
 /** Episodios del estudio en «Tus episodios»: reproducir y descargar sigue disponible aunque el asistente se reinicie. */
-export function StudioEpisodeList({ episodes }: { episodes: StudioListEpisode[] }) {
+export function StudioEpisodeList({ episodes, canArchive = false }: { episodes: StudioListEpisode[]; canArchive?: boolean }) {
   if (episodes.length === 0) return null;
   return (
     <ul className="mt-2 grid min-w-0 gap-2" data-testid="studio-episodes">
-      {episodes.map((e) => <StudioEpisodeCard key={e.id} episode={e} />)}
+      {episodes.map((e) => <StudioEpisodeCard key={e.id} episode={e} canArchive={canArchive} />)}
     </ul>
   );
 }
