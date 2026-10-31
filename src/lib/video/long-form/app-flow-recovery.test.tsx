@@ -49,6 +49,50 @@ test("YouTube en curso con latido reciente: progreso, sin reintento ni reanudar 
   assert.doesNotMatch(page, /Reintentar|Reanudar/);
 });
 
+test("YouTube colgado: la página no muestra el porcentaje como si el trabajo siguiera", () => {
+  const stalled = {
+    ...base,
+    render_started_at: "2026-10-09T10:00:00Z",
+    long_form_stage: "rendering",
+    long_form_progress: {
+      stage: "rendering", unitsCompleted: 100, unitsTotal: 100, unitLabel: "fotogramas",
+      updatedAt: "2026-10-09T10:30:00Z", stageStartedAt: "2026-10-09T10:00:00Z",
+    },
+  };
+  const page = wrap(<ResultView request={stalled} nowMs={NOW} />);
+  assert.match(page, /dejó de reportar avances/);
+  assert.match(page, /No mostraremos un porcentaje antiguo/);
+  assert.doesNotMatch(page, /progressbar/);
+  assert.doesNotMatch(page, /97%|99%|100%/);
+  assert.match(page, /Reintentar/);
+  const fresh = {
+    ...base,
+    render_started_at: "2026-10-09T11:40:00Z",
+    long_form_stage: "rendering",
+    long_form_progress: {
+      stage: "rendering", unitsCompleted: 10, unitsTotal: 100, unitLabel: "fotogramas",
+      updatedAt: "2026-10-09T11:59:00Z",
+    },
+  };
+  assert.match(wrap(<ResultView request={fresh} nowMs={NOW} />), /progressbar/);
+});
+
+test("YouTube completado: duración medida, subtítulos y descarga del historial con el mismo objeto", () => {
+  const done = { ...base, status: "completed" as const, progress_stage: null, video_path: "x/output/final.mp4", duration_seconds: 300 };
+  const videoUrl = "https://example.com/storage/final.mp4?token=signed";
+  const page = wrap(<ResultView request={done} videoUrl={videoUrl} subtitleUrl="https://example.com/storage/subtitles.es.srt?token=s" deliveredDurationSeconds={272.085} nowMs={NOW} />);
+  assert.match(page, /4 min 32 s \(pedido 5 min\)/);
+  assert.match(page, /download=subtitles\.srt/);
+  assert.match(page, /download=atomicvid-video\.mp4/);
+  assert.doesNotMatch(page, /300s/);
+  const same = wrap(<ResultView request={done} videoUrl={videoUrl} deliveredDurationSeconds={300} nowMs={NOW} />);
+  assert.match(same, /300s/);
+  assert.doesNotMatch(same, /Descargar subtítulos/);
+  const card = wrap(<RequestCard request={done} videoUrl={videoUrl} nowMs={NOW} />);
+  assert.match(card, /download=atomicvid-video\.mp4/);
+  assert.match(card, /token=signed/);
+});
+
 test("Completado sin archivo reproducible: nunca muestra reproductor ni descarga", () => {
   const page = wrap(<ResultView request={{ ...base, status: "completed", progress_stage: null, video_path: "x/output/final.mp4" }} videoUrl={null} nowMs={NOW} />);
   assert.doesNotMatch(page, /<video|Descargar video/);

@@ -12,6 +12,7 @@ import { STATUS_LABEL, STATUS_TONE, pendingRequestCta, type VideoRequestSummary 
 import { hasRenderableScript } from "@/lib/video/own-script";
 import { canReviewReelRetry } from "@/lib/video/reel-retry";
 import { computeProductionProgress, isLongFormProgress, type ProgressStageKey } from "@/lib/video/long-form/progress";
+import { asDownloadUrl } from "@/lib/storage/download-url";
 import { GenerateButton } from "@/app/dashboard/GenerateButton";
 import type { AvatarRecovery } from "@/lib/video/avatar/recovery";
 
@@ -263,7 +264,7 @@ export function RequestCard({
           </video>
           <div className="flex flex-col gap-2 sm:flex-row">
             <a
-              href={videoUrl}
+              href={asDownloadUrl(videoUrl, "atomicvid-video.mp4")}
               download
               target="_blank"
               rel="noopener noreferrer"

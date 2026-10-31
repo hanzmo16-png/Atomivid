@@ -23,6 +23,7 @@ import {
   STATUS_TONE,
   type VideoRequestSummary,
 } from "@/lib/video/request-view";
+import { longFormDurationLabel } from "@/lib/video/long-form/delivered-duration";
 
 /**
  * Contenido de la pantalla dedicada /dashboard/videos/[id] — puramente
@@ -38,6 +39,8 @@ export function ResultView({
   thumbnailRequested = false,
   nowMs,
   avatarRecovery,
+  deliveredDurationSeconds = null,
+  subtitleUrl = null,
 }: {
   request: VideoRequestSummary;
   /** null si status=completed pero no se pudo firmar la URL (reportar el error, no ocultarlo). */
@@ -47,15 +50,19 @@ export function ResultView({
   thumbnailRequested?: boolean;
   /** Reloj inyectado por el caller (solo lo usa el ETA de Long Form). */
   nowMs: number;
+  /** Duración medida del MP4 (output.json). Null: la ficha sigue mostrando la duración pedida. */
+  deliveredDurationSeconds?: number | null;
+  /** SRT sidecar ya firmado, solo si el objeto existe. Null: no se ofrece la descarga. */
+  subtitleUrl?: string | null;
   /** Failed avatar only: decided server-side (decideAvatarRecovery). Absent = no recovery offered. */
   avatarRecovery?: AvatarRecovery;
 }) {
+  const isLongForm = request.mode === "long_form";
   const meta = [
     request.language && LANGUAGE_LABEL[request.language],
-    `${request.duration_seconds}s`,
+    longFormDurationLabel(request.duration_seconds, isLongForm && request.status === "completed" ? deliveredDurationSeconds : null),
     new Date(request.created_at).toLocaleString("es-MX"),
   ].filter(Boolean);
-  const isLongForm = request.mode === "long_form";
   // Long Form recovery, same rule as the history card (RequestCard) and the render route: a confirmed
   // plan, attempts left, and a failed or stalled attempt. Already paid results are reused by the ledger.
   const waitingForSupply = request.status === "processing" && Boolean(request.supply_wait_started_at);
@@ -130,7 +137,7 @@ export function ResultView({
           </Card>
         )}
 
-        {request.status === "processing" && isLongForm && !waitingForSupply && (
+        {request.status === "processing" && isLongForm && !waitingForSupply && !stalled && (
           <ProductionProgressCard
             longFormStage={request.long_form_stage ?? null}
             longFormProgress={request.long_form_progress}
@@ -177,7 +184,7 @@ export function ResultView({
           </Card>
         )}
 
-        {request.status === "processing" && !isLongForm && !waitingForSupply && stalled && (
+        {request.status === "processing" && !waitingForSupply && stalled && (
           <Alert tone="warning" role="status">
             <p className="font-medium">Esta producción dejó de reportar avances.</p>
             <p className="mt-1">No mostraremos un porcentaje antiguo como si siguiera avanzando.
@@ -230,7 +237,7 @@ export function ResultView({
             remounted per request so nothing carries over to another video or account. */}
         {request.status === "completed" && isLongForm && (
           <LongFormResult key={request.id} requestId={request.id} videoUrl={videoUrl ?? null} thumbnailUrl={thumbnailUrl ?? null}
-            thumbnailRequested={thumbnailRequested} isLandscape={isLandscape} />
+            subtitleUrl={subtitleUrl} thumbnailRequested={thumbnailRequested} isLandscape={isLandscape} />
         )}
         {request.status === "completed" && !isLongForm && videoUrl && (
           <div className="flex flex-col items-center gap-4">
