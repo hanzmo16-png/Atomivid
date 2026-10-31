@@ -10,7 +10,7 @@ on:
         description: "preflight (USD 0) | descargas (USD 0, MP4+MP3 de episodio_reintento) | p1 (≤ 1) | p2 (≤ 3) | lf (≤ 12, todo el caso) | lf-inspeccion (USD 0, video terminado de lf_request_id) | pod-diag / pod-clips (USD 0, episodio de estudio pod_episode_id) | pod-assets (≤ 1, recursos de estudio con Recraft)"
         required: true
         type: choice
-        options: [preflight, descargas, p1, p2, lf, lf-inspeccion, pod-diag, pod-clips, pod-assets, pod-catalog, pod-fragment, pod-scan, pod-ui, pod-remaster, pod-calib, lf-ui, pod-progreso, pod-inicio, pod-borrador, pod-crear, pod-borrador-fix, ux-capturas, pod-biblioteca]
+        options: [preflight, descargas, p1, p2, lf, lf-inspeccion, pod-diag, pod-clips, pod-assets, pod-catalog, pod-fragment, pod-scan, pod-ui, pod-remaster, pod-calib, lf-ui, pod-progreso, pod-inicio, pod-borrador, pod-crear, pod-borrador-fix, ux-capturas, pod-biblioteca, smoke-lanzamiento]
       presupuesto_usd:
         description: "Autorización por episodio (no supera el tope del caso)"
         required: true
@@ -61,7 +61,7 @@ jobs:
         with: { persist-credentials: false }
       - name: Tope del caso (antes de instalar nada)
         run: |
-          case "$CASO" in preflight|descargas|lf-inspeccion|lf-ui|pod-diag|pod-clips|pod-catalog|pod-scan|pod-ui|pod-remaster|pod-calib|pod-progreso|pod-inicio|pod-borrador|pod-crear|pod-borrador-fix|ux-capturas|pod-biblioteca) MAX=0;; pod-assets) MAX=1;; pod-fragment) MAX=0.2;; p1) MAX=1;; p2) MAX=3;; lf) MAX=12;; *) echo "::error::caso desconocido"; exit 1;; esac
+          case "$CASO" in preflight|descargas|lf-inspeccion|lf-ui|pod-diag|pod-clips|pod-catalog|pod-scan|pod-ui|pod-remaster|pod-calib|pod-progreso|pod-inicio|pod-borrador|pod-crear|pod-borrador-fix|ux-capturas|pod-biblioteca|smoke-lanzamiento) MAX=0;; pod-assets) MAX=1;; pod-fragment) MAX=0.2;; p1) MAX=1;; p2) MAX=3;; lf) MAX=12;; *) echo "::error::caso desconocido"; exit 1;; esac
           python3 -c "import sys; b=float(sys.argv[1]); m=float(sys.argv[2]); sys.exit(0 if 0 <= b <= m and (m == 0 or b > 0) else 1)" "$BUDGET_USD" "$MAX" \
             || { echo "::error::presupuesto $BUDGET_USD fuera del tope del caso $CASO (USD $MAX)"; exit 1; }
           echo "caso=$CASO presupuesto=USD $BUDGET_USD (tope del caso USD $MAX)"
@@ -109,6 +109,15 @@ jobs:
             S="${{ inputs.lf_request_id }}"; [[ "$S" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::SHA completo requerido en lf_request_id"; exit 1; }
             git fetch -q --depth 1 "https://github.com/${{ github.repository }}.git" "$S" && git show FETCH_HEAD:src/lib/podcast/library.ts > "$RUNNER_TEMP/library.ts"
             POD_UI_URL="$POD_EPISODE_ID" LIBRARY_TS="$RUNNER_TEMP/library.ts" npx tsx scripts/qa/real/pod-biblioteca.mjs; exit $?
+          fi
+          if [ "$CASO" = smoke-lanzamiento ]; then
+            # Smoke posterior al despliegue en PRODUCCIÓN (USD 0, solo lectura). lf_request_id = SHA completo desplegado (su
+            # library.ts calcula el orden esperado); pod_episode_id = nivel desplegado: base | 258 | 259.
+            S="${{ inputs.lf_request_id }}"; [[ "$S" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::SHA completo requerido en lf_request_id"; exit 1; }
+            L="${{ inputs.pod_episode_id }}"; case "$L" in base|258|259) ;; *) echo "::error::pod_episode_id debe ser base, 258 o 259"; exit 1;; esac
+            git fetch -q --depth 1 "https://github.com/${{ github.repository }}.git" "$S" && git show FETCH_HEAD:src/lib/podcast/library.ts > "$RUNNER_TEMP/library.ts"
+            rc=0; POD_UI_URL=https://atomivid.vercel.app LIBRARY_TS="$RUNNER_TEMP/library.ts" npx tsx scripts/qa/real/pod-biblioteca.mjs || rc=1
+            SMOKE_LEVEL="$L" node scripts/qa/real/smoke-lanzamiento.mjs || rc=1; exit $rc
           fi
           if [ "$CASO" = ux-capturas ]; then
             # pod_episode_id opcional = URL de vista previa de Vercel del PR (solo atomivid-git-*.vercel.app); «despues» si se da.
