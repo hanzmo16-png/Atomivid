@@ -21,7 +21,7 @@ async function main() {
   }
   if (id === "todos") {
     // Todos los episodios del estudio (solo lectura): estado, rutas de entrega y si el archivo existe en Storage.
-    const { data: all, error } = await db.from("podcast_studio_episodes").select("id,user_id,status,mode,spec,video_path,audio_path,progress,error,authorized_at,run_started_at,created_at,updated_at").order("created_at", { ascending: true });
+    const { data: all, error } = await db.from("podcast_studio_episodes").select("id,user_id,status,mode,spec,video_path,audio_path,progress,error,authorized_at,run_started_at,created_at,updated_at,estimated_usd,authorized_usd,cost_usd").order("created_at", { ascending: true });
     if (error) { console.log("ALL_ERROR", error.message); process.exitCode = 1; return; }
     const exists = async (p: string | null) => { if (!p) return null; const dir = p.split("/").slice(0, -1).join("/"), name = p.split("/").pop(); const { data } = await db.storage.from("videos").list(dir, { search: name }); return !!data?.some((f) => f.name === name); };
     const users: string[] = [];
@@ -30,6 +30,7 @@ async function main() {
       const pr = r.progress as { stage?: string; pct?: number; stages?: object } | null;
       console.log("EP", JSON.stringify({ id: String(r.id).slice(0, 8), user: `u${users.indexOf(String(r.user_id)) + 1}`, status: r.status, mode: r.mode, output: (r.spec as { output?: string } | null)?.output ?? null,
         video: r.video_path ? "sí" : null, video_exists: await exists(r.video_path), audio: r.audio_path ? "sí" : null, audio_exists: await exists(r.audio_path),
+        usd: { est: r.estimated_usd, auth: r.authorized_usd, cost: r.cost_usd }, minutes: (r.spec as { target_minutes?: number } | null)?.target_minutes ?? null, provider: (r.spec as { visual?: { provider?: string } } | null)?.visual?.provider ?? null, hosts: ((r.spec as { participants?: { avatar?: { kind?: string } }[] } | null)?.participants ?? []).map((x) => x.avatar?.kind ?? null),
         progress: pr ? { stage: pr.stage, pct: pr.pct, stages: Object.keys(pr.stages ?? {}).length } : null, error: r.error ? String(r.error).slice(0, 120) : null, authorized_at: r.authorized_at, run_started_at: r.run_started_at, created_at: r.created_at, updated_at: r.updated_at }));
     }
     return;
