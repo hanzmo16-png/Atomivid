@@ -8,9 +8,13 @@
  */
 const path = require("node:path"), fs = require("node:fs");
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE ?? "playwright");
+const { Client } = require(process.env.HARNESS_PG_MODULE ?? "pg");
 const BASE = process.env.E2E_BASE ?? "http://127.0.0.1:3100";
 const OUT = path.resolve(process.env.E2E_OUT ?? "simple-ux-out"); fs.mkdirSync(OUT, { recursive: true });
-const OWNER = { email: "pilot-owner@local.test", password: "local-pass-owner-1" };
+const OWNER = { id: "11111111-1111-4111-8111-111111111111", email: "pilot-owner@local.test", password: "local-pass-owner-1" };
+// Preparaciones de guion (PR #258): en curso aunque antigua, fallida vieja, fallida reciente y fallida vieja abierta con ?script_job=.
+const JOBS = { R: ["c258a000-0000-4000-8000-000000000001", "running", 30, "c258 guion en curso antiguo"], O: ["c258a000-0000-4000-8000-000000000002", "failed", 20, "c258 guion fallido viejo"],
+  N: ["c258a000-0000-4000-8000-000000000003", "failed", 1, "c258 guion fallido reciente"], S: ["c258a000-0000-4000-8000-000000000004", "failed", 25, "c258 guion fallido abierto"] };
 const ANDROID_UA = "Mozilla/5.0 (Linux; Android 14; SM-A155M) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36";
 const DEVICES = {
   "samsung-390": { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2.75, userAgent: ANDROID_UA },
@@ -22,6 +26,13 @@ const check = (name, ok, detail) => { ok ? passes++ : fails++; console.log(`${ok
 const overflow = (p) => p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
 
 (async () => {
+  const db = new Client({ connectionString: process.env.HARNESS_PG_URL }); await db.connect();
+  for (const [id, status, days, topic] of Object.values(JOBS)) {
+    await db.query("insert into public.documentary_script_jobs(id,user_id,input_hash,topic,status,stage,error_message,failure_kind,created_at,updated_at) values ($1,$2,$3,$4,$5,'Investigación',$6,$7,now() - ($8 || ' days')::interval, case when $5 = 'running' then now() else now() - ($8 || ' days')::interval end) on conflict (id) do nothing",
+      [id, OWNER.id, `c258-${id}`, topic, status, status === "failed" ? "Fallo técnico de prueba" : null, status === "failed" ? "technical" : null, String(days)]);
+  }
+  const snapshot = async () => JSON.stringify((await db.query("select id,status,updated_at,error_message from public.documentary_script_jobs where id = any($1) order by id", [Object.values(JOBS).map((j) => j[0])])).rows);
+  const before = await snapshot();
   const browser = await chromium.launch({ executablePath: process.env.E2E_CHROME || undefined });
   try {
     for (const [dev, opts] of Object.entries(DEVICES)) {
@@ -86,10 +97,27 @@ const overflow = (p) => p.evaluate(() => document.documentElement.scrollWidth - 
         await p.screenshot({ path: path.join(OUT, `${dev}-04-${id}.png`), fullPage: true });
       }
       check(`[${dev}] la portada no envía nada (cero POST/PUT/PATCH/DELETE)`, posts.length === 0, posts.slice(0, 5));
+
+      // PR #258: preparaciones de guion en «Mis proyectos».
+      await home();
+      const jobCard = (t) => p.locator("li", { hasText: t }).filter({ has: p.locator(`a[href^="/dashboard/long-form/jobs/"]`) });
+      const folded = p.getByTestId("guiones-antiguos");
+      check(`[${dev}] guiones: en curso (aunque antiguo) y fallido reciente siguen a la vista`, await jobCard(JOBS.R[3]).first().isVisible() && await jobCard(JOBS.N[3]).first().isVisible());
+      check(`[${dev}] guiones: el fallido de hace más de 7 días está plegado («Guiones antiguos sin terminar»)`, await folded.count() === 1 && await folded.locator("li", { hasText: JOBS.O[3] }).count() === 1 && !(await jobCard(JOBS.O[3]).first().isVisible()));
+      await folded.locator("summary").click();
+      const oBtn = await jobCard(JOBS.O[3]).first().locator("button").count(), nBtn = await jobCard(JOBS.N[3]).first().locator("button").count();
+      check(`[${dev}] guiones: al desplegar, el plegado se ve y conserva su acción`, await jobCard(JOBS.O[3]).first().isVisible() && oBtn >= 1 && oBtn === nBtn, { oBtn, nBtn });
+      await p.goto(`${BASE}/dashboard?script_job=${JOBS.S[0]}`); await p.locator("#proyectos").waitFor();
+      check(`[${dev}] guiones: el abierto con ?script_job= queda a la vista aunque sea viejo`, await jobCard(JOBS.S[3]).first().isVisible() && await p.getByTestId("guiones-antiguos").locator("li", { hasText: JOBS.S[3] }).count() === 0);
+      await p.screenshot({ path: path.join(OUT, `${dev}-05-guiones.png`), fullPage: true });
       await ctx.close();
     }
   } catch (e) { check("sin errores inesperados", false, String(e?.stack ?? e).slice(0, 600)); }
-  finally { await browser.close(); }
+  finally {
+    await browser.close();
+    check("guiones: plegar no escribe nada (estado y fechas de las 4 preparaciones intactos)", (await snapshot()) === before);
+    await db.query("delete from public.documentary_script_jobs where id = any($1)", [Object.values(JOBS).map((j) => j[0])]); await db.end();
+  }
   console.log(`RESULTADO ${fails === 0 ? "OK" : "FALLA"} pass=${passes} fail=${fails}`);
   process.exit(fails === 0 ? 0 : 1);
 })();
