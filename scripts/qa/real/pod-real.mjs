@@ -36,6 +36,10 @@ const SCRIPT = [
   "Valeria Montclair: Una idea práctica que terminó cambiando la historia. Gracias, Víctor.",
   "Víctor Albarrán: Gracias a ti, Valeria. Nos escuchamos en el próximo episodio.",
 ].join("\n");
+// Variante corta (≤ USD 1,20, propuesta 2026-10-31 tras la corrección del estudio vacío): ~1 min, 6 turnos, objetivo 1 min.
+const SHORT = CAP <= 1.2;
+const SCRIPT_USED = SHORT ? SCRIPT.split("\n").slice(0, 5).concat("Víctor Albarrán: Gracias, Valeria. Nos escuchamos en el próximo episodio.").join("\n") : SCRIPT;
+const TARGET_MIN = SHORT ? 1 : 2;
 const TITLE = `Los sumerios y la primera escritura (${new Date().toISOString().slice(0, 10)})`;
 
 const before = await activeCount();
@@ -64,9 +68,9 @@ await next();
 await W().getByLabel("Título del episodio").fill(TITLE);
 await W().getByLabel("Tema").fill("Los sumerios y el origen de la escritura");
 const slider = W().getByLabel("Duración en minutos"); await slider.focus();
-for (let i = 0; i < 40 && Number(await slider.inputValue()) > 2; i++) await p.keyboard.press("ArrowLeft");
-await W().getByLabel("Guion").fill(SCRIPT);
-ok("objetivo de duración 2 min", (await slider.inputValue()) === "2", await slider.inputValue());
+for (let i = 0; i < 40 && Number(await slider.inputValue()) > TARGET_MIN; i++) await p.keyboard.press("ArrowLeft");
+await W().getByLabel("Guion").fill(SCRIPT_USED);
+ok(`objetivo de duración ${TARGET_MIN} min`, (await slider.inputValue()) === String(TARGET_MIN), await slider.inputValue());
 await shot("02-contenido");
 await next();
 // Pantalla 3 — Estilo: «Solo estudio y anfitriones» (sin Recraft ni imágenes de pago).
@@ -78,7 +82,8 @@ await next();
 await W().getByTestId("wizard-estimate").locator("table").waitFor({ timeout: 90000 });
 const estText = (await W().getByTestId("wizard-estimate").textContent()) ?? "";
 const est = Number((/Total estimado\s*USD\s*([\d.]+)/.exec(estText)?.[1] ?? ""));
-const budget = Math.ceil((est * 1.1) / 0.5) * 0.5;
+// Corta: +10 % redondeado a 0,05 (con 0,5 un estimado de 0,7 pedía 1,0 y uno de 1,1 pasaba del tope de 1,20).
+const budget = SHORT ? Math.round(Math.ceil((est * 1.1) / 0.05) * 0.05 * 100) / 100 : Math.ceil((est * 1.1) / 0.5) * 0.5;
 console.log(`INFO estimado USD ${est} · presupuesto ${budget} · tope del caso ${CAP}`);
 await shot("04-producir");
 if (!ok("estimación válida y presupuesto (+10 %) dentro del tope autorizado", est > 0 && budget <= CAP, { est, budget, CAP })) {
@@ -97,7 +102,10 @@ const id = created?.body?.id ?? auth?.path.split("/").pop();
 ok("episodio creado y autorizado por la interfaz", !!id && auth?.status === 200, { create: created?.status, authorize: auth?.status, dispatched: auth?.body?.dispatched, note: auth?.body?.note });
 if (!id) { await browser.close(); console.log("RESULT pod-real: FALLA"); process.exit(1); }
 console.log(`INFO episodio ${String(id).slice(0, 8)}`);
-const row0 = (await rest("podcast_studio_episodes", `select=status,estimated_usd,authorized_usd&id=eq.${id}`))[0];
+const row0 = (await rest("podcast_studio_episodes", `select=status,estimated_usd,authorized_usd,estimate&id=eq.${id}`))[0];
+// Corrección del estudio vacío (PR #262): ningún turno en «transición»; los turnos sin avatar, con los anfitriones.
+ok("plan sin estudio vacío (turnos sin avatar → anfitriones en el estudio)", !row0?.estimate?.shots?.transicion && (row0?.estimate?.shots?.estudio_quieto ?? 0) > 0, row0?.estimate?.shots ?? null);
+delete row0?.estimate;
 ok("autorizado en la base con el presupuesto elegido (≤ tope)", Number(row0?.authorized_usd) === budget && budget <= CAP, row0);
 
 // Progreso real: etapas observadas en la base (sin tocar nada) hasta «ready»/«failed» o 150 min.
@@ -132,7 +140,7 @@ if (row?.status === "ready") {
     fs.writeFileSync(file, Buffer.from(await (await fetch(mp4)).arrayBuffer()));
     const probe = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration:stream=codec_type,width,height", "-of", "json", file]).toString());
     const dur = Number(probe.format?.duration);
-    const scriptSecs = (SCRIPT.length / 13.5) + 5.5 + 8 * 0.4;
+    const scriptSecs = (SCRIPT_USED.length / 13.5) + 5.5 + SCRIPT_USED.split("\n").length * 0.4;
     ok("duración final coherente con el guion (±25 %)", Math.abs(dur - scriptSecs) / scriptSecs <= 0.25, { dur: Math.round(dur), esperado: Math.round(scriptSecs), size_mb: Math.round(fs.statSync(file).size / 1e5) / 10, streams: probe.streams });
     const out = execFileSync("bash", ["-c", `ffmpeg -hide_banner -nostats -i "${file}" -af ebur128=peak=true -f null - 2>&1 | tail -12`]).toString();
     const I = Number(/I:\s*(-?[\d.]+) LUFS/.exec(out)?.[1]), TP = Number(/Peak:\s*(-?[\d.]+) dBFS/.exec(out)?.[1]);
