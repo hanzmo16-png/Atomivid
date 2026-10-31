@@ -28,8 +28,8 @@ export function StudioEpisodePlayback({ title, statusLabel, detail, videoUrl, au
       <span className="ml-2 text-ink-muted">{statusLabel} · estudio: {detail}</span>
       {error && <p className="mt-1 text-danger">{error}</p>}
       {canRedispatch && <Button type="button" variant="secondary" size="sm" className="mt-2" loading={busy} onClick={onRedispatch}>Volver a pedir el inicio (no se cobra otra vez)</Button>}
-      {videoUrl && <video data-testid="studio-player" src={videoUrl} controls playsInline className="mt-2 w-full max-w-full rounded" />}
-      {audioUrl && <audio data-testid="studio-audio-player" src={audioUrl} controls className="mt-2 w-full max-w-full" />}
+      {videoUrl && <video data-testid="studio-player" src={videoUrl} controls playsInline preload="none" className="mt-2 w-full max-w-full rounded" />}
+      {audioUrl && <audio data-testid="studio-audio-player" src={audioUrl} controls preload="none" className="mt-2 w-full max-w-full" />}
       <div className="mt-1 flex min-w-0 flex-wrap gap-3">
         {videoUrl && <a className="text-accent underline" href={videoUrl} data-testid="studio-download-mp4">Descargar video (MP4)</a>}
         {audioUrl && <a className="text-accent underline" href={audioUrl} data-testid="studio-download-audio">Descargar audio</a>}

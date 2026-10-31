@@ -18,6 +18,8 @@ test("la lista de la cuenta muestra reproductor y descarga cuando el episodio es
   assert.match(html, /Señal Wow/);
   assert.match(html, /data-testid="studio-player"/);
   assert.match(html, /data-testid="studio-audio-player"/);
+  // La biblioteca no descarga ningún medio hasta pulsar reproducir: sin saltos de diseño ni datos móviles con 150 tarjetas.
+  assert.equal((html.match(/preload="none"/g) ?? []).length, 2);
   assert.match(html, /data-testid="studio-download-mp4"/);
   assert.match(html, /data-testid="studio-download-audio"/);
   assert.doesNotMatch(html, /Reintentar inicio/);

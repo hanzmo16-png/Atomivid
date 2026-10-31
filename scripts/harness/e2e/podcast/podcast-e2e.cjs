@@ -1022,7 +1022,14 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       const first = await P.getByTestId("studio-episodes").locator(":scope > li").count();
       ok(`c19: ${dev} · primera carga muestra 50 y ofrece «Ver más»`, first === 50 && (await P.getByTestId("biblioteca-ver-mas").count()) === 1, String(first));
       let clicks = 0;
-      while ((await P.getByTestId("biblioteca-ver-mas").count()) && clicks < 20) { await P.getByTestId("biblioteca-ver-mas").click(); await P.waitForLoadState("networkidle").catch(() => {}); await P.waitForTimeout(500); clicks++; }
+      // «Ver más» es navegación en la página (sin carga nueva): se espera a que la lista crezca, no a «networkidle».
+      const items = P.getByTestId("studio-episodes").locator(":scope > li");
+      while ((await P.getByTestId("biblioteca-ver-mas").count()) && clicks < 20) {
+        const before = await items.count();
+        await P.getByTestId("biblioteca-ver-mas").click();
+        await P.waitForFunction((n) => document.querySelectorAll('[data-testid="studio-episodes"] > li').length > n, before, { timeout: 30000 });
+        clicks++;
+      }
       const seq = await P.getByTestId("studio-episodes").locator(":scope > li").evaluateAll((ls) => ls.map((l) => l.getAttribute("data-testid")));
       const got = seq.filter((t) => all19.includes(t));
       ok(`c19: ${dev} · «Ver más» hasta el final: los 150 aparecen, sin perder ni duplicar`, got.length === 150 && new Set(got).size === 150 && new Set(seq).size === seq.length, JSON.stringify({ got: got.length, uniq: new Set(got).size, total: seq.length, clicks }));
