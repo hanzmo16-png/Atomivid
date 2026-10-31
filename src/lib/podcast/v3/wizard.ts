@@ -266,6 +266,17 @@ export function estimateMinutes(script: string): number {
   const chars = lines.reduce((n, l) => n + l.replace(/^\s*[^:]{1,40}:\s*/, "").trim().length, 0);
   return Math.max(0.1, (OPEN_CLOSE_SECONDS + chars / SPOKEN_CHARS_PER_SECOND + lines.length * TURN_GAP_SECONDS) / 60);
 }
+/**
+ * Aviso de guion corto (prueba real 2026-10-31, ba27b6f7: se pidieron 2 min, el guion daba ~1,0 min y el episodio duró
+ * 54 s sin que la pantalla de producir lo dijera). No bloquea: el episodio dura lo que dura el guion (no se rellena ni se
+ * estira la voz). null si el guion cabe en la duración pedida o aún no hay guion.
+ */
+export function shortScriptNotice(script: string, minutes: number): string | null {
+  if (!script.trim() || durationFit(script, minutes) !== "corto") return null;
+  const m = estimateMinutes(script);
+  const fmt = (x: number) => x.toLocaleString("es-MX", { maximumFractionDigits: 1, minimumFractionDigits: x < 10 ? 1 : 0 });
+  return `Tu guion dura unos ${fmt(m)} min y pediste ${minutes} min: el episodio durará unos ${fmt(m)} min (no se rellena ni se estira la voz). Alarga el guion o baja la duración si quieres que coincidan.`;
+}
 /** «largo» si el guion pasa de la duración pedida más la tolerancia; «corto» si queda por debajo. */
 export function durationFit(script: string, minutes: number): "ok" | "largo" | "corto" {
   const m = estimateMinutes(script);

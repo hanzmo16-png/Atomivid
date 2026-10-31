@@ -73,12 +73,13 @@ export { INTENSITY_DB } from "./wizard";
 /** Estado de labios por participante en cada tramo. «habla» = clip con lip-sync; «reposo» = fotograma fijo sin labios. */
 export type LipSegment = { start: number; end: number; shot: Shot["kind"]; speaker: "A" | "B" | null; lips: { A: "habla" | "reposo" | "fuera"; B: "habla" | "reposo" | "fuera" } };
 const visibleIn = (s: Shot): { A: boolean; B: boolean } =>
+  s.kind === "estudio_quieto" ? { A: !!s.people?.includes("A"), B: !!s.people?.includes("B") } :
   s.kind === "two_shot" || s.kind === "over_shoulder" ? { A: true, B: true } : s.kind === "avatar_a" ? { A: true, B: false } : s.kind === "avatar_b" ? { A: false, B: true } : { A: false, B: false };
 /** Deriva la línea de tiempo de labios a partir del plan (lo mismo que hace la composición: un solo clip con lip-sync por plano, el del hablante). */
 export function lipTimeline(plan: EditorialPlan): LipSegment[] {
   return plan.shots.map((s) => {
     const v = visibleIn(s);
-    const st = (id: "A" | "B") => (!v[id] ? "fuera" : s.speaker === id ? "habla" : "reposo") as "habla" | "reposo" | "fuera";
+    const st = (id: "A" | "B") => (!v[id] ? "fuera" : s.speaker === id && s.kind !== "estudio_quieto" ? "habla" : "reposo") as "habla" | "reposo" | "fuera";
     return { start: s.start, end: s.end, shot: s.kind, speaker: s.speaker, lips: { A: st("A"), B: st("B") } };
   });
 }
