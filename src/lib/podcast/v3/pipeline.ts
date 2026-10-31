@@ -217,9 +217,7 @@ export async function preflight(spec: StudioSpec, providers: Providers, rates?: 
 /** Avatares que pueden aparecer como oyentes (foto fija): ambos en «diálogo» con dos avatares y algún plano de avatar. */
 export function stillListeners(spec: StudioSpec, plan: EditorialPlan): ("A" | "B")[] {
   const isAv = (k: string) => k === "avatar_a" || k === "avatar_b" || k === "two_shot" || k === "over_shoulder";
-  if (spec.mode === "dialogo" && hasAvatar(spec, "A") && hasAvatar(spec, "B") && plan.shots.some((s) => isAv(s.kind))) return ["A", "B"];
-  // Plano fijo del estudio: sus anfitriones salen de su foto (se comprueba antes del primer cargo, como el oyente).
-  return (["A", "B"] as const).filter((x) => plan.shots.some((s) => s.kind === "estudio_quieto" && s.people?.includes(x)));
+  return spec.mode === "dialogo" && hasAvatar(spec, "A") && hasAvatar(spec, "B") && plan.shots.some((s) => isAv(s.kind)) ? ["A", "B"] : [];
 }
 const hasAvatar = (spec: StudioSpec, id: "A" | "B") => { const p = spec.participants.find((x) => x.id === id); return !!p && p.avatar.kind !== "ninguno"; };
 const avatarRef = (spec: StudioSpec, id: "A" | "B") => { const a = spec.participants.find((x) => x.id === id)?.avatar; return a?.kind === "existente" ? a.avatar_id : a?.kind === "foto" ? `foto:${a.photo_path}` : a?.kind === "catalogo" ? `catalogo:${a.host_id}` : ""; };
@@ -464,11 +462,6 @@ export async function runEpisode(spec: StudioSpec, ctx: { owner: string; episode
         const sp = shot.speaker!;
         src.speakerMatte = await matte(clipOf.get(i)!, path.join(ctx.dir, `recorte-${i}`), false);
         if (shot.kind === "two_shot") src.listenerMatte = await stillMatte(sp === "A" ? "B" : "A");
-      } else if (shot.kind === "estudio_quieto" && shot.people?.length) {
-        // Plano fijo: los anfitriones sentados desde su foto (gratis). Primero quien tiene el turno.
-        const [first, second] = shot.speaker && shot.people.includes(shot.speaker) ? [shot.speaker, ...shot.people.filter((x) => x !== shot.speaker)] : shot.people;
-        src.speakerMatte = await stillMatte(first);
-        if (second) src.listenerMatte = await stillMatte(second);
       }
       clips.push(await renderShot(ctx.dir, i, shot, frames[i], src, { set: spec.visual.set, frame: fr, swap: spec.visual.swap_sides, small: !!ctx.small, fade: true }));
       step("montaje", i + 1, plan.shots.length);

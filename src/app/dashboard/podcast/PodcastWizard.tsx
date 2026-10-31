@@ -32,7 +32,7 @@ const MODE_HELP: Record<Modality, string> = {
   avatar: "Un presentador virtual (tu avatar) aparece hablando en tramos cortos, alternado con imágenes o clips de apoyo.",
   dialogo: "Dos participantes conversan (anfitrión e invitado), cada uno con su avatar y su voz: plano general de los dos y primeros planos.",
 };
-const SHOT_LABEL: Record<string, string> = { avatar_a: "Primer plano A", avatar_b: "Primer plano B", two_shot: "Plano general (los dos)", over_shoulder: "Sobre el hombro", imagen: "Imagen", recreacion: "Recreación", archivo: "Archivo", transicion: "Transición", titulo: "Título", estudio_quieto: "Anfitriones en el estudio (plano fijo)" };
+const SHOT_LABEL: Record<string, string> = { avatar_a: "Primer plano A", avatar_b: "Primer plano B", two_shot: "Plano general (los dos)", over_shoulder: "Sobre el hombro", imagen: "Imagen", recreacion: "Recreación", archivo: "Archivo", transicion: "Transición", titulo: "Título" };
 const KIND_LABEL: Record<string, string> = { pregunta: "pregunta", respuesta: "respuesta", comentario: "comentario", reaccion: "reacción", desacuerdo: "desacuerdo", transicion: "transición", apertura: "apertura", cierre: "cierre", narracion: "narración" };
 
 export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generationEnabled = v3Enabled, providers = [], previewNotice = null, hosts = [] }: { voices: WizardVoice[]; avatars: WizardAvatar[]; v2Enabled: boolean; v3Enabled: boolean; generationEnabled?: boolean; providers?: VisualProvider[]; previewNotice?: string | null; hosts?: WizardHost[] }) {

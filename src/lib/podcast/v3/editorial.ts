@@ -11,7 +11,7 @@
 import type { StudioMode } from "./spec";
 import { estimateSeconds, type Turn } from "./script";
 
-export type ShotKind = "avatar_a" | "avatar_b" | "two_shot" | "over_shoulder" | "imagen" | "recreacion" | "archivo" | "transicion" | "titulo" | "estudio_quieto";
+export type ShotKind = "avatar_a" | "avatar_b" | "two_shot" | "over_shoulder" | "imagen" | "recreacion" | "archivo" | "transicion" | "titulo";
 export type VisualAsset = { id: string; query: string; kind: "foto" | "archivo" | "recreacion" | "ilustracion"; tags: string[]; credit?: string;
   /** Ilustración generada para UN turno concreto (Recraft): ese turno la usa antes que cualquier otra. */
   forTurn?: string };
@@ -22,8 +22,6 @@ export type Shot = {
   card?: string;
   /** En sobre el hombro: quién mira a cámara (habla) y quién queda de espaldas. */
   facing?: "A" | "B";
-  /** En «estudio_quieto»: quiénes aparecen sentados (foto fija, sin labios ni costo de avatar). */
-  people?: ("A" | "B")[];
 };
 export type PlanInput = {
   mode: StudioMode; turns: (Turn & { seconds?: number })[]; assets: VisualAsset[];
@@ -72,13 +70,6 @@ export function planEpisode(input: PlanInput): EditorialPlan {
   // apariciones al mismo hablante (prueba real 2026-10-28, episodio 0a482791: Valeria nunca habló a cámara).
   // Arranca de modo que el primer turno de cada uno lo presente su avatar.
   const acc = { A: 1 - input.avatarFrequency, B: 1 - input.avatarFrequency };
-  // Turno sin avatar ni imagen (p. ej. «Solo estudio y anfitriones»): los anfitriones siguen sentados en el estudio en
-  // un plano fijo (foto, sin labios ni costo de avatar). Antes quedaba el estudio VACÍO (prueba real 2026-10-31,
-  // episodio ba27b6f7: ~25 de 54 s sin nadie en pantalla).
-  const seated = (["A", "B"] as const).filter((x) => input.hasAvatar[x]);
-  const still = (why: string) => input.mode !== "narracion" && seated.length
-    ? { kind: "estudio_quieto" as const, people: [...seated], reason: `${why}: los anfitriones en el estudio (plano fijo, sin costo de avatar).` }
-    : { kind: "transicion" as const, reason: `${why}: transición.` };
   input.turns.forEach((turn, i) => {
     const dur = turn.seconds ?? estimateSeconds(turn.text);
     const start = t, end = t + dur;
@@ -126,14 +117,14 @@ export function planEpisode(input: PlanInput): EditorialPlan {
         shots.push({ turn_id: turn.id, speaker: turn.speaker, start, end: start + capped, ...shot });
         avatarSeconds[turn.speaker] += capped;
         if (shot.kind === "two_shot") avatarSeconds[turn.speaker === "A" ? "B" : "A"] += capped;
-        const rest = visual() ?? still("Resto del turno sin imagen relacionada");
+        const rest = visual() ?? { kind: "transicion" as const, reason: "Resto del turno sin imagen relacionada: transición." };
         shots.push({ turn_id: turn.id, speaker: turn.speaker, start: start + capped, end, ...rest, reason: `Límite de ${input.avatarMaxSeconds}s por aparición; ${rest.reason}` });
         t = end; return;
       }
       avatarSeconds[turn.speaker] += dur;
       if (shot.kind === "two_shot") avatarSeconds[turn.speaker === "A" ? "B" : "A"] += dur;
     } else {
-      shot = visual() ?? still("Sin imagen relacionada sin repetir (no se fuerza otra aparición de pago)");
+      shot = visual() ?? { kind: "transicion", reason: "Sin imagen relacionada sin repetir: transición (no se fuerza otra aparición de pago)." };
     }
     // Plano/contraplano: A siempre a la izquierda y B a la derecha (también en los primeros planos), así que dos primeros
     // planos seguidos de hablantes distintos mantienen la continuidad de posiciones y no necesitan un plano intermedio.

@@ -57,9 +57,8 @@ test("turnos sin imagen propia usan una imagen NO usada del tema, no un plano va
   assert.equal(nonAvatar.filter((s) => s.kind === "transicion").length, 0, "ningún turno queda en plano vacío mientras haya imágenes del tema");
   assert.equal(new Set(withTopic.assetsUsed).size, withTopic.assetsUsed.length, "sin repetir imágenes");
   assert.deepEqual(planIssuesOf(withTopic), []);
-  // Sin términos del tema: nada ajeno; con dos anfitriones, plano fijo de los dos en el estudio (nunca el estudio vacío).
-  assert.ok(at(undefined).shots.some((s) => s.kind === "estudio_quieto"));
-  assert.ok(!at(undefined).shots.some((s) => s.turn_id && s.kind === "transicion"));
+  // Sin términos del tema, el comportamiento anterior: nada ajeno, transición.
+  assert.ok(at(undefined).shots.some((s) => s.kind === "transicion"));
   // Agotadas las imágenes del tema, el resto vuelve a transición (no repite).
   const scarce = planEpisode({ mode: "dialogo", turns, assets: pool.slice(0, 1), topicTerms: ["cometa"], avatarFrequency: 0, avatarMaxSeconds: 10, recreations: false, hasAvatar: { A: true, B: true } });
   assert.equal(scarce.assetsUsed.length, 1);

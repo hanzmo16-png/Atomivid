@@ -167,15 +167,13 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
   let args: string[];
   // Una imagen rechazada por la verificación se muestra como tarjeta explícita (rama «default»).
   switch (src.card && !src.image ? "transicion" : shot.kind) {
-    case "avatar_a": case "avatar_b": case "two_shot": case "over_shoulder": case "estudio_quieto": {
+    case "avatar_a": case "avatar_b": case "two_shot": case "over_shoulder": {
       // Estudio compartido: plano general (los dos a la mesa) o primer plano de quien habla en SU asiento. Un plano
       // «sobre el hombro» de un plan anterior se compone como primer plano (el oyente encima se retiró).
-      // «estudio_quieto»: plano general con los anfitriones en foto fija (el primero es quien tiene el turno, si aparece).
-      const quiet = shot.kind === "estudio_quieto";
-      const sp = quiet ? (shot.speaker && shot.people?.includes(shot.speaker) ? shot.speaker : shot.people?.[0]) : shot.speaker;
+      const sp = shot.speaker;
       if (!sp || !src.speakerMatte) throw new Error(`Plano de conversación sin recorte de quien habla (${shot.turn_id}).`);
-      const general = shot.kind === "two_shot" || quiet;
-      if (shot.kind === "two_shot" && !src.listenerMatte) throw new Error(`Plano general sin recorte de quien escucha (${shot.turn_id}).`);
+      const general = shot.kind === "two_shot";
+      if (general && !src.listenerMatte) throw new Error(`Plano general sin recorte de quien escucha (${shot.turn_id}).`);
       const st = studioDef(legacyStudio(o.set));
       const seat = seatOf(st, sp, o.swap);
       const other = seatOf(st, sp === "A" ? "B" : "A", o.swap);
@@ -186,14 +184,14 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
       // del alto (prueba F2, 2026-10-30).
       type Panel = { cam: ReturnType<typeof cameraFor>; frame: { w: number; h: number }; people: { m: Matte; seat: typeof seat }[] };
       const panels: Panel[] = [];
-      if (general && h > w && src.listenerMatte) {
+      if (general && h > w) {
         const half = { w, h: Math.round(h / 4) * 2 };
         const top = st.seats.A === seat ? { m: src.speakerMatte, s: seat } : { m: src.listenerMatte!, s: other };
         const bottom = top.s === seat ? { m: src.listenerMatte!, s: other } : { m: src.speakerMatte, s: seat };
         for (const x of [top, bottom]) panels.push({ cam: cameraFor("primer", x.s, side(x.s), half), frame: half, people: [{ m: x.m, seat: x.s }] });
       } else {
         const people: { m: Matte; seat: typeof seat }[] = [{ m: src.speakerMatte, seat }];
-        if (general && src.listenerMatte) people.push({ m: src.listenerMatte, seat: other });
+        if (general) people.push({ m: src.listenerMatte!, seat: other });
         panels.push({ cam: cameraFor(general ? "general" : "primer", seat, side(seat), o.frame, span), frame: o.frame, people });
       }
       const ins: string[] = [];
