@@ -35,7 +35,8 @@ export type AvatarProvider = { name: string; label: ProviderLabel;
   prepare?: (photoRef: string) => Promise<{ ref: string; actualUsd: number }>; prepareUsd?: number };
 export type ImageProvider = { name: string; label: ProviderLabel; search(query: string): Promise<VisualAsset[]>; fetch(asset: VisualAsset, dest: string): Promise<void>;
   /** Recreación generada (de pago). Ausente → no se ofrecen recreaciones. */
-  recreate?: (prompt: string, dest: string) => Promise<{ actualUsd: number }>; recreateUsd?: number };
+  recreate?: (prompt: string, dest: string) => Promise<{ actualUsd: number }>; recreateUsd?: number;
+  /** Proveedor que cobra las recreaciones en el libro (p. ej. «recraft»); por defecto, `name`. */ recreateProvider?: string };
 /** Lo que el episodio necesita de cada proveedor antes de empezar (para verificar saldo sin gastar). */
 export type ProviderNeeds = { ttsChars: number; ttsUsd: number; avatarUsd: number; imagesUsd: number };
 export type Providers = { tts: TtsProvider; avatar: AvatarProvider; images: ImageProvider;
@@ -238,7 +239,7 @@ export async function runEpisode(spec: StudioSpec, ctx: { owner: string; episode
         const asset = pf.assets.find((a) => a.id === shot.asset_id)!;
         const dest = path.join(ctx.dir, `img-${asset.id.replace(/[^\w-]/g, "_")}.png`);
         if (asset.kind === "recreacion" && ctx.providers.images.recreate) {
-          src.image = await pay(ctx.providers.images.name, "recreacion", { prompt: asset.query }, ctx.providers.images.recreateUsd ?? 0, async () => { const r = await ctx.providers.images.recreate!(asset.query, dest); return { result: dest, actualUsd: r.actualUsd }; }, dest);
+          src.image = await pay(ctx.providers.images.recreateProvider ?? ctx.providers.images.name, "recreacion", { prompt: asset.query }, ctx.providers.images.recreateUsd ?? 0, async () => { const r = await ctx.providers.images.recreate!(asset.query, dest); return { result: dest, actualUsd: r.actualUsd }; }, dest);
         } else { await ctx.providers.images.fetch(asset, dest); src.image = dest; }
       }
       clips.push(await renderShot(ctx.dir, i, shot, frames[i], src, { set: spec.visual.set, frame: fr, swap: spec.visual.swap_sides, small: !!ctx.small, fade: true }));

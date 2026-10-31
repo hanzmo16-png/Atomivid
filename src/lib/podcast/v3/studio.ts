@@ -40,16 +40,18 @@ export function studioFlag(env: Env = process.env, user?: StudioUser): StudioFla
 
 export type VisualProviderId = "pexels" | "recraft" | "solo_set";
 export type VisualProvider = { id: VisualProviderId; label: string; available: boolean; reason: string | null; usdPerImage: number };
+/** Recraft en el estudio: apagado por defecto; solo con PODCAST_STUDIO_RECRAFT=1 y FAL_KEY (misma regla en app y worker). */
+export const studioRecraftEnabled = (env: Env = process.env) => env.PODCAST_STUDIO_RECRAFT === "1" && Boolean(env.FAL_KEY?.trim());
 /**
- * Recraft existe en el repo (src/lib/providers/image/recraft.ts, vía fal.ai) y lo usa Reels/Long Form; el worker del
- * estudio de podcast todavía NO tiene un adaptador de recreaciones conectado, así que aquí se muestra «No disponible»
- * con el motivo. Si se elige igualmente, la API rechaza (409) en vez de cambiar a otro proveedor.
+ * Recraft (src/lib/providers/image/recraft.ts, vía fal.ai) está conectado al worker del estudio para las recreaciones
+ * (recraft-studio.ts), pero apagado por defecto: sin el interruptor se muestra «No disponible» con el motivo. Si se
+ * elige igualmente, la API rechaza (409) y el worker falla sin cargo, en vez de cambiar a otro proveedor.
  */
 export function visualProviders(env: Env = process.env): VisualProvider[] {
-  const recraftReason = env.PODCAST_STUDIO_RECRAFT === "1" && env.FAL_KEY
+  const recraftReason = studioRecraftEnabled(env)
     ? null
-    : !env.FAL_KEY ? "No disponible: falta FAL_KEY y el adaptador de Recraft para el estudio de podcast aún no está conectado (solo Reels/Long Form lo usan)."
-    : "No disponible: el adaptador de Recraft para el estudio de podcast aún no está conectado (PODCAST_STUDIO_RECRAFT≠1).";
+    : !env.FAL_KEY?.trim() ? "No disponible: falta FAL_KEY para Recraft en el estudio de podcast."
+    : "No disponible: Recraft no está activado para el estudio de podcast (PODCAST_STUDIO_RECRAFT≠1).";
   return [
     { id: "pexels", label: "Fotos de archivo (Pexels)", available: true, reason: null, usdPerImage: 0 },
     { id: "recraft", label: "Ilustraciones Recraft (fal.ai)", available: recraftReason === null, reason: recraftReason, usdPerImage: RECRAFT_USD_PER_IMAGE },

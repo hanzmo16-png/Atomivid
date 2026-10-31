@@ -44,7 +44,7 @@ export function realImages(deps: { searchPhotos: (q: string) => Promise<{ id: st
       return r.slice(0, 3).map((x) => { const id = `px-${x.id}`; urls.set(id, x.url); return { id, query, kind: "foto" as const, tags: query.split(" "), credit: x.credit } satisfies VisualAsset; });
     },
     async fetch(asset, dest) { const u = urls.get(asset.id); if (!u) throw new Error("Imagen no encontrada"); await deps.download(u, dest); await readFile(dest); },
-    // Recreaciones (Recraft) NO conectadas en este PR: sin `recreate`, el planificador no las ofrece en real.
+    // Recreaciones (Recraft): las añade el worker con recraft-studio.ts solo si se eligieron y el interruptor está encendido.
   };
 }
 

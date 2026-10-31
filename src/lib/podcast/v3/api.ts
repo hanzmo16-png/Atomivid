@@ -12,13 +12,17 @@ import { generateConversation, type LlmFn } from "./script";
 import { keywords, type VisualAsset } from "./editorial";
 import { estimateHeygenCost } from "@/lib/providers/avatar/heygen";
 import { getPricingConfig } from "@/lib/billing/pricing";
+import { RECRAFT_USD_PER_IMAGE } from "@/lib/providers/image/recraft";
 import type { StudioEpisodeRow } from "./store";
 import { requireProvider, ProviderUnavailableError, visualProviders, lipTimeline, shotCoverage } from "./studio";
 
 /** Proveedores de PLANIFICACIÓN (sin red, sin costo): solo para estimar; nunca generan medios. */
-export function planningProviders(): Providers {
+export function planningProviders(opts: { recreations?: boolean } = {}): Providers {
   const rate = getPricingConfig().elevenLabsUsdPer1kChars;
-  const images: ImageProvider = { name: "plan", label: "mock", async search(q) { return [{ id: `plan-${q}`, query: q, kind: "foto", tags: keywords(q) } satisfies VisualAsset]; }, async fetch() { throw new Error("solo planificación"); } };
+  // Con Recraft elegido (y activado), la estimación es el PEOR caso: el planificador solo usa recreaciones donde no hay
+  // foto, así que se planifica sin fotos y se cuentan todas las que el worker podría pagar (gatherAssets: máx. 4).
+  const images: ImageProvider = { name: "plan", label: "mock", async search(q) { return opts.recreations ? [] : [{ id: `plan-${q}`, query: q, kind: "foto", tags: keywords(q) } satisfies VisualAsset]; }, async fetch() { throw new Error("solo planificación"); },
+    ...(opts.recreations ? { recreateProvider: "recraft", recreateUsd: RECRAFT_USD_PER_IMAGE, async recreate() { throw new Error("solo planificación"); } } : {}) };
   return { images,
     tts: { name: "plan", label: "mock", model: "eleven_multilingual_v2", usdFor: (n) => Math.ceil(n / 1000 * rate * 1e4) / 1e4, async synth() { throw new Error("solo planificación"); } },
     avatar: { name: "plan", label: "mock", usdFor: (s) => estimateHeygenCost(Math.max(1, s)), async render() { throw new Error("solo planificación"); }, async still() { throw new Error("solo planificación"); } } };
@@ -75,7 +79,7 @@ export async function studioAction(d: ApiDeps, body: Record<string, unknown> | n
     if (p.avatar.kind === "foto" && !p.avatar.photo_path.startsWith(`${d.userId}/podcast-studio/photos/`)) return { status: 403, body: { error: "La foto del avatar no pertenece a tu cuenta." } };
     if (p.avatar.kind === "existente" && d.ownsAvatar && !(await d.ownsAvatar(p.avatar.avatar_id))) return { status: 403, body: { error: "Ese avatar no está disponible en tu cuenta." } };
   }
-  const pf = await preflight(stored, planningProviders());
+  const pf = await preflight(stored, planningProviders({ recreations: stored.visual.provider === "recraft" }));
   const estimate = { lines: pf.estimate.lines, totalUsd: pf.estimate.totalUsd, assumptions: pf.estimate.assumptions, rates: pf.estimate.rates, turns: pf.turns.length, mood: pf.mood,
     shots: pf.plan.shots.reduce<Record<string, number>>((m, s) => ({ ...m, [s.kind]: (m[s.kind] ?? 0) + 1 }), {}), overBudget: pf.estimate.totalUsd > spec.budget_usd,
     byProvider: pf.estimate.lines.reduce<Record<string, number>>((m, l) => ({ ...m, [l.provider]: Math.round(((m[l.provider] ?? 0) + l.usd) * 1e4) / 1e4 }), {}),

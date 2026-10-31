@@ -217,3 +217,16 @@ test("duraciones reales mayores que la estimación: se para ANTES de pedir clips
   assert.equal(providers.calls.tts.length, tts, "la voz pagada se reutiliza");
   assert.ok(ok.r.mp4 && providers.calls.avatar.length > 0);
 });
+
+test("Recraft en el estudio: recreaciones cobradas en el libro como «recraft», máx. 4, y nunca por encima de la estimación del peor caso que vio el usuario", { timeout: 600_000 }, async () => {
+  const { planningProviders } = await import("./api");
+  const spec = StudioSpec.parse({ ...A, visual: { ...A.visual, provider: "recraft", recreations: true } });
+  const worst = await preflight(spec, planningProviders({ recreations: true }));
+  const providers = mockProviders({ tonesOnly: true });
+  providers.images = { ...providers.images, recreateProvider: "recraft", search: async () => [] };
+  const { r, ledger } = await render(spec, { providers, authorizedUsd: worst.estimate.totalUsd });
+  const recs = [...ledger.rows.values()].filter((x) => x.op === "recreacion");
+  assert.ok(recs.length > 0 && recs.length <= 4, `recreaciones pagadas: ${recs.length}`);
+  assert.ok(recs.every((x) => x.provider === "recraft" && x.state === "settled"), "proveedor del libro = recraft (topes y saldo de fal.ai)");
+  assert.ok(r.spentUsd <= worst.estimate.totalUsd + 1e-9, `gastado ${r.spentUsd} ≤ estimado ${worst.estimate.totalUsd}`);
+});
