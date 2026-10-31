@@ -1,7 +1,7 @@
 /** Podcast — biblioteca limpia (T-20261030-1118): vistas, orden y archivar/restaurar sin borrar. Sin red ni base. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { ARCHIVE_COLUMN_MISSING, AUTO_GROUPED, bucketOf, isTestTitle, libraryAction, libraryView, type LibraryItem } from "./library";
 
@@ -115,4 +115,15 @@ test("el tope de 100 por fuente se aplica por actividad reciente (updated_at), n
   const page = read("src/app/dashboard/podcast/page.tsx"), store = read("src/lib/podcast/v3/store.ts");
   assert.match(page, /from\("podcast_episodes"\)[^;]*\.order\("updated_at", \{ ascending: false \}\)\.limit\(100\)/);
   assert.match(store, /from\(STUDIO_TABLE\)[^;]*\.order\("updated_at", \{ ascending: false \}\)\.limit\(100\)/);
+});
+
+test("la migración archived_at es solo aditiva y su reversión vive fuera de supabase/migrations", () => {
+  const read = (p: string) => readFileSync(path.join(__dirname, "../../..", p), "utf8");
+  const sql = read("supabase/migrations/20261030170000_podcast_library_archive.sql").split("\n").filter((l) => !l.trim().startsWith("--")).join("\n");
+  assert.doesNotMatch(sql, /\b(drop|truncate|delete|update|rename|alter\s+column)\b/i, "sin SQL destructivo ni cambios de datos");
+  assert.equal((sql.match(/add column if not exists archived_at timestamptz/g) ?? []).length, 2);
+  assert.match(sql, /notify pgrst, 'reload schema'/);
+  assert.doesNotMatch(sql, /grant|policy|revoke/i, "los permisos de anon/authenticated no cambian");
+  assert.ok(readdirSync(path.join(__dirname, "../../../supabase/migrations")).every((f) => !/rollback/i.test(f)), "ninguna reversión en migrations/");
+  assert.match(read("supabase/rollbacks/20261030170000_podcast_library_archive.rollback.sql"), /drop column if exists archived_at/);
 });

@@ -29,7 +29,7 @@ export default async function PodcastPage({ searchParams }: { searchParams: Prom
   if (!user) redirect("/login");
   if (!canAccessLongFormBeta(user)) notFound();
   const service = createServiceClient();
-  // Biblioteca limpia: con la marca de archivo si su columna ya existe (propuesta 20261030170000); si no, como antes.
+  // Biblioteca limpia: con la marca de archivo si su columna ya existe (migración 20261030170000); si no, como antes.
   const v2 = (cols: string) => service.from("podcast_episodes").select(cols).eq("user_id", user.id).order("updated_at", { ascending: false }).limit(100);
   const V2_COLS = "id,title,status,source,duration_seconds,created_at,updated_at,video_status,review_status";
   const withArchive = await v2(`${V2_COLS},archived_at`);
@@ -102,7 +102,7 @@ export default async function PodcastPage({ searchParams }: { searchParams: Prom
       </nav>
       {view === "principal" && archivedCount > 0 && <p className="mt-2 text-xs text-ink-muted" data-testid="biblioteca-ocultos">Los episodios con error, los de prueba, los borradores de hace más de 7 días y lo que archives están en «Archivados» ({archivedCount}). No se borra nada.</p>}
       {view === "archivados" && <p className="mt-2 text-xs text-ink-muted">Aquí están lo que archivaste y, agrupados solos, los episodios con error, los de prueba y los borradores de hace más de 7 días. Sus archivos, enlaces y costos se conservan.</p>}
-      {/* Sin la columna archived_at (propuesta 20261030170000 aún no aplicada) no se consulta para escribir ni se ofrece
+      {/* Sin la columna archived_at (migración 20261030170000 aún no aplicada) no se consulta para escribir ni se ofrece
           archivar: se dice por qué. La agrupación automática de lo viejo sigue funcionando sin escribir nada. */}
       {!archiveReady && <p className="mt-2 text-xs text-ink-muted" data-testid="biblioteca-archivo-bloqueado">Archivar a mano estará disponible cuando se aplique un cambio de base de datos pendiente de autorización. Mientras tanto, los episodios con error, los de prueba y los borradores de hace más de 7 días se agrupan solos en «Archivados», sin escribir nada.</p>}
       {!empty && (

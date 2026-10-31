@@ -810,7 +810,10 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     await db.query("insert into public.podcast_episodes(id,user_id,title,source,status,created_at,updated_at) values ($1,$2,'c16 clásico editado hoy','upload','ready',now() - interval '30 days',now() - interval '2 hours')", [V, OWNER.id]);
     const card = (id) => W().getByTestId(`studio-episode-${id}`);
     const load = async (q = "") => { await W().goto(`${BASE}/dashboard/podcast${q}`); await W().getByTestId("biblioteca-vistas").waitFor(); };
-    // 1) Sin la migración propuesta: la lista funciona igual, sin botones de archivar; archivar explica por qué y no escribe.
+    // 1) Sin la migración (el arnés ya la aplicó desde supabase/migrations): se revierte en esta base DESECHABLE para probar
+    //    el modo sin columna — la lista funciona igual, sin botones de archivar; archivar explica por qué y no escribe.
+    await db.query(fs.readFileSync(path.join(REPO, "supabase/rollbacks/20261030170000_podcast_library_archive.rollback.sql"), "utf8"));
+    await db.query("notify pgrst, 'reload schema'"); await W().waitForTimeout(1500);
     await load();
     ok("c16: sin la columna, la vista principal oculta la prueba vieja y muestra lo útil", await card(R).count() === 1 && await card(G).count() === 1 && await card(D).count() === 1 && await card(F).count() === 0);
     ok("c16: sin la columna no se ofrece «Archivar»", (await W().locator('[data-testid^="biblioteca-archivar-"]').count()) === 0);
@@ -828,7 +831,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     const m0 = await post({ kind: "studio", id: R, action: "archive" });
     ok("c16: sin la columna, archivar responde 409 con el motivo y no toca la fila", m0.status === 409 && /no está aplicado/.test(m0.body?.error ?? ""), JSON.stringify(m0));
     // 2) Con la migración (base desechable): marca de archivo por episodio.
-    await db.query(fs.readFileSync(path.join(REPO, "supabase/proposals/20261030170000_podcast_library_archive.sql"), "utf8"));
+    await db.query(fs.readFileSync(path.join(REPO, "supabase/migrations/20261030170000_podcast_library_archive.sql"), "utf8"));
     await db.query("notify pgrst, 'reload schema'"); await W().waitForTimeout(1500);
     const before = (await db.query("select status, video_path, cost_usd, created_at from public.podcast_studio_episodes where id=$1", [R])).rows[0];
     await load(); await shot(W(), "c16-01-principal");
@@ -872,7 +875,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     await Sd.ctx.close(); await S.ctx.close();
     await db.query("delete from public.podcast_studio_episodes where id = any($1)", [[R, F, G, D, O, FR, T]]);
     await db.query("delete from public.podcast_episodes where id = $1", [V]);
-    await db.query(fs.readFileSync(path.join(REPO, "supabase/proposals/20261030170000_podcast_library_archive.rollback.sql"), "utf8")); await db.query("notify pgrst, 'reload schema'");
+    // La columna queda aplicada, igual que en el esquema de supabase/migrations.
   }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).

@@ -5,7 +5,7 @@
  *    borradores recientes, cada grupo por actividad más reciente (`updated_at`, o `created_at` si no hay);
  *  - vista «Archivados»: lo que el dueño archivó y, sin escribir nada, los episodios con error, los de prueba
  *    (regla `isTestTitle`) y los borradores de hace más de 7 días;
- *  - archivar/restaurar solo marca `archived_at` (columna propuesta en supabase/proposals/20261030170000_podcast_library_archive.sql);
+ *  - archivar/restaurar solo marca `archived_at` (columna de supabase/migrations/20261030170000_podcast_library_archive.sql);
  *    nunca toca archivos, enlaces, costos ni el libro de gastos. Lo que está en producción no se puede archivar.
  */
 export type LibraryKind = "studio" | "v2";
