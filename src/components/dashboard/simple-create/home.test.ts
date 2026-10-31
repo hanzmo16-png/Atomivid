@@ -52,3 +52,15 @@ test("la portada no enlaza herramientas internas ni llama a la red", () => {
   const src = fs.readFileSync(path.join(__dirname, "CreateHome.tsx"), "utf8") + fs.readFileSync(path.join(__dirname, "home.ts"), "utf8");
   assert.doesNotMatch(src, /visual-test|command-center|dry ?run|\/admin|\/dev\b|fetch\(|\/api\//i);
 });
+
+test("preparaciones de guion: las fallidas de hace más de 7 días se pliegan; la abierta (?script_job=) sigue a la vista", () => {
+  const now = Date.parse("2026-10-31T00:00:00Z"), d = (n: number) => new Date(now - n * 86_400_000).toISOString();
+  const jobs = [{ id: "j1", status: "failed", created_at: d(20) }, { id: "j2", status: "running", created_at: d(30) }, { id: "j3", status: "failed", created_at: d(2) }];
+  const { visible, old } = splitHistory(jobs, now);
+  assert.deepEqual(visible.map((j) => j.id), ["j2", "j3"], "lo que sigue en curso nunca se pliega, aunque sea antiguo");
+  assert.deepEqual(old.map((j) => j.id), ["j1"]);
+  const page = fs.readFileSync(path.resolve(__dirname, "../../../app/dashboard/page.tsx"), "utf8");
+  assert.match(page, /splitHistory\(\(scriptJobs \?\? \[\]\)\.filter\(\(j\) => j\.id !== script_job\), nowMs\)/);
+  assert.match(page, /data-testid="guiones-antiguos"/);
+  assert.doesNotMatch(page, /from\("documentary_script_jobs"\)[^;]*\.(delete|update)\(/, "plegar no escribe nada");
+});
