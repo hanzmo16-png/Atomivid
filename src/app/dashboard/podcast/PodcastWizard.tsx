@@ -51,6 +51,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   const [note, setNote] = useState<string | null>(null);
   const [estimate, setEstimate] = useState<Estimate | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
   const poll = useRef<ReturnType<typeof setInterval> | null>(null);
   // Borrador persistente: volver atrás o recargar no pierde nada.
   // Hidratación desde localStorage (solo existe en el cliente): un único setState al montar.
@@ -69,7 +70,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   async function api(url: string, body?: unknown) {
     const res = await fetch(url, body === undefined ? undefined : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const out = await safeParseJsonResponse<Record<string, unknown>>(res);
-    if (!out.ok) throw new Error(out.error);
+    if (!out.ok) throw Object.assign(new Error(out.error), { status: out.status });
     return out.data;
   }
   async function run(fn: () => Promise<void>) { if (busy) return; setBusy(true); setError(null); try { await fn(); } catch (e) { setError(classifyClientFetchError(e)); } finally { setBusy(false); } }
@@ -119,7 +120,26 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   useEffect(() => { if (loaded && screen === SCREENS.length - 1 && !d.episodeId && !estimate && !busy) void loadEstimate(); }, [loaded, d.step]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!d.episodeId || screen !== SCREENS.length - 1) return;
-    const tick = async () => { try { const s = (await api(`/api/podcast/v3/${d.episodeId}`)) as unknown as Status; setStatus(s); if (s.episode.status === "ready" || s.episode.status === "failed") { if (poll.current) clearInterval(poll.current); } } catch { /* reintenta en el siguiente ciclo */ } };
+    // Un episodio que la API ya no devuelve (borrado, de otra cuenta, 404) no se espera para siempre: el borrador lo suelta
+    // y vuelve a «Producir» con un aviso. Antes, el átomo quedaba «cargando» sin salida y cada reingreso repetía lo mismo
+    // (reporte de Hans, 2026-10-31). Otros fallos se reintentan, pero tras ~20 s se avisa a la vista.
+    let misses = 0;
+    const tick = async () => {
+      try {
+        const s = (await api(`/api/podcast/v3/${d.episodeId}`)) as unknown as Status; misses = 0; setStatusError(null); setStatus(s);
+        if (s.episode.status === "ready" || s.episode.status === "failed") { if (poll.current) clearInterval(poll.current); }
+      } catch (e) {
+        const code = (e as { status?: number }).status;
+        if (code === 404 || code === 403) {
+          if (poll.current) clearInterval(poll.current);
+          setStatus(null); setStatusError(null);
+          setNote("No encontramos ese episodio en tu cuenta (no se cobró nada nuevo). Revisa «Tus episodios» o prepara uno nuevo con esta configuración.");
+          setRaw((x) => ({ ...releaseEpisode(x), step: STEP.presupuesto }));
+          return;
+        }
+        if (++misses >= 5) setStatusError("No pudimos consultar el avance del episodio. Seguimos intentándolo; el episodio no se pierde y aparecerá en «Tus episodios».");
+      }
+    };
     void tick(); poll.current = setInterval(tick, 4000);
     return () => { if (poll.current) clearInterval(poll.current); };
   }, [d.episodeId, screen]);
@@ -397,6 +417,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
               {cur?.episode.error && <p className="mt-2 text-danger">{cur.episode.error}</p>}
               {cur?.episode.status === "failed" && <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={() => { set({ draftId: d.episodeId, episodeId: null, authorized: false }); }}>Reintentar (no se cobra dos veces lo ya generado)</Button>}
               {cur?.episode.status === "authorized" && <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={() => void run(async () => { const again = await api(`/api/podcast/v3/${d.episodeId}`, { confirm: true }); if (again.note) setNote(String(again.note)); })}>Volver a pedir el inicio (no se cobra otra vez)</Button>}
+              {statusError && <p role="alert" className="mt-2 text-danger" data-testid="wizard-estado-sin-respuesta">{statusError}</p>}
               {cur?.episode.status !== "ready" && <p className="mt-2 text-xs text-ink-muted">Puedes cerrar esta página: el episodio sigue generándose y aparecerá en «Tus episodios».</p>}
               {cur?.episode.status === "ready" && <Button type="button" variant="secondary" size="sm" className="mt-2" data-testid="wizard-crear-otro" onClick={() => { set({ ...releaseEpisode(d), step: STEP.modalidad }); setStatus(null); }}>Crear otro episodio</Button>}
             </div>
