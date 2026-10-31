@@ -10,11 +10,14 @@ import path from "node:path";
 /** Mismo interruptor que la app: PODCAST_V3_ENABLED=1, o el piloto del dueño (PODCAST_V3_OWNER_PILOT=0 lo apaga) para
  *  episodios del dueño, verificado aquí de forma independiente: por PODCAST_V3_OWNER_USER_ID (secreto
  *  INTERNAL_PRODUCTION_OWNER_USER_ID, si existe en GitHub) o, si no, preguntando a la app con una petición firmada (la app
- *  sí conoce al dueño). Cualquier otra cuenta, error o falta de respuesta: no se genera ni se cobra. */
+ *  sí conoce al dueño), o un cliente de la beta confirmado por la app. Cualquier otra cuenta, error o falta de respuesta:
+ *  no se genera ni se cobra. */
 export async function studioWorkerEnabled(episodeId: string, env: Record<string, string | undefined> = process.env,
-  deps: { ownerOf?: (id: string) => Promise<string | null>; askApp?: (userId: string) => Promise<boolean> } = {}): Promise<boolean> {
+  deps: { ownerOf?: (id: string) => Promise<string | null>; askApp?: (userId: string) => Promise<boolean>; askBeta?: (userId: string) => Promise<boolean> } = {}): Promise<boolean> {
   if (env.PODCAST_V3_ENABLED === "1") return true;
-  if (env.PODCAST_V3_OWNER_PILOT === "0" || !/^[0-9a-f-]{36}$/i.test(episodeId)) return false;
+  // La beta de clientes también exige su interruptor en el generador (variable PODCAST_STUDIO_BETA=1): dos llaves.
+  const pilot = env.PODCAST_V3_OWNER_PILOT !== "0", betaOn = env.PODCAST_STUDIO_BETA === "1";
+  if ((!pilot && !betaOn) || !/^[0-9a-f-]{36}$/i.test(episodeId)) return false;
   const ownerId = env.PODCAST_V3_OWNER_USER_ID?.trim().toLowerCase();
   if (ownerId && !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(ownerId)) return false;
   const read = deps.ownerOf ?? (async (id: string) => {
@@ -25,9 +28,14 @@ export async function studioWorkerEnabled(episodeId: string, env: Record<string,
   });
   const uid = (await read(episodeId))?.toLowerCase();
   if (!uid) return false;
-  if (ownerId) return uid === ownerId;
-  const ask = deps.askApp ?? (async (u: string) => (await import("../../src/lib/podcast/v3/owner-check")).askAppIsStudioOwner(u, env));
-  return ask(uid);
+  if (pilot) {
+    if (ownerId ? uid === ownerId : await (deps.askApp ?? (async (u: string) => (await import("../../src/lib/podcast/v3/owner-check")).askAppIsStudioOwner(u, env)))(uid)) return true;
+  }
+  // Beta de clientes: la lista vive en la app (PODCAST_STUDIO_BETA_USER_IDS); se pregunta con la misma petición firmada.
+  // Desactivar la beta en la app basta para que el generador tampoco produzca (fail closed ante cualquier error).
+  if (!betaOn) return false;
+  const beta = deps.askBeta ?? (async (u: string) => (await import("../../src/lib/podcast/v3/owner-check")).askAppIsStudioBeta(u, env));
+  return beta(uid).catch(() => false);
 }
 
 export async function runStudioJob(episodeId: string) {

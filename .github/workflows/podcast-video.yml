@@ -96,6 +96,9 @@ jobs:
           # episodio es el dueño (la app sí lo conoce). Nada de la identidad del dueño queda en el repositorio.
           # Interruptor del piloto también en el generador (variable del repositorio PODCAST_V3_OWNER_PILOT=0 lo apaga aquí).
           PODCAST_V3_OWNER_PILOT: ${{ vars.PODCAST_V3_OWNER_PILOT }}
+          # Beta de clientes de Podcast Studio: segunda llave en el generador (variable del repositorio PODCAST_STUDIO_BETA=1);
+          # la lista de cuentas vive solo en la app (PODCAST_STUDIO_BETA_USER_IDS). Sin ella, solo el dueño.
+          PODCAST_STUDIO_BETA: ${{ vars.PODCAST_STUDIO_BETA }}
           HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
           # Estudio: ilustraciones Recraft (fal.ai; FAL_ADMIN_KEY solo lee el saldo) y director visual (Anthropic).
           FAL_KEY: ${{ secrets.FAL_KEY }}
