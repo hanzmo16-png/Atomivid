@@ -14,7 +14,7 @@ import { AtomProgress } from "@/components/podcast/AtomProgress";
 import { StudioPreview, type PreviewHost } from "@/components/podcast/StudioPreview";
 import { HostPicker, type HostCard } from "@/components/podcast/HostPicker";
 import { SavedAvatarPicker } from "@/components/podcast/SavedAvatarPicker";
-import { CONSENT_TEXT, INTENSITY_DB, MODALITIES, MODALITY_LABEL, SCREENS, SCREEN_SECTIONS, STEP, STUDIO_BUDGET_MAX_USD, screenErrors, screenOf, screenStart, withFormat, WIZARD_STORAGE_KEY, bindEpisode, defaultDraft, syncScriptNames, withOwnAvatar, withSavedAvatar, avatarSummary, draftToSpec, releaseEpisode, specKey, draftToV2, durationFit, estimateMinutes, loadDraft, modalityToMode, voiceKindFor, withHost, withoutHost, withVoiceKinds, type Modality, type WizardDraft } from "@/lib/podcast/v3/wizard";
+import { CONSENT_TEXT, INTENSITY_DB, MODALITIES, MODALITY_LABEL, SCREENS, SCREEN_SECTIONS, STEP, STUDIO_BUDGET_MAX_USD, screenErrors, screenOf, screenStart, withFormat, WIZARD_STORAGE_KEY, bindEpisode, defaultDraft, syncScriptNames, withOwnAvatar, withSavedAvatar, avatarSummary, draftToSpec, releaseEpisode, specKey, draftToV2, durationFit, estimateMinutes, shortScriptNotice, loadDraft, modalityToMode, voiceKindFor, withHost, withoutHost, withVoiceKinds, type Modality, type WizardDraft } from "@/lib/podcast/v3/wizard";
 import type { VisualProvider } from "@/lib/podcast/v3/studio";
 
 export type WizardVoice = { voiceId: string; name: string; available: boolean; note: string | null; kind: "sintetica" | "clonada" };
@@ -32,7 +32,7 @@ const MODE_HELP: Record<Modality, string> = {
   avatar: "Un presentador virtual (tu avatar) aparece hablando en tramos cortos, alternado con imágenes o clips de apoyo.",
   dialogo: "Dos participantes conversan (anfitrión e invitado), cada uno con su avatar y su voz: plano general de los dos y primeros planos.",
 };
-const SHOT_LABEL: Record<string, string> = { avatar_a: "Primer plano A", avatar_b: "Primer plano B", two_shot: "Plano general (los dos)", over_shoulder: "Sobre el hombro", imagen: "Imagen", recreacion: "Recreación", archivo: "Archivo", transicion: "Transición", titulo: "Título" };
+const SHOT_LABEL: Record<string, string> = { avatar_a: "Primer plano A", avatar_b: "Primer plano B", two_shot: "Plano general (los dos)", over_shoulder: "Sobre el hombro", imagen: "Imagen", recreacion: "Recreación", archivo: "Archivo", transicion: "Transición", titulo: "Título", estudio_quieto: "Anfitriones en el estudio (plano fijo)" };
 const KIND_LABEL: Record<string, string> = { pregunta: "pregunta", respuesta: "respuesta", comentario: "comentario", reaccion: "reacción", desacuerdo: "desacuerdo", transicion: "transición", apertura: "apertura", cierre: "cierre", narracion: "narración" };
 
 export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generationEnabled = v3Enabled, providers = [], previewNotice = null, hosts = [] }: { voices: WizardVoice[]; avatars: WizardAvatar[]; v2Enabled: boolean; v3Enabled: boolean; generationEnabled?: boolean; providers?: VisualProvider[]; previewNotice?: string | null; hosts?: WizardHost[] }) {
@@ -190,6 +190,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
           <label>{d.mode === "dialogo" ? "Guion (una línea por turno: «Nombre: texto»)" : "Texto del episodio (un párrafo por idea)"}
             <textarea aria-label="Guion" value={d.script} rows={8} onChange={(e) => set({ script: e.target.value })} className={input} /></label>
           <p className="text-xs text-ink-muted">{d.script.trim().length.toLocaleString("es-MX")} caracteres · ~{estimateMinutes(d.script).toFixed(1)} min de episodio (objetivo {d.minutes} min){durationFit(d.script, d.minutes) === "corto" ? " · más corto que la duración elegida" : durationFit(d.script, d.minutes) === "largo" ? " · más largo que la duración elegida: acórtalo" : ""}</p>
+          {shortScriptNotice(d.script, d.minutes) && <p className="rounded border border-border p-2 text-xs text-ink" data-testid="aviso-guion-corto">{shortScriptNotice(d.script, d.minutes)}</p>}
         </div>
       )}
 
@@ -397,6 +398,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
         <div className="mt-3 grid gap-2 text-sm">
           <h3 className="text-sm font-semibold text-ink">Producir</h3>
           {!started && (modeBlocked ? <p className="text-danger" data-testid="generacion-bloqueada">{previewNotice ? "En esta vista previa la generación está desactivada: se activa con la migración propuesta y PODCAST_V3_ENABLED=1. La configuración queda guardada." : "Este modo se activa cuando el propietario autorice la migración y el interruptor del estudio."}</p> : (<>
+            {shortScriptNotice(d.script, d.minutes) && <p className="rounded border border-border p-2 text-xs text-ink" data-testid="aviso-guion-corto-producir">{shortScriptNotice(d.script, d.minutes)}</p>}
             <p>Se generará «{d.title}» ({d.modality ? MODALITY_LABEL[d.modality] : MODE_LABEL[d.mode ?? "narracion"]}). Costo estimado: <b>{estimate ? USD(estimate.totalUsd) : "—"}</b>. Nunca se cobrará más de <b>{USD(d.budgetUsd)}</b>.</p>
             <label><input type="checkbox" aria-label="Autorizo el cargo" checked={d.authorized} onChange={(e) => set({ authorized: e.target.checked })} /> Autorizo generar este episodio con un cargo máximo de {USD(d.budgetUsd)}.</label>
             <Button type="button" onClick={authorizeAndGenerate} loading={busy} disabled={!d.authorized || (estimate?.totalUsd ?? 0) > d.budgetUsd}>Generar episodio</Button>

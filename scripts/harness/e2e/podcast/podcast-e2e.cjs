@@ -975,9 +975,36 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     ok("c17: nada se crea ni se toca (episodios del dueño iguales; el de la otra cuenta intacto)", (await countOwn()) === before17 && o17?.status === "ready", JSON.stringify({ before17, o17 }));
     await db.query("delete from public.podcast_studio_episodes where id=$1", [O17]);
   }
+  if (cases.includes("18")) {
+    // Prueba real 2026-10-31 (ba27b6f7): se pidieron 2 min y el guion daba ~1 min; el episodio duró 54 s sin que Producir
+    // lo dijera. Aviso de guion corto en Contenido y en Producir; no bloquea «Siguiente». Móvil 390 y escritorio 1440.
+    const SHORT = ["Ana: Bienvenidos. Hoy hablamos de los sumerios y de la escritura más antigua que conocemos.", "Luis: Gracias, Ana. Hace más de cinco mil años marcaban tablillas de arcilla con un punzón.",
+      "Ana: ¿Y qué escribían en esas tablillas?", "Luis: Casi todo eran cuentas: cebada, ovejas, salarios y contratos."].join("\n");
+    const n18 = async () => (await db.query("select count(*)::int n from public.podcast_studio_episodes where user_id=$1", [OWNER.id])).rows[0].n;
+    const b18 = await n18();
+    for (const [dev, opt] of [["movil", { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2.75, isMobile: true, hasTouch: true }], ["escritorio", { viewport: { width: 1440, height: 900 } }]]) {
+      const S = await session(OWNER, `c18-${dev}`, opt), P = S.p;
+      await P.goto(`${BASE}/dashboard/podcast`); await P.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor({ timeout: 60000 });
+      await P.evaluate(([k, sc]) => localStorage.setItem(k, JSON.stringify({ step: 1, modality: "audio", mode: "narracion", count: 2, title: "c18 guion corto", topic: "Los sumerios", script: sc, minutes: 2 })), ["atomivid.podcast.asistente.v2", SHORT]);
+      await P.reload(); await P.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor({ timeout: 60000 });
+      const notice = P.getByTestId("aviso-guion-corto");
+      ok(`c18: ${dev} · Contenido avisa que el guion es más corto que lo pedido`, (await notice.count()) === 1 && /pediste 2 min/.test(await notice.innerText()) && /no se rellena/.test(await notice.innerText()));
+      await shot(P, `c18-${dev}-contenido`);
+      await P.getByRole("button", { name: "Siguiente", exact: true }).click(); await P.waitForTimeout(800);
+      ok(`c18: ${dev} · el aviso no bloquea «Siguiente»`, /Estilo/.test(await P.getByTestId("wizard-step-title").innerText()));
+      await P.getByRole("button", { name: "Siguiente", exact: true }).click(); await P.waitForTimeout(800);
+      const blocked = (await P.getByTestId("generacion-bloqueada").count()) > 0;
+      ok(`c18: ${dev} · Producir repite el aviso antes de autorizar`, blocked || (await P.getByTestId("aviso-guion-corto-producir").count()) === 1, blocked ? "generación bloqueada en este entorno" : "");
+      await shot(P, `c18-${dev}-producir`);
+      const ov = await P.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      ok(`c18: ${dev} · sin desbordamiento horizontal`, ov <= 1, `${ov}px`);
+      await S.ctx.close();
+    }
+    ok("c18: el aviso no crea ni cobra nada", (await n18()) === b18);
+  }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
-  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 14: 32, 15: 5, 16: 24, 17: 17 };
+  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 14: 32, 15: 5, 16: 24, 17: 17, 18: 9 };
   const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[a-d]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name)) || (c === "12" && /^c12-/.test(r.name))).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));

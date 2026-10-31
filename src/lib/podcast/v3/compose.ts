@@ -75,6 +75,9 @@ export async function setBackground(dir: string, set: StudioSet, fr: Frame): Pro
 }
 
 export type ShotSources = {
+  /** Plano fijo («estudio_quieto») que continúa a otro plano fijo: fotogramas ya recorridos por el movimiento de cámara
+   *  (sigue donde iba, sin reiniciarse) y sin fundido en ese corte (los dos lados son el mismo plano). */
+  quietOffsetFrames?: number; quietJoinPrev?: boolean; quietJoinNext?: boolean;
   /** Clip de avatar (con lip-sync) que cubre el plano, recortado al tramo del turno; null si el plano no es de avatar. */
   speakingClip?: string | null;
   /** Fotograma fijo del interlocutor (para two-shot / sobre el hombro). */
@@ -162,18 +165,24 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
       post.push(...(await textFilter(`sub${k}`, page, "h*0.93", fs, true, "bottom")).map((f) => f + `:enable='between(t,${a.toFixed(3)},${b.toFixed(3)})'`));
     }
   }
-  if (o.fade && frames > 2 * Math.round(FPS * 0.25)) post.push(`fade=t=in:st=0:d=0.25,fade=t=out:st=${(frames / FPS - 0.25).toFixed(3)}:d=0.25`);
+  if (o.fade && frames > 2 * Math.round(FPS * 0.25)) {
+    // Entre dos planos fijos seguidos no hay fundido: es la misma toma (un fundido a negro parecería un parpadeo).
+    if (!src.quietJoinPrev) post.push("fade=t=in:st=0:d=0.25");
+    if (!src.quietJoinNext) post.push(`fade=t=out:st=${(frames / FPS - 0.25).toFixed(3)}:d=0.25`);
+  }
   const tail = (label: string) => `${label}${post.length ? "," + post.join(",") : ""},format=yuv420p[v]`;
   let args: string[];
   // Una imagen rechazada por la verificación se muestra como tarjeta explícita (rama «default»).
   switch (src.card && !src.image ? "transicion" : shot.kind) {
-    case "avatar_a": case "avatar_b": case "two_shot": case "over_shoulder": {
+    case "avatar_a": case "avatar_b": case "two_shot": case "over_shoulder": case "estudio_quieto": {
       // Estudio compartido: plano general (los dos a la mesa) o primer plano de quien habla en SU asiento. Un plano
       // «sobre el hombro» de un plan anterior se compone como primer plano (el oyente encima se retiró).
-      const sp = shot.speaker;
+      // «estudio_quieto»: plano general con los anfitriones en foto fija (el primero es quien tiene el turno, si aparece).
+      const quiet = shot.kind === "estudio_quieto";
+      const sp = quiet ? (shot.speaker && shot.people?.includes(shot.speaker) ? shot.speaker : shot.people?.[0]) : shot.speaker;
       if (!sp || !src.speakerMatte) throw new Error(`Plano de conversación sin recorte de quien habla (${shot.turn_id}).`);
-      const general = shot.kind === "two_shot";
-      if (general && !src.listenerMatte) throw new Error(`Plano general sin recorte de quien escucha (${shot.turn_id}).`);
+      const general = shot.kind === "two_shot" || quiet;
+      if (shot.kind === "two_shot" && !src.listenerMatte) throw new Error(`Plano general sin recorte de quien escucha (${shot.turn_id}).`);
       const st = studioDef(legacyStudio(o.set));
       const seat = seatOf(st, sp, o.swap);
       const other = seatOf(st, sp === "A" ? "B" : "A", o.swap);
@@ -184,14 +193,14 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
       // del alto (prueba F2, 2026-10-30).
       type Panel = { cam: ReturnType<typeof cameraFor>; frame: { w: number; h: number }; people: { m: Matte; seat: typeof seat }[] };
       const panels: Panel[] = [];
-      if (general && h > w) {
+      if (general && h > w && src.listenerMatte) {
         const half = { w, h: Math.round(h / 4) * 2 };
         const top = st.seats.A === seat ? { m: src.speakerMatte, s: seat } : { m: src.listenerMatte!, s: other };
         const bottom = top.s === seat ? { m: src.listenerMatte!, s: other } : { m: src.speakerMatte, s: seat };
         for (const x of [top, bottom]) panels.push({ cam: cameraFor("primer", x.s, side(x.s), half), frame: half, people: [{ m: x.m, seat: x.s }] });
       } else {
         const people: { m: Matte; seat: typeof seat }[] = [{ m: src.speakerMatte, seat }];
-        if (general) people.push({ m: src.listenerMatte!, seat: other });
+        if (general && src.listenerMatte) people.push({ m: src.listenerMatte, seat: other });
         panels.push({ cam: cameraFor(general ? "general" : "primer", seat, side(seat), o.frame, span), frame: o.frame, people });
       }
       const ins: string[] = [];
@@ -223,7 +232,12 @@ export async function renderShot(dir: string, idx: number, shot: Shot, frames: n
         parts.push(`${base}[${b0 + 1}:v]overlay=0:0:format=auto[q${pi}]`);
         outs.push(`[q${pi}]`);
       }
-      parts.push(`${outs.length > 1 ? `${outs.join("")}vstack=${outs.length}` : `${outs[0]}null`},${tail("trim=end_frame=" + frames)}`);
+      // Plano fijo: empuje de cámara muy lento que ARRANCA en el encuadre exacto del plano general (zoom 1 → ≤ 1,02 y
+      // vuelta), para que no parezca un fotograma congelado ni haya salto al cortar desde/hacia el plano con avatar.
+      // Periodo fijo (16 s) y desfase acumulado: varios planos fijos seguidos forman UNA toma continua (sin reinicio).
+      const P = FPS * 16, off = src.quietOffsetFrames ?? 0;
+      const motion = quiet ? `,scale=${w * 2}:${h * 2},zoompan=z='1+0.01*(1-cos(2*PI*(on+${off})/${P}))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${w}x${h}:fps=${FPS}` : "";
+      parts.push(`${outs.length > 1 ? `${outs.join("")}vstack=${outs.length}` : `${outs[0]}null`}${motion},${tail("trim=end_frame=" + frames)}`);
       args = [...ins, "-filter_complex", parts.join(";")];
       break;
     }
