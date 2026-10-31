@@ -77,7 +77,7 @@ await next();
 // Pantalla 4 — Producir: estimación gratuita y presupuesto.
 await W().getByTestId("wizard-estimate").locator("table").waitFor({ timeout: 90000 });
 const estText = (await W().getByTestId("wizard-estimate").textContent()) ?? "";
-const est = Number((/Costo estimado:\s*USD\s*([\d.,]+)/.exec(estText)?.[1] ?? "").replace(",", "."));
+const est = Number((/Total estimado\s*USD\s*([\d.]+)/.exec(estText)?.[1] ?? ""));
 const budget = Math.ceil((est * 1.1) / 0.5) * 0.5;
 console.log(`INFO estimado USD ${est} · presupuesto ${budget} · tope del caso ${CAP}`);
 await shot("04-producir");
