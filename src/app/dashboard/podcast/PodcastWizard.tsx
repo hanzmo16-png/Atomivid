@@ -27,13 +27,28 @@ export type WizardHost = HostCard & { cutout: PreviewHost };
 
 const USD = (n: number) => `USD ${n.toFixed(2)}`;
 const MODE_HELP: Record<Modality, string> = {
-  audio: "Una o dos voces, música opcional y exportación a MP3 o WAV. No se genera video (el más barato).",
+  audio: "Una o dos voces, música opcional y exportación a MP3 o WAV. Sin video, imágenes ni avatar (el más barato).",
   visual: "Una o dos voces con imágenes relacionadas, transiciones y música. Se entrega un MP4 y el audio por separado.",
   avatar: "Un presentador virtual (tu avatar) aparece hablando en tramos cortos, alternado con imágenes o clips de apoyo.",
   dialogo: "Dos participantes conversan (anfitrión e invitado), cada uno con su avatar y su voz: plano general de los dos y primeros planos.",
 };
 const SHOT_LABEL: Record<string, string> = { avatar_a: "Primer plano A", avatar_b: "Primer plano B", two_shot: "Plano general (los dos)", over_shoulder: "Sobre el hombro", imagen: "Imagen", recreacion: "Recreación", archivo: "Archivo", transicion: "Transición", titulo: "Título", estudio_quieto: "Anfitriones en el estudio (plano fijo)" };
 const KIND_LABEL: Record<string, string> = { pregunta: "pregunta", respuesta: "respuesta", comentario: "comentario", reaccion: "reacción", desacuerdo: "desacuerdo", transicion: "transición", apertura: "apertura", cierre: "cierre", narracion: "narración" };
+
+/** Qué entrega «Solo audio» (T-20261101-0215): un archivo de audio con una o dos voces; nada visual. */
+export const AUDIO_ONLY_NOTE = "Solo audio: recibes un archivo MP3 o WAV con una o dos voces. No se genera video, imágenes ni avatar.";
+export function AudioOnlyNote({ testId = "solo-audio-explicacion" }: { testId?: string }) {
+  return <p className="rounded border border-border p-2 text-xs text-ink" data-testid={testId}>{AUDIO_ONLY_NOTE}</p>;
+}
+/** Ficha del anfitrión del catálogo elegido: en «Solo audio» solo se usan su voz y su estilo (no aparece su rostro). */
+export function hostChosenText(name: string, modality: Modality | null): string {
+  return modality === "audio"
+    ? `${name}: voz y estilo del catálogo (personaje virtual de Atomicvid). En «Solo audio» solo se oye su voz; no aparece su imagen.`
+    : `${name}: rostro, voz y estilo del catálogo (personaje virtual de Atomicvid).`;
+}
+export function HostChosenNote({ name, modality, tag }: { name: string; modality: Modality | null; tag: string }) {
+  return <p className="text-xs text-ink-muted" data-testid={`anfitrion-elegido-${tag}`}>{hostChosenText(name, modality)}</p>;
+}
 
 export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generationEnabled = v3Enabled, providers = [], previewNotice = null, hosts = [] }: { voices: WizardVoice[]; avatars: WizardAvatar[]; v2Enabled: boolean; v3Enabled: boolean; generationEnabled?: boolean; providers?: VisualProvider[]; previewNotice?: string | null; hosts?: WizardHost[] }) {
   const router = useRouter();
@@ -176,6 +191,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
               {!studio && m !== "audio" && <span className="mt-1 block text-xs text-danger">Disponible cuando se active el estudio (pendiente de autorización).</span>}
             </button>
           ))}
+          {d.modality === "audio" && <AudioOnlyNote />}
         </div>
       )}
 
@@ -221,7 +237,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
                 disabledIds={active.filter((_, j) => j !== i).map((x) => (x.avatar.kind === "existente" ? x.avatar.avatar_id : "")).filter(Boolean)}
                 onSelect={(a) => setRaw((x) => { const ps = [...x.participants] as WizardDraft["participants"]; ps[i] = withSavedAvatar(ps[i], a, i as 0 | 1, ps[i === 0 ? 1 : 0].name); return { ...x, participants: ps }; })} />
             )}
-            {p.host ? <p className="text-xs text-ink-muted" data-testid={`anfitrion-elegido-${tag(i)}`}>{p.name}: rostro, voz y estilo del catálogo (personaje virtual de Atomicvid).</p> : (
+            {p.host ? <HostChosenNote name={p.name} modality={d.modality} tag={tag(i)} /> : (
             <fieldset className="grid gap-2 rounded border border-border p-2">
               <legend className="px-1">{i === 0 ? (d.mode === "dialogo" ? "Participante A (anfitrión)" : "Participante principal") : "Participante B (invitado o segunda voz)"}</legend>
               <label>Nombre<input aria-label={`Nombre ${tag(i)}`} value={p.name} maxLength={60} onChange={(e) => setP(i as 0 | 1, { name: e.target.value })} className={input} /></label>
@@ -287,7 +303,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
       {on(STEP.visuales) && (
         <div className="mt-3 grid min-w-0 gap-3 text-sm">
           <h3 className="text-sm font-semibold text-ink">Estudio e imágenes</h3>
-          {d.modality === "audio" ? <p className="text-ink-muted" data-testid="solo-audio-sin-video">Solo audio: se exporta el archivo de audio. No se genera video ni se buscan imágenes.</p> : (
+          {d.modality === "audio" ? <p className="text-ink-muted" data-testid="solo-audio-sin-video">Solo audio: se exporta el archivo de audio (MP3 o WAV). No se genera video, no se buscan imágenes y no se usan avatares.</p> : (
             <div className="grid min-w-0 gap-2" role="radiogroup" aria-label="Proveedor visual">
               {providers.map((p) => (
                 // Un proveedor no disponible nunca se presenta como elegido: queda deshabilitado y sin marcar, y la persona elige
