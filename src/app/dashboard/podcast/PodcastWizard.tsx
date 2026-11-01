@@ -15,7 +15,7 @@ import { AtomProgress } from "@/components/podcast/AtomProgress";
 import { StudioPreview, type PreviewHost } from "@/components/podcast/StudioPreview";
 import { HostPicker, type HostCard } from "@/components/podcast/HostPicker";
 import { SavedAvatarPicker } from "@/components/podcast/SavedAvatarPicker";
-import { CONSENT_TEXT, INTENSITY_DB, MODALITIES, MODALITY_LABEL, SCREENS, SCREEN_SECTIONS, STEP, STUDIO_BUDGET_MAX_USD, screenErrors, screenOf, screenStart, withFormat, WIZARD_STORAGE_KEY, bindEpisode, defaultDraft, syncScriptNames, withOwnAvatar, withSavedAvatar, avatarSummary, draftToSpec, releaseEpisode, specKey, draftToV2, durationFit, estimateMinutes, shortScriptNotice, loadDraft, modalityToMode, voiceKindFor, withHost, withoutHost, withVoiceKinds, type Modality, type WizardDraft } from "@/lib/podcast/v3/wizard";
+import { CONSENT_TEXT, INTENSITY_DB, MODALITIES, MODALITY_LABEL, SCREENS, SCREEN_SECTIONS, STEP, STUDIO_BUDGET_MAX_USD, screenErrors, screenOf, screenStart, scriptJobIdOf, withFormat, WIZARD_STORAGE_KEY, bindEpisode, defaultDraft, syncScriptNames, withOwnAvatar, withSavedAvatar, avatarSummary, draftToSpec, releaseEpisode, specKey, draftToV2, durationFit, estimateMinutes, shortScriptNotice, loadDraft, modalityToMode, voiceKindFor, withHost, withoutHost, withVoiceKinds, type Modality, type WizardDraft } from "@/lib/podcast/v3/wizard";
 import type { VisualProvider } from "@/lib/podcast/v3/studio";
 
 export type WizardVoice = { voiceId: string; name: string; available: boolean; note: string | null; kind: "sintetica" | "clonada" };
@@ -98,6 +98,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   async function generateScript() {
     await run(async () => {
       let state = d.scriptJob ?? null;
+      if (!state) set({ scriptJobId: null });
       for (let i = 0; i < 40; i++) {
         const res = await fetch("/api/podcast/v3", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "script-step", ...scriptAsk(), state }) });
         const out = await safeParseJsonResponse<Record<string, unknown>>(res);
@@ -111,7 +112,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
         }
         setScriptProgress({ step: Number(r.step) || 0, steps: Number(r.steps) || 0 });
         if (r.done) {
-          set({ script: String(r.script), scriptJob: null }); setScriptProgress(null); setNote(String(r.note ?? "Conversación generada con IA. Revísala antes de seguir."));
+          set({ script: String(r.script), scriptJob: null, scriptJobId: scriptJobIdOf(state) }); setScriptProgress(null); setNote(String(r.note ?? "Conversación generada con IA. Revísala antes de seguir."));
           return;
         }
       }
@@ -121,7 +122,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   async function applyTemplate() {
     await run(async () => {
       const r = await api("/api/podcast/v3", { action: "script", ...scriptAsk() });
-      set({ script: String(r.script), scriptJob: null }); setNote(`Conversación creada con la plantilla breve (sin IA, sin costo).${r.note ? " " + r.note : ""}`);
+      set({ script: String(r.script), scriptJob: null, scriptJobId: null }); setNote(`Conversación creada con la plantilla breve (sin IA, sin costo).${r.note ? " " + r.note : ""}`);
     });
   }
   async function uploadPhoto(i: 0 | 1, file: File) {
@@ -147,7 +148,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
       }
       // El borrador creado se guarda aparte: el paso de progreso solo aparece cuando la autorización quedó registrada.
       if (mustAcceptDuration && !acceptDuration) { setError(estimate?.duration?.message ?? "Acepta la duración real del episodio para continuar."); return; }
-      const created = d.draftId ? { id: d.draftId } : await api("/api/podcast/v3", { action: "create", spec: draftToSpec(withVoiceKinds(d, voices)), ...(mustAcceptDuration ? { acceptDuration: true } : {}) });
+      const created = d.draftId ? { id: d.draftId } : await api("/api/podcast/v3", { action: "create", spec: draftToSpec(withVoiceKinds(d, voices)), ...(d.scriptJobId ? { scriptJobId: d.scriptJobId } : {}), ...(mustAcceptDuration ? { acceptDuration: true } : {}) });
       set({ draftId: String(created.id), boundSpec: specKey(d) });
       const r = await api(`/api/podcast/v3/${String(created.id)}`, { confirm: true, authorizedUsd: d.budgetUsd });
       if (r.note) setNote(String(r.note));
@@ -228,7 +229,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
           {d.mode === "dialogo" && !busy && d.topic.trim().length >= 3 && <button type="button" className="justify-self-start text-xs text-ink-muted underline" onClick={applyTemplate} data-testid="usar-plantilla">Usar la plantilla breve (unos 5 min, sin IA)</button>}
           {d.mode === "dialogo" && d.topic.trim().length < 3 && <p className="text-xs text-ink-muted" data-testid="motivo-generar-guion">Escribe el tema (al menos 3 letras) para generar la conversación, o pega tu guion abajo.</p>}
           <label>{d.mode === "dialogo" ? "Guion (una línea por turno: «Nombre: texto»)" : "Texto del episodio (un párrafo por idea)"}
-            <textarea aria-label="Guion" value={d.script} rows={8} onChange={(e) => set({ script: e.target.value })} className={input} /></label>
+            <textarea aria-label="Guion" value={d.script} rows={8} onChange={(e) => set({ script: e.target.value, scriptJobId: null })} className={input} /></label>
           <p className="text-xs text-ink-muted">{d.script.trim().length.toLocaleString("es-MX")} caracteres · ~{estimateMinutes(d.script).toFixed(1)} min de episodio (objetivo {d.minutes} min){durationFit(d.script, d.minutes) === "corto" ? " · más corto que la duración elegida" : durationFit(d.script, d.minutes) === "largo" ? " · más largo que la duración elegida: acórtalo" : ""}</p>
           {shortScriptNotice(d.script, d.minutes) && <p className="rounded border border-border p-2 text-xs text-ink" data-testid="aviso-guion-corto">{shortScriptNotice(d.script, d.minutes)}</p>}
         </div>

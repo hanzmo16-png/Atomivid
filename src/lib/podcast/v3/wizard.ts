@@ -24,6 +24,13 @@ export const SCREEN_SECTIONS: readonly (readonly number[])[] = [
   [STEP.visuales, STEP.musica],
   [STEP.presupuesto, STEP.vista, STEP.generacion],
 ];
+/** Job id de un estado de guion largo, solo si es un UUID en minúsculas (el que sella la autorización durable). */
+export function scriptJobIdOf(state: unknown): string | null {
+  if (!state || typeof state !== "object" || !("jobId" in state)) return null;
+  const id = (state as { jobId: unknown }).jobId;
+  return typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id) ? id : null;
+}
+
 export const screenOf = (step: number): number => Math.max(0, SCREEN_SECTIONS.findIndex((g) => g.includes(step)));
 export const screenStart = (screen: number): number => SCREEN_SECTIONS[Math.min(Math.max(0, screen), SCREENS.length - 1)][0];
 /**
@@ -52,6 +59,12 @@ export type WizardDraft = {
   /** Guion con IA en curso (escaleta y bloques ya escritos): permite continuar desde el último bloque válido tras un
    *  error o una recarga. Lo valida el servidor en cada paso; null = ninguno en curso. */
   scriptJob?: unknown | null;
+  /**
+   * Job del guion ya terminado. Se envía al crear el episodio para que, con la autorización durable encendida,
+   * el servidor vincule studio-script:<dueño>:<job>. Una edición manual del texto lo borra: el episodio no hereda
+   * un guion que ya no es el que se pagó. La plantilla también lo deja vacío.
+   */
+  scriptJobId?: string | null;
 };
 const P = (name: string): WizardParticipant => ({ name, role: "", gender: "neutro", style: "", personality: "", voice_id: "", voice_kind: "sintetica", avatar: { kind: "ninguno" }, host: null });
 
@@ -100,6 +113,7 @@ export function loadDraft(raw: string | null): WizardDraft {
     if (!(STUDIO_IDS as readonly string[]).includes(out.set)) out.set = legacyStudio(out.set);
     // Borradores del asistente de 10 pasos: se abren al inicio de la pantalla que contiene su paso (nada se pierde).
     if (out.step !== STEP.generacion) out.step = screenStart(screenOf(Number(out.step) || 0));
+    out.scriptJobId = typeof d.scriptJobId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(d.scriptJobId) ? d.scriptJobId : null;
     return out;
   }
   catch { return defaultDraft(); }

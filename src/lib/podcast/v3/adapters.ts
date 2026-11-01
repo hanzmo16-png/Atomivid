@@ -21,6 +21,9 @@ import { heygenAvatarProvider, estimateHeygenCost } from "@/lib/providers/avatar
 import { ProviderRejectedError as StudioRejected, type SpendTicket } from "./cost";
 import type { AvatarProvider, ImageProvider, Matter, TtsProvider, TurnBrief, VisualDirector } from "./pipeline";
 import { PAST_RE, SHOT_VARIETY, keywords, topicEra } from "./editorial";
+import { studioScriptProject } from "@/lib/podcast/studio-script-authorization";
+
+export { studioScriptProject, STUDIO_SCRIPT_PROJECT_PREFIX } from "@/lib/podcast/studio-script-authorization";
 
 /** `rate`: tarifa de la estimación autorizada del episodio (si falta, la de la configuración). */
 export function realTts(language: "es" | "en", rate = getPricingConfig().elevenLabsUsdPer1kChars): TtsProvider {
@@ -212,17 +215,23 @@ export function realMatter(deps: { model: string; python?: string }): Matter {
  * (pi_submit_with_supply exige ahí una autorización guardada del dueño del episodio, `'podcast-' || podcast_episodes.id`,
  * propuesta 20261024000000 aplicada). El antiguo `podcast-studio:<dueño>:<tema>` caía en ese espacio por coincidencia de
  * prefijo, ninguna autorización podía cumplir su comprobación de dueño, y TODAS las llamadas quedaron RESERVED sin
- * enviarse (4 de 4 desde el 28-10; P0 2026-11-01). Un guion previo al episodio es como el guion de un documental en su
- * primera ejecución: lo acotan los topes global y del proveedor, más el tope diario por persona de la ruta.
+ * enviarse (4 de 4 desde el 28-10; P0 2026-11-01).
+ *
+ * Contrato menor (tip de producción, flag apagado): topes global y del proveedor, más el tope diario por persona.
+ * Contrato durable (DISEÑO, migración NO aplicada): supabase/proposals/20261101152000_studio_script_spend_authorization.sql.
+ * script-step abre la autorización ANTES de llegar aquí. Esta función no la abre y no fabrica transaction_id.
+ * Si esa migración se aplica, pi_submit_with_supply rechaza `studio-script:%` sin la fila durable (falla cerrada,
+ * sin llamada al proveedor) aunque PODCAST_STUDIO_SCRIPT_DURABLE_AUTH siga apagado.
  */
-export const studioScriptProject = (ownerId: string, jobId: string) => `studio-script:${ownerId}:${jobId}`;
-export const STUDIO_SCRIPT_PROJECT_PREFIX = "studio-script:";
 
 /**
  * Guion largo por segmentos (long-script.ts): una llamada por paso con clave determinista en el libro de gastos
  * (proyecto studioScriptProject, intención = paso e intento). Reenviar el mismo paso reutiliza el resultado pagado;
  * nunca se cobra dos veces. Cliente Anthropic con supplyProtectedAnthropic (reserva en pi_paid_operations, sin
  * reintentos del SDK). Los errores del proveedor o del control de gasto se propagan: nunca hay plantilla de respaldo.
+ *
+ * MIGRATION MUST BE APPLIED LATER before turning PODCAST_STUDIO_SCRIPT_DURABLE_AUTH on. Until then the supply
+ * call below is the lesser contract. Do not move this project id back under podcast-.
  */
 export function realLlmStep(ownerId: string, jobId: string): (prompt: string, o: { step: string; maxTokens: number }) => Promise<string> {
   return async (prompt, o) => {

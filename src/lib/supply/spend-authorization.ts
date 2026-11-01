@@ -13,6 +13,12 @@
  */
 import type { LedgerStore, PaidOperation } from "@/lib/production-intelligence/ledger";
 
+/**
+ * Episode and documentary projects only. `studio-script:` is intentionally absent: that prefix is not an episode,
+ * and the podcast-% owner check cannot be satisfied before a row exists (P0 2026-11-01). The durable studio-script
+ * gate is a separate branch of pi_submit_with_supply (proposal 20261101152000, not applied) plus
+ * PODCAST_STUDIO_SCRIPT_DURABLE_AUTH. Do not add studio-script here.
+ */
 export const AUTHORIZATION_REQUIRED_PREFIXES = ["podcast-", "documentary:"] as const;
 export const requiresAuthorization = (projectId: string) => AUTHORIZATION_REQUIRED_PREFIXES.some((p) => projectId.startsWith(p));
 
