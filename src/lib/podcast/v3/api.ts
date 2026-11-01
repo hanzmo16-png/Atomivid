@@ -276,7 +276,7 @@ async function scriptStepAction(d: ApiDeps, b: Record<string, unknown>): Promise
   }
   try {
     const r = await advanceLongScript(state, d.llmStep(state.jobId));
-    const base = { state: r.state, step: r.step, steps: r.steps, segments: segmentCount(minutes) };
+    const base = { state: r.state, step: r.step, steps: r.steps, segments: segmentCount(minutes), phase: r.phase, ...(r.note ? { stepNote: r.note } : {}) };
     if (!r.done) return { status: 200, body: { ...base, done: false } };
     const final = assembleLongScript(r.state);
     const names = { A: input.hostName, B: input.guestName };
@@ -292,6 +292,6 @@ async function scriptStepAction(d: ApiDeps, b: Record<string, unknown>): Promise
     }
     const f = describeLlmFailure(e);
     console.error("podcast-studio script-step", { job: state.jobId, step: state.plan ? `s${state.segments.length}` : "plan", detail: f.detail });
-    return { status: f.status, body: { error: f.error, code: "IA_FALLO", detail: f.detail, recoverable: true, state, step: state.segments.length + (state.plan ? 1 : 0), steps: 1 + segmentCount(minutes) } };
+    return { status: f.status, body: { error: f.error, code: "IA_FALLO", detail: f.detail, recoverable: f.detail !== "reconciliation", state, step: state.segments.length + (state.plan ? 1 : 0), steps: 1 + segmentCount(minutes) } };
   }
 }

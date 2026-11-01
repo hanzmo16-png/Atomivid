@@ -11,6 +11,7 @@ import { MODE_LABEL, MOODS, MOOD_LABEL } from "@/lib/podcast/v3/spec";
 import { STUDIOS, type StudioId } from "@/lib/podcast/v3/studios";
 import { progressView, type LedgerActivity } from "@/lib/podcast/v3/progress";
 import { normalizeLongInput, sameLongInput } from "@/lib/podcast/v3/long-script";
+import { runScriptGeneration, type ScriptProgress } from "@/lib/podcast/v3/script-client";
 import { AtomProgress } from "@/components/podcast/AtomProgress";
 import { StudioPreview, type PreviewHost } from "@/components/podcast/StudioPreview";
 import { HostPicker, type HostCard } from "@/components/podcast/HostPicker";
@@ -52,7 +53,13 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const [scriptProgress, setScriptProgress] = useState<{ step: number; steps: number } | null>(null);
+  const [scriptProgress, setScriptProgress] = useState<ScriptProgress | null>(null);
+  /** Generación de guion en curso: cancelarla («Empezar de nuevo») impide que su respuesta tardía toque el borrador nuevo. */
+  const scriptRun = useRef<{ id: number; ctl: AbortController } | null>(null);
+  const scriptSeq = useRef(0);
+  /** Borrador retomado al entrar (si tenía trabajo): se avisa con claridad y se ofrece empezar uno nuevo sin borrarlo. */
+  const [resumed, setResumed] = useState<{ label: string; minutes: number } | null>(null);
+  const [recoverable, setRecoverable] = useState(false);
   const [estimate, setEstimate] = useState<Estimate | null>(null);
   // Aceptación explícita de la duración real (episodio largo cuyo guion no alcanza lo pedido). Se reinicia con cada estimación.
   const [acceptDuration, setAcceptDuration] = useState(false);
@@ -62,8 +69,11 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   const poll = useRef<ReturnType<typeof setInterval> | null>(null);
   // Borrador persistente: volver atrás o recargar no pierde nada.
   // Hidratación desde localStorage (solo existe en el cliente): un único setState al montar.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { setRawState(loadDraft(localStorage.getItem(WIZARD_STORAGE_KEY))); setLoaded(true); }, []);
+  useEffect(() => {
+    const draft = loadDraft(localStorage.getItem(WIZARD_STORAGE_KEY));
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRawState(draft); setLoaded(true); setResumed(resumedDraft(draft)); setRecoverable(hasRecoverableDraft(readRecoverable()));
+  }, []);
   useEffect(() => { if (loaded) localStorage.setItem(WIZARD_STORAGE_KEY, JSON.stringify(d)); }, [d, loaded]);
   const set = (patch: Partial<WizardDraft>) => setRaw((x) => ({ ...settle(x), ...patch }));
   const setP = (i: 0 | 1, patch: Partial<WizardDraft["participants"][0]>) => setRaw((x) => { const ps = [...x.participants] as WizardDraft["participants"]; ps[i] = { ...ps[i], ...patch }; return { ...x, participants: ps }; });
@@ -91,31 +101,57 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   /** Parámetros del guion con IA: si cambian, un trabajo guardado ya no se continúa (el servidor empieza otro). */
   const scriptAsk = () => ({ topic: d.topic, hostName: d.participants[0].name, guestName: d.participants[1].name, guestRole: d.participants[1].role, hostPersonality: d.participants[0].personality, guestPersonality: d.participants[1].personality, minutes: d.minutes });
   /**
-   * Conversación con IA por bloques (P0 2026-11-01): escaleta + un bloque de ~10 min por petición, con progreso visible.
-   * Un error deja el trabajo guardado en el borrador y el mismo botón continúa desde el último bloque válido (lo ya
-   * pagado no se repite). Nunca se sustituye por la plantilla: esa solo se usa si se elige expresamente.
+   * Conversación con IA por bloques (P0 2026-11-01): escaleta + un bloque de ~10 min por petición, con progreso real.
+   * runScriptGeneration distingue los errores, reintenta lo transitorio con el MISMO estado (sin cobrar dos veces) y espera
+   * si el paso sigue en curso. Cada generación tiene un número: si se cancela («Empezar de nuevo»), nada de lo que llegue
+   * después escribe en el borrador. Nunca se sustituye por la plantilla: esa solo se usa si se elige expresamente.
    */
   async function generateScript() {
-    await run(async () => {
-      let state = d.scriptJob ?? null;
-      for (let i = 0; i < 40; i++) {
-        const res = await fetch("/api/podcast/v3", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "script-step", ...scriptAsk(), state }) });
-        const out = await safeParseJsonResponse<Record<string, unknown>>(res);
-        const r = (out.ok ? out.data : (out.body ?? {})) as Record<string, unknown>;
-        if (r.state !== undefined) { state = r.state; set({ scriptJob: r.state }); }
-        if (!out.ok) {
-          // Sin estado recuperable (agotado o inválido), el trabajo se descarta para que el próximo intento empiece limpio.
-          if (r.recoverable === false) set({ scriptJob: null });
-          setScriptProgress(null);
-          throw Object.assign(new Error(out.error), { status: out.status });
-        }
-        setScriptProgress({ step: Number(r.step) || 0, steps: Number(r.steps) || 0 });
-        if (r.done) {
-          set({ script: String(r.script), scriptJob: null }); setScriptProgress(null); setNote(String(r.note ?? "Conversación generada con IA. Revísala antes de seguir."));
-          return;
-        }
-      }
-    });
+    if (busy) return;
+    const ctl = new AbortController(), id = ++scriptSeq.current;
+    scriptRun.current = { id, ctl };
+    const live = () => scriptSeq.current === id && !ctl.signal.aborted;
+    setBusy(true); setError(null); setResumed(null);
+    try {
+      const r = await runScriptGeneration(scriptAsk(), d.scriptJob ?? null, {
+        fetchImpl: (input, init) => fetch(input, init), sleep: (ms) => new Promise((res) => setTimeout(res, ms)), signal: ctl.signal,
+        onState: (st) => { if (live()) set({ scriptJob: st }); },
+        onProgress: (p) => { if (live()) setScriptProgress((prev) => (p?.waiting && prev ? { ...prev, waiting: p.waiting } : p)); },
+      });
+      if (!live()) return;
+      if (r.kind === "done") { set({ script: r.script, scriptJob: null }); setNote(r.note); }
+      else if (r.reason !== "cancelado") setError(r.message);
+    } finally {
+      if (scriptSeq.current === id) { scriptRun.current = null; setBusy(false); setScriptProgress(null); }
+    }
+  }
+  /**
+   * «Empezar de nuevo»: cancela la generación en curso, aparca el borrador actual (si tenía trabajo) en la clave de
+   * recuperación y abre uno vacío con identidad nueva (sin scriptJob). No borra episodios ni trabajos pagados.
+   */
+  function startOver() {
+    scriptRun.current?.ctl.abort(); scriptSeq.current++; scriptRun.current = null;
+    try {
+      const prev = localStorage.getItem(WIZARD_STORAGE_KEY);
+      if (hasRecoverableDraft(prev)) { localStorage.setItem(WIZARD_RECOVERABLE_KEY, prev!); setRecoverable(true); }
+      localStorage.removeItem(WIZARD_STORAGE_KEY);
+    } catch { /* almacenamiento no disponible: el borrador en memoria se reinicia igual */ }
+    setRawState(defaultDraft()); setEstimate(null); setStatus(null); setNote(null); setError(null); setScriptProgress(null); setResumed(null); setBusy(false);
+    router.refresh();
+  }
+  /** Recupera el borrador aparcado (explícito); el actual, si tenía trabajo, queda aparcado a su vez. */
+  function recoverPrevious() {
+    const prev = readRecoverable();
+    if (!hasRecoverableDraft(prev)) { setRecoverable(false); return; }
+    scriptRun.current?.ctl.abort(); scriptSeq.current++; scriptRun.current = null;
+    try {
+      const cur = localStorage.getItem(WIZARD_STORAGE_KEY);
+      if (hasRecoverableDraft(cur)) localStorage.setItem(WIZARD_RECOVERABLE_KEY, cur!); else localStorage.removeItem(WIZARD_RECOVERABLE_KEY);
+      setRecoverable(hasRecoverableDraft(cur));
+    } catch { /* sin almacenamiento */ }
+    const draft = loadDraft(prev);
+    setRawState(draft); setEstimate(null); setStatus(null); setNote(null); setError(null); setScriptProgress(null); setBusy(false);
+    setResumed(resumedDraft(draft));
   }
   /** Plantilla breve gratuita (unos 5 min), solo por elección expresa: su nota dice cuánto dura de verdad. */
   async function applyTemplate() {
@@ -225,6 +261,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
           <label>Duración objetivo: {d.minutes} min<input aria-label="Duración en minutos" type="range" min={1} max={60} value={d.minutes} onChange={(e) => set({ minutes: Number(e.target.value) })} className="w-full" /></label>
           {d.mode === "dialogo" && <Button type="button" variant="secondary" size="sm" onClick={generateScript} loading={busy} disabled={d.topic.trim().length < 3} data-testid="generar-guion">{pendingJob(d.scriptJob, scriptAsk()) ? `Continuar la conversación (${pendingJob(d.scriptJob, scriptAsk())})` : "Generar conversación desde el tema"}</Button>}
           {d.mode === "dialogo" && scriptProgress && <p className="text-xs text-ink" role="status" data-testid="progreso-guion">{progressText(scriptProgress)}</p>}
+          {d.mode === "dialogo" && scriptProgress?.note && <p className="text-xs text-ink-muted" data-testid="nota-bloque">{scriptProgress.note}</p>}
           {d.mode === "dialogo" && !busy && d.topic.trim().length >= 3 && <button type="button" className="justify-self-start text-xs text-ink-muted underline" onClick={applyTemplate} data-testid="usar-plantilla">Usar la plantilla breve (unos 5 min, sin IA)</button>}
           {d.mode === "dialogo" && d.topic.trim().length < 3 && <p className="text-xs text-ink-muted" data-testid="motivo-generar-guion">Escribe el tema (al menos 3 letras) para generar la conversación, o pega tu guion abajo.</p>}
           <label>{d.mode === "dialogo" ? "Guion (una línea por turno: «Nombre: texto»)" : "Texto del episodio (un párrafo por idea)"}
@@ -472,12 +509,24 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
         </div>
       )}
 
+      {resumed && !busy && (
+        <div className="mt-3 rounded border border-border p-2 text-sm" data-testid="borrador-retomado">
+          <p>Retomaste tu borrador «{resumed.label}»{resumed.minutes > 0 ? ` (guion de unos ${resumed.minutes.toFixed(1).replace(".", ",")} min)` : ""}. Se guardó en este navegador.</p>
+          <div className="mt-1 flex gap-2">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setResumed(null)}>Seguir con este</Button>
+            <Button type="button" variant="secondary" size="sm" onClick={startOver} data-testid="empezar-uno-nuevo">Empezar uno nuevo</Button>
+          </div>
+        </div>
+      )}
+      {recoverable && !resumed && !busy && !d.topic.trim() && !d.script.trim() && (
+        <p className="mt-3 text-sm text-ink-muted" data-testid="hay-borrador-anterior">Tienes un borrador anterior guardado. <button type="button" className="underline" onClick={recoverPrevious} data-testid="recuperar-borrador">Recuperar el borrador anterior</button></p>
+      )}
       {note && <p className="mt-3 text-sm text-ink-muted">{note}</p>}
       {error && <p role="alert" className="mt-3 text-sm text-danger">{error}</p>}
       <div className="sticky bottom-0 mt-4 flex justify-between gap-2 bg-canvas/95 py-2">
         <Button type="button" variant="ghost" size="sm" onClick={() => go(Math.max(0, screen - 1))} disabled={screen === 0 || busy}>Atrás</Button>
         <div className="flex gap-2">
-          <Button type="button" variant="ghost" size="sm" onClick={() => { localStorage.removeItem(WIZARD_STORAGE_KEY); setRawState(defaultDraft()); setEstimate(null); setStatus(null); setNote(null); setError(null); router.refresh(); }}>Empezar de nuevo</Button>
+          <Button type="button" variant="ghost" size="sm" onClick={startOver} data-testid="empezar-de-nuevo">Empezar de nuevo</Button>
           {screen < SCREENS.length - 1 && <Button type="button" size="sm" onClick={next} disabled={busy}>Siguiente</Button>}
         </div>
       </div>
@@ -499,10 +548,27 @@ export function DurationAcceptance({ message, minutes, target, checked, onChange
   );
 }
 
-/** Texto del progreso del guion con IA: paso 1 = escaleta; después, un bloque de ~10 min por paso. */
-export function progressText(p: { step: number; steps: number }): string {
+/** Texto del progreso del guion con IA: paso 1 = escaleta; después, un bloque de ~10 min por paso (o su ampliación). */
+export function progressText(p: { step: number; steps: number; phase?: string; waiting?: string }): string {
+  if (p.waiting) return p.waiting;
   const blocks = Math.max(1, p.steps - 1);
+  if (p.phase === "ampliando") return `Ampliando el bloque ${Math.max(1, p.step)} de ${blocks} (sin repetir lo escrito)…`;
   return p.step <= 1 ? `Escaleta lista. Escribiendo el bloque 1 de ${blocks}…` : p.step >= p.steps ? "Uniendo los bloques…" : `Bloque ${p.step - 1} de ${blocks} listo. Escribiendo el bloque ${p.step} de ${blocks}…`;
+}
+/** Misma clave que la entrada «Personalizado» (#269): el borrador aparcado se recupera desde cualquiera de los dos. */
+export const WIZARD_RECOVERABLE_KEY = `${WIZARD_STORAGE_KEY}.recuperable`;
+function readRecoverable(): string | null { try { return localStorage.getItem(WIZARD_RECOVERABLE_KEY); } catch { return null; } }
+/** ¿Tiene trabajo este borrador guardado (tema, guion o un guion con IA a medias)? Uno vacío no se aparca. */
+export function hasRecoverableDraft(raw: string | null | undefined): boolean {
+  if (!raw) return false;
+  try { const x = JSON.parse(raw) as { topic?: unknown; script?: unknown; scriptJob?: unknown }; return !!(String(x.topic ?? "").trim() || String(x.script ?? "").trim() || x.scriptJob); } catch { return false; }
+}
+/** Aviso al entrar: el borrador retomado y su guion (minutos estimados), o null si estaba vacío. */
+export function resumedDraft(x: { title?: string; topic?: string; script?: string; scriptJob?: unknown }): { label: string; minutes: number } | null {
+  const script = String(x.script ?? "");
+  if (!String(x.topic ?? "").trim() && !script.trim() && !x.scriptJob) return null;
+  const label = (String(x.title ?? "").trim() || String(x.topic ?? "").trim() || "sin título").slice(0, 70);
+  return { label, minutes: script.trim() ? estimateMinutes(script) : 0 };
 }
 /** Trabajo de guion con IA a medias (guardado en el borrador): «bloque k de n», o null si no hay. */
 export function pendingJob(job: unknown, ask?: { topic?: unknown; minutes?: unknown; hostName?: unknown; guestName?: unknown; guestRole?: unknown; hostPersonality?: unknown; guestPersonality?: unknown }): string | null {

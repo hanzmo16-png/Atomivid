@@ -441,6 +441,25 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       await W().getByRole("button", { name: "Generar conversación desde el tema" }).click();
       await S.p.waitForFunction(() => /La generación con IA no está disponible/.test(document.body.innerText), null, { timeout: 30000 });
       ok(`${tag}: sin IA no se disfraza con la plantilla`, (await W().getByLabel("Guion").inputValue()) === "", "guion vacío");
+      // P0-B 2026-11-01: un guion con IA a medias se identifica y se retoma tras recargar; «Empezar de nuevo» lo APARCA
+      // (no lo borra ni lo reutiliza: el borrador nuevo no tiene trabajo) y «Recuperar» lo devuelve tal cual.
+      const jobLabel = await S.p.evaluate(() => {
+        const k = "atomivid.podcast.asistente.v2", d = JSON.parse(localStorage.getItem(k));
+        const minutes = Math.round(Math.min(60, Math.max(1, Number(d.minutes) || 5))), n = minutes <= 12 ? 1 : Math.ceil(minutes / 10);
+        const input = { topic: String(d.topic).trim().slice(0, 2000), minutes, hostName: String(d.participants[0].name).slice(0, 60) || "Anfitrión", guestName: String(d.participants[1].name).slice(0, 60) || "Invitado",
+          guestRole: String(d.participants[1].role || "").slice(0, 120), hostPersonality: String(d.participants[0].personality || "").slice(0, 300), guestPersonality: String(d.participants[1].personality || "").slice(0, 300) };
+        d.scriptJob = { v: 1, jobId: "0f0e0d0c-0b0a-4908-8706-050403020100", input, plan: { title: "t", segments: Array.from({ length: n }, (_, j) => ({ title: `B${j + 1}`, points: ["a", "b"] })) }, segments: [], attempts: { plan: 1 }, partial: null };
+        localStorage.setItem(k, JSON.stringify(d));
+        return `Continuar la conversación (bloque 1 de ${n})`;
+      });
+      await S.p.reload(); await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
+      ok(`${tag}: recarga: el trabajo a medias se ofrece como «Continuar» y el borrador retomado se identifica`, (await W().getByTestId("generar-guion").innerText()).includes(jobLabel) && await W().getByTestId("borrador-retomado").count() === 1, await W().getByTestId("generar-guion").innerText());
+      await W().getByTestId("empezar-de-nuevo").click();
+      const afterReset = await S.p.evaluate(() => ({ active: JSON.parse(localStorage.getItem("atomivid.podcast.asistente.v2") || "{}"), parked: JSON.parse(localStorage.getItem("atomivid.podcast.asistente.v2.recuperable") || "null") }));
+      ok(`${tag}: «Empezar de nuevo» abre un trabajo nuevo y aparca el anterior (sin borrarlo)`, !afterReset.active.scriptJob && !afterReset.active.topic && afterReset.parked?.scriptJob?.jobId === "0f0e0d0c-0b0a-4908-8706-050403020100" && afterReset.parked?.title === m.title, JSON.stringify({ a: !!afterReset.active.scriptJob, p: afterReset.parked?.title }));
+      await W().getByTestId("recuperar-borrador").click();
+      await S.p.waitForFunction((t) => document.querySelector('[aria-label="Título del episodio"]')?.value === t, m.title, { timeout: 10000 });
+      ok(`${tag}: «Recuperar el borrador anterior» devuelve el mismo trabajo`, (await W().getByTestId("generar-guion").innerText()).includes(jobLabel), await W().getByTestId("generar-guion").innerText());
       // La plantilla breve solo por elección expresa.
       await W().getByTestId("usar-plantilla").click();
       await S.p.waitForFunction(() => (document.querySelector('[aria-label="Guion"]')?.value ?? "").length > 50, null, { timeout: 30000 });

@@ -48,7 +48,7 @@ function fakeModel(minutes: number, o: { factor?: number; bad?: Record<string, "
     let chars = 0, i = 0;
     while (chars < target) {
       const who = i % 2 === 0 ? "Valeria Moncler" : "El Duro Hans";
-      let text = sentence(k * 1000 + i + Number(/a(\d+)$/.exec(x.step)![1]) * 100000, 180);
+      let text = sentence(k * 1000 + i + Number(/-a(\d+)/.exec(x.step)![1]) * 100000 + Number(/-x(\d+)/.exec(x.step)?.[1] ?? 0) * 7000, 180);
       if (i === 0 && (k === 0 || kind === "saludo")) text = `Bienvenidos a este episodio. ${text}`;
       if (kind === "despedida" && chars + 400 > target) text = `Gracias por escucharnos, hasta la próxima. ${text}`;
       lines.push(`${who}: ${text}`); chars += text.length; i++;
@@ -110,8 +110,9 @@ test("continuidad: cada bloque recibe la escaleta, lo ya cubierto, los últimos 
   assert.match(planPrompt(input(30)), /Thomas Castello/);
 });
 
-test("validación de bloques: corto, saludo a mitad, despedida antes del final, repetición o basura → reintento acotado", async () => {
-  for (const [kind, why] of [["corto", /corto/], ["saludo", /saluda/], ["despedida", /despide/], ["repetido", /repetidos/], ["basura", /no es un diálogo/]] as const) {
+test("validación de bloques: saludo a mitad, despedida antes del final, repetición o basura → reintento acotado", async () => {
+  // «corto» ya no se rechaza: se completa (ver guion-bloque-corto.test.ts). Aquí, defectos de forma.
+  for (const [kind, why] of [["saludo", /saluda/], ["despedida", /despide/], ["repetido", /repetidos/], ["basura", /no es un diálogo/]] as const) {
     const f = fakeModel(30, { bad: { "s1-a1": kind } });
     let s = newLongScript(JOB, input(30));
     s = (await advanceLongScript(s, f.llm)).state; s = (await advanceLongScript(s, f.llm)).state; // escaleta + bloque 1
