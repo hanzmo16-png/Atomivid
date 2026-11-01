@@ -3,7 +3,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { hasRecoverableDraft, pendingJob, progressText, resumedDraft, WIZARD_RECOVERABLE_KEY } from "./PodcastWizard";
+import { hasRecoverableDraft, jobConfigPatch, pendingJob, progressText, resumedDraft, staleJob, WIZARD_RECOVERABLE_KEY } from "./PodcastWizard";
+import { defaultDraft } from "@/lib/podcast/v3/wizard";
 
 test("progreso por bloques, en español y con números reales", () => {
   assert.equal(progressText({ step: 1, steps: 7 }), "Escaleta lista. Escribiendo el bloque 1 de 6…");
@@ -26,7 +27,11 @@ test("un trabajo a medias se ofrece como «Continuar» solo si es del mismo tema
 test("el botón usa los pasos con IA (cliente runScriptGeneration, sin useAi ni plantilla de respaldo); la plantilla solo por elección expresa; hasta 60 min", () => {
   const wiz = readFileSync(path.join(__dirname, "PodcastWizard.tsx"), "utf8");
   const client = readFileSync(path.join(__dirname, "../../../lib/podcast/v3/script-client.ts"), "utf8");
-  assert.match(wiz, /runScriptGeneration\(scriptAsk\(\), d\.scriptJob \?\? null,/);
+  assert.match(wiz, /runScriptGeneration\(scriptAsk\(\), initial,/);
+  // Defecto 4 (Grok, CORRECCION-2): un trabajo a medias de otra configuración no se sustituye sin elegir; «Empezar otro»
+  // aparca antes el borrador (con su dueño) y solo entonces empieza sin estado.
+  assert.match(wiz, /if \(staleJob\(d\.scriptJob, scriptAsk\(\)\) && !fresh\) return;/);
+  assert.match(wiz, /if \(fresh && initial\) \{[\s\S]{0,200}parkDraft\(localStorage, ownedRaw\(d\)\)[\s\S]{0,120}initial = null;/);
   assert.match(client, /action: "script-step", \.\.\.ask, state/);
   assert.doesNotMatch(wiz, /useAi: true/);
   assert.match(wiz, /data-testid="usar-plantilla">Usar la plantilla breve \(unos 5 min, sin IA\)/);
@@ -64,4 +69,23 @@ test("borrador retomado: se identifica (título y minutos) y uno vacío no se an
   assert.equal(hasRecoverableDraft("{roto"), false);
   const wiz = readFileSync(path.join(__dirname, "PodcastWizard.tsx"), "utf8");
   assert.match(wiz, /data-testid="borrador-retomado"/); assert.match(wiz, /data-testid="empezar-uno-nuevo"/); assert.match(wiz, /data-testid="recuperar-borrador"/);
+});
+
+test("defecto 4: trabajo a medias de otra configuración → aviso con «Volver a esa configuración» (mismo jobId) o «Empezar otro»", () => {
+  const input = { topic: "BASE DULCE", minutes: 30, hostName: "Valeria Moncler", guestName: "El Duro Hans", guestRole: "", hostPersonality: "curiosa", guestPersonality: "escéptico" };
+  const job = { v: 1, jobId: "0f0e0d0c-0b0a-4908-8706-050403020100", input, plan: { title: "t", segments: [{}, {}, {}] }, segments: [[]], attempts: {}, partial: null };
+  const same = { topic: "BASE DULCE", minutes: 30, hostName: "Valeria Moncler", guestName: "El Duro Hans", guestRole: "", hostPersonality: "curiosa", guestPersonality: "escéptico" };
+  assert.equal(staleJob(job, same), false);
+  assert.equal(staleJob(job, { ...same, hostName: "Valeria M." }), true, "cambio de nombre");
+  assert.equal(staleJob(job, { ...same, minutes: 20 }), true);
+  assert.equal(staleJob(null, same), false); assert.equal(staleJob({ ...job, segments: [[], [], []] }, { ...same, topic: "otro" }), false, "un trabajo completo no bloquea");
+  const d = { ...defaultDraft(), topic: "otro tema", minutes: 12 };
+  d.participants = [{ ...d.participants[0], name: "Valeria M." }, { ...d.participants[1], name: "Otro" }] as typeof d.participants;
+  const patch = jobConfigPatch(d, job)!;
+  const back = { ...d, ...patch };
+  assert.equal(staleJob(job, { topic: back.topic, minutes: back.minutes, hostName: back.participants[0].name, guestName: back.participants[1].name, guestRole: back.participants[1].role, hostPersonality: back.participants[0].personality, guestPersonality: back.participants[1].personality }), false, "tras volver, el MISMO trabajo continúa");
+  assert.equal(jobConfigPatch(d, { input: null }), null);
+  const wiz = readFileSync("src/app/dashboard/podcast/PodcastWizard.tsx", "utf8");
+  assert.match(wiz, /data-testid="trabajo-distinto"/); assert.match(wiz, /data-testid="volver-configuracion"/); assert.match(wiz, /data-testid="empezar-otro-guion"/);
+  assert.match(wiz, /!staleJob\(d\.scriptJob, scriptAsk\(\)\) && <Button[\s\S]{0,300}data-testid="generar-guion"/);
 });

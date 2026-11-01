@@ -19,18 +19,23 @@ async function mapSettlementLost<T>(p: Promise<T>): Promise<T> {
   try { return await p; } catch (e) { if (e instanceof PaidCallSettlementLostError) throw new ScriptReconciliationRequiredError(e.block, e.message); throw e; }
 }
 
-const context = new AsyncLocalStorage<{ projectId: string; intentId: string; recoverLegacyOperator?: boolean; uncertainResubmits?: number; claimBeforeCall?: boolean }>();
+const context = new AsyncLocalStorage<{ projectId: string; intentId: string; recoverLegacyOperator?: boolean; uncertainResubmits?: number; claimBeforeCall?: boolean; stepKeyed?: boolean }>();
 export function withSupplyContext<T>(projectId: string, fn: () => Promise<T>): Promise<T> {
   return context.run({ projectId, intentId: randomUUID() }, fn);
 }
 /**
- * One step of a multi-call job with a DETERMINISTIC intent (Podcast Studio long scripts: «plan-a1», «s3-a2»…): the ledger
- * key is the step plus the hash of its exact parameters, so re-sending the same step reuses a COMMITTED result instead of
- * paying again, and a concurrent duplicate meets the in-flight row instead of a second provider call.
+ * One step of a multi-call job with a DETERMINISTIC intent (Podcast Studio long scripts: «plan-a1», «s3-a2-x1»…).
+ * The ledger key is the job (projectId) + the step NAME + the model — NOT the prompt. The job state travels through the
+ * browser, so a prompt-derived key let a modified or replayed state (an edited turn, a rewound extension counter) open a
+ * NEW paid operation for a step that was already paid (Grok, CORRECCION-2 of #272, defect 3). Keyed by step:
+ *  - each step of a job is paid AT MOST ONCE per model: the ledger's unique key is the authority, not the browser;
+ *  - re-sending a step, with the same or a different prompt, reuses its COMMITTED result;
+ *  - two concurrent requests for the same step (any content) meet the same row: one calls, the other is in flight.
+ * The number of distinct steps is bounded by the engine (plan-a1..3, s<k>-a1..3, s<k>-a<n>-x1..2).
  */
 export function withSupplyStepContext<T>(projectId: string, step: string, fn: () => Promise<T>): Promise<T> {
   if (!/^[a-z0-9-]{1,40}$/.test(step)) throw new Error("SUPPLY_STEP_INVALID");
-  return context.run({ projectId, intentId: step }, fn);
+  return context.run({ projectId, intentId: step, stepKeyed: true }, fn);
 }
 /** Every guarded script call of this video request (any intent, legacy random ones included). */
 export async function loadScriptOperations(projectId: string): Promise<ScriptOpRow[]> {
@@ -119,7 +124,12 @@ export async function guardScriptLedgerCall<T>(deps: { store: LedgerStore; resul
     const state = scriptBlockState(foreign, (deps.now ?? Date.now)());
     if (state) throw new ScriptReconciliationRequiredError(state, "another operation of this request became active or uncertain during the retry wait");
   } : undefined;
-  const spec = {
+  // A step of a job (withSupplyStepContext) is identified by its name, never by its content (see there).
+  const spec = scope.stepKeyed ? {
+    projectId: scope.projectId, shotId: `script:${scope.intentId}:paso`,
+    provider: "anthropic", model: params.model, method: "generate_script",
+    inputFingerprint: { step: scope.intentId }, reservedUsd: upperUsd,
+  } : {
     projectId: scope.projectId, shotId: `script:${scope.intentId}:${stableHash(params, 16)}`,
     provider: "anthropic", model: params.model, method: "generate_script",
     inputFingerprint: params, reservedUsd: upperUsd,

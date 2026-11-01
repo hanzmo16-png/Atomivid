@@ -239,11 +239,13 @@ test("API: fallo del proveedor → 503/502 recuperable con el estado intacto; re
   assert.equal(r.status, 200); assert.equal(r.body.done, true); assert.deepEqual(g.calls.map((c) => c.step), ["s1-a1"], "solo el paso pendiente");
 });
 
-test("API: un trabajo guardado de otro tema o duración no se continúa (empieza uno nuevo)", async () => {
+test("API: un trabajo guardado de otro tema o duración NO se sustituye en silencio (OTRO_TRABAJO); otro guion solo con state null", async () => {
   const f = fakeModel(10);
   const r1 = await studioAction(deps(() => f.llm), body(10));
   const r2 = await studioAction(deps(() => f.llm, { newJobId: () => "11111111-2222-4333-8444-555555555555" }), body(20, r1.body.state));
-  assert.equal((r2.body.state as LongScriptState).jobId, "11111111-2222-4333-8444-555555555555"); assert.equal((r2.body.state as LongScriptState).input.minutes, 20);
+  assert.equal(r2.status, 409); assert.equal(r2.body.code, "OTRO_TRABAJO"); assert.equal(r2.body.state, undefined);
+  const r3 = await studioAction(deps(() => f.llm, { newJobId: () => "11111111-2222-4333-8444-555555555555" }), body(20, null));
+  assert.equal((r3.body.state as LongScriptState).jobId, "11111111-2222-4333-8444-555555555555"); assert.equal((r3.body.state as LongScriptState).input.minutes, 20);
 });
 
 test("describeLlmFailure: motivos del control de gasto, en curso, reconciliación y error HTTP; sin texto del proveedor", () => {

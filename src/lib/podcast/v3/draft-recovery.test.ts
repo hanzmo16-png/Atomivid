@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DRAFT_RECOVERY_KEY, hasParked, hasWork, parkDraft, parseRecovery, takeParked, type DraftStore } from "./draft-recovery";
+import { DRAFT_RECOVERY_KEY, draftOwner, hasParked, hasWork, parkDraft, parseRecovery, takeParked, type DraftStore } from "./draft-recovery";
 
 const mem = (init: Record<string, string> = {}): DraftStore & { m: Map<string, string> } => {
   const m = new Map(Object.entries(init));
@@ -31,17 +31,24 @@ test("recuperar devuelve el más reciente y aparca el actual en su lugar (como r
   assert.deepEqual(items, ["actual", "A"]);
 });
 
-test("un valor que no es la lista (borrador crudo de 16ab4473 o ilegible) queda en legacy, intacto, como en #269", () => {
-  const raw = draft("viejo crudo");
+test("CORRECCION-2: un borrador CRUDO (16ab4473) se recupera con su scriptJob; lo ilegible queda en legacy", () => {
+  const raw = draft("viejo crudo", { scriptJob: { jobId: "0f0e0d0c-0b0a-4908-8706-050403020100" } });
   const s = mem({ [DRAFT_RECOVERY_KEY]: raw });
-  assert.deepEqual(parseRecovery(raw), { items: [], legacy: raw }, "mismo resultado que parseRecovery de #269");
-  assert.equal(hasParked(s), false);
+  assert.deepEqual(parseRecovery(raw).items.map((x) => x.raw), [raw]);
+  assert.equal(hasParked(s), true);
   assert.equal(parkDraft(s, draft("C")), true);
   const out = JSON.parse(s.m.get(DRAFT_RECOVERY_KEY)!);
-  assert.equal(out.legacy, raw, "no se pierde"); assert.equal(JSON.parse(out.items[0].raw).topic, "C");
+  assert.equal(out.v, 1); assert.equal(out.legacy, undefined);
+  assert.deepEqual(out.items.map((x: { raw: string }) => JSON.parse(x.raw).topic), ["C", "viejo crudo"], "ya es un sobre que #269 lista");
+  assert.equal(JSON.parse(takeParked(s, null)!).topic, "C");
+  const back = JSON.parse(takeParked(s, null)!);
+  assert.equal(back.topic, "viejo crudo"); assert.equal(back.scriptJob.jobId, "0f0e0d0c-0b0a-4908-8706-050403020100", "mismo ancla");
   const junk = mem({ [DRAFT_RECOVERY_KEY]: "{roto" });
+  assert.equal(hasParked(junk), false);
   assert.equal(parkDraft(junk, draft("D")), true);
-  assert.equal(JSON.parse(junk.m.get(DRAFT_RECOVERY_KEY)!).legacy, "{roto");
+  assert.equal(JSON.parse(junk.m.get(DRAFT_RECOVERY_KEY)!).legacy, "{roto", "lo que no es un borrador se conserva intacto");
+  const other = mem({ [DRAFT_RECOVERY_KEY]: JSON.stringify({ foo: 1 }) });
+  assert.equal(hasParked(other), false);
 });
 
 test("sin tope (como #269): 12 reinicios seguidos conservan los 12 borradores; recuperar uno no pierde los demás", () => {
@@ -62,55 +69,72 @@ test("un borrador vacío no se aparca; el mismo borrador no se duplica en cabeza
   assert.equal(hasWork(draft("", { scriptJob: { segments: [] } })), true);
 });
 
-// ---- Contrato cruzado con #269 (cursor/podcast-personalizado-nueva-aaa6 @ 7583bbc7, src/lib/podcast/v3/wizard.ts) ----
-// Copia literal de su parser y de restorePreviousDraft, SOLO para la prueba: el mismo almacén lo leen y escriben los dos
-// lados. Cuando #269 se integre, esta copia se sustituye por la importación de wizard.ts.
-type P = { raw: string; at: string; step: number };
-const stepOf269 = (raw: string) => { try { const n = Number(JSON.parse(raw)?.step); return Number.isFinite(n) ? n : 0; } catch { return 0; } };
-const isP = (x: unknown): x is { raw: string; at?: unknown; step?: unknown } => !!x && typeof x === "object" && typeof (x as { raw?: unknown }).raw === "string" && (x as { raw: string }).raw.length > 0;
-const normP = (x: { raw: string; at?: unknown; step?: unknown }): P => ({ raw: x.raw, at: typeof x.at === "string" ? x.at : "", step: Number.isFinite(Number(x.step)) ? Number(x.step) : stepOf269(x.raw) });
-function parse269(raw: string | null): { items: P[]; legacy: string | null } {
-  if (!raw) return { items: [], legacy: null };
-  try {
-    const v = JSON.parse(raw) as unknown;
-    if (Array.isArray(v)) return { items: v.filter(isP).map(normP), legacy: null };
-    if (v && typeof v === "object" && Array.isArray((v as { items?: unknown }).items)) { const o = v as { items: unknown[]; legacy?: unknown }; return { items: o.items.filter(isP).map(normP), legacy: typeof o.legacy === "string" ? o.legacy : null }; }
-    return { items: [], legacy: raw };
-  } catch { return { items: [], legacy: raw }; }
-}
-function write269(st: DraftStore, items: P[], legacy: string | null) {
-  if (!items.length && !legacy) { st.removeItem(DRAFT_RECOVERY_KEY); return; }
-  st.setItem(DRAFT_RECOVERY_KEY, JSON.stringify(legacy ? { v: 1, items, legacy } : { v: 1, items }));
-}
-/** Lo que hace applyFreshHomeEntry de #269 con el borrador activo previo. */
-function park269(st: DraftStore, prior: string, now: string) {
-  const p = parse269(st.getItem(DRAFT_RECOVERY_KEY));
-  if (p.items[0]?.raw !== prior) { p.items.unshift({ raw: prior, at: now, step: stepOf269(prior) }); write269(st, p.items, p.legacy); }
-}
-function restore269(st: DraftStore, current: string | null, index = 0, now = "r"): string | null {
-  const p = parse269(st.getItem(DRAFT_RECOVERY_KEY));
-  if (index < 0 || index >= p.items.length) return null;
-  const head = p.items[index]!, rest = p.items.filter((_, i) => i !== index);
-  write269(st, current && current.trim() && current !== head.raw ? [{ raw: current, at: now, step: stepOf269(current) }, ...rest] : rest, p.legacy);
-  return head.raw;
-}
+test("aislamiento por cuenta: en el mismo navegador, cada cuenta solo ve y recupera sus borradores; nada se borra", () => {
+  const s = mem();
+  const a = draft("de A", { ownerId: "owner-a", scriptJob: { jobId: "job-a" } }), b = draft("de B", { ownerId: "owner-b" }), old = draft("sin dueño");
+  parkDraft(s, old, "1"); parkDraft(s, a, "2"); parkDraft(s, b, "3");
+  assert.equal(hasParked(s, "owner-c"), true, "el anterior al aislamiento (sin dueño) sigue siendo recuperable");
+  assert.equal(JSON.parse(takeParked(s, null, "4", "owner-a")!).topic, "de A");
+  assert.equal(takeParked(s, null, "5", "owner-a") && "ok", "ok", "después, el sin dueño");
+  assert.equal(takeParked(s, null, "6", "owner-a"), null, "nunca el de B");
+  assert.equal(hasParked(s, "owner-b"), true);
+  assert.equal(JSON.parse(takeParked(s, null, "7", "owner-b")!).topic, "de B");
+  assert.equal(draftOwner(a), "owner-a"); assert.equal(draftOwner(old), null); assert.equal(draftOwner("{roto"), null);
+});
 
-test("contrato #269 ↔ #272 en el MISMO almacén: portada, dos «Empezar de nuevo», recuperar por cada lado; nada se pierde", () => {
-  const s = mem({ [DRAFT_RECOVERY_KEY]: "{legado" });
-  park269(s, draft("portada 1"), "a");                  // entrada «Personalizado» (#269)
-  parkDraft(s, draft("guion A", { scriptJob: { jobId: "j-a" } }), "b"); // «Empezar de nuevo» (#272)
-  parkDraft(s, draft("guion B"), "c");                  // otro «Empezar de nuevo»
-  park269(s, draft("portada 2"), "d");                  // otra entrada desde la portada
-  // Los dos parsers ven exactamente lo mismo.
-  assert.deepEqual(parseRecovery(s.m.get(DRAFT_RECOVERY_KEY)!), parse269(s.m.get(DRAFT_RECOVERY_KEY)!));
-  const topics = () => parse269(s.m.get(DRAFT_RECOVERY_KEY)!).items.map((x) => JSON.parse(x.raw).topic);
-  assert.deepEqual(topics(), ["portada 2", "guion B", "guion A", "portada 1"]);
-  // #269 recupera por índice el guion A (con su scriptJob intacto: mismo ancla).
-  const a = restore269(s, draft("activo"), 2);
-  assert.equal(JSON.parse(a!).scriptJob.jobId, "j-a");
-  assert.deepEqual(topics(), ["activo", "portada 2", "guion B", "portada 1"]);
-  // #272 recupera el más reciente; el activo ocupa su lugar.
-  assert.equal(JSON.parse(takeParked(s, draft("activo 2"))!).topic, "activo");
-  assert.deepEqual(topics(), ["activo 2", "portada 2", "guion B", "portada 1"]);
-  assert.equal(parse269(s.m.get(DRAFT_RECOVERY_KEY)!).legacy, "{legado", "el legado tampoco se pierde");
+test("orden de integración indiferente: un crudo que #269 (sin el parser único) dejó en legacy también se recupera", () => {
+  const raw = draft("crudo en legacy", { scriptJob: { jobId: "j-l" } });
+  const s = mem({ [DRAFT_RECOVERY_KEY]: JSON.stringify({ v: 1, items: [{ raw: draft("de la portada"), at: "a", step: 0 }], legacy: raw }) });
+  assert.deepEqual(parseRecovery(s.m.get(DRAFT_RECOVERY_KEY)!).items.map((x) => JSON.parse(x.raw).topic), ["de la portada", "crudo en legacy"]);
+  parkDraft(s, draft("nuevo"), "b");
+  const out = JSON.parse(s.m.get(DRAFT_RECOVERY_KEY)!);
+  assert.equal(out.legacy, undefined); assert.equal(out.items.length, 3);
+  const keep = mem({ [DRAFT_RECOVERY_KEY]: JSON.stringify({ v: 1, items: [], legacy: "{roto" }) });
+  assert.equal(parseRecovery(keep.m.get(DRAFT_RECOVERY_KEY)!).legacy, "{roto", "lo que no es borrador sigue en legacy");
+});
+
+test("sin duplicados: aparcar el mismo borrador lo mueve al principio; recuperar y volver no multiplica la lista", () => {
+  const s = mem();
+  parkDraft(s, draft("X"), "1"); parkDraft(s, draft("Y"), "2"); parkDraft(s, draft("X"), "3");
+  assert.deepEqual(parseRecovery(s.m.get(DRAFT_RECOVERY_KEY)!).items.map((x) => JSON.parse(x.raw).topic), ["X", "Y"]);
+  const got = takeParked(s, draft("Y"), "4");
+  assert.equal(JSON.parse(got!).topic, "X");
+  assert.deepEqual(parseRecovery(s.m.get(DRAFT_RECOVERY_KEY)!).items.map((x) => JSON.parse(x.raw).topic), ["Y"], "el actual Y no queda dos veces");
+});
+
+// ---- Contrato con el módulo REAL de #269 (src/lib/podcast/v3/wizard.ts: applyFreshHomeEntry, restorePreviousDraft) ----
+// Se ejecuta contra el código real, sin copias. Mientras #269 no esté integrado en esta rama, wizard.ts no exporta esas
+// funciones y la prueba se marca como omitida (con el motivo); al integrarse, corre sola. Evidencia de su ejecución con
+// #269 @ 7583bbc7 fusionado: ver la descripción del PR #272.
+test("contrato real #269 ↔ #272 en el MISMO almacén (portada, reinicios, crudo, >10, legado)", async (t) => {
+  const w = (await import("./wizard")) as Record<string, unknown>;
+  const fresh = w.applyFreshHomeEntry as undefined | ((st: DraftStore, p: Record<string, unknown>, o?: { now?: string }) => { started: boolean });
+  const restore = w.restorePreviousDraft as undefined | ((st: DraftStore, o?: { now?: string; index?: number }) => { restored: boolean });
+  const list = w.recoveryList as undefined | ((raw: string | null) => { raw: string }[]);
+  const activeKey = String(w.WIZARD_STORAGE_KEY ?? "atomivid.podcast.asistente.v2");
+  if (!fresh || !restore || !list) { t.skip("pendiente de integrar #269 (wizard.ts sin applyFreshHomeEntry/restorePreviousDraft)"); return; }
+  const raw = draft("crudo 16ab4473", { scriptJob: { jobId: "j-crudo" } });
+  const s = mem({ [DRAFT_RECOVERY_KEY]: raw, [activeKey]: draft("activo A", { scriptJob: { jobId: "j-a" } }) });
+  // El crudo, leído por el parser ÚNICO, es un ítem para ambos.
+  assert.deepEqual(list(s.m.get(DRAFT_RECOVERY_KEY)!).map((x) => JSON.parse(x.raw).topic), ["crudo 16ab4473"]);
+  // Entrada «Personalizado» desde la portada (#269): aparca el activo A.
+  const r = fresh(s, { modo: "personalizado", entrada: "nueva-1", idea: "idea nueva" }, { now: "a" });
+  assert.equal(r.started, true);
+  // «Empezar de nuevo» (#272) dos veces y doce aparcados más: sin tope.
+  parkDraft(s, draft("reinicio 1"), "b"); parkDraft(s, draft("reinicio 2"), "c");
+  for (let i = 0; i < 12; i++) parkDraft(s, draft(`extra ${i}`), `x${i}`);
+  const all = list(s.m.get(DRAFT_RECOVERY_KEY)!).map((x) => JSON.parse(x.raw).topic);
+  assert.ok(all.length >= 16, String(all.length)); assert.ok(all.includes("activo A") && all.includes("crudo 16ab4473"));
+  assert.deepEqual(parseRecovery(s.m.get(DRAFT_RECOVERY_KEY)!).items, list(s.m.get(DRAFT_RECOVERY_KEY)!).map((x) => ({ ...x })) as never);
+  // #269 recupera por índice el activo A con su scriptJob; #272 recupera el siguiente; ninguno pierde nada.
+  const idx = all.indexOf("activo A");
+  assert.equal(restore(s, { now: "r", index: idx }).restored, true);
+  assert.equal(JSON.parse(s.m.get(activeKey)!).scriptJob.jobId, "j-a");
+  assert.ok(takeParked(s, s.m.get(activeKey)!, "t"));
+  const after = list(s.m.get(DRAFT_RECOVERY_KEY)!).map((x) => JSON.parse(x.raw).topic);
+  assert.ok(after.includes("activo A") && after.includes("crudo 16ab4473") && after.length === all.length, JSON.stringify(after));
+  // Legado ilegible: intacto para los dos.
+  const junk = mem({ [DRAFT_RECOVERY_KEY]: "{roto", [activeKey]: draft("act") });
+  fresh(junk, { modo: "personalizado", entrada: "nueva-2", idea: "x" }, { now: "a" }); parkDraft(junk, draft("y"));
+  assert.equal(JSON.parse(junk.m.get(DRAFT_RECOVERY_KEY)!).legacy, "{roto");
 });

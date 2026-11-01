@@ -461,6 +461,18 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       await W().getByTestId("recuperar-borrador").click();
       await S.p.waitForFunction((t) => document.querySelector('[aria-label="Título del episodio"]')?.value === t, m.title, { timeout: 10000 });
       ok(`${tag}: «Recuperar el borrador anterior» devuelve el mismo trabajo`, (await W().getByTestId("generar-guion").innerText()).includes(jobLabel), await W().getByTestId("generar-guion").innerText());
+      // CORRECCION-2 (defecto 4): cambiar el tema con un trabajo a medias NO lo sustituye por otro jobId: se ofrece volver
+      // a esa configuración (mismo trabajo) o empezar otro (aparcando el anterior). Aislamiento por cuenta: el borrador
+      // activo lleva el dueño.
+      const owned = await S.p.evaluate(() => JSON.parse(localStorage.getItem("atomivid.podcast.asistente.v2") || "{}").ownerId || "");
+      ok(`${tag}: el borrador activo se guarda con su cuenta (aislamiento entre sesiones del mismo navegador)`, owned.length > 10, owned);
+      await W().getByLabel("Tema").fill(`${m.topic} (cambiado)`);
+      await W().getByTestId("trabajo-distinto").waitFor({ timeout: 10000 });
+      ok(`${tag}: con otra configuración, el trabajo a medias no se sustituye: se ofrece elegir (sin «Generar»)`, await W().getByTestId("generar-guion").count() === 0 && await W().getByTestId("volver-configuracion").count() === 1 && await W().getByTestId("empezar-otro-guion").count() === 1, "aviso trabajo-distinto");
+      await W().getByTestId("volver-configuracion").click();
+      await W().getByTestId("generar-guion").waitFor({ timeout: 10000 });
+      const back = await S.p.evaluate(() => { const d = JSON.parse(localStorage.getItem("atomivid.podcast.asistente.v2") || "{}"); return { topic: d.topic, job: d.scriptJob?.jobId }; });
+      ok(`${tag}: «Volver a esa configuración» restaura el tema y continúa el MISMO jobId`, back.topic === m.topic && back.job === "0f0e0d0c-0b0a-4908-8706-050403020100" && (await W().getByTestId("generar-guion").innerText()).includes(jobLabel), JSON.stringify(back));
       // La plantilla breve solo por elección expresa.
       await W().getByTestId("usar-plantilla").click();
       await S.p.waitForFunction(() => (document.querySelector('[aria-label="Guion"]')?.value ?? "").length > 50, null, { timeout: 30000 });

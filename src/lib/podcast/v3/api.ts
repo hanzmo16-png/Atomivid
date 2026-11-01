@@ -258,10 +258,14 @@ async function scriptStepAction(d: ApiDeps, b: Record<string, unknown>): Promise
   if (!d.enabled || !d.llmStep) return { status: 503, body: { error: "La generación con IA no está disponible en este momento. No se usó ninguna plantilla: puedes escribir o pegar tu guion, o elegir expresamente la plantilla breve.", code: "IA_NO_DISPONIBLE" } };
   let state: LongScriptState;
   try {
-    // Un trabajo guardado de OTRO tema, nombres o duración no se continúa: se empieza uno nuevo.
+    // Un trabajo guardado NUNCA se sustituye en silencio (Grok, CORRECCION-2, defecto 4): si su tema, nombres o duración
+    // no coinciden con la petición, se responde OTRO_TRABAJO sin tocarlo ni llamar a la IA. Empezar otro guion exige
+    // enviar `state: null` de forma explícita (el asistente aparca antes el anterior, recuperable con sus bloques pagados).
     const prev = b.state as LongScriptState | null | undefined;
-    const same = !!prev && sameLongInput(prev.input, input);
-    state = same ? checkLongState(prev, input) : newLongScript((d.newJobId ?? (() => crypto.randomUUID()))(), input);
+    if (prev != null && typeof prev === "object" && prev.input && !sameLongInput(prev.input, input)) {
+      return { status: 409, body: { error: "El guion a medias es de otra configuración (tema, participantes o duración). No se empezó otro ni se cobró nada: vuelve a esa configuración para continuarlo, o empieza uno nuevo (el anterior queda guardado y recuperable).", code: "OTRO_TRABAJO", recoverable: true } };
+    }
+    state = prev != null ? checkLongState(prev, input) : newLongScript((d.newJobId ?? (() => crypto.randomUUID()))(), input);
   } catch (e) {
     if (e instanceof LongScriptError) return { status: 400, body: { error: e.message, code: e.code, recoverable: false } };
     throw e;

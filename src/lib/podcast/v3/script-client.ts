@@ -14,9 +14,9 @@
  */
 export type ScriptAsk = { topic: string; minutes: number; hostName: string; guestName: string; guestRole?: string; hostPersonality?: string; guestPersonality?: string };
 export type ScriptProgress = { step: number; steps: number; phase: "escaleta" | "bloque" | "ampliando"; note?: string; waiting?: string };
-export type ScriptFailure = "red" | "tiempo" | "http" | "sesion" | "proveedor" | "presupuesto" | "validacion" | "en-curso" | "incompleta" | "cancelado" | "agotado" | "reconciliacion";
+export type ScriptFailure = "red" | "tiempo" | "http" | "sesion" | "proveedor" | "presupuesto" | "validacion" | "en-curso" | "incompleta" | "cancelado" | "agotado" | "reconciliacion" | "otro-trabajo";
 export type ScriptRunResult =
-  | { kind: "done"; script: string; note: string; estimatedMinutes: number; withinTarget: boolean }
+  | { kind: "done"; jobId: string | null; script: string; note: string; estimatedMinutes: number; withinTarget: boolean }
   | { kind: "error"; reason: ScriptFailure; message: string; recoverable: boolean; status?: number };
 
 export type ScriptClientDeps = {
@@ -79,7 +79,9 @@ export async function runScriptGeneration(ask: ScriptAsk, initial: unknown | nul
       if (b.done === true) {
         if (typeof b.script !== "string" || !b.script.trim()) return { kind: "error", reason: "incompleta", message: `El servidor terminó sin devolver el guion; tu progreso (${where(state)}) está guardado. Pulsa «Continuar».`, recoverable: true };
         d.onProgress(null); d.onState(null);
-        return { kind: "done", script: b.script, note: String(b.note ?? "Conversación generada con IA. Revísala antes de seguir."), estimatedMinutes: Number(b.estimatedMinutes) || 0, withinTarget: b.withinTarget === true };
+        // jobId del trabajo terminado: lo necesita el alta del episodio para vincular la autorización durable (#271).
+        const jobId = typeof (state as { jobId?: unknown } | null)?.jobId === "string" ? (state as { jobId: string }).jobId : null;
+        return { kind: "done", jobId, script: b.script, note: String(b.note ?? "Conversación generada con IA. Revísala antes de seguir."), estimatedMinutes: Number(b.estimatedMinutes) || 0, withinTarget: b.withinTarget === true };
       }
       d.onProgress(progress);
       continue;
@@ -113,6 +115,7 @@ export async function runScriptGeneration(ask: ScriptAsk, initial: unknown | nul
     // Un error no recuperable (AGOTADO, ESTADO) NO borra el trabajo: es el único ancla (jobId) de lo ya pagado. Reintentarlo
     // no cobra (el servidor falla antes de llamar al modelo); «Empezar de nuevo» lo aparca recuperable y abre otro.
     d.onProgress(null);
+    if (code === "OTRO_TRABAJO") return { kind: "error", reason: "otro-trabajo", message: serverMsg ?? "El guion a medias es de otra configuración.", recoverable: true, status: r.status };
     if (code === "LIMITE_DIARIO") return { kind: "error", reason: "presupuesto", message: serverMsg ?? "Alcanzaste el límite diario de guiones con IA.", recoverable: true, status: r.status };
     // Llamada sin confirmar con el proveedor: no se repite, pero el trabajo (único ancla de lo ya pagado) se conserva.
     if (detail === "reconciliation") return { kind: "error", reason: "reconciliacion", message: serverMsg ?? "Una llamada de este guion quedó sin confirmar con el proveedor; lo escrito se conserva.", recoverable: true, status: r.status };

@@ -248,3 +248,18 @@ test("QA P1-1 por HTTP: ext = 2 cierra el bloque con el MISMO jobId y cero llama
   // Recarga: el mismo estado reenviado mantiene el jobId y las claves (nada nuevo que pagar).
   assert.equal((ok.body.state as LongScriptState | null)?.jobId ?? job, job);
 });
+test("defecto 4 por HTTP: un estado de OTRA configuración (nombre cambiado) no acuña otro jobId ni llama al modelo; state null sí empieza otro", async () => {
+  const m = compliantModel(30);
+  const d = routeDeps(() => m.llm);
+  const r1 = await studioAction(d, stepBody(null));
+  const s = r1.body.state as LongScriptState; const before = m.calls.length;
+  const renamed = { ...stepBody(s), hostName: "Valeria M." };
+  const r = await studioAction(d, renamed);
+  assert.equal(r.status, 409); assert.equal(r.body.code, "OTRO_TRABAJO"); assert.equal(r.body.recoverable, true);
+  assert.equal(r.body.state, undefined, "no devuelve un trabajo nuevo que sustituya al guardado");
+  assert.equal(m.calls.length, before, "cero llamadas");
+  const again = await studioAction(d, stepBody(s));
+  assert.equal(again.status, 200); assert.equal((again.body.state as LongScriptState).jobId, s.jobId, "con la configuración original continúa el MISMO jobId");
+  const fresh = await studioAction(d, { ...renamed, state: null });
+  assert.equal(fresh.status, 200, "empezar otro es explícito (state: null)");
+});

@@ -43,7 +43,7 @@ Las pruebas automáticas usan respuestas simuladas, incluida la de 6.577 caracte
 - [ ] Ningún turno repetido; el saludo solo aparece en el bloque 1 y la despedida solo al final.
 - [ ] En el libro de gastos, `pi_paid_operations` con `project_id like 'studio-script:%'`:
   - todas las filas en `COMMITTED`;
-  - una sola por clave de paso (`script:plan-a1`, `script:s0-a1`, …), sin duplicados tras el corte de red;
+  - una sola por clave de paso (`shot_id` = `script:plan-a1:paso`, `script:s0-a1:paso`, …), sin duplicados tras el corte de red;
   - suma ≤ USD 1.
   - Se comprueba con el caso de solo lectura `pod-guion-diag` del arnés.
 - [ ] No se creó ningún episodio, voz, imagen ni MP4.

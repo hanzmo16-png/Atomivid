@@ -173,3 +173,16 @@ test("integración: la respuesta del bloque 2 se pierde por la red; el reintento
   if (r.kind === "done") { assert.ok(r.estimatedMinutes >= 27 && r.estimatedMinutes <= 33, String(r.estimatedMinutes)); assert.equal(r.withinTarget, true); }
   assert.equal(states.at(-1), null, "al terminar, el trabajo en curso se cierra en el borrador");
 });
+
+test("OTRO_TRABAJO (defecto 4): el servidor no sustituye el trabajo; el cliente no lo anula ni reintenta", async () => {
+  const t = deps([() => json(409, { error: "El guion a medias es de otra configuración…", code: "OTRO_TRABAJO", recoverable: true })]);
+  const r = await runScriptGeneration(ask, S2, t.d);
+  assert.equal(r.kind === "error" && r.reason, "otro-trabajo"); assert.equal(r.kind === "error" && r.recoverable, true);
+  assert.deepEqual(t.states, [], "el scriptJob guardado no se toca"); assert.equal(t.sent.length, 1);
+});
+
+test("al terminar, el resultado trae el jobId del trabajo (para vincularlo al episodio, #271)", async () => {
+  const t = deps([() => json(200, { state: S2, done: true, script: "Valeria: hola.\nHans: adiós.", note: "ok", step: 4, steps: 4 })]);
+  const r = await runScriptGeneration(ask, S1, t.d);
+  assert.equal(r.kind, "done"); assert.equal(r.kind === "done" && r.jobId, (S2 as { jobId: string }).jobId);
+});
