@@ -25,9 +25,19 @@ export function cleanIdea(idea: string, max = IDEA_MAX): string {
 }
 
 /**
- * Ruta real de cada formato. Solo se pasa la idea a las rutas que ya la leen (Reel: `idea`; YouTube: `topic`, 200
- * caracteres). El asistente de Podcast aún no lee parámetros: se abre en su primer paso (la idea se escribe ahí).
- * `custom` (Personalizado) solo cambia el Reel: no se elige el estilo automáticamente.
+ * Token de una sola vez para Podcast Personalizado. El asistente (`entrada` que empieza por `nueva`) abre la pantalla 1
+ * y aparca el borrador anterior; no lo borra. Cada clic lleva un token distinto para que recargar el mismo enlace no
+ * vuelva a empezar.
+ */
+export function podcastFreshToken(): string {
+  return `nueva-${globalThis.crypto.randomUUID()}`;
+}
+
+/**
+ * Ruta real de cada formato. La idea viaja en Reel (`idea`), YouTube (`topic`, 200) y Podcast Personalizado (`idea`).
+ * Podcast Automático sigue abriendo `/dashboard/podcast` sin parámetros (reanuda el borrador). Personalizado añade
+ * `modo=personalizado` y `entrada=nueva-…`: esa URL es la única señal de configuración nueva. YouTube no gana un
+ * asistente por pasos.
  */
 export function continueHref(format: CreateFormat, idea: string, mode: CreateMode = "auto"): string {
   const q = cleanIdea(idea);
@@ -38,14 +48,19 @@ export function continueHref(format: CreateFormat, idea: string, mode: CreateMod
       if (mode === "custom") p.set("modo", "personalizado");
       return `/dashboard/new?${p}`;
     }
-    case "podcast": return "/dashboard/podcast";
+    case "podcast": {
+      if (mode !== "custom") return "/dashboard/podcast";
+      const p = new URLSearchParams({ modo: "personalizado", entrada: podcastFreshToken() });
+      if (q) p.set("idea", q);
+      return `/dashboard/podcast?${p}`;
+    }
     case "youtube": return `/dashboard/long-form/new${q ? `?topic=${encodeURIComponent(q.slice(0, 200))}` : ""}`;
   }
 }
 
 /** Lo que pasa con la idea en cada formato, dicho antes de pulsar «Continuar» (sin sorpresas al llegar). */
 export function ideaNote(format: CreateFormat | null, idea: string): string | null {
-  if (format === "podcast" && cleanIdea(idea)) return "En Podcast escribirás el tema en el primer paso; copia tu idea si quieres usarla.";
+  if (format === "podcast" && cleanIdea(idea)) return "En Personalizado tu idea se abre con el asistente. En Automático escribirás el tema en el paso de contenido.";
   return null;
 }
 

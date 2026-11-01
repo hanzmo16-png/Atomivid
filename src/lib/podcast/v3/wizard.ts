@@ -282,3 +282,138 @@ export function durationFit(script: string, minutes: number): "ok" | "largo" | "
   const m = estimateMinutes(script);
   return m > minutes * (1 + DURATION_TOLERANCE) ? "largo" : m < minutes * (1 - DURATION_TOLERANCE) ? "corto" : "ok";
 }
+
+/**
+ * Entrada «Personalizado» desde la portada. El asistente solo lee `localStorage` al montar (`WIZARD_STORAGE_KEY`), así
+ * que la configuración nueva se escribe en esa clave ANTES de montarlo. El borrador que había se copia, byte a byte, a
+ * `WIZARD_RECOVERY_KEY` y no se borra: «Recuperar» lo devuelve y aparca lo que hubiera en curso. Abrir
+ * `/dashboard/podcast` sin `modo=personalizado` y sin `entrada=nueva-…` no toca nada (sigue el borrador guardado).
+ * Los tokens ya usados viven en `WIZARD_ENTRY_TOKENS_KEY`: recargar el mismo enlace no vuelve a empezar.
+ */
+export const WIZARD_RECOVERY_KEY = "atomivid.podcast.asistente.v2.recuperable";
+export const WIZARD_ENTRY_TOKENS_KEY = "atomivid.podcast.asistente.v2.entradas";
+const ENTRY_IDEA_MAX = 500;
+const ENTRY_TOKEN_KEEP = 40;
+
+export type DraftStore = {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+};
+
+export type FreshEntryParams = { modo?: string | null; entrada?: string | null; idea?: string | null };
+export type ParkedDraft = { raw: string; at: string; step: number };
+
+/** `entrada=nueva` o `entrada=nueva-…` junto con `modo=personalizado`: la única señal de configuración nueva. */
+export function isFreshHomeEntry(params: FreshEntryParams): boolean {
+  const entrada = params.entrada;
+  return params.modo === "personalizado" && typeof entrada === "string" && (entrada === "nueva" || entrada.startsWith("nueva-"));
+}
+
+export function cleanEntryIdea(idea: string | null | undefined): string {
+  return (idea ?? "").replace(/\s+/g, " ").trim().slice(0, ENTRY_IDEA_MAX);
+}
+
+export function storedDraftStep(raw: string): number {
+  try {
+    const n = Number(JSON.parse(raw)?.step);
+    return Number.isFinite(n) ? n : 0;
+  } catch { return 0; }
+}
+
+/** Pantalla en la que el asistente abriría ese paso (aplica la misma normalización que `loadDraft`). */
+export function entryScreenLabel(step: number): { paso: number; name: (typeof SCREENS)[number] } {
+  const screen = screenOf(loadDraft(JSON.stringify({ step })).step);
+  return { paso: screen + 1, name: SCREENS[screen] };
+}
+
+type RecoveryFile = { v: 1; items: ParkedDraft[]; legacy?: string };
+
+function parseRecovery(raw: string | null): { items: ParkedDraft[]; legacy: string | null } {
+  if (!raw) return { items: [], legacy: null };
+  try {
+    const v = JSON.parse(raw) as unknown;
+    if (Array.isArray(v)) return { items: v.filter(isParked).map(normParked), legacy: null };
+    if (v && typeof v === "object" && Array.isArray((v as { items?: unknown }).items)) {
+      const o = v as { items: unknown[]; legacy?: unknown };
+      return { items: o.items.filter(isParked).map(normParked), legacy: typeof o.legacy === "string" ? o.legacy : null };
+    }
+    return { items: [], legacy: raw };
+  } catch { return { items: [], legacy: raw }; }
+}
+
+function isParked(x: unknown): x is { raw: string; at?: unknown; step?: unknown } {
+  return !!x && typeof x === "object" && typeof (x as { raw?: unknown }).raw === "string" && (x as { raw: string }).raw.length > 0;
+}
+function normParked(x: { raw: string; at?: unknown; step?: unknown }): ParkedDraft {
+  return { raw: x.raw, at: typeof x.at === "string" ? x.at : "", step: Number.isFinite(Number(x.step)) ? Number(x.step) : storedDraftStep(x.raw) };
+}
+
+export function recoveryList(raw: string | null): ParkedDraft[] {
+  return parseRecovery(raw).items;
+}
+
+function writeRecovery(store: DraftStore, items: ParkedDraft[], legacy: string | null) {
+  if (!items.length && !legacy) { store.removeItem(WIZARD_RECOVERY_KEY); return; }
+  const body: RecoveryFile = { v: 1, items };
+  if (legacy) body.legacy = legacy;
+  store.setItem(WIZARD_RECOVERY_KEY, JSON.stringify(body));
+}
+
+function readTokens(raw: string | null): string[] {
+  try {
+    const v = JSON.parse(raw ?? "null") as unknown;
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  } catch { return []; }
+}
+
+export type FreshEntryResult = { started: boolean; parked: boolean; topic: string; screen: number };
+
+/**
+ * Aplica la entrada nueva una sola vez por token. Escribe primero la copia recuperable y después el borrador nuevo.
+ * Sin la señal, no escribe: el borrador activo queda igual.
+ */
+export function applyFreshHomeEntry(store: DraftStore, params: FreshEntryParams, opts?: { now?: string }): FreshEntryResult {
+  const resume = (): FreshEntryResult => {
+    const d = loadDraft(store.getItem(WIZARD_STORAGE_KEY));
+    return { started: false, parked: false, topic: d.topic, screen: screenOf(d.step) };
+  };
+  if (!isFreshHomeEntry(params) || typeof params.entrada !== "string") return resume();
+  const tokens = readTokens(store.getItem(WIZARD_ENTRY_TOKENS_KEY));
+  if (tokens.includes(params.entrada)) return resume();
+  const prior = store.getItem(WIZARD_STORAGE_KEY);
+  let parked = false;
+  if (prior && prior.trim()) {
+    const parsed = parseRecovery(store.getItem(WIZARD_RECOVERY_KEY));
+    if (parsed.items[0]?.raw !== prior) {
+      parsed.items.unshift({ raw: prior, at: opts?.now ?? new Date().toISOString(), step: storedDraftStep(prior) });
+      writeRecovery(store, parsed.items, parsed.legacy);
+      parked = true;
+    }
+  }
+  const topic = cleanEntryIdea(params.idea);
+  const draft = { ...defaultDraft(), step: screenStart(0), topic };
+  store.setItem(WIZARD_STORAGE_KEY, JSON.stringify(draft));
+  tokens.push(params.entrada);
+  store.setItem(WIZARD_ENTRY_TOKENS_KEY, JSON.stringify(tokens.slice(-ENTRY_TOKEN_KEEP)));
+  return { started: true, parked, topic, screen: screenOf(draft.step) };
+}
+
+/**
+ * Devuelve una configuración aparcada (por defecto la más reciente) a la clave del asistente. Lo que estaba activo
+ * ocupa su lugar en la copia: se puede llegar a cualquiera, y ni la anterior ni la de ahora se tiran.
+ */
+export function restorePreviousDraft(store: DraftStore, opts?: { now?: string; index?: number }): { restored: boolean; step: number | null } {
+  const parsed = parseRecovery(store.getItem(WIZARD_RECOVERY_KEY));
+  const index = opts?.index ?? 0;
+  if (!parsed.items.length || index < 0 || index >= parsed.items.length) return { restored: false, step: null };
+  const head = parsed.items[index]!;
+  const rest = parsed.items.filter((_, i) => i !== index);
+  const current = store.getItem(WIZARD_STORAGE_KEY);
+  const next = current && current.trim() && current !== head.raw
+    ? [{ raw: current, at: opts?.now ?? new Date().toISOString(), step: storedDraftStep(current) }, ...rest]
+    : rest;
+  writeRecovery(store, next, parsed.legacy);
+  store.setItem(WIZARD_STORAGE_KEY, head.raw);
+  return { restored: true, step: head.step };
+}

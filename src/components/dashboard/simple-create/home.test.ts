@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { autoStyle, cleanIdea, continueHref, createFormats, ideaNote, midFlow, SECONDARY_LINKS, splitHistory } from "./home";
+import { isFreshHomeEntry } from "../../../lib/podcast/v3/wizard";
 
 test("tres formatos y solo tres; sin acceso se dice «Disponible pronto», nunca se finge", () => {
   const all = createFormats({ podcast: true, youtube: true });
@@ -19,11 +20,32 @@ test("«Continuar» abre las rutas reales; la idea viaja solo donde la ruta la l
   assert.equal(continueHref("reel", ""), "/dashboard/new?formato=reel");
   assert.equal(continueHref("podcast", "lo que sea"), "/dashboard/podcast");
   assert.equal(continueHref("youtube", "Roma"), "/dashboard/long-form/new?topic=Roma");
+  assert.equal(continueHref("youtube", "Roma", "custom"), "/dashboard/long-form/new?topic=Roma", "YouTube no gana pasos ni modo");
   assert.equal(new URL(continueHref("youtube", "a".repeat(400)), "http://x").searchParams.get("topic")!.length, 200);
   assert.equal(cleanIdea("b".repeat(900)).length, 500);
-  assert.match(ideaNote("podcast", "idea")!, /primer paso/);
+  assert.match(ideaNote("podcast", "idea")!, /Personalizado/);
+  assert.match(ideaNote("podcast", "idea")!, /Automático/);
   assert.equal(ideaNote("podcast", "  "), null);
   assert.equal(ideaNote("reel", "idea"), null);
+});
+
+test("Podcast Personalizado abre una URL inequívoca y conserva la idea; Automático no la toca", () => {
+  const href = continueHref("podcast", "  La señal   Wow! ", "custom");
+  const u = new URL(href, "http://x");
+  assert.equal(u.pathname, "/dashboard/podcast");
+  assert.equal(u.searchParams.get("modo"), "personalizado");
+  assert.match(u.searchParams.get("entrada") ?? "", /^nueva-/);
+  assert.equal(u.searchParams.get("idea"), "La señal Wow!");
+  assert.equal(isFreshHomeEntry({ modo: u.searchParams.get("modo"), entrada: u.searchParams.get("entrada") }), true);
+  const again = new URL(continueHref("podcast", "La señal Wow!", "custom"), "http://x");
+  assert.notEqual(again.searchParams.get("entrada"), u.searchParams.get("entrada"), "cada clic es una entrada nueva");
+  assert.equal(again.searchParams.get("idea"), "La señal Wow!");
+  const empty = new URL(continueHref("podcast", "   ", "custom"), "http://x");
+  assert.equal(empty.searchParams.get("idea"), null);
+  assert.equal(empty.searchParams.get("modo"), "personalizado");
+  assert.match(empty.searchParams.get("entrada") ?? "", /^nueva-/);
+  assert.equal(continueHref("podcast", "tema", "auto"), "/dashboard/podcast");
+  assert.equal(continueHref("reel", "x", "custom"), "/dashboard/new?formato=reel&idea=x&modo=personalizado");
 });
 
 test("las rutas de destino existen en la app (no se inventan pantallas)", () => {
