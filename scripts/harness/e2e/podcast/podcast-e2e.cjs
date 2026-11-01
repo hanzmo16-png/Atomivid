@@ -34,9 +34,18 @@ function worker(id, kind, extra = {}) {
 async function createEpisode(p, o) {
   await p.goto(`${BASE}/dashboard/podcast`);
   // Podcast 3.0: el formulario clásico vive dentro de «Formulario clásico» (el asistente es la vista principal).
-  const classic = p.getByText("Formulario clásico (grabación propia, guion A/B)");
-  if (await classic.count()) await classic.click();
-  await p.getByLabel("Título", { exact: true }).fill(o.title);
+  // En la lista ya larga, el clic al resumen dejó el <details> cerrado: el título estaba en el DOM y no era visible
+  // (podcast-3-0-e2e, caso 7 tope, 6fcee24c). Se espera a que el asistente hidrate y se abre el formulario sin un
+  // segundo clic, que lo volvería a cerrar si ya estuviera abierto.
+  const wizard = p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]');
+  if (await p.getByTestId("podcast-entrada-preparando").or(p.getByTestId("podcast-wizard")).count()) {
+    await wizard.waitFor({ state: "visible", timeout: 60000 });
+  }
+  const details = p.locator("details").filter({ hasText: "Formulario clásico (grabación propia, guion A/B)" });
+  await details.evaluate((el) => { el.open = true; });
+  const title = p.getByLabel("Título", { exact: true });
+  await title.waitFor({ state: "visible" });
+  await title.fill(o.title);
   if (o.conversation) await p.getByLabel("Conversación (2 participantes)").check();
   if (o.emotional) await p.getByLabel("Emocional (director de voz)").check();
   if (o.music) await p.getByLabel(/Música de fondo/).check();
