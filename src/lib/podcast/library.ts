@@ -110,13 +110,39 @@ export type OwnerRowsClient = { from(table: string): { select(cols: string): Own
  */
 export async function ownerRowsByCursor<T extends { id: string; updated_at?: string | null }>(
   client: OwnerRowsClient, table: string, cols: string, userId: string, size = LIBRARY_PAGE, maxRows = LIBRARY_MAX_ROWS,
+  onError?: (error: unknown) => void,
 ): Promise<{ rows: T[]; truncated: boolean } | null> {
   return fetchAllByCursor<T>(async (after, n) => {
     let q = client.from(table).select(cols).eq("user_id", userId);
     if (after) q = q.or(afterCursorFilter(after));
     const { data, error } = await q.order("updated_at", { ascending: false }).order("id", { ascending: false }).limit(n);
-    return error ? null : (data as T[]);
+    if (error) { onError?.(error); return null; }
+    return data as T[];
   }, size, maxRows);
+}
+
+/**
+ * La TABLA no existe (migración no aplicada): no es un fallo de lectura, la fuente simplemente no está. Solo el código o
+ * mensaje de relación ausente; una COLUMNA ausente («column … does not exist», PGRST204) no cuenta.
+ */
+export function isMissingRelation(error: unknown): boolean {
+  const e = (error ?? {}) as { code?: unknown; message?: unknown };
+  if (e.code === "42P01" || e.code === "PGRST205") return true;
+  return typeof e.message === "string" && (/relation "[^"]+" does not exist/i.test(e.message) || /Could not find the table/i.test(e.message));
+}
+
+/**
+ * Episodios clásicos del dueño (CORRECCION-2): con `archived_at` si la columna existe; si ese intento falla, sin ella
+ * (respaldo legítimo, sin aviso). Si el intento FINAL falla en su primera página, la fuente no se da por vacía:
+ * `failed` y `truncated` → la página avisa y nunca muestra la biblioteca vacía como completa.
+ */
+export async function listClassicEpisodes<T extends { id: string; updated_at?: string | null }>(
+  client: OwnerRowsClient, userId: string, cols: string,
+): Promise<{ rows: T[]; truncated: boolean; archiveReady: boolean; failed: boolean }> {
+  const withArchive = await ownerRowsByCursor<T>(client, "podcast_episodes", `${cols},archived_at`, userId);
+  if (withArchive) return { ...withArchive, archiveReady: true, failed: false };
+  const plain = await ownerRowsByCursor<T>(client, "podcast_episodes", cols, userId);
+  return plain ? { ...plain, archiveReady: false, failed: false } : { rows: [], truncated: true, archiveReady: false, failed: true };
 }
 
 /** Aviso visible y no destructivo cuando alguna fuente quedó incompleta (nunca se presenta la lista como completa). */

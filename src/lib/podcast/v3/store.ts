@@ -6,7 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { LedgerRow, StudioLedger } from "./cost";
 import type { RunGuard } from "./pipeline";
-import { ownerRowsByCursor, type OwnerRowsClient } from "../library";
+import { isMissingRelation, ownerRowsByCursor, type OwnerRowsClient } from "../library";
 
 export const STUDIO_TABLE = "podcast_studio_episodes";
 export const STUDIO_OPS_TABLE = "podcast_studio_operations";
@@ -68,7 +68,14 @@ export async function listStudioEpisodes(service: SupabaseClient, userId: string
   // `truncated` llega hasta la página, que lo avisa (CORRECCION-1): una lista parcial nunca se presenta como completa.
   type Row = StudioEpisodeRow & { archived_at?: string | null; updated_at: string };
   const client = service as unknown as OwnerRowsClient;
-  return (await ownerRowsByCursor<Row>(client, STUDIO_TABLE, `${STUDIO_COLUMNS},archived_at`, userId))
-    ?? (await ownerRowsByCursor<Row>(client, STUDIO_TABLE, STUDIO_COLUMNS, userId)); // null = tabla ausente → la lista de estudio no aparece
+  let lastError: unknown = null;
+  const onError = (e: unknown) => { lastError = e; };
+  const withArchive = await ownerRowsByCursor<Row>(client, STUDIO_TABLE, `${STUDIO_COLUMNS},archived_at`, userId, undefined, undefined, onError);
+  if (withArchive) return withArchive;
+  const plain = await ownerRowsByCursor<Row>(client, STUDIO_TABLE, STUDIO_COLUMNS, userId, undefined, undefined, onError);
+  if (plain) return plain;
+  // CORRECCION-2: tabla ausente (migración no aplicada) → null, la lista de estudio no aparece (como antes). Cualquier otro
+  // fallo en la primera página NO es «sin episodios»: lista vacía marcada incompleta, para que la página lo avise.
+  return isMissingRelation(lastError) ? null : { rows: [], truncated: true };
 }
 
