@@ -47,6 +47,7 @@ export async function runStudioJob(episodeId: string) {
   const { StudioSpec } = await import("../../src/lib/podcast/v3/spec");
   const { runEpisode, studioRunErrorFailsEpisode } = await import("../../src/lib/podcast/v3/pipeline");
   const { lipTimeline, lipViolations, shotCoverage } = await import("../../src/lib/podcast/v3/studio");
+  const { deliveredDuration } = await import("../../src/lib/podcast/v3/duration");
   const { realTts, realAvatar, realRecraftImages, localDirector, realMatter, RVM_MODEL } = await import("../../src/lib/podcast/v3/adapters");
   const { progressRecord, stagesFor } = await import("../../src/lib/podcast/v3/progress");
   const { heygenAvatarProvider } = await import("../../src/lib/providers/avatar/heygen");
@@ -201,10 +202,11 @@ export async function runStudioJob(episodeId: string) {
     const doneAt = new Date().toISOString();
     await service.from(STUDIO_TABLE).update({ status: "ready", video_path: video, audio_path: audio, cost_usd: r.spentUsd, progress: { ...(writer.last ?? {}), stage: "guardado", pct: 100, done: 1, total: 1, estimate: true, updatedAt: doneAt,
       activity: [...(writer.last?.activity ?? []), { at: doneAt, text: "Archivo final guardado" }].slice(-6) },
-      result: { duration: r.durationSeconds, lufs: r.lufs, true_peak: r.truePeak, music: r.musicTrack, mood: r.mood, shots: r.plan.shots.map((s) => ({ kind: s.kind, speaker: s.speaker, start: s.start, end: s.end, label: s.label ?? null })), providers: r.providers,
+      // Duración pedida, estimada y MEDIDA (ffprobe): una desviación grave queda registrada y se muestra en la tarjeta.
+      result: { duration: r.durationSeconds, duration_check: deliveredDuration(spec, r.durationSeconds), lufs: r.lufs, true_peak: r.truePeak, music: r.musicTrack, mood: r.mood, shots: r.plan.shots.map((s) => ({ kind: s.kind, speaker: s.speaker, start: s.start, end: s.end, label: s.label ?? null })), providers: r.providers,
         // Podcast 2.1: línea de tiempo de labios por segmento y su verificación contra la voz real (nadie habla fuera de su turno).
         lips: lipTimeline(r.plan).map((x) => ({ start: x.start, end: x.end, shot: x.shot, A: x.lips.A, B: x.lips.B })), lip_violations: lipViolations(lipTimeline(r.plan), r.timeline), coverage: shotCoverage(r.plan) }, error: null, updated_at: new Date().toISOString() }).eq("id", episodeId);
-    console.log("STUDIO_READY", JSON.stringify({ usd: r.spentUsd, paid: r.paidOps, reused: r.reusedOps, progress: writer.stats }));
+    console.log("STUDIO_READY", JSON.stringify({ usd: r.spentUsd, paid: r.paidOps, reused: r.reusedOps, progress: writer.stats, duration: deliveredDuration(spec, r.durationSeconds) }));
   } catch (e) {
     clearInterval(beat);
     await writer.flush();
