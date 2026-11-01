@@ -89,3 +89,11 @@ test("defecto 4: trabajo a medias de otra configuración → aviso con «Volver 
   assert.match(wiz, /data-testid="trabajo-distinto"/); assert.match(wiz, /data-testid="volver-configuracion"/); assert.match(wiz, /data-testid="empezar-otro-guion"/);
   assert.match(wiz, /!staleJob\(d\.scriptJob, scriptAsk\(\)\) && <Button[\s\S]{0,300}data-testid="generar-guion"/);
 });
+
+test("aislamiento por cuenta: la cuenta se pide al servidor con un GET de solo lectura (navegar el asistente no escribe)", () => {
+  const wiz = readFileSync("src/app/dashboard/podcast/PodcastWizard.tsx", "utf8");
+  const route = readFileSync("src/app/api/podcast/v3/route.ts", "utf8");
+  assert.match(wiz, /fetch\("\/api\/podcast\/v3", \{ method: "GET", cache: "no-store"/);
+  assert.match(route, /export async function GET\(\) \{\s*const user = await podcastUser\(\);[\s\S]{0,200}ownerId: user\.id/);
+  assert.match(wiz, /localStorage\.setItem\(WIZARD_STORAGE_KEY, ownedRaw\(d\)\)/);
+});

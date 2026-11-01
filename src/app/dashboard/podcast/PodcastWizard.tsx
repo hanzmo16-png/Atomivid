@@ -596,12 +596,14 @@ export function progressText(p: { step: number; steps: number; phase?: string; w
 /** Misma clave (y mismo formato de lista) que la entrada «Personalizado» (#269): draft-recovery.ts. */
 export const WIZARD_RECOVERABLE_KEY = DRAFT_RECOVERY_KEY;
 function hasParkedSafe(owner?: string | null): boolean { try { return hasParked(localStorage, owner); } catch { return false; } }
-/** Id de la cuenta con sesión (para el aislamiento de borradores); null si no se puede leer en 4 s. */
+/** Id de la cuenta con sesión, según el servidor (para el aislamiento de borradores); null si no responde en 4 s. */
 async function currentOwner(): Promise<string | null> {
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 4000);
   try {
-    const user = createClient().auth.getUser().then((r) => r.data.user?.id ?? null, () => null);
-    return await Promise.race([user, new Promise<null>((res) => setTimeout(() => res(null), 4000))]);
-  } catch { return null; }
+    const res = await fetch("/api/podcast/v3", { method: "GET", cache: "no-store", signal: ctl.signal });
+    const j = res.ok ? ((await res.json()) as { ownerId?: unknown }) : null;
+    return typeof j?.ownerId === "string" && j.ownerId ? j.ownerId : null;
+  } catch { return null; } finally { clearTimeout(timer); }
 }
 /** ¿Tiene trabajo este borrador guardado (tema, guion o un guion con IA a medias)? Uno vacío no se aparca. */
 export const hasRecoverableDraft = hasWork;
