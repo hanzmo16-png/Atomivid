@@ -105,10 +105,15 @@ test("QA P1-3: reconciliación (llamada sin confirmar): NO se borra el trabajo (
   assert.ok(!t.states.includes(null), "el scriptJob no se anula"); assert.deepEqual(t.states.at(-1), S2);
 });
 
-test("no recuperable (agotado): el trabajo guardado se descarta (onState null) para empezar limpio", async () => {
+test("QA integración: no recuperable (AGOTADO o ESTADO) NO borra el trabajo: mismo jobId para reintentar o aparcar", async () => {
   const t = deps([() => json(409, { error: "…tras 3 intentos…", code: "AGOTADO", recoverable: false, state: S1 })]);
   const r = await runScriptGeneration(ask, S1, t.d);
-  assert.equal(r.kind === "error" && r.recoverable, false); assert.equal(t.states.at(-1), null);
+  assert.equal(r.kind === "error" && r.reason, "agotado"); assert.equal(r.kind === "error" && r.recoverable, false);
+  assert.ok(!t.states.includes(null), "el scriptJob no se anula"); assert.deepEqual(t.states.at(-1), S1);
+  assert.match(r.kind === "error" ? r.message : "", /Empezar de nuevo/);
+  const e = deps([() => json(400, { error: "El progreso guardado no es válido (bloque en ampliación); vuelve a empezar.", code: "ESTADO", recoverable: false })]);
+  const r2 = await runScriptGeneration(ask, S2, e.d);
+  assert.equal(r2.kind === "error" && r2.reason, "agotado"); assert.ok(!e.states.includes(null)); assert.equal(e.sent.length, 1, "sin reintentos automáticos");
 });
 
 test("«Empezar de nuevo» durante una generación: tras cancelar no se escribe NINGÚN estado ni progreso tardío", async () => {

@@ -110,7 +110,8 @@ export async function runScriptGeneration(ask: ScriptAsk, initial: unknown | nul
       d.onProgress({ step: 0, steps: 0, phase: "bloque", waiting: `${serverMsg ?? "La respuesta no sirvió."} Reintentando…` });
       continue;
     }
-    if (b.recoverable === false) { state = null; d.onState(null); }
+    // Un error no recuperable (AGOTADO, ESTADO) NO borra el trabajo: es el único ancla (jobId) de lo ya pagado. Reintentarlo
+    // no cobra (el servidor falla antes de llamar al modelo); «Empezar de nuevo» lo aparca recuperable y abre otro.
     d.onProgress(null);
     if (code === "LIMITE_DIARIO") return { kind: "error", reason: "presupuesto", message: serverMsg ?? "Alcanzaste el límite diario de guiones con IA.", recoverable: true, status: r.status };
     // Llamada sin confirmar con el proveedor: no se repite, pero el trabajo (único ancla de lo ya pagado) se conserva.
@@ -118,7 +119,7 @@ export async function runScriptGeneration(ask: ScriptAsk, initial: unknown | nul
     if (code === "IA_FALLO" && detail.startsWith("supply:")) return { kind: "error", reason: "presupuesto", message: serverMsg ?? "El control de gasto no admitió la llamada.", recoverable: true, status: r.status };
     if (code === "IA_FALLO" || code === "IA_NO_DISPONIBLE") return { kind: "error", reason: "proveedor", message: serverMsg ?? "El modelo no respondió.", recoverable: code === "IA_FALLO", status: r.status };
     if (code === "INVALIDO") return { kind: "error", reason: "validacion", message: serverMsg ?? "La respuesta del modelo no sirvió.", recoverable: true, status: r.status };
-    if (code === "AGOTADO" || code === "ESTADO") return { kind: "error", reason: "agotado", message: serverMsg ?? "No se pudo completar el guion; empieza uno nuevo.", recoverable: false, status: r.status };
+    if (code === "AGOTADO" || code === "ESTADO") return { kind: "error", reason: "agotado", message: `${serverMsg ?? "No se pudo completar el guion."} Lo ya escrito no se borra: pulsa «Empezar de nuevo» para escribir otro (este queda guardado y recuperable).`, recoverable: false, status: r.status };
     if (r.status >= 500 || r.body === null) {
       // 500/502/504 o una página que no es JSON (p. ej. tiempo límite de la plataforma): transitorio, mismo estado.
       const e = await retryTransient(`El servidor respondió con un error (${r.status || "sin respuesta"}).`, "http");

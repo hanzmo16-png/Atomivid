@@ -13,6 +13,7 @@ import {
   segmentCount, type LlmStepFn, type LlmStepOut, type LongInput, type LongScriptState,
 } from "./long-script";
 import { targetChars } from "./script";
+import { studioAction, type ApiDeps } from "./api";
 
 const JOB = "0f0e0d0c-0b0a-4908-8706-050403020100";
 const TOPIC = "BASE DULCE: LOS SIETE NIVELES DEL HORROR. Conversación de 30 minutos entre Valeria Moncler y El Duro Hans. Explorar Thomas Castello, Phil Schneider, los supuestos siete niveles subterráneos, la batalla de 1979 y Paul Bennewitz.";
@@ -188,7 +189,7 @@ test("estado del navegador con bloque en ampliación: se valida (k, intento, amp
   for (let i = 0; i < 4; i++) s = (await advanceLongScript(s, m.llm)).state;
   assert.ok(s.partial);
   assert.deepEqual(checkLongState(JSON.parse(JSON.stringify(s)), input()), s);
-  for (const bad of [{ ...s, partial: { ...s.partial!, k: 0 } }, { ...s, partial: { ...s.partial!, ext: 9 } }, { ...s, partial: { ...s.partial!, ext: MAX_EXTENSIONS_PER_BLOCK } },
+  for (const bad of [{ ...s, partial: { ...s.partial!, k: 0 } }, { ...s, partial: { ...s.partial!, ext: 9 } }, { ...s, partial: { ...s.partial!, ext: MAX_EXTENSIONS_PER_BLOCK + 1 } },
     { ...s, partial: { ...s.partial!, attempt: 0 } }, { ...s, partial: { ...s.partial!, attempt: 2 } }, { ...s, partial: { ...s.partial!, turns: [{ speaker: "C", text: "x" }] } }]) {
     assert.throws(() => checkLongState(bad, input()), /no es válido/);
   }
@@ -210,11 +211,40 @@ test("QA P1-1: un estado con las ampliaciones agotadas (ext = 2) no paga una ter
   let s = newLongScript(JOB, input());
   for (let i = 0; i < 4; i++) s = (await advanceLongScript(s, m.llm)).state;
   assert.equal(s.partial?.ext, 0);
-  const forged = { ...s, partial: { ...s.partial!, ext: MAX_EXTENSIONS_PER_BLOCK } };
-  assert.throws(() => checkLongState(forged, input()), /no es válido/, "la ruta lo rechaza antes de llegar al motor");
+  const atCap = { ...s, partial: { ...s.partial!, ext: MAX_EXTENSIONS_PER_BLOCK } };
+  assert.equal(checkLongState(atCap, input()).partial?.ext, MAX_EXTENSIONS_PER_BLOCK, "ext = 2 se admite (no se pierde el ancla)");
   const before = m.calls.length;
-  const r = await advanceLongScript(forged, m.llm); // y el motor, aunque le llegue, no paga «-x3»
+  const r = await advanceLongScript(atCap, m.llm);
   assert.equal(m.calls.length, before, "cero llamadas");
   assert.ok(!m.calls.some((c) => /-x3$/.test(c.step)));
   assert.equal(r.done, true); assert.match(r.note ?? "", /se conservó lo escrito/);
+  assert.equal(r.state.jobId, JOB, "mismo trabajo");
+});
+
+// Ruta real (/api/podcast/v3, «script-step») con dependencias simuladas: lo que recibe el navegador.
+const viewer = { id: "u1", email: "h@example.com", email_confirmed_at: "x" };
+const routeDeps = (llmStep: ApiDeps["llmStep"]): ApiDeps => ({ userId: "u1", viewer, voices: async () => [], enabled: true, llm: null, llmStep, newJobId: () => "11111111-2222-4333-8444-555555555555", env: {},
+  insert: async () => null, load: async () => null, authorize: async () => false, dispatch: async () => false });
+const stepBody = (state: unknown) => ({ action: "script-step", topic: TOPIC, minutes: 30, hostName: A, guestName: B, hostPersonality: "curiosa", guestPersonality: "escéptico", state });
+
+test("QA P1-1 por HTTP: ext = 2 cierra el bloque con el MISMO jobId y cero llamadas; ext = 3 o un intento distinto se rechazan sin llamar", async () => {
+  const m = compliantModel(30, { "s2-a1": () => dialogue(600, { farewell: true }).join("\n") });
+  const d = routeDeps(() => m.llm);
+  let st: unknown = null;
+  for (let i = 0; i < 4; i++) { const r = await studioAction(d, stepBody(st)); assert.equal(r.status, 200, JSON.stringify(r.body).slice(0, 200)); st = r.body.state; }
+  const s = st as LongScriptState;
+  assert.equal(s.partial?.ext, 0);
+  const job = s.jobId, before = m.calls.length;
+  // Tope alcanzado (p. ej. guardado por una versión anterior): se cierra con lo escrito, sin «-x3» y sin jobId nuevo.
+  const ok = await studioAction(d, stepBody({ ...s, partial: { ...s.partial!, ext: MAX_EXTENSIONS_PER_BLOCK } }));
+  assert.equal(ok.status, 200); assert.equal(ok.body.done, true);
+  assert.equal(m.calls.length, before, "cero llamadas pagadas"); assert.ok(!m.calls.some((c) => /-x3$/.test(c.step)));
+  // Estados manipulados: ESTADO, sin llamar al modelo (el cliente conserva el ancla: script-client.test.ts).
+  for (const bad of [{ ...s, partial: { ...s.partial!, ext: MAX_EXTENSIONS_PER_BLOCK + 1 } }, { ...s, partial: { ...s.partial!, attempt: 2 } }]) {
+    const r = await studioAction(d, stepBody(bad));
+    assert.equal(r.status, 400); assert.equal(r.body.code, "ESTADO"); assert.equal(r.body.recoverable, false);
+  }
+  assert.equal(m.calls.length, before, "tampoco al rechazar");
+  // Recarga: el mismo estado reenviado mantiene el jobId y las claves (nada nuevo que pagar).
+  assert.equal((ok.body.state as LongScriptState | null)?.jobId ?? job, job);
 });

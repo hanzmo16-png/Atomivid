@@ -316,7 +316,7 @@ export async function advanceLongScript(s: LongScriptState, llm: LlmStepFn): Pro
     if (!parsed || issues.length) throw Object.assign(new LongScriptError("INVALIDO", `El bloque ${k + 1} de ${n} no cumplió los requisitos (${issues.join("; ")}); reintenta desde ahí (lo anterior se conserva).`, true), { state });
     turns = parsed.turns;
   } else if (p.ext >= MAX_EXTENSIONS_PER_BLOCK) {
-    // Ampliaciones agotadas (estado que no debería llegar, pero el navegador no es de fiar): se cierra SIN pagar otra.
+    // Ampliaciones agotadas (p. ej. estado guardado por una versión anterior): se cierra con lo escrito SIN pagar otra.
     return commit({ ...s, partial: null }, k, p.turns, steps, `El bloque ${k + 1} quedó algo más corto de lo previsto; se conservó lo escrito.`);
   } else {
     attempt = p.attempt; ext = p.ext + 1;
@@ -379,8 +379,9 @@ export function checkLongState(x: unknown, input: LongInput): LongScriptState {
   if (s.partial != null) {
     const q = s.partial;
     if (!s.plan || typeof q !== "object" || q.k !== s.segments.length || !Number.isInteger(q.attempt) || q.attempt < 1 || q.attempt > MAX_ATTEMPTS_PER_STEP
-      // Una ampliación pendiente solo puede ser la 1.ª o la 2.ª (ext 0–1): con ext ≥ 2 el bloque ya se habría cerrado.
-      || !Number.isInteger(q.ext) || q.ext < 0 || q.ext >= MAX_EXTENSIONS_PER_BLOCK || !Array.isArray(q.turns) || !q.turns.length || q.turns.length > 300) throw bad("bloque en ampliación");
+      // ext 0–1: ampliación pendiente. ext = 2 (tope alcanzado, p. ej. guardado por una versión anterior): se admite y el
+      // motor cierra el bloque con lo escrito SIN llamar al modelo; así no se pierde el ancla (mismo jobId). ext > 2: manipulado.
+      || !Number.isInteger(q.ext) || q.ext < 0 || q.ext > MAX_EXTENSIONS_PER_BLOCK || !Array.isArray(q.turns) || !q.turns.length || q.turns.length > 300) throw bad("bloque en ampliación");
     let c = 0;
     for (const t of q.turns) { if ((t?.speaker !== "A" && t?.speaker !== "B") || typeof t.text !== "string") throw bad("turno"); c += t.text.length; }
     if (c > limit) throw bad("bloque en ampliación demasiado largo");
