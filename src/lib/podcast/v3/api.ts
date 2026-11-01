@@ -3,6 +3,7 @@
  * Nada aquí llama a proveedores de pago: crear y estimar son gratis; autorizar solo registra el monto aprobado y
  * despacha el trabajo (la generación ocurre en el worker con el libro de operaciones).
  */
+import { acceptedMinutes, scriptDuration } from "./duration";
 import type { AccountVoice } from "@/lib/podcast/voices";
 import type { VoiceViewer } from "@/lib/voices/private-voices";
 import { StudioSpec, validateSpec, STUDIO_VERSION, type StudioSpec as Spec } from "./spec";
@@ -87,12 +88,21 @@ export async function studioAction(d: ApiDeps, body: Record<string, unknown> | n
     shots: pf.plan.shots.reduce<Record<string, number>>((m, s) => ({ ...m, [s.kind]: (m[s.kind] ?? 0) + 1 }), {}), overBudget: pf.estimate.totalUsd > spec.budget_usd,
     byProvider: pf.estimate.lines.reduce<Record<string, number>>((m, l) => ({ ...m, [l.provider]: Math.round(((m[l.provider] ?? 0) + l.usd) * 1e4) / 1e4 }), {}),
     providers: visualProviders(d.env ?? process.env, recraftBlock), lipTimeline: lipTimeline(pf.plan).slice(0, 40), coverage: shotCoverage(pf.plan),
-    turnList: pf.turns.slice(0, 60).map((t) => ({ id: t.id, speaker: t.speaker, kind: t.kind, text: t.text.slice(0, 140) })) };
+    turnList: pf.turns.slice(0, 60).map((t) => ({ id: t.id, speaker: t.speaker, kind: t.kind, text: t.text.slice(0, 140) })),
+    // Duración estimada del guion frente a la pedida (incidente 8f05fc37): la pantalla Producir la muestra antes de cobrar.
+    duration: scriptDuration(stored) };
   if (b.action === "estimate") return { status: 200, body: { estimate } };
   if (b.action === "create") {
     if (!d.enabled) return DISABLED;
     if (estimate.overBudget) return { status: 402, body: { error: `El costo estimado (USD ${estimate.totalUsd.toFixed(2)}) supera tu presupuesto máximo (USD ${spec.budget_usd.toFixed(2)}). Sube el presupuesto o reduce apariciones del avatar.`, estimate } };
-    const row = await d.insert({ user_id: d.userId, title: stored.title, mode: stored.mode, spec: stored, status: "draft", estimate, estimated_usd: estimate.totalUsd });
+    // Episodio largo cuyo guion no alcanza lo pedido: no se promete una duración que no cabe. Sin aceptar la duración real
+    // no se crea; al aceptarla, lo prometido (target_minutes) pasa a ser lo que el guion da y se guarda lo que se pidió.
+    let toStore = stored;
+    if (estimate.duration.needsAcceptance) {
+      if (b.acceptDuration !== true) return { status: 409, body: { error: `${estimate.duration.message} Alarga el guion en «Contenido» o acepta esa duración para continuar.`, code: "DURACION", duration: estimate.duration } };
+      toStore = { ...stored, requested_minutes: stored.target_minutes, target_minutes: acceptedMinutes(estimate.duration) };
+    }
+    const row = await d.insert({ user_id: d.userId, title: toStore.title, mode: toStore.mode, spec: toStore, status: "draft", estimate, estimated_usd: estimate.totalUsd });
     if (row === "missing") return DISABLED;
     if (!row) return { status: 500, body: { error: "No se pudo guardar el episodio." } };
     return { status: 200, body: { id: row.id, estimate } };
@@ -131,6 +141,9 @@ export async function authorizeAction(d: ApiDeps, id: string, body: Record<strin
   const usd = Number(body?.authorizedUsd);
   const spec = StudioSpec.safeParse(row.spec);
   if (!spec.success) return { status: 409, body: { error: "Especificación del episodio inválida." } };
+  // Un borrador que promete una duración larga que su guion no alcanza (creado antes de esta regla) no se cobra.
+  const dur = scriptDuration(spec.data);
+  if (dur.needsAcceptance) return { status: 409, body: { error: `${dur.message} Vuelve a «Producir» para aceptar esa duración o alarga el guion.`, code: "DURACION", duration: dur } };
   if (!Number.isFinite(usd) || usd < Number(row.estimated_usd ?? 0) - 1e-9) return { status: 402, body: { error: "El monto autorizado es menor que la estimación." } };
   if (usd > spec.data.budget_usd + 1e-9) return { status: 402, body: { error: "El monto autorizado supera el presupuesto máximo del episodio." } };
   // Tope duro por autorización (independiente del presupuesto que escriba el usuario): un error o un abuso no puede
@@ -175,6 +188,9 @@ export async function episodeAction(userId: string, row: StudioEpisodeRow | "mis
   const signOwn = async (p: string | null, name: string) => (!p || !ownStudioAsset(userId, row.id, p) ? null : sign(p, name));
   const { spec: _spec, ...pub } = row;
   const activity = ops && (row.status === "generating" || row.status === "authorized") ? await ops().then((x) => (x ? ledgerActivity(x) : null)).catch(() => null) : null;
-  return { status: 200, body: { episode: { ...pub, output: audioOnly ? "audio" : "video" }, activity, video_url: row.status === "ready" && !audioOnly ? await signOwn(row.video_path, `${row.title}.mp4`) : null,
+  // Duración entregada frente a la pedida (registrada por el generador): visible, nunca silenciosa.
+  const dc = (row.result as { duration_check?: { ok?: boolean; note?: string | null } } | null)?.duration_check;
+  const durationNote = row.status === "ready" && dc && dc.ok === false ? dc.note ?? null : null;
+  return { status: 200, body: { episode: { ...pub, output: audioOnly ? "audio" : "video" }, activity, duration_note: durationNote, video_url: row.status === "ready" && !audioOnly ? await signOwn(row.video_path, `${row.title}.mp4`) : null,
     audio_url: row.status === "ready" ? await signOwn(row.audio_path, `${row.title}.${row.audio_path?.split(".").pop() ?? "mp3"}`) : null } };
 }

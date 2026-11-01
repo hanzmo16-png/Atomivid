@@ -67,6 +67,8 @@ export const StudioSpec = z.object({
   topic: z.string().trim().max(500).default(""),
   script: z.string().trim().min(20).max(30_000),
   target_minutes: z.number().min(1).max(60),
+  /** Minutos que pidió la persona cuando aceptó una duración menor (la real del guion); `target_minutes` es lo prometido. */
+  requested_minutes: z.number().min(1).max(60).optional(),
   participants: z.array(StudioParticipant).min(1).max(2),
   visual: z.object({
     set: z.enum(SETS).default("moderno"),
