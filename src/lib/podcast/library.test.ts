@@ -3,7 +3,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { ARCHIVE_COLUMN_MISSING, AUTO_GROUPED, bucketOf, isTestTitle, libraryAction, libraryView, type LibraryItem } from "./library";
+import { ARCHIVE_COLUMN_MISSING, AUTO_GROUPED, bucketOf, fetchAllByCursor, incompleteLibraryNotice, isMissingRelation, isTestTitle, libraryAction, libraryView, listClassicEpisodes, ownerRowsByCursor, shownCount, VIEW_STEP, type LibraryItem, type OwnerRowsClient, type PageCursor } from "./library";
+import { listStudioEpisodes } from "./v3/store";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 const NOW = Date.parse("2026-10-30T17:00:00Z");
 const ago = (days: number) => new Date(NOW - days * 86_400_000).toISOString();
@@ -107,14 +109,220 @@ test("cero borrado directo: la ruta y la página solo actualizan archived_at de 
   assert.match(route, /\.update\(\{ archived_at: at \}\)\.eq\("id", id\)\.eq\("user_id", user\.id\)/);
   assert.doesNotMatch(page, /\.update\(/);
   // Sin la columna, la página no ofrece archivar y lo dice (el aviso solo aparece con archiveReady = false).
-  assert.match(page, /!archiveReady && <p[^>]*data-testid="biblioteca-archivo-bloqueado"/);
+  assert.match(page, /!archiveReady && !v2Out\.failed && <p[^>]*data-testid="biblioteca-archivo-bloqueado"/);
 });
 
-test("el tope de 100 por fuente se aplica por actividad reciente (updated_at), no por fecha de creación", () => {
+test("B3: sin tope invisible: las dos fuentes usan la misma consulta por cursor (updated_at, id) DESC con user_id, sin .limit(100)", () => {
   const read = (p: string) => readFileSync(path.join(__dirname, "../../..", p), "utf8");
-  const page = read("src/app/dashboard/podcast/page.tsx"), store = read("src/lib/podcast/v3/store.ts");
-  assert.match(page, /from\("podcast_episodes"\)[^;]*\.order\("updated_at", \{ ascending: false \}\)\.limit\(100\)/);
-  assert.match(store, /from\(STUDIO_TABLE\)[^;]*\.order\("updated_at", \{ ascending: false \}\)\.limit\(100\)/);
+  const page = read("src/app/dashboard/podcast/page.tsx"), store = read("src/lib/podcast/v3/store.ts"), lib = read("src/lib/podcast/library.ts");
+  for (const src of [page, store]) {
+    assert.doesNotMatch(src, /\.limit\(100\)/, "el tope de 100 ya no existe");
+    assert.match(src, /ownerRowsByCursor|listClassicEpisodes/);
+    assert.doesNotMatch(src, /fetchAllByCursor/, "nadie arma su propia paginación");
+  }
+  assert.match(lib, /\.eq\("user_id", userId\)/, "siempre filtrado por el dueño");
+  assert.match(lib, /\.or\(afterCursorFilter\(after\)\)/);
+  assert.match(lib, /\.order\("updated_at", \{ ascending: false \}\)\.order\("id", \{ ascending: false \}\)\.limit\(n\)/);
+  assert.match(page, /listClassicEpisodes<[^>]+>\(service as unknown as OwnerRowsClient, user\.id, V2_COLS\)/);
+  // CORRECCION-1/2: el truncamiento o fallo inicial de las dos fuentes llega a la página y se muestra; la vista vacía
+  // no se presenta como completa cuando hay aviso.
+  assert.match(page, /incompleteLibraryNotice\(\{ studio: !!studioOut\?\.truncated, classic: v2Out\.truncated \}\)/);
+  assert.match(page, /\{empty && !incompleteNotice && <p[^>]*data-testid="biblioteca-vacia"/);
+  assert.match(page, /\{incompleteNotice && <p role="status"[^>]*data-testid="biblioteca-incompleta">\{incompleteNotice\}<\/p>\}/);
+});
+
+/** Fuente simulada con la MISMA semántica que la consulta PostgREST: (updated_at, id) < cursor, orden DESC, límite. */
+const keysetSource = <T extends { id: string; updated_at: string }>(rows: T[]) => {
+  const sorted = [...rows].sort((a, b) => (a.updated_at === b.updated_at ? (a.id < b.id ? 1 : -1) : a.updated_at < b.updated_at ? 1 : -1));
+  let calls = 0;
+  const page = async (after: PageCursor | null, size: number) => { calls++;
+    return sorted.filter((r) => !after || r.updated_at < after.updated_at || (r.updated_at === after.updated_at && r.id < after.id)).slice(0, size); };
+  return { page, calls: () => calls };
+};
+
+test("B3: 150 episodios sintéticos (estudio + clásico, con fechas repetidas) → la vista los muestra todos, sin perder ni duplicar", async () => {
+  // 80 de estudio y 70 clásicos; muchas fechas idénticas (bloques de 7) para forzar el desempate por id en el cursor.
+  const at = (n: number) => new Date(NOW - Math.floor(n / 7) * 60_000).toISOString();
+  const studio = Array.from({ length: 80 }, (_, n) => ({ kind: "studio" as const, id: id(1000 + n), status: "ready", created_at: ago(30), updated_at: at(n) }));
+  const v2 = Array.from({ length: 70 }, (_, n) => ({ kind: "v2" as const, id: id(5000 + n), status: "ready", created_at: ago(30), updated_at: at(n + 3) }));
+  for (const size of [7, 25, 100]) {
+    const S = keysetSource(studio), V = keysetSource(v2);
+    const [a, b] = [await fetchAllByCursor(S.page, size), await fetchAllByCursor(V.page, size)];
+    assert.ok(a && b && !a.truncated && !b.truncated);
+    assert.equal(new Set(a!.rows.map((r) => r.id)).size, 80, `estudio completo con páginas de ${size}`);
+    assert.equal(new Set(b!.rows.map((r) => r.id)).size, 70, `clásico completo con páginas de ${size}`);
+    assert.equal(a!.rows.length + b!.rows.length, 150, "sin duplicados");
+    const view = libraryView([...a!.rows, ...b!.rows], "principal", NOW);
+    // Recorrido «Ver más» de 50 en 50: cada corte es prefijo del siguiente y el último cubre las 150 exactamente una vez.
+    const seen: string[] = [];
+    for (let shown = shownCount(undefined, view.length); ; shown = shownCount(String(shown + VIEW_STEP), view.length)) {
+      const slice = view.slice(0, shown);
+      assert.deepEqual(slice.slice(0, seen.length).map((x) => x.id), seen, "el corte anterior no cambia");
+      seen.splice(0, seen.length, ...slice.map((x) => x.id));
+      if (shown >= view.length) break;
+    }
+    assert.equal(seen.length, 150); assert.equal(new Set(seen).size, 150);
+    // Orden global conservado: actividad más reciente primero, mezclando fuentes.
+    for (let i = 1; i < view.length; i++) assert.ok(Date.parse(view[i - 1].updated_at!) >= Date.parse(view[i].updated_at!), `orden en ${i}`);
+  }
+  assert.equal(shownCount("abc", 150), VIEW_STEP); assert.equal(shownCount("-5", 150), VIEW_STEP); assert.equal(shownCount("999999", 150), 150);
+});
+
+test("B3: una fuente que falla en la primera página → null (como antes); a mitad → lo leído y truncated (nunca se oculta en silencio)", async () => {
+  assert.equal(await fetchAllByCursor(async () => null, 10), null);
+  let n = 0;
+  const half = await fetchAllByCursor(async () => (n++ === 0 ? Array.from({ length: 10 }, (_, i) => ({ id: id(i), updated_at: ago(i) })) : null), 10);
+  assert.ok(half && half.truncated && half.rows.length === 10);
+  const capped = await fetchAllByCursor(async (after) => Array.from({ length: 10 }, (_, i) => ({ id: id(i + (after ? 100 : 0)), updated_at: ago(i + (after ? 100 : 0)) })), 10, 20);
+  assert.ok(capped && capped.truncated && capped.rows.length === 20);
+});
+
+/**
+ * Cliente de Supabase simulado para los LLAMADORES reales (`listStudioEpisodes`, `ownerRowsByCursor` de la página):
+ * interpreta el filtro de `afterCursorFilter`, `eq("user_id")`, el orden y el límite. `failAt` = nº de consulta que falla;
+ * `missing` = columnas ausentes (la primera página falla como en PostgREST).
+ */
+const fakeClient = (rows: { id: string; user_id: string; updated_at: string }[], opts: { failAt?: number; missing?: string; failAll?: boolean; errorCode?: string } = {}) => {
+  let calls = 0; const seen: { user?: string; limit?: number; cols: string }[] = [];
+  const client: OwnerRowsClient = { from: () => ({ select: (cols: string) => {
+    const st: { user?: string; after?: PageCursor; limit?: number } = {};
+    const q = {
+      eq(col: string, v: string) { assert.equal(col, "user_id"); st.user = v; return q; },
+      or(f: string) { const m = /^updated_at\.lt\."(.+)",and\(updated_at\.eq\."(.+)",id\.lt\.(.+)\)$/.exec(f); assert.ok(m && m[1] === m[2], f); st.after = { updated_at: m![1], id: m![3] }; return q; },
+      order() { return q; },
+      limit(n: number) { st.limit = n; return q; },
+      then<A = { data: unknown; error: unknown }, B = never>(res?: ((v: { data: unknown; error: unknown }) => A | PromiseLike<A>) | null, rej?: ((e: unknown) => B | PromiseLike<B>) | null): PromiseLike<A | B> {
+        calls++; seen.push({ user: st.user, limit: st.limit, cols });
+        const fail = opts.failAll || calls === opts.failAt || (opts.missing && cols.includes(opts.missing));
+        const data = fail ? null : rows.filter((r) => r.user_id === st.user)
+          .sort((a, b) => (a.updated_at === b.updated_at ? (a.id < b.id ? 1 : -1) : a.updated_at < b.updated_at ? 1 : -1))
+          .filter((r) => !st.after || r.updated_at < st.after.updated_at || (r.updated_at === st.after.updated_at && r.id < st.after.id))
+          .slice(0, st.limit);
+        const err = !fail ? null : opts.missing && cols.includes(opts.missing) ? { code: "42703", message: `column podcast.${opts.missing} does not exist` } : { code: opts.errorCode ?? "57014", message: "simulado" };
+        return Promise.resolve({ data, error: err }).then(res, rej);
+      },
+    };
+    return q;
+  } }) };
+  return { client, calls: () => calls, seen };
+};
+const owned = (n: number, user = "u1", offset = 0) => Array.from({ length: n }, (_, i) => ({ id: id(offset + i), user_id: user, updated_at: new Date(NOW - Math.floor(i / 7) * 60_000).toISOString() }));
+
+test("CORRECCION-1: listStudioEpisodes (llamador real) — exactamente 5000 NO es truncada; 5001 sí; a mitad falla → truncated con lo leído", async () => {
+  const asSb = (c: OwnerRowsClient) => c as unknown as SupabaseClient;
+  const exact = fakeClient([...owned(5000), ...owned(30, "u2", 9000)]);
+  const a = await listStudioEpisodes(asSb(exact.client), "u1");
+  assert.ok(a); assert.equal(a.rows.length, 5000); assert.equal(a.truncated, false, "5000 exactas: sin aviso falso");
+  assert.equal(new Set(a.rows.map((r) => r.id)).size, 5000);
+  assert.ok(exact.seen.every((q) => q.user === "u1"), "cada página filtra por el dueño");
+  const over = await listStudioEpisodes(asSb(fakeClient(owned(5001)).client), "u1");
+  assert.ok(over); assert.equal(over.rows.length, 5000); assert.equal(over.truncated, true, "5001: se avisa");
+  const mid = await listStudioEpisodes(asSb(fakeClient(owned(250), { failAt: 2 }).client), "u1");
+  assert.ok(mid); assert.equal(mid.rows.length, 100); assert.equal(mid.truncated, true, "fallo en la página 2: lo leído + aviso");
+  // Sin la columna de archivo: la primera página falla y se reintenta sin ella (como antes); completa y sin aviso.
+  const legacy = fakeClient(owned(120), { missing: "archived_at" });
+  const l = await listStudioEpisodes(asSb(legacy.client), "u1");
+  assert.ok(l); assert.equal(l.rows.length, 120); assert.equal(l.truncated, false);
+  assert.ok(legacy.seen.some((q) => !q.cols.includes("archived_at")));
+
+});
+
+test("CORRECCION-1: clásico de la página (ownerRowsByCursor sobre podcast_episodes) — exacto 5000, 5001+ y fallo intermedio", async () => {
+  const cols = "id,updated_at,archived_at";
+  const exact = await ownerRowsByCursor(fakeClient(owned(5000)).client, "podcast_episodes", cols, "u1");
+  assert.ok(exact && exact.rows.length === 5000 && !exact.truncated);
+  const over = await ownerRowsByCursor(fakeClient(owned(5003)).client, "podcast_episodes", cols, "u1");
+  assert.ok(over && over.rows.length === 5000 && over.truncated);
+  const mid = await ownerRowsByCursor(fakeClient(owned(300), { failAt: 3 }).client, "podcast_episodes", cols, "u1");
+  assert.ok(mid && mid.rows.length === 200 && mid.truncated);
+  // El aviso: visible, no destructivo y nombra la fuente; sin truncamiento, nada.
+  assert.equal(incompleteLibraryNotice({ studio: false, classic: false }), null);
+  assert.match(incompleteLibraryNotice({ studio: false, classic: true })!, /clásicos: esta lista puede estar incompleta\. No se borró ni ocultó nada/);
+  assert.match(incompleteLibraryNotice({ studio: true, classic: true })!, /de estudio y clásicos/);
+  // Tope no múltiplo del tamaño de página: nunca pasa de maxRows y la sonda de 1 fila decide.
+  const odd = await fetchAllByCursor(keysetSource(owned(23)).page, 10, 23);
+  assert.ok(odd && odd.rows.length === 23 && !odd.truncated);
+  const odd2 = await fetchAllByCursor(keysetSource(owned(24)).page, 10, 23);
+  assert.ok(odd2 && odd2.rows.length === 23 && odd2.truncated);
+});
+
+test("CORRECCION-2: fallo en la PRIMERA página no es «sin episodios» (estudio, clásico o ambos); vacía de verdad y respaldo sin aviso", async () => {
+  const asSb = (c: OwnerRowsClient) => c as unknown as SupabaseClient;
+  const COLS = "id,updated_at";
+  const view = async (studioC: OwnerRowsClient, classicC: OwnerRowsClient) => {
+    const st = await listStudioEpisodes(asSb(studioC), "u1"), cl = await listClassicEpisodes(classicC, "u1", COLS);
+    const notice = incompleteLibraryNotice({ studio: !!st?.truncated, classic: cl.truncated });
+    const rows = (st?.rows.length ?? 0) + cl.rows.length;
+    return { st, cl, notice, rows, emptyShownAsComplete: rows === 0 && !notice };
+  };
+  // Estudio falla en su primera página (los dos intentos) y el clásico funciona → aviso del estudio, clásicos visibles.
+  const a = await view(fakeClient(owned(40), { failAll: true }).client, fakeClient(owned(12)).client);
+  assert.ok(a.st && a.st.truncated && a.st.rows.length === 0); assert.equal(a.cl.rows.length, 12);
+  assert.match(a.notice!, /episodios de estudio:/); assert.doesNotMatch(a.notice!, /clásicos/);
+  // Clásico final falla en su primera página y el estudio funciona → aviso del clásico; no se dice que archivar esté bloqueado por migración.
+  const b = await view(fakeClient(owned(9)).client, fakeClient(owned(30), { failAll: true }).client);
+  assert.equal(b.st!.rows.length, 9); assert.ok(b.cl.failed && b.cl.truncated && !b.cl.archiveReady);
+  assert.match(b.notice!, /episodios clásicos:/);
+  // Ambas fallan → aviso de las dos; la vista vacía nunca se presenta como completa.
+  const c = await view(fakeClient(owned(40), { failAll: true }).client, fakeClient(owned(30), { failAll: true }).client);
+  assert.equal(c.rows, 0); assert.equal(c.emptyShownAsComplete, false); assert.match(c.notice!, /de estudio y clásicos/);
+  // Primer intento clásico falla SOLO por la columna archived_at → respaldo sin ella: completo y sin aviso falso.
+  const d = await view(fakeClient(owned(5)).client, fakeClient(owned(130), { missing: "archived_at" }).client);
+  assert.ok(!d.cl.failed && !d.cl.truncated && !d.cl.archiveReady); assert.equal(d.cl.rows.length, 130); assert.equal(d.notice, null);
+  // Fuentes realmente vacías y sin error → estado vacío normal, sin aviso.
+  const e = await view(fakeClient([]).client, fakeClient([]).client);
+  assert.equal(e.rows, 0); assert.equal(e.notice, null); assert.equal(e.emptyShownAsComplete, true);
+  // Tabla de estudio ausente (migración no aplicada) → la lista de estudio no aparece, como antes, sin aviso falso.
+  for (const code of ["42P01", "PGRST205"]) assert.equal(await listStudioEpisodes(asSb(fakeClient(owned(3), { failAll: true, errorCode: code }).client), "u1"), null);
+  assert.ok(isMissingRelation({ message: 'relation "public.podcast_studio_episodes" does not exist' }));
+  assert.ok(!isMissingRelation({ code: "42703", message: "column podcast_studio_episodes.archived_at does not exist" }), "una columna ausente no es tabla ausente");
+  assert.ok(!isMissingRelation({ code: "PGRST204", message: "Could not find the 'archived_at' column" }));
+  assert.ok(!isMissingRelation(null));
+  // Regresión del clásico real: 5000 exactas, 5001 y fallo intermedio; dueño en cada página.
+  const ex = fakeClient([...owned(5000), ...owned(20, "u2", 9000)]);
+  const r1 = await listClassicEpisodes(ex.client, "u1", COLS);
+  assert.ok(r1.rows.length === 5000 && !r1.truncated && r1.archiveReady && ex.seen.every((q) => q.user === "u1"));
+  const r2 = await listClassicEpisodes(fakeClient(owned(5001)).client, "u1", COLS);
+  assert.ok(r2.rows.length === 5000 && r2.truncated);
+  const r3 = await listClassicEpisodes(fakeClient(owned(300), { failAt: 2 }).client, "u1", COLS);
+  assert.ok(r3.rows.length === 100 && r3.truncated && !r3.failed);
+});
+
+test("B2: archivar dos veces no reescribe la fecha; restaurar dos veces no escribe; con carrera, la segunda responde igual", async () => {
+  const db = fakeDb({ [id(7)]: { user_id: "u1", status: "ready", archived_at: null } });
+  const first = await libraryAction("u1", { kind: "studio", id: id(7), action: "archive" }, db.deps);
+  const at = db.rows[id(7)].archived_at;
+  assert.equal(first.status, 200); assert.ok(at);
+  const second = await libraryAction("u1", { kind: "studio", id: id(7), action: "archive" }, db.deps);
+  assert.equal(second.status, 200); assert.equal(second.body.unchanged, true);
+  assert.equal(db.rows[id(7)].archived_at, at, "la fecha original se conserva"); assert.equal(db.writes.length, 1);
+  assert.equal((await libraryAction("u1", { kind: "studio", id: id(7), action: "restore" }, db.deps)).status, 200);
+  const again = await libraryAction("u1", { kind: "studio", id: id(7), action: "restore" }, db.deps);
+  assert.equal(again.status, 200); assert.equal(again.body.unchanged, true); assert.equal(db.writes.length, 2, "restaurar dos veces escribe una sola vez");
+  // Carrera: la escritura condicional no afecta filas (otra petición archivó entre la lectura y la escritura) → 200 sin reescribir.
+  let stored: string | null = null;
+  const race = await libraryAction("u1", { kind: "v2", id: id(8), action: "archive" }, {
+    load: async () => ({ user_id: "u1", status: "ready", archived_at: stored }),
+    setArchived: async () => { stored = "2026-10-31T19:00:00.000Z"; return false; },
+  });
+  assert.equal(race.status, 200); assert.equal(race.body.unchanged, true);
+  // Ajeno o inexistente siguen siendo 404, y en producción 409, también en la repetición.
+  assert.equal((await libraryAction("u2", { kind: "studio", id: id(7), action: "archive" }, db.deps)).status, 404);
+});
+
+test("B2: la ruta escribe de forma condicional (archivar solo si no estaba; restaurar solo si estaba) y sigue sin delete", () => {
+  const route = readFileSync(path.join(__dirname, "../../..", "src/app/api/podcast/library/route.ts"), "utf8");
+  assert.match(route, /at \? q\.is\("archived_at", null\) : q\.not\("archived_at", "is", null\)/);
+  assert.doesNotMatch(route, /\.delete\(|\.remove\(/);
+});
+
+test("tarjeta de estudio archivada: no pide enlaces firmados hasta «Ver episodio»; abrir solo lee (GET propio), no restaura", () => {
+  const card = readFileSync(path.join(__dirname, "../../..", "src/app/dashboard/podcast/StudioEpisodeList.tsx"), "utf8");
+  assert.match(card, /const closedByDefault = !!episode\.archived \|\| !!episode\.autoNote;/);
+  assert.match(card, /useState\(!closedByDefault\)/);
+  assert.match(card, /const live = opened && /, "sin abrir no hay fetch (ni URLs firmadas)");
+  assert.match(card, /data-testid=\{`studio-abrir-\$\{episode\.id\}`\}/);
+  assert.doesNotMatch(card.slice(card.indexOf("studio-abrir")), /api\/podcast\/library|method: "POST"/, "«Ver episodio» no archiva ni restaura");
 });
 
 test("la migración archived_at es solo aditiva y su reversión vive fuera de supabase/migrations", () => {

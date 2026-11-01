@@ -14,7 +14,7 @@ import { HOST_CATALOG } from "@/lib/podcast/v3/catalog";
 import { StudioEpisodeCard } from "./StudioEpisodeList";
 import { voiceAvailability } from "@/lib/podcast/v3/spec";
 import { listStudioEpisodes } from "@/lib/podcast/v3/store";
-import { AUTO_GROUPED, libraryView } from "@/lib/podcast/library";
+import { AUTO_GROUPED, incompleteLibraryNotice, libraryView, listClassicEpisodes, shownCount, VIEW_STEP, type OwnerRowsClient } from "@/lib/podcast/library";
 import { LibraryArchiveButton } from "./LibraryArchiveButton";
 import { studioFlagFor, studioGenerationEnabled, visualProviders } from "@/lib/podcast/v3/studio";
 import { studioRecraftBlocker } from "@/lib/podcast/v3/readiness";
@@ -23,19 +23,22 @@ import { RECORDING_BUCKET } from "@/lib/video/avatar/recording";
 const STATUS: Record<PodcastEpisode["status"], string> = { draft: "Borrador", generating: "Generando", ready: "Listo", failed: "Con error" };
 const VIDEO: Record<string, string> = { scheduled: "programado", queued: "en cola", running: "en producción", ready: "entregado", failed: "con error", blocked: "detenido" };
 
-export default async function PodcastPage({ searchParams }: { searchParams: Promise<{ vista?: string }> }) {
-  const view = (await searchParams).vista === "archivados" ? "archivados" : "principal";
+export default async function PodcastPage({ searchParams }: { searchParams: Promise<{ vista?: string; mostrar?: string }> }) {
+  const sp = await searchParams;
+  const view = sp.vista === "archivados" ? "archivados" : "principal";
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   if (!canAccessLongFormBeta(user)) notFound();
   const service = createServiceClient();
   // Biblioteca limpia: con la marca de archivo si su columna ya existe (migración 20261030170000); si no, como antes.
-  const v2 = (cols: string) => service.from("podcast_episodes").select(cols).eq("user_id", user.id).order("updated_at", { ascending: false }).limit(100);
+  // Todas las del dueño por páginas con cursor (updated_at, id): sin el tope invisible de 100 (T-20261031-1910, B3).
+  // `truncated` (una página intermedia falló o hay más del tope) se avisa en la lista (CORRECCION-1). Si el intento final
+  // falla en la primera página, `failed`: tampoco se da por vacía (CORRECCION-2).
   const V2_COLS = "id,title,status,source,duration_seconds,created_at,updated_at,video_status,review_status";
-  const withArchive = await v2(`${V2_COLS},archived_at`);
-  const archiveReady = !withArchive.error;
-  const { data } = archiveReady ? withArchive : await v2(V2_COLS);
+  const v2Out = await listClassicEpisodes<{ id: string; updated_at: string }>(service as unknown as OwnerRowsClient, user.id, V2_COLS);
+  const archiveReady = v2Out.archiveReady;
+  const data = v2Out.rows;
   type V2Row = Pick<PodcastEpisode, "id" | "title" | "status" | "source" | "duration_seconds" | "created_at" | "video_status" | "review_status"> & { updated_at?: string | null; archived_at?: string | null };
   const allEpisodes = (data ?? []) as unknown as V2Row[];
   // Owner notices of the supervised productions (also sent through GitHub when the app is closed).
@@ -51,11 +54,17 @@ export default async function PodcastPage({ searchParams }: { searchParams: Prom
   const generationEnabled = studioGenerationEnabled(user);
   const previewNotice = flag.source === "preview" ? "Vista previa (Vercel Preview): el estudio se muestra activado solo aquí. Puedes recorrer los 10 pasos y ver costos; la generación real está desactivada hasta aplicar la migración y PODCAST_V3_ENABLED=1." : null;
   // Los episodios ya hechos se listan siempre (escuchar y descargar no genera ni cobra), aunque la generación esté apagada.
-  const allStudio = (await listStudioEpisodes(service, user.id)) ?? [];
+  const studioOut = await listStudioEpisodes(service, user.id);
+  const allStudio = studioOut?.rows ?? [];
+  const incompleteNotice = incompleteLibraryNotice({ studio: !!studioOut?.truncated, classic: v2Out.truncated });
   // Una sola secuencia (estudio + clásico): el orden en curso → terminado → borradores recientes es global, no por fuente.
   type Entry = ({ kind: "studio" } & (typeof allStudio)[number]) | ({ kind: "v2" } & V2Row);
   const all: Entry[] = [...allStudio.map((e) => ({ ...e, kind: "studio" as const })), ...allEpisodes.map((e) => ({ ...e, kind: "v2" as const }))];
-  const library = libraryView(all, view);
+  const fullView = libraryView(all, view);
+  // De 50 en 50 («Ver más»): el orden de la vista es total (desempate por fuente e id), así que cada corte es estable.
+  const shown = shownCount(sp.mostrar, fullView.length);
+  const library = fullView.slice(0, shown);
+  const moreHref = `/dashboard/podcast?${view === "archivados" ? "vista=archivados&" : ""}mostrar=${shown + VIEW_STEP}#episodios`;
   const archivedCount = libraryView(all, "archivados").length;
   const empty = library.length === 0;
   const { data: avatarRows } = await service.from("avatars").select("id,name,source_photo_path,source_deleted_at").eq("user_id", user.id).eq("status", "ready").order("created_at", { ascending: false }).limit(20);
@@ -104,11 +113,12 @@ export default async function PodcastPage({ searchParams }: { searchParams: Prom
         <Link href="/dashboard/podcast#episodios" aria-current={view === "principal" ? "page" : undefined} className={`rounded px-3 py-1 ${view === "principal" ? "bg-accent text-accent-ink" : "border border-border text-ink"}`}>Mis episodios</Link>
         <Link href="/dashboard/podcast?vista=archivados#episodios" aria-current={view === "archivados" ? "page" : undefined} className={`rounded px-3 py-1 ${view === "archivados" ? "bg-accent text-accent-ink" : "border border-border text-ink"}`} data-testid="biblioteca-archivados">Archivados ({archivedCount})</Link>
       </nav>
+      {incompleteNotice && <p role="status" className="mt-2 rounded border border-border p-2 text-sm text-ink" data-testid="biblioteca-incompleta">{incompleteNotice}</p>}
       {view === "principal" && archivedCount > 0 && <p className="mt-2 text-xs text-ink-muted" data-testid="biblioteca-ocultos">Los episodios con error, los de prueba, los borradores de hace más de 7 días y lo que archives están en «Archivados» ({archivedCount}). No se borra nada.</p>}
       {view === "archivados" && <p className="mt-2 text-xs text-ink-muted">Aquí están lo que archivaste y, agrupados solos, los episodios con error, los de prueba y los borradores de hace más de 7 días. Sus archivos, enlaces y costos se conservan.</p>}
       {/* Sin la columna archived_at (migración 20261030170000 aún no aplicada) no se consulta para escribir ni se ofrece
           archivar: se dice por qué. La agrupación automática de lo viejo sigue funcionando sin escribir nada. */}
-      {!archiveReady && <p className="mt-2 text-xs text-ink-muted" data-testid="biblioteca-archivo-bloqueado">Archivar a mano estará disponible cuando se aplique un cambio de base de datos pendiente de autorización. Mientras tanto, los episodios con error, los de prueba y los borradores de hace más de 7 días se agrupan solos en «Archivados», sin escribir nada.</p>}
+      {!archiveReady && !v2Out.failed && <p className="mt-2 text-xs text-ink-muted" data-testid="biblioteca-archivo-bloqueado">Archivar a mano estará disponible cuando se aplique un cambio de base de datos pendiente de autorización. Mientras tanto, los episodios con error, los de prueba y los borradores de hace más de 7 días se agrupan solos en «Archivados», sin escribir nada.</p>}
       {!empty && (
         <ul className="mt-2 grid min-w-0 gap-2" data-testid="studio-episodes">
           {library.map((e) => e.kind === "studio" ? (
@@ -123,7 +133,8 @@ export default async function PodcastPage({ searchParams }: { searchParams: Prom
           ))}
         </ul>
       )}
-      {empty && <p className="mt-2 text-sm text-ink-muted" data-testid="biblioteca-vacia">{view === "archivados" ? "No tienes episodios archivados." : archivedCount > 0 ? "No tienes episodios en curso ni terminados. Crea uno arriba o revisa «Archivados»." : "Todavía no hay episodios. Crea el primero arriba."}</p>}
+      {shown < fullView.length && <p className="mt-2 text-sm"><Link href={moreHref} scroll={false} className="text-accent underline" data-testid="biblioteca-ver-mas">Ver más ({fullView.length - shown} restantes)</Link></p>}
+      {empty && !incompleteNotice && <p className="mt-2 text-sm text-ink-muted" data-testid="biblioteca-vacia">{view === "archivados" ? "No tienes episodios archivados." : archivedCount > 0 ? "No tienes episodios en curso ni terminados. Crea uno arriba o revisa «Archivados»." : "Todavía no hay episodios. Crea el primero arriba."}</p>}
     </div>
   );
 }

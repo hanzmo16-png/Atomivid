@@ -6,6 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { LedgerRow, StudioLedger } from "./cost";
 import type { RunGuard } from "./pipeline";
+import { isMissingRelation, ownerRowsByCursor, type OwnerRowsClient } from "../library";
 
 export const STUDIO_TABLE = "podcast_studio_episodes";
 export const STUDIO_OPS_TABLE = "podcast_studio_operations";
@@ -61,12 +62,20 @@ export function supabaseRunGuard(service: SupabaseClient, staleMs = 45 * 60_000)
 }
 const toUuid = (hex: string) => { const h = (hex + "0".repeat(32)).slice(0, 32); return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`; };
 
-export async function listStudioEpisodes(service: SupabaseClient, userId: string): Promise<(StudioEpisodeRow & { archived_at?: string | null })[] | null> {
+export async function listStudioEpisodes(service: SupabaseClient, userId: string): Promise<{ rows: (StudioEpisodeRow & { archived_at?: string | null })[]; truncated: boolean } | null> {
   // Con la marca de archivo (biblioteca limpia) si su columna existe; sin ella, la lista sigue igual que antes.
-  // Tope de 100 por actividad reciente (updated_at): un episodio viejo editado hoy no queda fuera del tope.
-  const q = (cols: string) => service.from(STUDIO_TABLE).select(cols).eq("user_id", userId).order("updated_at", { ascending: false }).limit(100);
-  let { data, error } = await q(`${STUDIO_COLUMNS},archived_at`);
-  if (error) ({ data, error } = await q(STUDIO_COLUMNS));
-  if (error) return null; // tabla ausente (migración no aplicada) → la lista de estudio simplemente no aparece
-  return data as unknown as (StudioEpisodeRow & { archived_at?: string | null })[];
+  // Todas las del dueño, por páginas con cursor (updated_at, id): sin el tope invisible de 100 (T-20261031-1910, B3).
+  // `truncated` llega hasta la página, que lo avisa (CORRECCION-1): una lista parcial nunca se presenta como completa.
+  type Row = StudioEpisodeRow & { archived_at?: string | null; updated_at: string };
+  const client = service as unknown as OwnerRowsClient;
+  let lastError: unknown = null;
+  const onError = (e: unknown) => { lastError = e; };
+  const withArchive = await ownerRowsByCursor<Row>(client, STUDIO_TABLE, `${STUDIO_COLUMNS},archived_at`, userId, undefined, undefined, onError);
+  if (withArchive) return withArchive;
+  const plain = await ownerRowsByCursor<Row>(client, STUDIO_TABLE, STUDIO_COLUMNS, userId, undefined, undefined, onError);
+  if (plain) return plain;
+  // CORRECCION-2: tabla ausente (migración no aplicada) → null, la lista de estudio no aparece (como antes). Cualquier otro
+  // fallo en la primera página NO es «sin episodios»: lista vacía marcada incompleta, para que la página lo avise.
+  return isMissingRelation(lastError) ? null : { rows: [], truncated: true };
 }
+

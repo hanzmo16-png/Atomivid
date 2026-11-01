@@ -17,10 +17,12 @@ export async function POST(request: Request) {
       const cols = kind === "v2" ? "user_id,status,video_status,archived_at" : "user_id,status,archived_at";
       const { data, error } = await service.from(TABLE[kind]).select(cols).eq("id", id).eq("user_id", user.id).maybeSingle();
       if (error) return missingColumn(error) ? "sin_columna" : null;
-      return data as unknown as { user_id: string; status: string; video_status?: string | null } | null;
+      return data as unknown as { user_id: string; status: string; video_status?: string | null; archived_at?: string | null } | null;
     },
     setArchived: async (kind, id, at) => {
-      const { data } = await service.from(TABLE[kind]).update({ archived_at: at }).eq("id", id).eq("user_id", user.id).select("id");
+      // Escritura condicional: archivar solo si no estaba archivado (la fecha original no se pisa); restaurar solo si lo estaba.
+      const q = service.from(TABLE[kind]).update({ archived_at: at }).eq("id", id).eq("user_id", user.id);
+      const { data } = await (at ? q.is("archived_at", null) : q.not("archived_at", "is", null)).select("id");
       return (data?.length ?? 0) === 1;
     },
   });

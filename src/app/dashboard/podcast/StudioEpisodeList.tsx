@@ -28,8 +28,8 @@ export function StudioEpisodePlayback({ title, statusLabel, detail, videoUrl, au
       <span className="ml-2 text-ink-muted">{statusLabel} · estudio: {detail}</span>
       {error && <p className="mt-1 text-danger">{error}</p>}
       {canRedispatch && <Button type="button" variant="secondary" size="sm" className="mt-2" loading={busy} onClick={onRedispatch}>Volver a pedir el inicio (no se cobra otra vez)</Button>}
-      {videoUrl && <video data-testid="studio-player" src={videoUrl} controls playsInline className="mt-2 w-full max-w-full rounded" />}
-      {audioUrl && <audio data-testid="studio-audio-player" src={audioUrl} controls className="mt-2 w-full max-w-full" />}
+      {videoUrl && <video data-testid="studio-player" src={videoUrl} controls playsInline preload="none" className="mt-2 w-full max-w-full rounded" />}
+      {audioUrl && <audio data-testid="studio-audio-player" src={audioUrl} controls preload="none" className="mt-2 w-full max-w-full" />}
       <div className="mt-1 flex min-w-0 flex-wrap gap-3">
         {videoUrl && <a className="text-accent underline" href={videoUrl} data-testid="studio-download-mp4">Descargar video (MP4)</a>}
         {audioUrl && <a className="text-accent underline" href={audioUrl} data-testid="studio-download-audio">Descargar audio</a>}
@@ -42,7 +42,12 @@ export function StudioEpisodeCard({ episode, canArchive }: { episode: StudioList
   const [media, setMedia] = useState<Media | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const live = episode.status === "ready" || episode.status === "generating" || episode.status === "authorized" || episode.status === "failed";
+  // Tarjeta archivada o agrupada en «Archivados»: no pide enlaces firmados ni estado hasta que el dueño la abre
+  // («Ver episodio», T-20261031-1910). Abrir solo lee (GET del propio episodio, 404 si no es suyo); no restaura ni escribe.
+  const closedByDefault = !!episode.archived || !!episode.autoNote;
+  const [opened, setOpened] = useState(!closedByDefault);
+  const [openError, setOpenError] = useState<string | null>(null);
+  const live = opened && (closedByDefault || episode.status === "ready" || episode.status === "generating" || episode.status === "authorized" || episode.status === "failed");
   useEffect(() => {
     if (!live) return;
     let stop = false;
@@ -50,7 +55,8 @@ export function StudioEpisodeCard({ episode, canArchive }: { episode: StudioList
       try {
         const res = await fetch(`/api/podcast/v3/${episode.id}`);
         const out = await safeParseJsonResponse<{ episode?: { status?: string; error?: string | null; cost_usd?: number | null; progress?: unknown; updated_at?: string | null; output?: "audio" | "video"; audio_path?: string | null }; activity?: LedgerActivity | null; video_url?: string | null; audio_url?: string | null }>(res);
-        if (!out.ok || stop) return;
+        if (!out.ok) { if (!stop && closedByDefault) setOpenError(out.error); return; }
+        if (stop) return;
         const next: Media = { status: out.data.episode?.status ?? episode.status, error: out.data.episode?.error ?? null, videoUrl: out.data.video_url ?? null, audioUrl: out.data.audio_url ?? null, cost: out.data.episode?.cost_usd ?? null,
           progress: out.data.episode?.progress ?? null, updatedAt: out.data.episode?.updated_at ?? null, activity: out.data.activity ?? null, output: out.data.episode?.output ?? null, audioPath: out.data.episode?.audio_path };
         setMedia(next);
@@ -58,9 +64,10 @@ export function StudioEpisodeCard({ episode, canArchive }: { episode: StudioList
       } catch { /* el siguiente ciclo reintenta */ }
     };
     void tick();
-    const timer = episode.status === "ready" || episode.status === "failed" ? null : setInterval(() => { if (!stop) void tick(); }, 4000);
+    const timer = episode.status === "authorized" || episode.status === "generating" ? setInterval(() => { if (!stop) void tick(); }, 4000) : null;
     return () => { stop = true; if (timer) clearInterval(timer); };
-  }, [episode.id, episode.status, live]);
+  }, [episode.id, episode.status, live, closedByDefault]);
+
   const status = media?.status ?? episode.status;
   const cost = media?.cost ?? episode.cost_usd;
   async function redispatch() {
@@ -90,6 +97,8 @@ export function StudioEpisodeCard({ episode, canArchive }: { episode: StudioList
       {(status === "authorized" || status === "generating") && <div className="mt-2"><AtomProgress compact view={progressView({ status, progress: media?.progress, updated_at: media?.updatedAt, output: media?.output, audio_path: media?.audioPath }, undefined, media?.activity)} /></div>}
       {note && <p className="mt-1 text-xs text-ink-muted">{note}</p>}
       {episode.autoNote && <p className="mt-1 text-xs text-ink-muted">{episode.autoNote}</p>}
+      {closedByDefault && !opened && <Button type="button" variant="secondary" size="sm" className="mt-2" data-testid={`studio-abrir-${episode.id}`} onClick={() => setOpened(true)}>Ver episodio</Button>}
+      {closedByDefault && opened && <p className="mt-1 text-xs text-ink-muted" data-testid={`studio-abierto-${episode.id}`}>{openError ?? `Estado actual: ${STATUS[status] ?? status}. Abrirlo no lo saca de «Archivados» ni cambia nada.`}</p>}
       {canArchive && !episode.autoNote && status !== "authorized" && status !== "generating" && <LibraryArchiveButton kind="studio" id={episode.id} title={episode.title} archived={!!episode.archived} />}
     </li>
   );
