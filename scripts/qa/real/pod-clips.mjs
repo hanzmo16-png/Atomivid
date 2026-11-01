@@ -5,8 +5,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
 
-const EVID = process.env.EVID, ID = process.env.POD_EPISODE_ID || "";
+const EVID = process.env.EVID;
+let ID = process.env.POD_EPISODE_ID || "";
 const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+if (/^[0-9a-f]{8}$/.test(ID)) { const { data } = await db.from("podcast_studio_episodes").select("id").order("created_at", { ascending: false }).limit(500); ID = (data ?? []).map((r) => String(r.id)).find((x) => x.startsWith(ID)) ?? ID; }
 const out = (t, v) => console.log(t, JSON.stringify(v));
 fs.mkdirSync(path.join(EVID, "clips"), { recursive: true });
 const { data: pol } = await db.from("pi_supply_policies").select("provider,enabled,unit,daily_cap_usd,monthly_cap_usd,max_daily_calls").in("provider", ["recraft", "anthropic", "elevenlabs", "heygen", "__global__"]);
