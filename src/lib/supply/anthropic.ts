@@ -23,6 +23,15 @@ const context = new AsyncLocalStorage<{ projectId: string; intentId: string; rec
 export function withSupplyContext<T>(projectId: string, fn: () => Promise<T>): Promise<T> {
   return context.run({ projectId, intentId: randomUUID() }, fn);
 }
+/**
+ * One step of a multi-call job with a DETERMINISTIC intent (Podcast Studio long scripts: «plan-a1», «s3-a2»…): the ledger
+ * key is the step plus the hash of its exact parameters, so re-sending the same step reuses a COMMITTED result instead of
+ * paying again, and a concurrent duplicate meets the in-flight row instead of a second provider call.
+ */
+export function withSupplyStepContext<T>(projectId: string, step: string, fn: () => Promise<T>): Promise<T> {
+  if (!/^[a-z0-9-]{1,40}$/.test(step)) throw new Error("SUPPLY_STEP_INVALID");
+  return context.run({ projectId, intentId: step }, fn);
+}
 /** Every guarded script call of this video request (any intent, legacy random ones included). */
 export async function loadScriptOperations(projectId: string): Promise<ScriptOpRow[]> {
   const { data, error } = await createServiceClient().from("pi_paid_operations").select("status, shot_id, updated_at, idempotency_key")
