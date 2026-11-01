@@ -48,3 +48,15 @@ out("REJECTED", (rej ?? []).map((o) => ({ created_at: o.created_at, why: String(
   const { data: unres } = await db.from("pi_paid_operations").select("provider, status, reserved_usd, created_at").in("status", ["SUBMITTED", "PROVIDER_JOB_RECORDED", "RECONCILIATION_REQUIRED"]).neq("method", "capacity_hold");
   out("UNRESOLVED_OPS", { n: (unres ?? []).length, byProvider: (unres ?? []).reduce((m, r) => { const k = `${r.provider}/${r.status}`; m[k] = Math.round(((m[k] ?? 0) + Number(r.reserved_usd)) * 1e4) / 1e4; return m; }, {}) });
 }
+// Primer control de pi_submit_with_supply: política global con evidencia; y todas las llamadas de guion de podcast-studio
+// (cualquier fecha) y las de Anthropic sin resolver, para ver si alguna vez se admitió una y qué bloquea.
+{
+  const { data: g } = await db.from("pi_supply_policies").select("*").in("provider", ["__global__", "anthropic"]);
+  out("POLICY_EVIDENCE", (g ?? []).map((p) => ({ provider: p.provider, evidenceChars: String(p.evidence ?? "").trim().length, baseline: p.baseline ?? null, updated_at: p.updated_at ?? null })));
+  const { data: all } = await db.from("pi_paid_operations").select("status, created_at, updated_at, model").like("project_id", "podcast-studio:%").order("created_at", { ascending: true });
+  out("PODCAST_STUDIO_ALL", (all ?? []).map((o) => ({ status: o.status, created_at: o.created_at, model: o.model })));
+  const { data: rec } = await db.from("pi_paid_operations").select("project_id, method, status, created_at, updated_at, provider_job_id").eq("provider", "anthropic").in("status", ["SUBMITTED", "PROVIDER_JOB_RECORDED", "RECONCILIATION_REQUIRED"]);
+  out("ANTHROPIC_UNRESOLVED", (rec ?? []).map((o) => ({ project: String(o.project_id).replace(/[0-9a-f-]{36}/gi, "<id>").slice(0, 60), method: o.method, status: o.status, created_at: o.created_at, updated_at: o.updated_at, job: !!o.provider_job_id })));
+  const { data: lastOk } = await db.from("pi_paid_operations").select("project_id, created_at").eq("provider", "anthropic").in("status", ["COMMITTED", "SUBMITTED", "PROVIDER_JOB_RECORDED"]).order("created_at", { ascending: false }).limit(3);
+  out("ANTHROPIC_LAST_ADMITTED", (lastOk ?? []).map((o) => ({ project: String(o.project_id).replace(/[0-9a-f-]{36}/gi, "<id>").slice(0, 40), created_at: o.created_at })));
+}
