@@ -206,17 +206,31 @@ export function realMatter(deps: { model: string; python?: string }): Matter {
   };
 }
 
+
 /**
- * Generador conversacional por la ruta LLM existente: cliente Anthropic con supplyProtectedAnthropic (reserva en el
- * libro pi_paid_operations, sin reintentos del SDK). «real adapter (untested live)». Si falla, script.ts usa la plantilla.
+ * Proyecto del libro de gastos de un guion del estudio. NO empieza por «podcast-»: ese espacio es el de los EPISODIOS
+ * (pi_submit_with_supply exige ahí una autorización guardada del dueño del episodio, `'podcast-' || podcast_episodes.id`,
+ * propuesta 20261024000000 aplicada). El antiguo `podcast-studio:<dueño>:<tema>` caía en ese espacio por coincidencia de
+ * prefijo, ninguna autorización podía cumplir su comprobación de dueño, y TODAS las llamadas quedaron RESERVED sin
+ * enviarse (4 de 4 desde el 28-10; P0 2026-11-01). Un guion previo al episodio es como el guion de un documental en su
+ * primera ejecución: lo acotan los topes global y del proveedor, más el tope diario por persona de la ruta.
  */
-export function realLlm(ownerId: string, scopeKey: string, maxTokens = 4000): (prompt: string) => Promise<string> {
-  return async (prompt) => {
-    const [{ default: Anthropic }, { supplyProtectedAnthropic, withSupplyContext }] = await Promise.all([import("@anthropic-ai/sdk"), import("@/lib/supply/anthropic")]);
+export const studioScriptProject = (ownerId: string, jobId: string) => `studio-script:${ownerId}:${jobId}`;
+export const STUDIO_SCRIPT_PROJECT_PREFIX = "studio-script:";
+
+/**
+ * Guion largo por segmentos (long-script.ts): una llamada por paso con clave determinista en el libro de gastos
+ * (proyecto studioScriptProject, intención = paso e intento). Reenviar el mismo paso reutiliza el resultado pagado;
+ * nunca se cobra dos veces. Cliente Anthropic con supplyProtectedAnthropic (reserva en pi_paid_operations, sin
+ * reintentos del SDK). Los errores del proveedor o del control de gasto se propagan: nunca hay plantilla de respaldo.
+ */
+export function realLlmStep(ownerId: string, jobId: string): (prompt: string, o: { step: string; maxTokens: number }) => Promise<string> {
+  return async (prompt, o) => {
+    const [{ default: Anthropic }, { supplyProtectedAnthropic, withSupplyStepContext }] = await Promise.all([import("@anthropic-ai/sdk"), import("@/lib/supply/anthropic")]);
     const model = process.env.ANTHROPIC_SCRIPT_MODEL || "claude-sonnet-5";
-    const params = { model, max_tokens: maxTokens, messages: [{ role: "user" as const, content: prompt }], ...(model === "claude-sonnet-5" ? { thinking: { type: "disabled" as const } } : {}) };
+    const params = { model, max_tokens: o.maxTokens, messages: [{ role: "user" as const, content: prompt }], ...(model === "claude-sonnet-5" ? { thinking: { type: "disabled" as const } } : {}) };
     const client = new Anthropic();
-    const res = await withSupplyContext(`podcast-studio:${ownerId}:${scopeKey}`, () =>
+    const res = await withSupplyStepContext(studioScriptProject(ownerId, jobId), o.step, () =>
       supplyProtectedAnthropic(params, () => client.messages.create(params as never, { maxRetries: 0 }) as unknown as Promise<{ usage?: never; content: { type: string; text?: string }[] }>));
     return res.content.filter((c) => c.type === "text").map((c) => c.text ?? "").join("\n");
   };
