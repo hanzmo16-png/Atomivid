@@ -33,3 +33,18 @@ out("LF_RECENT", (lf ?? []).map((o) => ({ status: o.status, created_at: o.create
 // Rechazos registrados (REFUNDED con motivo) de podcast-studio: solo el prefijo de motivo, nunca un resultado pagado.
 const { data: rej } = await db.from("pi_paid_operations").select("status, result_ref, created_at").like("project_id", "podcast-studio:%").eq("status", "REFUNDED").limit(10);
 out("REJECTED", (rej ?? []).map((o) => ({ created_at: o.created_at, why: String(o.result_ref ?? "").startsWith("rejected:") ? String(o.result_ref).slice(0, 160) : "(otro)" })));
+// Topes que comprueba pi_submit_with_supply (mismas funciones SQL, que solo leen): gasto del día y del mes (zona de la
+// política) por proveedor y global, y saldo sin reservar de Anthropic frente a una reserva de guion típica.
+{
+  const tz = "America/Cancun";
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()).map((p) => [p.type, p.value]));
+  const off = "-05:00"; // Cancún no tiene horario de verano
+  const day = new Date(`${parts.year}-${parts.month}-${parts.day}T00:00:00${off}`).toISOString(), month = new Date(`${parts.year}-${parts.month}-01T00:00:00${off}`).toISOString();
+  const spend = async (p, s) => { const { data, error } = await db.rpc("pi_supply_spend", { p_provider: p, p_start: s }); return error ? `error: ${error.message}` : data; };
+  out("SPEND", { day, month, anthropicDay: await spend("anthropic", day), anthropicMonth: await spend("anthropic", month), globalDay: await spend(null, day), globalMonth: await spend(null, month) });
+  out("ANTHROPIC_BALANCE", { free: st?.free ?? null, unreserved: st?.unreserved ?? null, held: st?.held ?? null, remainingRatio: st?.remainingRatio ?? null, coverageHours: st?.coverageHours ?? null });
+  const { data: jr } = await db.from("pi_supply_job_reservations").select("provider, status, reserved_usd, consumed_usd, created_at").eq("status", "OPEN");
+  out("OPEN_JOB_RESERVATIONS", { n: (jr ?? []).length, byProvider: (jr ?? []).reduce((m, r) => { m[r.provider] = Math.round(((m[r.provider] ?? 0) + Number(r.reserved_usd) - Number(r.consumed_usd)) * 1e4) / 1e4; return m; }, {}), oldest: (jr ?? []).map((r) => r.created_at).sort()[0] ?? null });
+  const { data: unres } = await db.from("pi_paid_operations").select("provider, status, reserved_usd, created_at").in("status", ["SUBMITTED", "PROVIDER_JOB_RECORDED", "RECONCILIATION_REQUIRED"]).neq("method", "capacity_hold");
+  out("UNRESOLVED_OPS", { n: (unres ?? []).length, byProvider: (unres ?? []).reduce((m, r) => { const k = `${r.provider}/${r.status}`; m[k] = Math.round(((m[k] ?? 0) + Number(r.reserved_usd)) * 1e4) / 1e4; return m; }, {}) });
+}
