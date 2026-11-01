@@ -100,6 +100,11 @@ export function targetChars(minutes: number): number {
   return Math.max(200, Math.round((minutes * 60 - OPEN_CLOSE_SECONDS) * SPOKEN_CHARS_PER_SECOND / (1 + TURN_GAP_SECONDS * SPOKEN_CHARS_PER_SECOND / AVG_TURN_CHARS)));
 }
 export const targetWords = (minutes: number) => Math.round(targetChars(minutes) / CHARS_PER_WORD);
+/**
+ * Tokens de salida para el guion con IA (incidente 8f05fc37): con 4.000 fijos, un guion de 27 min (~3.500 palabras,
+ * ~1,9 tokens por palabra en español) no cabía; se pide lo que necesita la duración, con margen, y nunca menos que antes.
+ */
+export const scriptMaxTokens = (minutes: number) => Math.min(16_000, Math.max(4_000, Math.ceil(targetWords(minutes) * 1.9) + 600));
 
 /** Duración estimada de un episodio con estos turnos (voz + pausas + cortinas), en segundos. */
 export function episodeSeconds(turns: Pick<Turn, "text">[]): number {
@@ -202,12 +207,24 @@ export async function generateConversation(i: GenerateInput, llm?: LlmFn | null)
         const fitted = fitToDuration(parsed.turns, i.minutes);
         return { turns: fitted.turns, source: "llm", ...(fitted.trimmed ? { note: `El modelo escribió de más: se quitaron ${fitted.trimmed} turnos del final del desarrollo para respetar ${i.minutes} min (la voz no se acelera).` } : {}) };
       }
-      return { turns: templateConversation(i), source: "plantilla", note: "La respuesta del modelo no era un diálogo coherente; se usó la plantilla." };
+      return withLengthNote(templateConversation(i), i.minutes, "La respuesta del modelo no era un diálogo coherente; se usó la plantilla.");
     } catch {
-      return { turns: templateConversation(i), source: "plantilla", note: "El modelo no respondió; se usó la plantilla (sin costo)." };
+      return withLengthNote(templateConversation(i), i.minutes, "El modelo no respondió; se usó la plantilla (sin costo).");
     }
   }
-  return { turns: templateConversation(i), source: "plantilla" };
+  return withLengthNote(templateConversation(i), i.minutes);
+}
+
+/**
+ * La plantilla gratuita tiene una extensión fija (~5 min). Si se pidió más, se dice con números: nunca se presenta como
+ * un guion de la duración pedida (incidente 8f05fc37: 27 min pedidos, plantilla de 5:33 producida).
+ */
+function withLengthNote(turns: Turn[], minutes: number, why?: string): { turns: Turn[]; source: "plantilla"; note?: string } {
+  const est = episodeSeconds(turns) / 60;
+  const short = est < minutes * (1 - DURATION_TOLERANCE);
+  const len = short ? `La plantilla da para unos ${est.toFixed(1).replace(".", ",")} min y pediste ${minutes}: alarga el guion o el episodio durará eso.` : "";
+  const note = [why, len].filter(Boolean).join(" ");
+  return { turns, source: "plantilla", ...(note ? { note } : {}) };
 }
 
 /**

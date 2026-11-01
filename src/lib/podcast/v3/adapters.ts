@@ -210,11 +210,11 @@ export function realMatter(deps: { model: string; python?: string }): Matter {
  * Generador conversacional por la ruta LLM existente: cliente Anthropic con supplyProtectedAnthropic (reserva en el
  * libro pi_paid_operations, sin reintentos del SDK). «real adapter (untested live)». Si falla, script.ts usa la plantilla.
  */
-export function realLlm(ownerId: string, scopeKey: string): (prompt: string) => Promise<string> {
+export function realLlm(ownerId: string, scopeKey: string, maxTokens = 4000): (prompt: string) => Promise<string> {
   return async (prompt) => {
     const [{ default: Anthropic }, { supplyProtectedAnthropic, withSupplyContext }] = await Promise.all([import("@anthropic-ai/sdk"), import("@/lib/supply/anthropic")]);
     const model = process.env.ANTHROPIC_SCRIPT_MODEL || "claude-sonnet-5";
-    const params = { model, max_tokens: 4000, messages: [{ role: "user" as const, content: prompt }], ...(model === "claude-sonnet-5" ? { thinking: { type: "disabled" as const } } : {}) };
+    const params = { model, max_tokens: maxTokens, messages: [{ role: "user" as const, content: prompt }], ...(model === "claude-sonnet-5" ? { thinking: { type: "disabled" as const } } : {}) };
     const client = new Anthropic();
     const res = await withSupplyContext(`podcast-studio:${ownerId}:${scopeKey}`, () =>
       supplyProtectedAnthropic(params, () => client.messages.create(params as never, { maxRetries: 0 }) as unknown as Promise<{ usage?: never; content: { type: string; text?: string }[] }>));
