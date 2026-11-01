@@ -40,7 +40,9 @@ Cómo se garantiza que un guion de 30 min se puede empezar, cerrar el navegador,
 - sin el cambio, la prueba de contrato real falla;
 - con el cambio, pasan esa prueba y `wizard-pantallas.test.ts`.
 
-La prueba `draft-recovery.test.ts` («contrato real #269 ↔ #272») ejecuta el `wizard.ts` real. Mientras #269 no esté en la rama, se omite con el motivo.
+La prueba `scripts/qa/contrato-recuperacion-269-272.test.ts` ejecuta el `wizard.ts` real de #269 junto con `draft-recovery.ts`. No está en `test:podcast3`, que no admite omitidas: se corre en la rama integrada o en un merge efímero de #269 + #272 con `node --import tsx --test scripts/qa/contrato-recuperacion-269-272.test.ts`.
+- Con #269 @ 7583bbc7 tal cual: **falla** (0/1).
+- Con el parche: **pasa** (16/16, junto con `wizard-pantallas.test.ts` y `draft-recovery.test.ts`).
 
 ```diff
 @@ -331,27 +331,9 @@ export function entryScreenLabel(step: number): { paso: number; name: (typeof SC
