@@ -4,6 +4,7 @@ import { podcastUser } from "@/lib/podcast/auth";
 import { listAccountVoices } from "@/lib/podcast/voices";
 import { studioAction } from "@/lib/podcast/v3/api";
 import { realLlmStep, STUDIO_SCRIPT_PROJECT_PREFIX } from "@/lib/podcast/v3/adapters";
+import { bindStudioScriptAuthorization, ensureStudioScriptAuthorization, studioScriptDurableAuthEnabled } from "@/lib/podcast/studio-script-authorization";
 import { STUDIO_TABLE } from "@/lib/podcast/v3/store";
 import { dispatchPodcastJob } from "@/lib/podcast/video-jobs";
 import { studioRecraftBlocker } from "@/lib/podcast/v3/readiness";
@@ -41,6 +42,17 @@ export async function POST(request: Request) {
       if (error || !Array.isArray(data)) throw new Error("ledger");
       return data.reduce((n, o) => n + Math.max(Number(o.reserved_usd) || 0, Number(o.committed_usd) || 0), 0);
     },
+    // MIGRATION MUST BE APPLIED LATER (supabase/proposals/20261101152000_studio_script_spend_authorization.sql)
+    // before PODCAST_STUDIO_SCRIPT_DURABLE_AUTH=1. Unset flag: these stay undefined and the lesser contract remains.
+    // Flag on and RPC missing: script-step / create fail closed and do not call Anthropic.
+    ...(studioScriptDurableAuthEnabled(process.env) ? {
+      ensureStudioScriptAuth: (jobId: string) => ensureStudioScriptAuthorization(service, user.id, jobId, process.env),
+      bindStudioScript: (jobId: string, episodeId: string) => bindStudioScriptAuthorization(service, user.id, jobId, episodeId),
+      removeDraft: async (id: string) => {
+        const { data, error } = await service.from(STUDIO_TABLE).delete().eq("id", id).eq("user_id", user.id).eq("status", "draft").select("id");
+        return !error && Array.isArray(data) && data.length === 1;
+      },
+    } : {}),
     insert: async (row) => { const { data, error } = await service.from(STUDIO_TABLE).insert(row).select("id").single(); if (error) return /does not exist|schema cache|42P01|PGRST205/.test(`${error.code} ${error.message}`) ? "missing" : null; return data as { id: string }; },
     ownsAvatar: async (id) => { if (!/^[0-9a-f-]{36}$/i.test(id)) return false; const { data } = await service.from("avatars").select("id").eq("id", id).eq("user_id", user.id).eq("status", "ready").maybeSingle(); return !!data; },
     load: async () => null, authorize: async () => false, dispatch: (id) => dispatchPodcastJob(id, "studio"),

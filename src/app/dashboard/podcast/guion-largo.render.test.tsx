@@ -33,4 +33,8 @@ test("el botón usa los pasos con IA (sin useAi ni plantilla de respaldo); la pl
   // Un error recuperable conserva el trabajo en el borrador (localStorage); uno no recuperable lo descarta.
   assert.match(wiz, /if \(r\.state !== undefined\) \{ state = r\.state; set\(\{ scriptJob: r\.state \}\); \}/);
   assert.match(wiz, /if \(r\.recoverable === false\) set\(\{ scriptJob: null \}\);/);
+  // El job terminado viaja al crear el episodio; editar el texto a mano deja de heredarlo.
+  assert.match(wiz, /scriptJobId: scriptJobIdOf\(state\)/);
+  assert.match(wiz, /scriptJobId: d\.scriptJobId/);
+  assert.match(wiz, /script: e\.target\.value, scriptJobId: null/);
 });

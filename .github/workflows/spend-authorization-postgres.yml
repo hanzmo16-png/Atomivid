@@ -18,7 +18,7 @@ jobs:
         with: { node-version: 22, cache: npm }
       - run: npm ci --no-audit --no-fund
       - name: Free app tests (mocked providers, no network)
-        run: node --import tsx --test src/lib/supply/spend-authorization.test.ts src/lib/video/long-form/long-form-15min-readiness.test.ts src/lib/supply/script-stale-release.test.ts
+        run: node --import tsx --test src/lib/supply/spend-authorization.test.ts src/lib/podcast/studio-script-authorization.test.ts src/lib/video/long-form/long-form-15min-readiness.test.ts src/lib/supply/script-stale-release.test.ts
       - name: Disposable PostgreSQL + proposal verification
         run: bash scripts/qa/spend-authorization-db.sh "$RUNNER_TEMP/pgsa" 55901 2>&1 | tee spend-authorization-postgres.log; test "${PIPESTATUS[0]}" = 0
       - name: Manual fal.ai balance (Recraft) — later consumption, in-flight, refunds and job reservations reduce availability

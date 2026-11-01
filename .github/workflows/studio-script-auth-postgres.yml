@@ -1,0 +1,31 @@
+name: studio-script-auth-postgres
+# USD 0. Disposable cluster only. Does not call apply-supabase-migration and does not touch
+# production or staging. Proves the DESIGN proposal once a reviewer chooses to run it.
+on:
+  pull_request:
+    paths:
+      - "supabase/proposals/20261101152000_studio_script_spend_authorization.sql"
+      - "supabase/proposals/20261101152000_studio_script_spend_authorization.rollback.sql"
+      - "scripts/qa/studio-script-auth-*.sh"
+      - "src/lib/podcast/studio-script-authorization.ts"
+      - "src/lib/podcast/studio-script-authorization.test.ts"
+      - ".github/workflows/studio-script-auth-postgres.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Unit tests (no database)
+        run: node --import tsx --test src/lib/podcast/studio-script-authorization.test.ts src/lib/podcast/v3/long-script.test.ts
+      - name: Install disposable PostgreSQL
+        run: sudo apt-get update && sudo apt-get install -y postgresql
+      - name: Proposal on a throwaway cluster
+        run: bash scripts/qa/studio-script-auth-db.sh "$RUNNER_TEMP/studio-script-auth" 55931

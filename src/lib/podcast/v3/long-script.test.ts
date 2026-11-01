@@ -263,6 +263,21 @@ test("API: tope diario por persona (24 h): al alcanzarlo no se llama a la IA y e
   assert.equal(down.status, 503); assert.equal(f.calls.length, 1, "sin lectura del libro no se llama a la IA");
 });
 
+test("API: autorización durable apagada no consulta la RPC; encendida falla cerrada sin llamar a la IA", async () => {
+  const f = fakeModel(30);
+  const off = await studioAction(deps(() => f.llm, { ensureStudioScriptAuth: async () => { throw new Error("no debe llamarse"); } }), body(30));
+  assert.equal(off.status, 200); assert.equal(f.calls.length, 1);
+  const unwired = fakeModel(30);
+  const missing = await studioAction(deps(() => unwired.llm, { env: { PODCAST_STUDIO_SCRIPT_DURABLE_AUTH: "1" } }), body(30));
+  assert.equal(missing.status, 503); assert.equal(missing.body.code, "AUTORIZACION_GASTO"); assert.equal(unwired.calls.length, 0);
+  const refused = fakeModel(30);
+  const no = await studioAction(deps(() => refused.llm, { env: { PODCAST_STUDIO_SCRIPT_DURABLE_AUTH: "1" }, ensureStudioScriptAuth: async () => ({ ok: false, status: 409, error: "cerrada", reason: "authorization closed" }) }), body(30));
+  assert.equal(no.status, 409); assert.equal(no.body.detail, "authorization closed"); assert.equal(refused.calls.length, 0); assert.equal(no.body.transactionId, undefined);
+  const allowed = fakeModel(30);
+  const yes = await studioAction(deps(() => allowed.llm, { env: { PODCAST_STUDIO_SCRIPT_DURABLE_AUTH: "1" }, ensureStudioScriptAuth: async () => ({ ok: true, state: "opened", projectId: "p", authorizationRef: "r", transactionId: "9", capUsd: 3, remainingUsd: 3 }) }), body(30));
+  assert.equal(yes.status, 200); assert.equal(allowed.calls.length, 1); assert.equal(yes.body.transactionId, undefined);
+});
+
 test("libro de gastos: el guion del estudio NO está en el espacio «podcast-» de los episodios (allí exige autorización de episodio)", async () => {
   const { studioScriptProject } = await import("./adapters");
   const id = studioScriptProject("6b1c2d3e-0000-4000-8000-000000000001", JOB);

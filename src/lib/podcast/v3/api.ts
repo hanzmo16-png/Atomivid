@@ -12,6 +12,7 @@ import { preflight, type ImageProvider, type Providers, type VisualDirector } fr
 import { RECRAFT_USD_PER_IMAGE, RECRAFT_USD_STYLE_CREATION } from "@/lib/providers/image/recraft";
 import { generateConversation, type LlmFn } from "./script";
 import { advanceLongScript, assembleLongScript, checkLongState, LONG_SCRIPT_MAX_MINUTES, LongScriptError, newLongScript, normalizeLongInput, sameLongInput, segmentCount, type LlmStepFn, type LongScriptState } from "./long-script";
+import { isStudioScriptUuid, studioScriptDurableAuthEnabled, type StudioScriptAuthOutcome, type StudioScriptBindOutcome } from "@/lib/podcast/studio-script-authorization";
 import { estimateHeygenCost } from "@/lib/providers/avatar/heygen";
 import { getPricingConfig } from "@/lib/billing/pricing";
 import type { StudioEpisodeRow } from "./store";
@@ -37,6 +38,16 @@ export type ApiDeps = {
   newJobId?: () => string;
   /** USD de guion con IA de esta persona en las últimas 24 h (libro de gastos). Lanza si no se puede leer (falla cerrado). */
   scriptSpend?: () => Promise<number>;
+  /**
+   * DURABLE AUTH (diseño, migración NO aplicada): solo si PODCAST_STUDIO_SCRIPT_DURABLE_AUTH=1.
+   * Abre pi_open_studio_script_authorization ANTES del modelo. Si falta, script-step falla cerrado y no llama a la IA.
+   * supabase/proposals/20261101152000_studio_script_spend_authorization.sql
+   */
+  ensureStudioScriptAuth?: (jobId: string) => Promise<StudioScriptAuthOutcome>;
+  /** Tras crear el borrador: vincula el job del guion. Si falla, el llamador borra el borrador. */
+  bindStudioScript?: (jobId: string, episodeId: string) => Promise<StudioScriptBindOutcome>;
+  /** Borra un borrador recién insertado si la vinculación no quedó. */
+  removeDraft?: (id: string) => Promise<boolean>;
   insert: (row: Record<string, unknown>) => Promise<{ id: string } | "missing" | null>;
   load: (id: string) => Promise<StudioEpisodeRow | "missing" | null>;
   /** CAS draft→authorized (devuelve true si cambió exactamente una fila). */
@@ -112,9 +123,21 @@ export async function studioAction(d: ApiDeps, body: Record<string, unknown> | n
       if (b.acceptDuration !== true) return { status: 409, body: { error: `${estimate.duration.message} Alarga el guion en «Contenido» o acepta esa duración para continuar.`, code: "DURACION", duration: estimate.duration } };
       toStore = { ...stored, requested_minutes: stored.target_minutes, target_minutes: acceptedMinutes(estimate.duration) };
     }
+    // Vinculación durable del guion (flag apagado: no hace nada; el tip de producción no cambia).
+    // MIGRATION MUST BE APPLIED before PODCAST_STUDIO_SCRIPT_DURABLE_AUTH=1: si el flag está
+    // encendido y la RPC no existe, no se inserta el episodio.
+    const bindPlan = studioScriptBindPlan(d, b.scriptJobId);
+    if (bindPlan.error) return bindPlan.error;
     const row = await d.insert({ user_id: d.userId, title: toStore.title, mode: toStore.mode, spec: toStore, status: "draft", estimate, estimated_usd: estimate.totalUsd });
     if (row === "missing") return DISABLED;
     if (!row) return { status: 500, body: { error: "No se pudo guardar el episodio." } };
+    if (bindPlan.jobId) {
+      const bound = await d.bindStudioScript!(bindPlan.jobId, row.id);
+      if (!bound.ok) {
+        const removed = await d.removeDraft!(row.id).catch(() => false);
+        return { status: bound.status, body: { error: removed ? bound.error : `${bound.error} No se pudo retirar el borrador ${row.id}; no lo autorices.`, code: "AUTORIZACION_GASTO", recoverable: true, draftRemoved: removed } };
+      }
+    }
     return { status: 200, body: { id: row.id, estimate } };
   }
   return { status: 400, body: { error: "Acción no válida." } };
@@ -205,6 +228,22 @@ export async function episodeAction(userId: string, row: StudioEpisodeRow | "mis
     audio_url: row.status === "ready" ? await signOwn(row.audio_path, `${row.title}.${row.audio_path?.split(".").pop() ?? "mp3"}`) : null } };
 }
 
+/**
+ * Plan de vinculación del guion al crear el episodio. Flag apagado o sin scriptJobId: no se vincula
+ * (plantilla, o el tip de producción). Flag encendido con id inválido o sin cableado: no se inserta.
+ */
+function studioScriptBindPlan(d: ApiDeps, raw: unknown): { jobId?: string; error?: Out } {
+  const env = d.env ?? process.env;
+  if (!studioScriptDurableAuthEnabled(env) || raw == null || raw === "") return {};
+  if (typeof raw !== "string" || !isStudioScriptUuid(raw)) {
+    return { error: { status: 400, body: { error: "El identificador del guion no es válido; no se creó el episodio.", code: "AUTORIZACION_GASTO" } } };
+  }
+  if (!d.bindStudioScript || !d.removeDraft) {
+    return { error: { status: 503, body: { error: "No se pudo vincular la autorización del guion; no se creó el episodio. Aplica la migración de diseño antes de encender PODCAST_STUDIO_SCRIPT_DURABLE_AUTH.", code: "AUTORIZACION_GASTO" } } };
+  }
+  return { jobId: raw };
+}
+
 /** Tope diario de guion con IA por persona (USD en 24 h; PODCAST_SCRIPT_DAILY_USD, 3 por defecto, entre 0,5 y 50). */
 export function scriptDailyCapUsd(env: Record<string, string | undefined>): number {
   const v = Number(env.PODCAST_SCRIPT_DAILY_USD);
@@ -236,6 +275,8 @@ export function describeLlmFailure(e: unknown): { status: number; error: string;
       "authorization missing": "falta la autorización de gasto de este proyecto",
       "authorization owner mismatch": "la autorización de gasto no corresponde a este proyecto",
       "authorization exceeded": "se alcanzó el tope autorizado de este proyecto",
+      "authorization expired": "la autorización de gasto de este guion venció",
+      "authorization closed": "la autorización de gasto de este proyecto está cerrada",
       "job envelope exhausted": "se agotó el presupuesto reservado del trabajo",
     };
     return { status: 503, error: `La IA no pudo empezar: ${human[reason] ?? "el control de gasto no admitió la llamada"}. No se cobró nada y lo ya escrito se conserva; reintenta en unos minutos.`, detail: `supply:${reason.slice(0, 60)}` };
@@ -266,13 +307,21 @@ async function scriptStepAction(d: ApiDeps, b: Record<string, unknown>): Promise
     if (e instanceof LongScriptError) return { status: 400, body: { error: e.message, code: e.code, recoverable: false } };
     throw e;
   }
-  // Tope diario por persona (además de los topes global y del proveedor): el guion se escribe antes de que exista un
-  // episodio, así que no hay autorización por episodio que lo acote. Sin lectura del libro, no se llama a la IA.
-  const cap = scriptDailyCapUsd(d.env ?? process.env);
+  // Tope diario por persona (contrato menor ya desplegado: además de los topes global y del proveedor).
+  // Sigue activo con el flag durable: es la suma entre trabajos. Sin lectura del libro, no se llama a la IA.
+  const env = d.env ?? process.env;
+  const cap = scriptDailyCapUsd(env);
   if (d.scriptSpend) {
     let used: number;
     try { used = await d.scriptSpend(); } catch { return { status: 503, body: { error: "No se pudo comprobar tu gasto de IA de hoy; no se llamó a la IA. Reintenta en unos minutos.", code: "IA_FALLO", recoverable: true, state } }; }
     if (used >= cap) return { status: 429, body: { error: `Alcanzaste el límite diario de guiones con IA (USD ${cap.toFixed(2)} en 24 h). Lo ya escrito se conserva; podrás continuar más tarde.`, code: "LIMITE_DIARIO", recoverable: true, state } };
+  }
+  // DURABLE GATE — diseño, migración NO aplicada (20261101152000). Flag distinto de «1»: no se llama a la RPC
+  // y el paso sigue el contrato menor. Flag «1» sin ensure, o ensure que falla: no se llama a la IA.
+  if (studioScriptDurableAuthEnabled(env)) {
+    if (!d.ensureStudioScriptAuth) return { status: 503, body: { error: "La autorización durable del guion no está cableada; no se llamó a la IA. Lo ya escrito se conserva.", code: "AUTORIZACION_GASTO", recoverable: true, state } };
+    const authz = await d.ensureStudioScriptAuth(state.jobId);
+    if (!authz.ok) return { status: authz.status, body: { error: authz.error, code: "AUTORIZACION_GASTO", detail: authz.reason, recoverable: authz.status !== 400, state } };
   }
   try {
     const r = await advanceLongScript(state, d.llmStep(state.jobId));
