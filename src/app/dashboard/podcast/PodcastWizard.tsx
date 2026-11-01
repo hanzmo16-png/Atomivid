@@ -10,6 +10,7 @@ import { classifyClientFetchError } from "@/lib/http/client-error";
 import { MODE_LABEL, MOODS, MOOD_LABEL } from "@/lib/podcast/v3/spec";
 import { STUDIOS, type StudioId } from "@/lib/podcast/v3/studios";
 import { progressView, type LedgerActivity } from "@/lib/podcast/v3/progress";
+import { normalizeLongInput, sameLongInput } from "@/lib/podcast/v3/long-script";
 import { AtomProgress } from "@/components/podcast/AtomProgress";
 import { StudioPreview, type PreviewHost } from "@/components/podcast/StudioPreview";
 import { HostPicker, type HostCard } from "@/components/podcast/HostPicker";
@@ -504,11 +505,13 @@ export function progressText(p: { step: number; steps: number }): string {
   return p.step <= 1 ? `Escaleta lista. Escribiendo el bloque 1 de ${blocks}…` : p.step >= p.steps ? "Uniendo los bloques…" : `Bloque ${p.step - 1} de ${blocks} listo. Escribiendo el bloque ${p.step} de ${blocks}…`;
 }
 /** Trabajo de guion con IA a medias (guardado en el borrador): «bloque k de n», o null si no hay. */
-export function pendingJob(job: unknown, ask?: { topic: string; minutes: number; hostName: string; guestName: string }): string | null {
-  const s = job as { plan?: { segments?: unknown[] } | null; segments?: unknown[]; input?: { topic?: string; minutes?: number; hostName?: string; guestName?: string } } | null | undefined;
+export function pendingJob(job: unknown, ask?: { topic?: unknown; minutes?: unknown; hostName?: unknown; guestName?: unknown; guestRole?: unknown; hostPersonality?: unknown; guestPersonality?: unknown }): string | null {
+  const s = job as { plan?: { segments?: unknown[] } | null; segments?: unknown[]; input?: unknown } | null | undefined;
   if (!s || !Array.isArray(s.segments)) return null;
-  // Otro tema, duración o anfitriones: el servidor no lo continúa (empieza uno nuevo), así que no se ofrece «Continuar».
-  if (ask && (s.input?.topic !== ask.topic.trim() || s.input?.minutes !== ask.minutes || s.input?.hostName !== ask.hostName || s.input?.guestName !== ask.guestName)) return null;
+  // Si el tema, la duración, los nombres, el rol o la personalidad cambiaron, el servidor empieza otro trabajo de pago.
+  if (ask && !sameLongInput(s.input, normalizeLongInput(ask))) return null;
   const n = Array.isArray(s.plan?.segments) ? s.plan!.segments!.length : null;
-  return n ? `bloque ${s.segments.length + 1} de ${n}` : "escaleta";
+  if (!n) return "escaleta";
+  if (s.segments.length >= n) return null;
+  return `bloque ${s.segments.length + 1} de ${n}`;
 }

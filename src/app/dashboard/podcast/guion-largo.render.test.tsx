@@ -18,6 +18,8 @@ test("un trabajo a medias se ofrece como «Continuar» solo si es del mismo tema
   assert.equal(pendingJob({ ...job, plan: null, segments: [] }, ask), "escaleta");
   assert.equal(pendingJob(job, { ...ask, minutes: 45 }), null);
   assert.equal(pendingJob(job, { ...ask, topic: "otro" }), null);
+  assert.equal(pendingJob(job, { ...ask, hostPersonality: "otra voz" }), null);
+  assert.equal(pendingJob(job, { ...ask, guestRole: "ingeniero" }), null);
   assert.equal(pendingJob(null, ask), null);
 });
 

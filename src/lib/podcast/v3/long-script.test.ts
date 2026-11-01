@@ -167,6 +167,19 @@ test("estado del navegador: se valida forma, tamaños y escaleta; un estado mani
   assert.deepEqual(tampered.attempts, { plan: 1 });
 });
 
+test("una réplica breve puede repetirse entre bloques; un turno largo copiado no", () => {
+  const long = "El informe de 1979 describe un túnel distinto al rumor de los siete niveles y no debe copiarse.";
+  const s: LongScriptState = {
+    ...newLongScript(JOB, input(20)),
+    plan: { title: "t", segments: [{ title: "a", points: ["1", "2"] }, { title: "b", points: ["3", "4"] }] },
+    segments: [[{ speaker: "A", text: "Exacto." }, { speaker: "B", text: long }]],
+  };
+  const brief = segmentIssues([{ speaker: "A", text: "Exacto." }, { speaker: "B", text: "Hoy el mapa muestra otra galería, no la del bloque anterior." }], s, 1);
+  assert.equal(brief.some((x) => /repetidos/.test(x)), false);
+  const copied = segmentIssues([{ speaker: "B", text: long }, { speaker: "A", text: "Y el radar de ese día no confirma la batalla." }], s, 1);
+  assert.ok(copied.some((x) => /repetidos/.test(x)));
+});
+
 test("segmentIssues detecta repeticiones de bloques anteriores aunque cambien mayúsculas y acentos", async () => {
   const f = fakeModel(20);
   let s = newLongScript(JOB, input(20));
@@ -256,5 +269,22 @@ test("libro de gastos: el guion del estudio NO está en el espacio «podcast-» 
   assert.equal(id, `studio-script:6b1c2d3e-0000-4000-8000-000000000001:${JOB}`);
   assert.ok(!id.startsWith("podcast-"), "el gate pi_submit_with_supply de 'podcast-%' rechaza todo lo que no sea un episodio autorizado");
   const { requiresAuthorization } = await import("@/lib/supply/spend-authorization");
+  assert.equal(requiresAuthorization(id), false, "studio-script queda fuera del gate de episodios y puede enviarse a Anthropic");
   assert.equal(requiresAuthorization("podcast-studio:x:y"), true, "el prefijo antiguo caía en el gate (causa raíz)");
+});
+
+test("60 min y un tema de 2.000 caracteres caben en el episodio (el tope de 30.000 rechazaba 45–60 min)", async () => {
+  const { STUDIO_VERSION, StudioSpec } = await import("./spec");
+  const out = assembleLongScript(await runAll(newLongScript(JOB, input(60)), fakeModel(60).llm));
+  const script = out.turns.map((t) => `${t.speaker === "A" ? "Valeria Moncler" : "El Duro Hans"}: ${t.text}`).join("\n");
+  const parsed = StudioSpec.safeParse({
+    version: STUDIO_VERSION, mode: "dialogo", title: "Base Dulce", topic: "t".repeat(2000), script, target_minutes: 60,
+    participants: [
+      { id: "A", name: "Valeria Moncler", voice_id: "voiceAnaHost1", avatar: { kind: "ninguno" } },
+      { id: "B", name: "El Duro Hans", voice_id: "voiceLeoHost2", avatar: { kind: "ninguno" } },
+    ],
+    visual: {}, music: {}, budget_usd: 10,
+  });
+  assert.equal(parsed.success, true, parsed.success ? "" : JSON.stringify(parsed.error.issues));
+  assert.ok(script.length > 30_000, `este guion de 60 min mide ${script.length} y el tope antiguo lo rechazaba`);
 });

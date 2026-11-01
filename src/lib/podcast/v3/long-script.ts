@@ -62,6 +62,29 @@ export function newLongScript(jobId: string, input: LongInput): LongScriptState 
   return { v: 1, jobId, input, plan: null, segments: [], attempts: {} };
 }
 
+/** Misma normalización que usa el servidor para decidir si un trabajo guardado sigue siendo el mismo (y no se vuelve a pagar). */
+export function normalizeLongInput(b: { topic?: unknown; minutes?: unknown; hostName?: unknown; guestName?: unknown; guestRole?: unknown; hostPersonality?: unknown; guestPersonality?: unknown }): LongInput {
+  const topic = String(b.topic ?? "").trim().slice(0, 2000);
+  const minutes = Math.round(Math.min(LONG_SCRIPT_MAX_MINUTES, Math.max(1, Number(b.minutes) || 5)));
+  return {
+    topic, minutes,
+    hostName: String(b.hostName ?? "Anfitrión").slice(0, 60) || "Anfitrión",
+    guestName: String(b.guestName ?? "Invitado").slice(0, 60) || "Invitado",
+    guestRole: String(b.guestRole ?? "").slice(0, 120),
+    hostPersonality: String(b.hostPersonality ?? "").slice(0, 300),
+    guestPersonality: String(b.guestPersonality ?? "").slice(0, 300),
+  };
+}
+
+export function sameLongInput(stored: unknown, next: LongInput): boolean {
+  if (!stored || typeof stored !== "object") return false;
+  const s = stored as Partial<LongInput>;
+  return s.topic === next.topic && s.minutes === next.minutes && s.hostName === next.hostName && s.guestName === next.guestName
+    && String(s.guestRole ?? "") === String(next.guestRole ?? "")
+    && String(s.hostPersonality ?? "") === String(next.hostPersonality ?? "")
+    && String(s.guestPersonality ?? "") === String(next.guestPersonality ?? "");
+}
+
 const people = (i: LongInput) => [
   `- ${i.hostName} (anfitrión/a)${i.hostPersonality ? `: ${i.hostPersonality}` : ""}`,
   `- ${i.guestName}${i.guestRole ? ` (${i.guestRole})` : " (coanfitrión/a)"}${i.guestPersonality ? `: ${i.guestPersonality}` : ""}`,
@@ -124,6 +147,8 @@ export function segmentPrompt(s: LongScriptState, k: number): string {
 }
 
 const norm = (t: string) => t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9ñ ]/g, "").replace(/\s+/g, " ").trim();
+/** Réplicas breves («Sí.», «Exacto.») pueden volver entre bloques; un turno largo copiado, no. */
+const DUPLICATE_TURN_MIN_CHARS = 40;
 const GREETING = /\b(bienvenid[oa]s?|hola a todos|hola,? (amigos|oyentes))\b/i;
 const FAREWELL = /\b(hasta la pr[oó]xima|gracias por (escucharnos|escuchar|acompa[nñ]arnos)|nos despedimos|nos vemos en el pr[oó]ximo|hasta el pr[oó]ximo episodio)\b/i;
 
@@ -136,8 +161,8 @@ export function segmentIssues(turns: SegmentTurn[], s: LongScriptState, k: numbe
   if (chars > target * SEGMENT_RANGE.max) out.push(`largo: ${chars} de ${target} caracteres`);
   const asTurns: Turn[] = turns.map((t, j) => ({ id: turnId(j), speaker: t.speaker, text: t.text, kind: "comentario" }));
   out.push(...coherenceIssues(asTurns));
-  const seen = new Set(s.segments.flat().map((t) => norm(t.text)));
-  const repeated = turns.filter((t) => seen.has(norm(t.text))).length;
+  const seen = new Set(s.segments.flat().map((t) => norm(t.text)).filter((t) => t.length >= DUPLICATE_TURN_MIN_CHARS));
+  const repeated = turns.filter((t) => { const n = norm(t.text); return n.length >= DUPLICATE_TURN_MIN_CHARS && seen.has(n); }).length;
   if (repeated) out.push(`${repeated} turnos repetidos de bloques anteriores`);
   if (k > 0 && turns.slice(0, 2).some((t) => GREETING.test(t.text))) out.push("vuelve a saludar a mitad de episodio");
   if (k < n - 1 && turns.slice(-3).some((t) => FAREWELL.test(t.text))) out.push("se despide antes del final");
