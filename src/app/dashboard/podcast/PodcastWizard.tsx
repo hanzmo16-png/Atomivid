@@ -20,7 +20,9 @@ import type { VisualProvider } from "@/lib/podcast/v3/studio";
 export type WizardVoice = { voiceId: string; name: string; available: boolean; note: string | null; kind: "sintetica" | "clonada" };
 export type WizardAvatar = { id: string; name: string; photoUrl?: string | null };
 type LipSeg = { start: number; end: number; shot: string; speaker: "A" | "B" | null; lips: { A: string; B: string } };
-type Estimate = { lines: { concept: string; detail: string; usd: number; provider: string }[]; totalUsd: number; assumptions: string[]; turns: number; mood: string; shots: Record<string, number>; overBudget: boolean; byProvider?: Record<string, number>; lipTimeline?: LipSeg[]; coverage?: Record<string, boolean>; turnList?: { id: string; speaker: "A" | "B"; kind: string; text: string }[] };
+type Estimate = { lines: { concept: string; detail: string; usd: number; provider: string }[]; totalUsd: number; assumptions: string[]; turns: number; mood: string; shots: Record<string, number>; overBudget: boolean; byProvider?: Record<string, number>; lipTimeline?: LipSeg[]; coverage?: Record<string, boolean>; turnList?: { id: string; speaker: "A" | "B"; kind: string; text: string }[];
+  /** Duración que da el guion frente a la pedida (incidente 8f05fc37); en un episodio largo muy corto, hay que aceptarla. */
+  duration?: { needsAcceptance: boolean; short: boolean; message: string | null; estimatedMinutes: number; targetMinutes: number } };
 type Status = { episode: { id?: string; title?: string; status: string; progress: unknown; updated_at?: string | null; error: string | null; cost_usd: number | null; output?: "audio" | "video"; audio_path?: string | null }; activity?: LedgerActivity | null; video_url: string | null; audio_url: string | null };
 /** Anfitrión del catálogo con lo que la página necesita: tarjeta (foto, muestra de voz) y recorte para la vista previa. */
 export type WizardHost = HostCard & { cutout: PreviewHost };
@@ -50,6 +52,9 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [estimate, setEstimate] = useState<Estimate | null>(null);
+  // Aceptación explícita de la duración real (episodio largo cuyo guion no alcanza lo pedido). Se reinicia con cada estimación.
+  const [acceptDuration, setAcceptDuration] = useState(false);
+  const mustAcceptDuration = !!estimate?.duration?.needsAcceptance;
   const [status, setStatus] = useState<Status | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const poll = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -79,7 +84,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   const next = () => { if (errs.length) { setError(errs.slice(0, 3).join(" ")); return; } if (screen + 1 === SCREENS.length - 1) void loadEstimate(); go(screen + 1); };
 
   async function loadEstimate() {
-    await run(async () => { const r = await api("/api/podcast/v3", { action: "estimate", spec: draftToSpec(withVoiceKinds(d, voices)) }); setEstimate(r.estimate as Estimate); });
+    await run(async () => { const r = await api("/api/podcast/v3", { action: "estimate", spec: draftToSpec(withVoiceKinds(d, voices)) }); setEstimate(r.estimate as Estimate); setAcceptDuration(false); });
   }
   async function generateScript() {
     await run(async () => {
@@ -109,7 +114,8 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
         return;
       }
       // El borrador creado se guarda aparte: el paso de progreso solo aparece cuando la autorización quedó registrada.
-      const created = d.draftId ? { id: d.draftId } : await api("/api/podcast/v3", { action: "create", spec: draftToSpec(withVoiceKinds(d, voices)) });
+      if (mustAcceptDuration && !acceptDuration) { setError(estimate?.duration?.message ?? "Acepta la duración real del episodio para continuar."); return; }
+      const created = d.draftId ? { id: d.draftId } : await api("/api/podcast/v3", { action: "create", spec: draftToSpec(withVoiceKinds(d, voices)), ...(mustAcceptDuration ? { acceptDuration: true } : {}) });
       set({ draftId: String(created.id), boundSpec: specKey(d) });
       const r = await api(`/api/podcast/v3/${String(created.id)}`, { confirm: true, authorizedUsd: d.budgetUsd });
       if (r.note) setNote(String(r.note));
@@ -398,10 +404,12 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
         <div className="mt-3 grid gap-2 text-sm">
           <h3 className="text-sm font-semibold text-ink">Producir</h3>
           {!started && (modeBlocked ? <p className="text-danger" data-testid="generacion-bloqueada">{previewNotice ? "En esta vista previa la generación está desactivada: se activa con la migración propuesta y PODCAST_V3_ENABLED=1. La configuración queda guardada." : "Este modo se activa cuando el propietario autorice la migración y el interruptor del estudio."}</p> : (<>
-            {shortScriptNotice(d.script, d.minutes) && <p className="rounded border border-border p-2 text-xs text-ink" data-testid="aviso-guion-corto-producir">{shortScriptNotice(d.script, d.minutes)}</p>}
+            {shortScriptNotice(d.script, d.minutes) && !mustAcceptDuration && <p className="rounded border border-border p-2 text-xs text-ink" data-testid="aviso-guion-corto-producir">{shortScriptNotice(d.script, d.minutes)}</p>}
+            {mustAcceptDuration && <DurationAcceptance message={estimate?.duration?.message ?? ""} minutes={estimate?.duration?.estimatedMinutes ?? 0} target={estimate?.duration?.targetMinutes ?? d.minutes}
+              checked={acceptDuration} onChange={setAcceptDuration} />}
             <p>Se generará «{d.title}» ({d.modality ? MODALITY_LABEL[d.modality] : MODE_LABEL[d.mode ?? "narracion"]}). Costo estimado: <b>{estimate ? USD(estimate.totalUsd) : "—"}</b>. Nunca se cobrará más de <b>{USD(d.budgetUsd)}</b>.</p>
             <label><input type="checkbox" aria-label="Autorizo el cargo" checked={d.authorized} onChange={(e) => set({ authorized: e.target.checked })} /> Autorizo generar este episodio con un cargo máximo de {USD(d.budgetUsd)}.</label>
-            <Button type="button" onClick={authorizeAndGenerate} loading={busy} disabled={!d.authorized || (estimate?.totalUsd ?? 0) > d.budgetUsd}>Generar episodio</Button>
+            <Button type="button" onClick={authorizeAndGenerate} loading={busy} disabled={!d.authorized || (estimate?.totalUsd ?? 0) > d.budgetUsd || (mustAcceptDuration && !acceptDuration)}>Generar episodio</Button>
             {(!d.authorized || (estimate?.totalUsd ?? 0) > d.budgetUsd) && <p className="text-xs text-ink-muted" data-testid="motivo-generar">{(estimate?.totalUsd ?? 0) > d.budgetUsd ? "El costo estimado supera tu presupuesto máximo: súbelo o reduce las apariciones del avatar." : "Marca la casilla de autorización para poder generar."}</p>}
           </>))}
           {started && foreign && (
@@ -440,5 +448,19 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
         </div>
       </div>
     </Card>
+  );
+}
+
+/**
+ * Episodio largo cuyo guion no alcanza lo pedido (incidente 8f05fc37: 27 min pedidos, 5:33 entregados): se dice la
+ * duración real y hay que aceptarla para producir; o se vuelve a «Contenido» a alargar el guion. Nada se rellena.
+ */
+export function DurationAcceptance({ message, minutes, target, checked, onChange }: { message: string; minutes: number; target: number; checked: boolean; onChange: (v: boolean) => void }) {
+  const m = (minutes < 10 ? minutes.toFixed(1) : String(Math.round(minutes))).replace(".", ",");
+  return (
+    <div className="rounded border border-danger p-2 text-sm text-ink" role="alert" data-testid="duracion-aceptar">
+      <p>{message}</p>
+      <label className="mt-1 block"><input type="checkbox" aria-label="Acepto la duración real" checked={checked} onChange={(e) => onChange(e.target.checked)} /> Acepto que el episodio dure unos {m} min (no {target} min).</label>
+    </div>
   );
 }

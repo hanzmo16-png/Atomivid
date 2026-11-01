@@ -14,6 +14,7 @@ import { getPricingConfig } from "@/lib/billing/pricing";
 import { mkdir, copyFile, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ffmpeg, ffprobeDuration } from "./ffmpeg";
+import { assertMuxComplete } from "./duration";
 import { assembleVoice, exportAudio, mixAndMaster, transitionTimes, type TimelineEntry } from "./audio";
 import { FPS, frameFor, muxEpisode, renderShot, shotFrames, type SubtitleWord } from "./compose";
 import type { Matte } from "./studios";
@@ -480,7 +481,10 @@ export async function runEpisode(spec: StudioSpec, ctx: { owner: string; episode
     }
     const mp4 = await muxEpisode(ctx.dir, clips, mix.master, path.join(ctx.dir, "episodio.mp4"), !!ctx.small);
     step("guardado", 0, 1);
+    // Duración MEDIDA (ffprobe) del MP4 frente al audio montado: si difieren, el montaje se truncó y no se entrega como
+    // listo (incidente 8f05fc37: el verificador no comprobaba ninguna duración). Lo pagado queda para el reintento.
     const durationSeconds = await ffprobeDuration(mp4);
+    assertMuxComplete(durationSeconds, await ffprobeDuration(mix.master));
     return { ok: true, mp4, audio: audioOut, durationSeconds, lufs: mix.lufs, truePeak: mix.truePeak, clipped: mix.clipped, musicTrack: mix.track?.file ?? null, mood: pf.mood, plan, timeline: voice.timeline,
       spentUsd: await committedUsd(ctx.ledger, ctx.episode), reusedOps: reused, paidOps: paid, charged: true, shotFiles: clips, providers: labels };
   } catch (e) {

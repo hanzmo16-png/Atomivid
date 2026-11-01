@@ -28,6 +28,8 @@ jobs:
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
       - name: Instalación (mismo script que el worker)
         run: bash scripts/podcast-3-0/install-python-deps.sh
+      - name: Continuación del cuerpo cortado por el encuadre (extend.py, sin modelo; incidente 8f05fc37)
+        run: python3 scripts/podcast-3-0/test_extend.py
       - name: Recorte RVM real sobre un clip sintético
         run: |
           set -euo pipefail

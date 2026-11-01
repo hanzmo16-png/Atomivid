@@ -6,8 +6,8 @@ Uso: python3 matte.py MODELO.onnx ENTRADA SALIDA_FG.mp4 SALIDA_ALFA.mp4 [--still
   - Salidas: primer plano (yuv420p) y alfa (gris) del MISMO tamaño y número de fotogramas que la entrada; ffmpeg las une
     con alphamerge al componer el estudio. Se escriben por tubería a ffmpeg (sin fotogramas sueltos en disco).
   - --extend E: el proveedor entrega el retrato cortado por los bordes del encuadre (hombros, brazos); en un primer plano
-    ese borde se veía como una línea vertical. Se prolonga la persona E·ancho por cada lado (y E·alto/2 por abajo)
-    repitiendo la última columna/fila (ropa) con un alfa que se desvanece suavemente: el hombro continúa en vez de cortarse.
+    ese borde se veía como una línea vertical. Se prolonga la persona E·ancho por cada lado y E·alto por abajo, SOLO
+    donde toca el borde, con la silueta del hombro que cae y el tono de la ropa (extend.py; incidente 8f05fc37).
 Imprime una línea JSON con fotogramas, tamaño, segundos de proceso y la CARA del primer fotograma (x, y, w, h en píxeles
 de la entrada; la mayor detectada, o null): la composición escala y coloca a cada participante en su asiento por la cara.
 """
@@ -15,6 +15,7 @@ import json, subprocess, sys, time
 import numpy as np
 import cv2
 import onnxruntime as ort
+from extend import extend  # continuación natural del cuerpo cortado por el encuadre (extend.py)
 
 
 def face_box(bgr):
@@ -26,25 +27,6 @@ def face_box(bgr):
         return None
     x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
     return [int(x), int(y), int(w), int(h)]
-
-
-def extend(fg, a, ex, ey):
-    """Prolonga primer plano y alfa por los lados y por abajo; el alfa añadido se desvanece (rampa suave)."""
-    if ex <= 0 and ey <= 0:
-        return fg, a
-    # Reflejo (no réplica): la réplica estiraba el último píxel en franjas horizontales visibles en el hombro de un
-    # retrato cerrado; el reflejo continúa la textura real de la ropa mientras el alfa se desvanece.
-    fg2 = cv2.copyMakeBorder(fg, 0, ey, ex, ex, cv2.BORDER_REFLECT_101)
-    a2 = cv2.copyMakeBorder(a, 0, ey, ex, ex, cv2.BORDER_REPLICATE).astype(np.float32)
-    h, w = a2.shape
-    ramp = lambda n: (np.cos(np.linspace(0, np.pi, n)) * 0.5 + 0.5).astype(np.float32)  # 1 → 0, suave
-    if ex > 0:
-        r = ramp(ex)
-        a2[:, :ex] *= r[::-1][None, :]
-        a2[:, w - ex:] *= r[None, :]
-    if ey > 0:
-        a2[h - ey:, :] *= ramp(ey)[:, None]
-    return fg2, a2.clip(0, 255).astype(np.uint8)
 
 
 def main():
