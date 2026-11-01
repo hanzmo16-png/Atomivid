@@ -51,6 +51,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [scriptProgress, setScriptProgress] = useState<{ step: number; steps: number } | null>(null);
   const [estimate, setEstimate] = useState<Estimate | null>(null);
   // Aceptación explícita de la duración real (episodio largo cuyo guion no alcanza lo pedido). Se reinicia con cada estimación.
   const [acceptDuration, setAcceptDuration] = useState(false);
@@ -86,10 +87,40 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   async function loadEstimate() {
     await run(async () => { const r = await api("/api/podcast/v3", { action: "estimate", spec: draftToSpec(withVoiceKinds(d, voices)) }); setEstimate(r.estimate as Estimate); setAcceptDuration(false); });
   }
+  /** Parámetros del guion con IA: si cambian, un trabajo guardado ya no se continúa (el servidor empieza otro). */
+  const scriptAsk = () => ({ topic: d.topic, hostName: d.participants[0].name, guestName: d.participants[1].name, guestRole: d.participants[1].role, hostPersonality: d.participants[0].personality, guestPersonality: d.participants[1].personality, minutes: d.minutes });
+  /**
+   * Conversación con IA por bloques (P0 2026-11-01): escaleta + un bloque de ~10 min por petición, con progreso visible.
+   * Un error deja el trabajo guardado en el borrador y el mismo botón continúa desde el último bloque válido (lo ya
+   * pagado no se repite). Nunca se sustituye por la plantilla: esa solo se usa si se elige expresamente.
+   */
   async function generateScript() {
     await run(async () => {
-      const r = await api("/api/podcast/v3", { action: "script", topic: d.topic, hostName: d.participants[0].name, guestName: d.participants[1].name, guestRole: d.participants[1].role, hostPersonality: d.participants[0].personality, guestPersonality: d.participants[1].personality, minutes: d.minutes, useAi: true });
-      set({ script: String(r.script) }); setNote(r.source === "llm" ? "Conversación generada con IA. Revísala antes de seguir." : `Conversación creada con la plantilla (sin costo).${r.note ? " " + r.note : ""}`);
+      let state = d.scriptJob ?? null;
+      for (let i = 0; i < 40; i++) {
+        const res = await fetch("/api/podcast/v3", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "script-step", ...scriptAsk(), state }) });
+        const out = await safeParseJsonResponse<Record<string, unknown>>(res);
+        const r = (out.ok ? out.data : (out.body ?? {})) as Record<string, unknown>;
+        if (r.state !== undefined) { state = r.state; set({ scriptJob: r.state }); }
+        if (!out.ok) {
+          // Sin estado recuperable (agotado o inválido), el trabajo se descarta para que el próximo intento empiece limpio.
+          if (r.recoverable === false) set({ scriptJob: null });
+          setScriptProgress(null);
+          throw Object.assign(new Error(out.error), { status: out.status });
+        }
+        setScriptProgress({ step: Number(r.step) || 0, steps: Number(r.steps) || 0 });
+        if (r.done) {
+          set({ script: String(r.script), scriptJob: null }); setScriptProgress(null); setNote(String(r.note ?? "Conversación generada con IA. Revísala antes de seguir."));
+          return;
+        }
+      }
+    });
+  }
+  /** Plantilla breve gratuita (unos 5 min), solo por elección expresa: su nota dice cuánto dura de verdad. */
+  async function applyTemplate() {
+    await run(async () => {
+      const r = await api("/api/podcast/v3", { action: "script", ...scriptAsk() });
+      set({ script: String(r.script), scriptJob: null }); setNote(`Conversación creada con la plantilla breve (sin IA, sin costo).${r.note ? " " + r.note : ""}`);
     });
   }
   async function uploadPhoto(i: 0 | 1, file: File) {
@@ -188,10 +219,12 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
       {on(STEP.tema) && (
         <div className="mt-3 grid gap-3 text-sm">
           <label>Título<input aria-label="Título del episodio" value={d.title} maxLength={200} onChange={(e) => set({ title: e.target.value })} className={input} /></label>
-          <label>Tema<input aria-label="Tema" value={d.topic} maxLength={500} onChange={(e) => set({ topic: e.target.value })} className={input} placeholder="Por ejemplo: el misterio de la señal Wow!" /></label>
+          <label>Tema<input aria-label="Tema" value={d.topic} maxLength={2000} onChange={(e) => set({ topic: e.target.value })} className={input} placeholder="Por ejemplo: el misterio de la señal Wow!" /></label>
           <label>Idioma<select aria-label="Idioma" value={d.language} onChange={(e) => set({ language: e.target.value as "es" | "en" })} className={input}><option value="es">Español</option><option value="en">Inglés</option></select></label>
-          <label>Duración objetivo: {d.minutes} min<input aria-label="Duración en minutos" type="range" min={1} max={30} value={d.minutes} onChange={(e) => set({ minutes: Number(e.target.value) })} className="w-full" /></label>
-          {d.mode === "dialogo" && <Button type="button" variant="secondary" size="sm" onClick={generateScript} loading={busy} disabled={d.topic.trim().length < 3}>Generar conversación desde el tema</Button>}
+          <label>Duración objetivo: {d.minutes} min<input aria-label="Duración en minutos" type="range" min={1} max={60} value={d.minutes} onChange={(e) => set({ minutes: Number(e.target.value) })} className="w-full" /></label>
+          {d.mode === "dialogo" && <Button type="button" variant="secondary" size="sm" onClick={generateScript} loading={busy} disabled={d.topic.trim().length < 3} data-testid="generar-guion">{pendingJob(d.scriptJob, scriptAsk()) ? `Continuar la conversación (${pendingJob(d.scriptJob, scriptAsk())})` : "Generar conversación desde el tema"}</Button>}
+          {d.mode === "dialogo" && scriptProgress && <p className="text-xs text-ink" role="status" data-testid="progreso-guion">{progressText(scriptProgress)}</p>}
+          {d.mode === "dialogo" && !busy && d.topic.trim().length >= 3 && <button type="button" className="justify-self-start text-xs text-ink-muted underline" onClick={applyTemplate} data-testid="usar-plantilla">Usar la plantilla breve (unos 5 min, sin IA)</button>}
           {d.mode === "dialogo" && d.topic.trim().length < 3 && <p className="text-xs text-ink-muted" data-testid="motivo-generar-guion">Escribe el tema (al menos 3 letras) para generar la conversación, o pega tu guion abajo.</p>}
           <label>{d.mode === "dialogo" ? "Guion (una línea por turno: «Nombre: texto»)" : "Texto del episodio (un párrafo por idea)"}
             <textarea aria-label="Guion" value={d.script} rows={8} onChange={(e) => set({ script: e.target.value })} className={input} /></label>
@@ -463,4 +496,19 @@ export function DurationAcceptance({ message, minutes, target, checked, onChange
       <label className="mt-1 block"><input type="checkbox" aria-label="Acepto la duración real" checked={checked} onChange={(e) => onChange(e.target.checked)} /> Acepto que el episodio dure unos {m} min (no {target} min).</label>
     </div>
   );
+}
+
+/** Texto del progreso del guion con IA: paso 1 = escaleta; después, un bloque de ~10 min por paso. */
+export function progressText(p: { step: number; steps: number }): string {
+  const blocks = Math.max(1, p.steps - 1);
+  return p.step <= 1 ? `Escaleta lista. Escribiendo el bloque 1 de ${blocks}…` : p.step >= p.steps ? "Uniendo los bloques…" : `Bloque ${p.step - 1} de ${blocks} listo. Escribiendo el bloque ${p.step} de ${blocks}…`;
+}
+/** Trabajo de guion con IA a medias (guardado en el borrador): «bloque k de n», o null si no hay. */
+export function pendingJob(job: unknown, ask?: { topic: string; minutes: number; hostName: string; guestName: string }): string | null {
+  const s = job as { plan?: { segments?: unknown[] } | null; segments?: unknown[]; input?: { topic?: string; minutes?: number; hostName?: string; guestName?: string } } | null | undefined;
+  if (!s || !Array.isArray(s.segments)) return null;
+  // Otro tema, duración o anfitriones: el servidor no lo continúa (empieza uno nuevo), así que no se ofrece «Continuar».
+  if (ask && (s.input?.topic !== ask.topic.trim() || s.input?.minutes !== ask.minutes || s.input?.hostName !== ask.hostName || s.input?.guestName !== ask.guestName)) return null;
+  const n = Array.isArray(s.plan?.segments) ? s.plan!.segments!.length : null;
+  return n ? `bloque ${s.segments.length + 1} de ${n}` : "escaleta";
 }

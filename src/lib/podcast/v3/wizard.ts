@@ -49,6 +49,9 @@ export type WizardDraft = {
   format: "16:9" | "9:16"; audioExport: "mp3" | "wav"; budgetUsd: number; authorized: boolean; episodeId: string | null; draftId?: string | null;
   /** Configuración con la que se creó `draftId`/`episodeId` (specKey). Si cambia, el borrador suelta ese episodio. */
   boundSpec?: string | null;
+  /** Guion con IA en curso (escaleta y bloques ya escritos): permite continuar desde el último bloque válido tras un
+   *  error o una recarga. Lo valida el servidor en cada paso; null = ninguno en curso. */
+  scriptJob?: unknown | null;
 };
 const P = (name: string): WizardParticipant => ({ name, role: "", gender: "neutro", style: "", personality: "", voice_id: "", voice_kind: "sintetica", avatar: { kind: "ninguno" }, host: null });
 

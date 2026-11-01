@@ -72,13 +72,17 @@ test("solo audio exige modo narración (un avatar sin video no tiene sentido); e
   assert.ok(!e.shots.imagen && !e.shots.archivo, "sin imágenes en solo audio");
 });
 
-test("LLM de pago y subida de fotos: con el estudio apagado no se usa el LLM (plantilla gratuita)", async () => {
+test("LLM de pago y subida de fotos: con el estudio apagado no se usa el LLM (y no se disfraza con la plantilla)", async () => {
   let llmCalls = 0;
-  const llm = async () => { llmCalls++; return "Ana: hola\nLuis: hola"; };
-  const off = await studioAction(deps({ enabled: false, llm }), { action: "script", topic: "volcanes", hostName: "Ana", guestName: "Luis", minutes: 2, useAi: true });
-  assert.equal(off.status, 200); assert.equal(off.body.source, "plantilla"); assert.equal(llmCalls, 0, "estudio apagado: ninguna llamada al LLM");
-  await studioAction(deps({ enabled: true, llm }), { action: "script", topic: "volcanes", hostName: "Ana", guestName: "Luis", minutes: 2, useAi: true });
-  assert.ok(llmCalls >= 1, "estudio encendido + useAi: sí se usa (con su libro de gastos)");
+  const llmStep = () => async () => { llmCalls++; return "no importa"; };
+  const ask = { action: "script-step", topic: "volcanes", hostName: "Ana", guestName: "Luis", minutes: 2 };
+  const off = await studioAction(deps({ enabled: false, llm: null, llmStep }), ask);
+  assert.equal(off.status, 503); assert.equal(off.body.code, "IA_NO_DISPONIBLE"); assert.equal(off.body.script, undefined); assert.equal(llmCalls, 0, "estudio apagado: ninguna llamada al LLM");
+  await studioAction(deps({ enabled: true, llm: null, llmStep }), ask);
+  assert.ok(llmCalls >= 1, "estudio encendido: sí se usa (con su libro de gastos)");
+  // La plantilla gratuita sigue disponible solo como elección expresa (sin useAi).
+  const tpl = await studioAction(deps({ enabled: false, llm: null }), { action: "script", topic: "volcanes", hostName: "Ana", guestName: "Luis", minutes: 2 });
+  assert.equal(tpl.status, 200); assert.equal(tpl.body.source, "plantilla");
 });
 
 test("estimaciones de referencia (10 min) coherentes con tarifas públicas: voz USD 0,10/1K, HeyGen Avatar IV foto USD 2,31/min", () => {

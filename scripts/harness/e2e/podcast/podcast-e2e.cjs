@@ -437,7 +437,12 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     await W().getByLabel("Título del episodio").fill(m.title);
     if (m.topic) {
       await W().getByLabel("Tema").fill(m.topic);
+      // P0 2026-11-01: sin IA disponible (entorno de prueba), «Generar» da un error claro y NO pone la plantilla.
       await W().getByRole("button", { name: "Generar conversación desde el tema" }).click();
+      await S.p.waitForFunction(() => /La generación con IA no está disponible/.test(document.body.innerText), null, { timeout: 30000 });
+      ok(`${tag}: sin IA no se disfraza con la plantilla`, (await W().getByLabel("Guion").inputValue()) === "", "guion vacío");
+      // La plantilla breve solo por elección expresa.
+      await W().getByTestId("usar-plantilla").click();
       await S.p.waitForFunction(() => (document.querySelector('[aria-label="Guion"]')?.value ?? "").length > 50, null, { timeout: 30000 });
       const sc = await W().getByLabel("Guion").inputValue();
       ok(`${tag}: conversación generada por turnos con identidad (plantilla sin costo)`, /^\S[^:]{0,40}: /m.test(sc) && new Set(sc.split("\n").filter(Boolean).map((l) => l.split(":")[0])).size === 2 && /\?/.test(sc), `${sc.split("\n").length} turnos`);

@@ -3,15 +3,14 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { podcastUser } from "@/lib/podcast/auth";
 import { listAccountVoices } from "@/lib/podcast/voices";
 import { studioAction } from "@/lib/podcast/v3/api";
-import { realLlm } from "@/lib/podcast/v3/adapters";
-import { scriptMaxTokens } from "@/lib/podcast/v3/script";
+import { realLlmStep, STUDIO_SCRIPT_PROJECT_PREFIX } from "@/lib/podcast/v3/adapters";
 import { STUDIO_TABLE } from "@/lib/podcast/v3/store";
 import { dispatchPodcastJob } from "@/lib/podcast/video-jobs";
 import { studioRecraftBlocker } from "@/lib/podcast/v3/readiness";
 import { studioGenerationEnabled } from "@/lib/podcast/v3/studio";
 
-// Un guion largo con IA (hasta ~30 min, ~7.000 tokens) no cabía en 60 s: la función se cortaba a mitad y la reserva
-// quedaba abierta (incidente 8f05fc37). 300 s como las demás rutas largas del proyecto.
+// Cada petición hace como mucho UNA llamada al modelo (escaleta o un bloque de ~10 min, 40–90 s); 300 s como las demás
+// rutas largas del proyecto deja margen ante un proveedor lento.
 export const maxDuration = 300;
 
 /** Podcast 3.0: guion (plantilla o LLM), estimación y creación de borrador. Ninguna acción genera medios ni cobra. */
@@ -31,8 +30,17 @@ export async function POST(request: Request) {
   }
   const out = await studioAction({
     userId: user.id, viewer: user, voices: () => listAccountVoices(), enabled: studioGenerationEnabled(user),
-    // El LLM solo se usa si el dueño lo habilita (PODCAST_V3_LLM=1): pasa por el libro de gastos de Anthropic.
-    llm: studioGenerationEnabled(user) && process.env.PODCAST_V3_LLM === "1" ? realLlm(user.id, String(body?.topic ?? "").slice(0, 80), scriptMaxTokens(Math.min(30, Math.max(1, Number(body?.minutes) || 5)))) : null,
+    // El LLM solo se usa si el dueño lo habilita (PODCAST_V3_LLM=1): pasa por el libro de gastos de Anthropic. El guion se
+    // escribe por pasos (escaleta + bloques de ~10 min), uno por petición: cada paso cabe holgadamente en maxDuration.
+    llm: null,
+    llmStep: studioGenerationEnabled(user) && process.env.PODCAST_V3_LLM === "1" ? (jobId) => realLlmStep(user.id, jobId) : null,
+    // Gasto de guion con IA de esta persona en 24 h: llamadas admitidas (enviadas, sin confirmar o liquidadas).
+    scriptSpend: async () => {
+      const { data, error } = await service.from("pi_paid_operations").select("reserved_usd, committed_usd").like("project_id", `${STUDIO_SCRIPT_PROJECT_PREFIX}${user.id}:%`)
+        .gte("created_at", new Date(Date.now() - 24 * 3600_000).toISOString()).in("status", ["SUBMITTED", "PROVIDER_JOB_RECORDED", "RECONCILIATION_REQUIRED", "COMMITTED"]);
+      if (error) throw new Error("ledger");
+      return (data ?? []).reduce((n, o) => n + Math.max(Number(o.reserved_usd) || 0, Number(o.committed_usd) || 0), 0);
+    },
     insert: async (row) => { const { data, error } = await service.from(STUDIO_TABLE).insert(row).select("id").single(); if (error) return /does not exist|schema cache|42P01|PGRST205/.test(`${error.code} ${error.message}`) ? "missing" : null; return data as { id: string }; },
     ownsAvatar: async (id) => { if (!/^[0-9a-f-]{36}$/i.test(id)) return false; const { data } = await service.from("avatars").select("id").eq("id", id).eq("user_id", user.id).eq("status", "ready").maybeSingle(); return !!data; },
     load: async () => null, authorize: async () => false, dispatch: (id) => dispatchPodcastJob(id, "studio"),
