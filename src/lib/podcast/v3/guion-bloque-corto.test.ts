@@ -188,7 +188,8 @@ test("estado del navegador con bloque en ampliación: se valida (k, intento, amp
   for (let i = 0; i < 4; i++) s = (await advanceLongScript(s, m.llm)).state;
   assert.ok(s.partial);
   assert.deepEqual(checkLongState(JSON.parse(JSON.stringify(s)), input()), s);
-  for (const bad of [{ ...s, partial: { ...s.partial!, k: 0 } }, { ...s, partial: { ...s.partial!, ext: 9 } }, { ...s, partial: { ...s.partial!, attempt: 0 } }, { ...s, partial: { ...s.partial!, turns: [{ speaker: "C", text: "x" }] } }]) {
+  for (const bad of [{ ...s, partial: { ...s.partial!, k: 0 } }, { ...s, partial: { ...s.partial!, ext: 9 } }, { ...s, partial: { ...s.partial!, ext: MAX_EXTENSIONS_PER_BLOCK } },
+    { ...s, partial: { ...s.partial!, attempt: 0 } }, { ...s, partial: { ...s.partial!, attempt: 2 } }, { ...s, partial: { ...s.partial!, turns: [{ speaker: "C", text: "x" }] } }]) {
     assert.throws(() => checkLongState(bad, input()), /no es válido/);
   }
 });
@@ -202,4 +203,18 @@ test("45 y 60 min con un modelo que cumple: completos, en rango y sin ampliacion
     assert.ok(out.withinTarget, `${minutes} → ${out.estimatedMinutes}`);
     assert.ok(out.turns.reduce((n, t) => n + t.text.length, 0) >= targetChars(minutes) * 0.9);
   }
+});
+
+test("QA P1-1: un estado con las ampliaciones agotadas (ext = 2) no paga una tercera: se cierra sin llamar al modelo", async () => {
+  const m = compliantModel(30, { "s2-a1": () => dialogue(600, { farewell: true }).join("\n") });
+  let s = newLongScript(JOB, input());
+  for (let i = 0; i < 4; i++) s = (await advanceLongScript(s, m.llm)).state;
+  assert.equal(s.partial?.ext, 0);
+  const forged = { ...s, partial: { ...s.partial!, ext: MAX_EXTENSIONS_PER_BLOCK } };
+  assert.throws(() => checkLongState(forged, input()), /no es válido/, "la ruta lo rechaza antes de llegar al motor");
+  const before = m.calls.length;
+  const r = await advanceLongScript(forged, m.llm); // y el motor, aunque le llegue, no paga «-x3»
+  assert.equal(m.calls.length, before, "cero llamadas");
+  assert.ok(!m.calls.some((c) => /-x3$/.test(c.step)));
+  assert.equal(r.done, true); assert.match(r.note ?? "", /se conservó lo escrito/);
 });

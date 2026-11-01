@@ -46,7 +46,7 @@ test("«Empezar de nuevo»: cancela la generación, aparca el borrador con traba
   const wiz = readFileSync(path.join(__dirname, "PodcastWizard.tsx"), "utf8");
   const fn = wiz.slice(wiz.indexOf("function startOver()"), wiz.indexOf("function recoverPrevious()"));
   assert.match(fn, /scriptRun\.current\?\.ctl\.abort\(\); scriptSeq\.current\+\+;/, "cancela y cambia la identidad de la generación");
-  assert.match(fn, /if \(hasRecoverableDraft\(prev\)\) \{ localStorage\.setItem\(WIZARD_RECOVERABLE_KEY, prev!\)/, "aparca el anterior");
+  assert.match(fn, /if \(parkDraft\(localStorage, localStorage\.getItem\(WIZARD_STORAGE_KEY\)\)\) setRecoverable\(true\);/, "aparca el anterior (lista de #269)");
   assert.match(fn, /setRawState\(defaultDraft\(\)\)/);
   assert.match(wiz, /onClick=\{startOver\} data-testid="empezar-de-nuevo"/);
   assert.equal(WIZARD_RECOVERABLE_KEY, "atomivid.podcast.asistente.v2.recuperable", "la misma clave que la entrada «Personalizado» (#269)");

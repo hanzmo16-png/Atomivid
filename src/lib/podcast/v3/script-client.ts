@@ -14,7 +14,7 @@
  */
 export type ScriptAsk = { topic: string; minutes: number; hostName: string; guestName: string; guestRole?: string; hostPersonality?: string; guestPersonality?: string };
 export type ScriptProgress = { step: number; steps: number; phase: "escaleta" | "bloque" | "ampliando"; note?: string; waiting?: string };
-export type ScriptFailure = "red" | "tiempo" | "http" | "sesion" | "proveedor" | "presupuesto" | "validacion" | "en-curso" | "incompleta" | "cancelado" | "agotado";
+export type ScriptFailure = "red" | "tiempo" | "http" | "sesion" | "proveedor" | "presupuesto" | "validacion" | "en-curso" | "incompleta" | "cancelado" | "agotado" | "reconciliacion";
 export type ScriptRunResult =
   | { kind: "done"; script: string; note: string; estimatedMinutes: number; withinTarget: boolean }
   | { kind: "error"; reason: ScriptFailure; message: string; recoverable: boolean; status?: number };
@@ -113,6 +113,8 @@ export async function runScriptGeneration(ask: ScriptAsk, initial: unknown | nul
     if (b.recoverable === false) { state = null; d.onState(null); }
     d.onProgress(null);
     if (code === "LIMITE_DIARIO") return { kind: "error", reason: "presupuesto", message: serverMsg ?? "Alcanzaste el límite diario de guiones con IA.", recoverable: true, status: r.status };
+    // Llamada sin confirmar con el proveedor: no se repite, pero el trabajo (único ancla de lo ya pagado) se conserva.
+    if (detail === "reconciliation") return { kind: "error", reason: "reconciliacion", message: serverMsg ?? "Una llamada de este guion quedó sin confirmar con el proveedor; lo escrito se conserva.", recoverable: true, status: r.status };
     if (code === "IA_FALLO" && detail.startsWith("supply:")) return { kind: "error", reason: "presupuesto", message: serverMsg ?? "El control de gasto no admitió la llamada.", recoverable: true, status: r.status };
     if (code === "IA_FALLO" || code === "IA_NO_DISPONIBLE") return { kind: "error", reason: "proveedor", message: serverMsg ?? "El modelo no respondió.", recoverable: code === "IA_FALLO", status: r.status };
     if (code === "INVALIDO") return { kind: "error", reason: "validacion", message: serverMsg ?? "La respuesta del modelo no sirvió.", recoverable: true, status: r.status };

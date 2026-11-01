@@ -249,7 +249,7 @@ test("API: un trabajo guardado de otro tema o duración no se continúa (empieza
 test("describeLlmFailure: motivos del control de gasto, en curso, reconciliación y error HTTP; sin texto del proveedor", () => {
   assert.equal(describeLlmFailure(Object.assign(new Error("SUPPLY_UNAVAILABLE:anthropic:daily request quota"), { name: "SupplyUnavailableError" })).detail, "supply:daily request quota");
   assert.equal(describeLlmFailure(Object.assign(new Error("x"), { name: "SubmissionInFlightError" })).status, 409);
-  assert.match(describeLlmFailure(Object.assign(new Error("x"), { name: "ScriptReconciliationRequiredError" })).error, /Empieza un guion nuevo/);
+  assert.match(describeLlmFailure(Object.assign(new Error("x"), { name: "ScriptReconciliationRequiredError" })).error, /Lo ya escrito se conserva/);
   assert.equal(describeLlmFailure(Object.assign(new Error("secreto del proveedor"), { status: 500 })).detail, "provider:500");
   assert.doesNotMatch(describeLlmFailure(new Error("sk-ant-123 detalle")).error, /sk-ant/);
 });

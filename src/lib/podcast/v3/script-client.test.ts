@@ -98,7 +98,14 @@ test("respuesta inválida del modelo: un reintento automático; si vuelve a fall
   assert.equal(r.kind === "error" && r.reason, "validacion"); assert.equal(u.sent.length, 2);
 });
 
-test("no recuperable (agotado / reconciliación): el trabajo guardado se descarta (onState null) para empezar limpio", async () => {
+test("QA P1-3: reconciliación (llamada sin confirmar): NO se borra el trabajo (único ancla de lo pagado); error recuperable", async () => {
+  const t = deps([() => json(409, { error: "Una llamada de este guion quedó sin confirmar…", code: "IA_FALLO", detail: "reconciliation", recoverable: true, state: S2 })]);
+  const r = await runScriptGeneration(ask, S2, t.d);
+  assert.equal(r.kind === "error" && r.reason, "reconciliacion"); assert.equal(r.kind === "error" && r.recoverable, true);
+  assert.ok(!t.states.includes(null), "el scriptJob no se anula"); assert.deepEqual(t.states.at(-1), S2);
+});
+
+test("no recuperable (agotado): el trabajo guardado se descarta (onState null) para empezar limpio", async () => {
   const t = deps([() => json(409, { error: "…tras 3 intentos…", code: "AGOTADO", recoverable: false, state: S1 })]);
   const r = await runScriptGeneration(ask, S1, t.d);
   assert.equal(r.kind === "error" && r.recoverable, false); assert.equal(t.states.at(-1), null);

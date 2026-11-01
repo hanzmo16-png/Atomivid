@@ -241,7 +241,7 @@ export function describeLlmFailure(e: unknown): { status: number; error: string;
     return { status: 503, error: `La IA no pudo empezar: ${human[reason] ?? "el control de gasto no admitió la llamada"}. No se cobró nada y lo ya escrito se conserva; reintenta en unos minutos.`, detail: `supply:${reason.slice(0, 60)}` };
   }
   if (name === "SubmissionInFlightError") return { status: 409, error: "Ese paso ya se está generando (¿otra pestaña?). Espera un momento y reintenta: no se paga dos veces.", detail: "in-flight" };
-  if (/Reconciliation/i.test(name)) return { status: 409, error: "Una llamada de este guion quedó sin confirmar con el proveedor; por seguridad no se repite. Empieza un guion nuevo.", detail: "reconciliation" };
+  if (/Reconciliation/i.test(name)) return { status: 409, error: "Una llamada de este guion quedó sin confirmar con el proveedor; por seguridad no se repite hasta reconciliarla (nunca se cobra dos veces). Lo ya escrito se conserva: puedes reintentar más tarde, o pulsar «Empezar de nuevo» (este guion queda guardado y recuperable).", detail: "reconciliation" };
   if (name === "PaidLedgerUnavailableError" || name === "ScriptLedgerUnavailableError") return { status: 503, error: "No se pudo registrar el gasto de la llamada; no se llamó a la IA. Reintenta en unos minutos.", detail: "ledger" };
   if (typeof err?.status === "number") return { status: 502, error: `El modelo respondió con un error (${err.status}). No se usó ninguna plantilla; lo ya escrito se conserva y puedes reintentar.`, detail: `provider:${err.status}` };
   return { status: 502, error: "El modelo no respondió. No se usó ninguna plantilla; lo ya escrito se conserva y puedes reintentar.", detail: `error:${name.slice(0, 40) || "desconocido"}` };
@@ -292,6 +292,6 @@ async function scriptStepAction(d: ApiDeps, b: Record<string, unknown>): Promise
     }
     const f = describeLlmFailure(e);
     console.error("podcast-studio script-step", { job: state.jobId, step: state.plan ? `s${state.segments.length}` : "plan", detail: f.detail });
-    return { status: f.status, body: { error: f.error, code: "IA_FALLO", detail: f.detail, recoverable: f.detail !== "reconciliation", state, step: state.segments.length + (state.plan ? 1 : 0), steps: 1 + segmentCount(minutes) } };
+    return { status: f.status, body: { error: f.error, code: "IA_FALLO", detail: f.detail, recoverable: true, state, step: state.segments.length + (state.plan ? 1 : 0), steps: 1 + segmentCount(minutes) } };
   }
 }

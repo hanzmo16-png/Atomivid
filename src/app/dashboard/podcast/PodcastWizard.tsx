@@ -12,6 +12,7 @@ import { STUDIOS, type StudioId } from "@/lib/podcast/v3/studios";
 import { progressView, type LedgerActivity } from "@/lib/podcast/v3/progress";
 import { normalizeLongInput, sameLongInput } from "@/lib/podcast/v3/long-script";
 import { runScriptGeneration, type ScriptProgress } from "@/lib/podcast/v3/script-client";
+import { DRAFT_RECOVERY_KEY, hasParked, hasWork, parkDraft, takeParked } from "@/lib/podcast/v3/draft-recovery";
 import { AtomProgress } from "@/components/podcast/AtomProgress";
 import { StudioPreview, type PreviewHost } from "@/components/podcast/StudioPreview";
 import { HostPicker, type HostCard } from "@/components/podcast/HostPicker";
@@ -72,7 +73,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   useEffect(() => {
     const draft = loadDraft(localStorage.getItem(WIZARD_STORAGE_KEY));
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setRawState(draft); setLoaded(true); setResumed(resumedDraft(draft)); setRecoverable(hasRecoverableDraft(readRecoverable()));
+    setRawState(draft); setLoaded(true); setResumed(resumedDraft(draft)); setRecoverable(hasParkedSafe());
   }, []);
   useEffect(() => { if (loaded) localStorage.setItem(WIZARD_STORAGE_KEY, JSON.stringify(d)); }, [d, loaded]);
   const set = (patch: Partial<WizardDraft>) => setRaw((x) => ({ ...settle(x), ...patch }));
@@ -132,24 +133,21 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   function startOver() {
     scriptRun.current?.ctl.abort(); scriptSeq.current++; scriptRun.current = null;
     try {
-      const prev = localStorage.getItem(WIZARD_STORAGE_KEY);
-      if (hasRecoverableDraft(prev)) { localStorage.setItem(WIZARD_RECOVERABLE_KEY, prev!); setRecoverable(true); }
+      // Mismo formato de lista que la entrada «Personalizado» (#269): { v: 1, items: [...] }, el más reciente primero.
+      if (parkDraft(localStorage, localStorage.getItem(WIZARD_STORAGE_KEY))) setRecoverable(true);
       localStorage.removeItem(WIZARD_STORAGE_KEY);
     } catch { /* almacenamiento no disponible: el borrador en memoria se reinicia igual */ }
     setRawState(defaultDraft()); setEstimate(null); setStatus(null); setNote(null); setError(null); setScriptProgress(null); setResumed(null); setBusy(false);
     router.refresh();
   }
-  /** Recupera el borrador aparcado (explícito); el actual, si tenía trabajo, queda aparcado a su vez. */
+  /** Recupera el borrador aparcado más reciente (explícito); el actual, si tenía trabajo, queda aparcado en su lugar. */
   function recoverPrevious() {
-    const prev = readRecoverable();
-    if (!hasRecoverableDraft(prev)) { setRecoverable(false); return; }
+    let raw: string | null = null;
+    try { raw = takeParked(localStorage, localStorage.getItem(WIZARD_STORAGE_KEY)); } catch { raw = null; }
+    if (!raw) { setRecoverable(false); return; }
     scriptRun.current?.ctl.abort(); scriptSeq.current++; scriptRun.current = null;
-    try {
-      const cur = localStorage.getItem(WIZARD_STORAGE_KEY);
-      if (hasRecoverableDraft(cur)) localStorage.setItem(WIZARD_RECOVERABLE_KEY, cur!); else localStorage.removeItem(WIZARD_RECOVERABLE_KEY);
-      setRecoverable(hasRecoverableDraft(cur));
-    } catch { /* sin almacenamiento */ }
-    const draft = loadDraft(prev);
+    setRecoverable(hasParkedSafe());
+    const draft = loadDraft(raw);
     setRawState(draft); setEstimate(null); setStatus(null); setNote(null); setError(null); setScriptProgress(null); setBusy(false);
     setResumed(resumedDraft(draft));
   }
@@ -555,14 +553,11 @@ export function progressText(p: { step: number; steps: number; phase?: string; w
   if (p.phase === "ampliando") return `Ampliando el bloque ${Math.max(1, p.step)} de ${blocks} (sin repetir lo escrito)…`;
   return p.step <= 1 ? `Escaleta lista. Escribiendo el bloque 1 de ${blocks}…` : p.step >= p.steps ? "Uniendo los bloques…" : `Bloque ${p.step - 1} de ${blocks} listo. Escribiendo el bloque ${p.step} de ${blocks}…`;
 }
-/** Misma clave que la entrada «Personalizado» (#269): el borrador aparcado se recupera desde cualquiera de los dos. */
-export const WIZARD_RECOVERABLE_KEY = `${WIZARD_STORAGE_KEY}.recuperable`;
-function readRecoverable(): string | null { try { return localStorage.getItem(WIZARD_RECOVERABLE_KEY); } catch { return null; } }
+/** Misma clave (y mismo formato de lista) que la entrada «Personalizado» (#269): draft-recovery.ts. */
+export const WIZARD_RECOVERABLE_KEY = DRAFT_RECOVERY_KEY;
+function hasParkedSafe(): boolean { try { return hasParked(localStorage); } catch { return false; } }
 /** ¿Tiene trabajo este borrador guardado (tema, guion o un guion con IA a medias)? Uno vacío no se aparca. */
-export function hasRecoverableDraft(raw: string | null | undefined): boolean {
-  if (!raw) return false;
-  try { const x = JSON.parse(raw) as { topic?: unknown; script?: unknown; scriptJob?: unknown }; return !!(String(x.topic ?? "").trim() || String(x.script ?? "").trim() || x.scriptJob); } catch { return false; }
-}
+export const hasRecoverableDraft = hasWork;
 /** Aviso al entrar: el borrador retomado y su guion (minutos estimados), o null si estaba vacío. */
 export function resumedDraft(x: { title?: string; topic?: string; script?: string; scriptJob?: unknown }): { label: string; minutes: number } | null {
   const script = String(x.script ?? "");

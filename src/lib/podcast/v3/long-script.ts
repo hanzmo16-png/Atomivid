@@ -315,6 +315,9 @@ export async function advanceLongScript(s: LongScriptState, llm: LlmStepFn): Pro
     const issues = parsed ? segmentIssues(parsed.turns, s, k) : ["no es un diálogo con los dos participantes"];
     if (!parsed || issues.length) throw Object.assign(new LongScriptError("INVALIDO", `El bloque ${k + 1} de ${n} no cumplió los requisitos (${issues.join("; ")}); reintenta desde ahí (lo anterior se conserva).`, true), { state });
     turns = parsed.turns;
+  } else if (p.ext >= MAX_EXTENSIONS_PER_BLOCK) {
+    // Ampliaciones agotadas (estado que no debería llegar, pero el navegador no es de fiar): se cierra SIN pagar otra.
+    return commit({ ...s, partial: null }, k, p.turns, steps, `El bloque ${k + 1} quedó algo más corto de lo previsto; se conservó lo escrito.`);
   } else {
     attempt = p.attempt; ext = p.ext + 1;
     const parsed = parseSegment(await llm(extensionPrompt(s, p), { step: `s${k}-a${attempt}-x${ext}`, maxTokens: segmentMaxTokens(Math.max(1200, blockTarget(s, k) - charsOf(p.turns))) }), s.input);
@@ -376,12 +379,15 @@ export function checkLongState(x: unknown, input: LongInput): LongScriptState {
   if (s.partial != null) {
     const q = s.partial;
     if (!s.plan || typeof q !== "object" || q.k !== s.segments.length || !Number.isInteger(q.attempt) || q.attempt < 1 || q.attempt > MAX_ATTEMPTS_PER_STEP
-      || !Number.isInteger(q.ext) || q.ext < 0 || q.ext > MAX_EXTENSIONS_PER_BLOCK || !Array.isArray(q.turns) || !q.turns.length || q.turns.length > 300) throw bad("bloque en ampliación");
+      // Una ampliación pendiente solo puede ser la 1.ª o la 2.ª (ext 0–1): con ext ≥ 2 el bloque ya se habría cerrado.
+      || !Number.isInteger(q.ext) || q.ext < 0 || q.ext >= MAX_EXTENSIONS_PER_BLOCK || !Array.isArray(q.turns) || !q.turns.length || q.turns.length > 300) throw bad("bloque en ampliación");
     let c = 0;
     for (const t of q.turns) { if ((t?.speaker !== "A" && t?.speaker !== "B") || typeof t.text !== "string") throw bad("turno"); c += t.text.length; }
     if (c > limit) throw bad("bloque en ampliación demasiado largo");
     partial = { k: q.k, attempt: q.attempt, ext: q.ext, turns: q.turns.map((t) => ({ speaker: t.speaker, text: t.text.replace(/\s+/g, " ").trim() })) };
   }
+  // El intento del bloque en ampliación es el que se pagó para ese bloque (misma clave «s<k>-a<n>»), no otro.
+  if (partial && attempts[`s${partial.k}`] !== partial.attempt) throw bad("intento del bloque en ampliación");
   const plan = s.plan ? { title: String(s.plan.title ?? "").slice(0, 160), segments: s.plan.segments.map((b) => ({ title: String(b?.title ?? "").slice(0, 160), points: (Array.isArray(b?.points) ? b.points : []).slice(0, 10).map((p) => String(p).slice(0, 300)) })) } : null;
   return { v: 1, jobId: s.jobId.toLowerCase(), input, plan, segments: s.segments.map((seg) => seg.map((t) => ({ speaker: t.speaker, text: t.text.replace(/\s+/g, " ").trim() }))), attempts, partial };
 }
