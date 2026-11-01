@@ -7,8 +7,11 @@ import path from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 import { createClient } from "@supabase/supabase-js";
 
-const EVID = process.env.EVID, WORK = process.env.RUNNER_TEMP || "/tmp", ID = process.env.POD_EPISODE_ID || "";
+const EVID = process.env.EVID, WORK = process.env.RUNNER_TEMP || "/tmp";
+let ID = process.env.POD_EPISODE_ID || "";
 const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+// Prefijo de 8 caracteres (como lo muestran las auditorías): se resuelve al id completo, solo lectura.
+if (/^[0-9a-f]{8}$/.test(ID)) { const { data } = await db.from("podcast_studio_episodes").select("id").order("created_at", { ascending: false }).limit(500); ID = (data ?? []).map((r) => String(r.id)).find((x) => x.startsWith(ID)) ?? ID; }
 const out = (t, v) => console.log(t, JSON.stringify(v));
 fs.mkdirSync(path.join(EVID, "frames"), { recursive: true });
 const save = (n, v) => fs.writeFileSync(path.join(EVID, n), typeof v === "string" ? v : JSON.stringify(v, null, 1));
@@ -28,11 +31,29 @@ out("SHOTS", { n: shots.length, byKind, avatarSeconds: Math.round(shots.filter((
 const turns = (spec.script ?? "").split("\n").filter((l) => /^[^:]{1,60}:\s*\S/.test(l));
 const chars = turns.reduce((n, l) => n + l.replace(/^[^:]{1,60}:\s*/, "").length, 0);
 out("SCRIPT", { turns: turns.length, chars, charsPerSecond: ep.result?.duration ? Math.round(chars / (ep.result.duration - 5.5) * 100) / 100 : null });
+// Incidente 8f05fc37 (duración): palabras, turnos por hablante y si el guion es la PLANTILLA de respaldo (frases fijas).
+{
+  const body = turns.map((l) => l.replace(/^[^:]{1,60}:\s*/, ""));
+  const words = body.reduce((n, t) => n + t.split(/\s+/).filter(Boolean).length, 0);
+  const SIG = ["Bienvenidos a un nuevo episodio. Hoy hablamos de", "Empecemos por lo básico", "Pasemos a la historia.", "¿Y qué es lo que todavía no sabemos?", "¿Cuál es el malentendido más común sobre", "Hablemos ahora de las interpretaciones.",
+    "¿Qué dicen hoy los especialistas sobre", "¿Por qué crees que este tema atrae a tanta gente?", "Cambiando de tema: ¿cómo se distingue una buena fuente", "Si tuvieras que resumir", "Si alguien quiere profundizar en", "Nos quedamos aquí por hoy."];
+  const hits = SIG.filter((x) => (spec.script ?? "").includes(x)).length;
+  const speakers = turns.reduce((m, l) => { const k = l.split(":")[0].trim(); m[k] = (m[k] ?? 0) + 1; return m; }, {});
+  out("SCRIPT_DETAIL", { words, turnsBySpeaker: Object.keys(speakers).length, templateSignatures: `${hits}/${SIG.length}`, firstTurnChars: body[0]?.length ?? 0, lastTurnChars: body.at(-1)?.length ?? 0, target: spec.target_minutes });
+  save("script.txt", spec.script ?? "");
+  // Llamadas de guion con IA (libro de la plataforma) del dueño en las 3 h previas a crear el episodio: estado y tokens.
+  const since = new Date(Date.parse(ep.created_at) - 3 * 3600_000).toISOString();
+  const { data: llm, error: le } = await db.from("pi_paid_operations").select("*").gte("created_at", since).lte("created_at", ep.created_at).like("project_id", `podcast-studio:${owner}%`);
+  out("SCRIPT_LLM_OPS", { error: le?.message ?? null, n: (llm ?? []).length, ops: (llm ?? []).map((o) => { const keep = {}; for (const [k, v] of Object.entries(o)) if (/status|method|provider|usd|token|created|updated|error|reason|model|units/i.test(k)) keep[k] = typeof v === "string" ? v.slice(0, 160) : v; return keep; }) });
+}
 
 const { data: ops } = await db.from("podcast_studio_operations").select("key,provider,op,state,reserved_usd,actual_usd,result,created_at").eq("episode_id", ID);
 save("ops.json", ops ?? []);
 const sum = {}; for (const o of ops ?? []) { const k = `${o.provider}/${o.op}/${o.state}`; sum[k] = sum[k] ?? { n: 0, usd: 0 }; sum[k].n++; sum[k].usd = Math.round((sum[k].usd + Number(o.actual_usd ?? o.reserved_usd ?? 0)) * 1e4) / 1e4; }
 out("LEDGER", sum);
+// Voz por turno: cuántas operaciones TTS y su duración real (los MP3 pagados se guardan para reutilizar).
+out("TTS_OPS", { n: (ops ?? []).filter((o) => o.op === "tts").length, settled: (ops ?? []).filter((o) => o.op === "tts" && o.state === "settled").length });
+out("RESULT_KEYS", { keys: Object.keys(ep.result ?? {}), duration: ep.result?.duration ?? ep.result?.durationSeconds ?? null, timelineTurns: (ep.result?.timeline ?? []).length, timelineEnd: (ep.result?.timeline ?? []).at(-1)?.end ?? null });
 const base = `${owner}/podcast-studio/${ID}`;
 const list = async (p) => (await db.storage.from("videos").list(p, { limit: 1000 })).data ?? [];
 const paid = await list(`${base}/paid`);
