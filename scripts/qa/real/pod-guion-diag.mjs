@@ -60,3 +60,11 @@ out("REJECTED", (rej ?? []).map((o) => ({ created_at: o.created_at, why: String(
   const { data: lastOk } = await db.from("pi_paid_operations").select("project_id, created_at").eq("provider", "anthropic").in("status", ["COMMITTED", "SUBMITTED", "PROVIDER_JOB_RECORDED"]).order("created_at", { ascending: false }).limit(3);
   out("ANTHROPIC_LAST_ADMITTED", (lastOk ?? []).map((o) => ({ project: String(o.project_id).replace(/[0-9a-f-]{36}/gi, "<id>").slice(0, 40), created_at: o.created_at })));
 }
+// ¿Está aplicada la propuesta spend_authorizations (pi_submit_with_supply exige una autorización ACTIVA para todo
+// project_id 'podcast-%', y «podcast-studio:…» encaja)? Solo lectura: existencia de la tabla y recuentos por prefijo.
+{
+  const { data, error } = await db.from("pi_spend_authorizations").select("project_id, status, created_at").limit(200);
+  out("SPEND_AUTHORIZATIONS", { applied: !error, error: error?.message?.slice(0, 120) ?? null, n: (data ?? []).length,
+    studio: (data ?? []).filter((r) => String(r.project_id).startsWith("podcast-studio")).length,
+    byStatus: (data ?? []).reduce((m, r) => { m[r.status] = (m[r.status] ?? 0) + 1; return m; }, {}), latest: (data ?? []).map((r) => r.created_at).sort().at(-1) ?? null });
+}
