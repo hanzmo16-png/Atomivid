@@ -11,7 +11,7 @@ import { isPrivateVoice } from "@/lib/voices/private-voices";
 import { preflight, type ImageProvider, type Providers, type VisualDirector } from "./pipeline";
 import { RECRAFT_USD_PER_IMAGE, RECRAFT_USD_STYLE_CREATION } from "@/lib/providers/image/recraft";
 import { generateConversation, type LlmFn } from "./script";
-import { advanceLongScript, assembleLongScript, checkLongState, LONG_SCRIPT_MAX_MINUTES, LongScriptError, newLongScript, segmentCount, type LlmStepFn, type LongInput, type LongScriptState } from "./long-script";
+import { advanceLongScript, assembleLongScript, checkLongState, LONG_SCRIPT_MAX_MINUTES, LongScriptError, newLongScript, normalizeLongInput, sameLongInput, segmentCount, type LlmStepFn, type LongScriptState } from "./long-script";
 import { estimateHeygenCost } from "@/lib/providers/avatar/heygen";
 import { getPricingConfig } from "@/lib/billing/pricing";
 import type { StudioEpisodeRow } from "./store";
@@ -252,17 +252,15 @@ export function describeLlmFailure(e: unknown): { status: number; error: string;
  * Sin IA disponible responde un error claro: la plantilla breve solo se usa si la persona la elige expresamente.
  */
 async function scriptStepAction(d: ApiDeps, b: Record<string, unknown>): Promise<Out> {
-  const topic = String(b.topic ?? "").trim().slice(0, 2000);
-  if (topic.length < 3) return { status: 400, body: { error: "Escribe un tema de al menos 3 caracteres." } };
-  const minutes = Math.round(Math.min(LONG_SCRIPT_MAX_MINUTES, Math.max(1, Number(b.minutes) || 5)));
-  const input: LongInput = { topic, minutes, hostName: String(b.hostName ?? "Anfitrión").slice(0, 60) || "Anfitrión", guestName: String(b.guestName ?? "Invitado").slice(0, 60) || "Invitado",
-    guestRole: String(b.guestRole ?? "").slice(0, 120), hostPersonality: String(b.hostPersonality ?? "").slice(0, 300), guestPersonality: String(b.guestPersonality ?? "").slice(0, 300) };
+  const input = normalizeLongInput(b);
+  if (input.topic.length < 3) return { status: 400, body: { error: "Escribe un tema de al menos 3 caracteres." } };
+  const { minutes } = input;
   if (!d.enabled || !d.llmStep) return { status: 503, body: { error: "La generación con IA no está disponible en este momento. No se usó ninguna plantilla: puedes escribir o pegar tu guion, o elegir expresamente la plantilla breve.", code: "IA_NO_DISPONIBLE" } };
   let state: LongScriptState;
   try {
     // Un trabajo guardado de OTRO tema, nombres o duración no se continúa: se empieza uno nuevo.
     const prev = b.state as LongScriptState | null | undefined;
-    const same = prev && JSON.stringify(prev.input) === JSON.stringify(input);
+    const same = !!prev && sameLongInput(prev.input, input);
     state = same ? checkLongState(prev, input) : newLongScript((d.newJobId ?? (() => crypto.randomUUID()))(), input);
   } catch (e) {
     if (e instanceof LongScriptError) return { status: 400, body: { error: e.message, code: e.code, recoverable: false } };

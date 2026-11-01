@@ -38,8 +38,8 @@ export async function POST(request: Request) {
     scriptSpend: async () => {
       const { data, error } = await service.from("pi_paid_operations").select("reserved_usd, committed_usd").like("project_id", `${STUDIO_SCRIPT_PROJECT_PREFIX}${user.id}:%`)
         .gte("created_at", new Date(Date.now() - 24 * 3600_000).toISOString()).in("status", ["SUBMITTED", "PROVIDER_JOB_RECORDED", "RECONCILIATION_REQUIRED", "COMMITTED"]);
-      if (error) throw new Error("ledger");
-      return (data ?? []).reduce((n, o) => n + Math.max(Number(o.reserved_usd) || 0, Number(o.committed_usd) || 0), 0);
+      if (error || !Array.isArray(data)) throw new Error("ledger");
+      return data.reduce((n, o) => n + Math.max(Number(o.reserved_usd) || 0, Number(o.committed_usd) || 0), 0);
     },
     insert: async (row) => { const { data, error } = await service.from(STUDIO_TABLE).insert(row).select("id").single(); if (error) return /does not exist|schema cache|42P01|PGRST205/.test(`${error.code} ${error.message}`) ? "missing" : null; return data as { id: string }; },
     ownsAvatar: async (id) => { if (!/^[0-9a-f-]{36}$/i.test(id)) return false; const { data } = await service.from("avatars").select("id").eq("id", id).eq("user_id", user.id).eq("status", "ready").maybeSingle(); return !!data; },

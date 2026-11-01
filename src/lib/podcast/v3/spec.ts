@@ -64,8 +64,9 @@ export const StudioSpec = z.object({
   mode: z.enum(MODES),
   title: z.string().trim().min(1).max(200),
   language: z.enum(["es", "en"]).default("es"),
-  topic: z.string().trim().max(500).default(""),
-  script: z.string().trim().min(20).max(30_000),
+  topic: z.string().trim().max(2_000).default(""),
+  // 60 min con nombres de 60 caracteres no cabe en 30.000: 45 min realistas ya pasan de ahí y el peor caso de 60 min ronda 130.000.
+  script: z.string().trim().min(20).max(140_000),
   target_minutes: z.number().min(1).max(60),
   /** Minutos que pidió la persona cuando aceptó una duración menor (la real del guion); `target_minutes` es lo prometido. */
   requested_minutes: z.number().min(1).max(60).optional(),
