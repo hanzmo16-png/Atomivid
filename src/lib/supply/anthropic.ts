@@ -37,6 +37,25 @@ export function withSupplyStepContext<T>(projectId: string, step: string, fn: ()
   if (!/^[a-z0-9-]{1,40}$/.test(step)) throw new Error("SUPPLY_STEP_INVALID");
   return context.run({ projectId, intentId: step, stepKeyed: true }, fn);
 }
+/**
+ * Resultado YA PAGADO de un paso de trabajo (clave por paso, ver withSupplyStepContext), sin llamar al proveedor: lee la
+ * fila COMMITTED del libro y su resultado guardado. null si ese paso no tiene un pago confirmado (nunca se reserva ni se
+ * envía nada). Sin guardia de suministro (desarrollo/pruebas) no hay libro: null.
+ */
+export async function replayPaidStep<T>(projectId: string, step: string, model: string,
+  deps: { store?: Pick<LedgerStore, "get">; results?: Pick<PaidResultStore, "getJson">; guard?: boolean } = {}): Promise<T | null> {
+  if (!(deps.guard ?? supplyGuardRequired())) return null;
+  if (!/^[a-z0-9-]{1,40}$/.test(step)) return null;
+  const service = deps.store && deps.results ? null : createServiceClient();
+  const store = deps.store ?? supabaseLedgerStore(service!), results = deps.results ?? supabaseResultStore(service!);
+  const spec: PaidCallSpec = { projectId, shotId: `script:${step}:paso`, provider: "anthropic", model, method: "generate_script", inputFingerprint: { step }, reservedUsd: 0 };
+  // Un rechazo previo a la aceptación (429/529) se reintenta con otra clave ordinal: se mira cada una.
+  for (let ordinal = 0; ordinal <= SCRIPT_REJECTED_RETRIES; ordinal++) {
+    const op = await store.get(paidCallKey(spec, ordinal));
+    if (op?.status === "COMMITTED" && op.resultRef) return results.getJson<T>(op.resultRef);
+  }
+  return null;
+}
 /** Every guarded script call of this video request (any intent, legacy random ones included). */
 export async function loadScriptOperations(projectId: string): Promise<ScriptOpRow[]> {
   const { data, error } = await createServiceClient().from("pi_paid_operations").select("status, shot_id, updated_at, idempotency_key")

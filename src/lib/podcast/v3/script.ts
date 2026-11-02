@@ -41,13 +41,29 @@ export function parseLabeledScript(text: string, names?: { A?: string; B?: strin
   const order: string[] = [];
   for (const r of raw) if (!order.includes(norm(r.label))) order.push(norm(r.label));
   if (order.length > 2) return null;
-  const mapFor = (lab: string): Speaker => {
-    const n = norm(lab);
+  // Incidente «Base Dulce» (2026-11-02): con nombres «Valeria Moncler» / «El Duro Hans», una etiqueta abreviada («Hans:»)
+  // se asignaba por ORDEN de aparición: si hablaba primero, las dos voces acababan en A (bloque rechazado) o se cruzaban.
+  // Ahora: nombre exacto; si no, la etiqueta cuyas palabras están en un solo nombre (o lo contienen); si no, la voz libre.
+  const words = (s: string) => norm(s).split(/[^a-z0-9ñ]+/).filter((w) => w.length >= 3);
+  const partOf = (lab: string, name?: string) => {
+    if (!name) return false; const l = words(lab), w = words(name);
+    return l.length > 0 && w.length > 0 && (l.every((x) => w.includes(x)) || w.every((x) => l.includes(x)));
+  };
+  const direct = (n: string): Speaker | null => {
     if (names?.A && norm(names.A) === n) return "A";
     if (names?.B && norm(names.B) === n) return "B";
     if (n === "a") return "A"; if (n === "b") return "B";
-    return order.indexOf(n) === 0 ? "A" : "B";
+    const a = partOf(n, names?.A), b = partOf(n, names?.B);
+    return a && !b ? "A" : b && !a ? "B" : null;
   };
+  const resolved = new Map<string, Speaker>();
+  for (const n of order) { const d = direct(n); if (d) resolved.set(n, d); }
+  for (const n of order) {
+    if (resolved.has(n)) continue;
+    const taken = new Set(resolved.values());
+    resolved.set(n, taken.has("A") && !taken.has("B") ? "B" : taken.has("B") && !taken.has("A") ? "A" : order.indexOf(n) === 0 ? "A" : "B");
+  }
+  const mapFor = (lab: string): Speaker => resolved.get(norm(lab)) ?? "A";
   const labels: Record<Speaker, string> = { A: names?.A ?? "A", B: names?.B ?? "B" };
   for (const r of raw) { const s = mapFor(r.label); if (!names?.[s] && r.label.length > 1) labels[s] = r.label; }
   const turns = raw.map((r, i) => ({ id: turnId(i), speaker: mapFor(r.label), text: r.text.replace(/\s+/g, " ").trim(), kind: classifyTurn(r.text, i, raw.length) }));

@@ -114,7 +114,7 @@ test("último bloque corto → se AMPLÍA antes de la despedida (clave s2-a1-x1)
   assert.ok(phases.includes("ampliando"));
   assert.ok(m.calls.some((c) => c.step === "s2-a1-x1"), m.calls.map((c) => c.step).join(","));
   const ext = m.calls.find((c) => c.step === "s2-a1-x1")!;
-  assert.match(ext.prompt, /continúa EXACTAMENTE desde aquí/); assert.match(ext.prompt, /Después de lo que escribas vendrá este cierre, que NO debes escribir/);
+  assert.match(ext.prompt, /NO copies ni parafrasees ninguna de estas líneas/); assert.match(ext.prompt, /Después de lo que escribas vendrá este cierre, que NO debes escribir/);
   const last = s.segments[2];
   assert.match(last.at(-1)!.text, /hasta la próxima/, "la despedida sigue al final");
   assert.equal(last.filter((t) => /hasta la próxima/.test(t.text)).length, 1);

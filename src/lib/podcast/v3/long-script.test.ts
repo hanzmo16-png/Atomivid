@@ -232,7 +232,7 @@ test("API: fallo del proveedor → 503/502 recuperable con el estado intacto; re
   let r = await studioAction(d, body(20)); r = await studioAction(d, body(20, r.body.state)); // escaleta + bloque 1
   const kept = r.body.state;
   r = await studioAction(d, body(20, kept));
-  assert.equal(r.status, 503); assert.equal(r.body.code, "IA_FALLO"); assert.equal(r.body.recoverable, true); assert.match(String(r.body.error), /otra generación con IA está en curso/);
+  assert.equal(r.status, 503); assert.equal(r.body.code, "IA_FALLO"); assert.equal(r.body.recoverable, true); assert.match(String(r.body.error), /otra llamada de IA de la plataforma está en curso/); assert.doesNotMatch(String(r.body.error), /unos minutos/);
   assert.match(String(r.body.error), /No se cobró nada/); assert.deepEqual(r.body.state, kept); assert.equal(r.body.script, undefined);
   const g = fakeModel(20);
   r = await studioAction(deps(() => g.llm), body(20, r.body.state));

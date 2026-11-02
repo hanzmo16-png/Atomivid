@@ -69,6 +69,11 @@ export type LongScriptState = {
 export type LlmStepOut = string | { text: string; stopReason?: string | null };
 /** Llamada al modelo de un paso: `step` identifica el paso y el intento en el libro de gastos (clave determinista). */
 export type LlmStepFn = (prompt: string, o: { step: string; maxTokens: number }) => Promise<LlmStepOut>;
+/**
+ * Resultado YA PAGADO de un paso (mismo nombre de paso en el libro de gastos), sin llamar al proveedor; null si ese paso
+ * no se pagó. Sirve para reevaluar gratis intentos anteriores antes de pagar uno nuevo (incidente «Base Dulce»).
+ */
+export type StepReplayFn = (step: string) => Promise<LlmStepOut | null>;
 
 export const segmentCount = (minutes: number) => minutes <= SINGLE_CALL_MAX_MINUTES ? 1 : Math.ceil(minutes / SEGMENT_MINUTES);
 export const segmentChars = (minutes: number) => Math.round(targetChars(minutes) / segmentCount(minutes));
@@ -165,7 +170,7 @@ export function segmentPrompt(s: LongScriptState, k: number): string {
     `Participantes (mantén su identidad, voz y personalidad en todo el episodio):\n${people(i)}`,
     `Tema y enfoque del episodio:\n«${i.topic}»`,
     `Escaleta completa:\n${outline}`,
-    ...(prev ? [`Así terminó el bloque anterior (continúa EXACTAMENTE desde aquí, sin repetirlo ni resumirlo):\n${prev}`] : []),
+    ...(prev ? [`Así terminó el bloque anterior. Es solo contexto: NO copies ni parafrasees ninguna de estas líneas; tu primer turno debe ser una réplica NUEVA que continúe desde ahí:\n${prev}`] : []),
     `Extensión de ESTE bloque: entre ${words} y ${Math.round(words * 1.15)} palabras habladas (unos ${Math.round(chars / 13.5 / 60)} minutos de audio). Es un mínimo real: un bloque más corto deja el episodio por debajo de lo pedido. La duración se cumple con contenido (ejemplos, matices, réplicas), no con relleno ni repeticiones.`,
     [
       "Reglas:",
@@ -201,6 +206,23 @@ export function segmentFormIssues(turns: SegmentTurn[], s: LongScriptState, k: n
   const farewellOk = o.allowFarewell ?? k === n - 1;
   if (!farewellOk && turns.slice(-3).some((t) => FAREWELL.test(t.text))) out.push("se despide antes del final");
   return out;
+}
+
+/**
+ * Incidente «Base Dulce» (2026-11-02): el modelo copiaba turnos largos de lo ya escrito (en el caso real, de las últimas
+ * líneas del bloque anterior, que el prompt le mostraba como contexto) y el bloque entero, ya pagado, se rechazaba. Ahora el turno
+ * repetido se QUITA (nunca entra al guion: el control de calidad sigue) y el resto del bloque se juzga normalmente; si
+ * sin él queda corto, lo cubren la compensación o la ampliación. También se quitan repeticiones dentro del propio bloque.
+ */
+export function dropRepeatedTurns(turns: SegmentTurn[], s: LongScriptState, before: SegmentTurn[] = []): { turns: SegmentTurn[]; removed: number } {
+  const seen = new Set([...s.segments.flat(), ...before].map((t) => norm(t.text)).filter((t) => t.length >= DUPLICATE_TURN_MIN_CHARS));
+  const kept: SegmentTurn[] = []; let removed = 0;
+  for (const t of turns) {
+    const x = norm(t.text);
+    if (x.length >= DUPLICATE_TURN_MIN_CHARS) { if (seen.has(x)) { removed++; continue; } seen.add(x); }
+    kept.push(t);
+  }
+  return { turns: kept, removed };
 }
 
 /** Motivos por los que un segmento recién escrito no sirve: forma, o longitud fuera de [SEGMENT_HARD_MIN, máx.]. */
@@ -279,7 +301,7 @@ export function extensionPrompt(s: LongScriptState, p: NonNullable<LongScriptSta
     `Amplía el bloque ${k + 1} de ${n} («${block.title}») de un episodio de podcast en español latinoamericano de ${i.minutes} minutos: «${plan.title}». Quedó corto y le faltan unas ${words} palabras habladas.`,
     `Participantes (misma identidad, voz y personalidad):\n${people(i)}`,
     `Puntos de este bloque:\n${block.points.map((x) => `- ${x}`).join("\n")}`,
-    `Así va el bloque (continúa EXACTAMENTE desde aquí, sin repetir ni resumir nada de lo dicho):\n${body.slice(-CONTEXT_TURNS).map(name).join("\n")}`,
+    `Así va el bloque. Es solo contexto: NO copies ni parafrasees ninguna de estas líneas; continúa con turnos NUEVOS:\n${body.slice(-CONTEXT_TURNS).map(name).join("\n")}`,
     ...(closing.length ? [`Después de lo que escribas vendrá este cierre, que NO debes escribir: lleva la conversación hasta él con naturalidad:\n${closing.map(name).join("\n")}`] : []),
     `Escribe entre ${words} y ${Math.round(words * 1.15)} palabras más: profundiza los puntos con ejemplos, matices y réplicas; si un punto ya se trató, desarróllalo desde otro ángulo en vez de repetirlo.`,
     "Formato estricto: una línea por turno, «Nombre: texto», solo con los dos nombres de arriba. No saludes ni te despidas. Distingue afirmaciones, rumores y evidencia verificable; no inventes citas, cifras ni documentos.",
@@ -292,7 +314,7 @@ export function extensionPrompt(s: LongScriptState, p: NonNullable<LongScriptSta
  * repite EXACTAMENTE la misma petición (misma clave: si ya se pagó, se reutiliza). Una respuesta inválida consume un
  * intento (o una ampliación) y lanza INVALIDO con el estado nuevo; nada de lo válido se pierde.
  */
-export async function advanceLongScript(s: LongScriptState, llm: LlmStepFn): Promise<StepResult> {
+export async function advanceLongScript(s: LongScriptState, llm: LlmStepFn, replay?: StepReplayFn): Promise<StepResult> {
   const n = segmentCount(s.input.minutes), steps = 1 + n;
   if (!s.plan) {
     const attempt = nextAttempt(s, "plan");
@@ -306,22 +328,40 @@ export async function advanceLongScript(s: LongScriptState, llm: LlmStepFn): Pro
   if (k >= n) return { state: s, done: true, step: steps, steps, phase: "bloque" };
   const p = s.partial && s.partial.k === k ? s.partial : null;
   let turns: SegmentTurn[], attempt: number, ext: number, state: LongScriptState;
+  let dropNote = "";
   if (!p) {
     const key = `s${k}`;
-    attempt = nextAttempt(s, key); ext = 0;
-    const target = blockTarget(s, k);
-    const parsed = parseSegment(await llm(segmentPrompt(s, k), { step: `${key}-a${attempt}`, maxTokens: segmentMaxTokens(target) }), s.input);
-    state = { ...s, attempts: { ...s.attempts, [key]: attempt }, partial: null };
-    const issues = parsed ? segmentIssues(parsed.turns, s, k) : ["no es un diálogo con los dos participantes"];
-    if (!parsed || issues.length) throw Object.assign(new LongScriptError("INVALIDO", `El bloque ${k + 1} de ${n} no cumplió los requisitos (${issues.join("; ")}); reintenta desde ahí (lo anterior se conserva).`, true), { state });
-    turns = parsed.turns;
+    ext = 0;
+    // Antes de PAGAR otro intento, los intentos ya pagados de este bloque se reevalúan gratis (mismo paso en el libro):
+    // con las reglas vigentes pueden servir. Así un bloque «agotado» por una regla ya corregida se recupera sin gastar.
+    const reused = replay ? await reusePaidAttempt(s, k, replay) : null;
+    if (reused) {
+      attempt = reused.attempt; turns = reused.turns;
+      state = { ...s, partial: null };
+      if (reused.removed) dropNote = `Se quitaron ${reused.removed} turno(s) repetido(s) de lo ya escrito.`;
+    } else {
+      attempt = nextAttempt(s, key);
+      const target = blockTarget(s, k);
+      const parsed = parseSegment(await llm(segmentPrompt(s, k), { step: `${key}-a${attempt}`, maxTokens: segmentMaxTokens(target) }), s.input);
+      state = { ...s, attempts: { ...s.attempts, [key]: attempt }, partial: null };
+      const clean = parsed ? dropRepeatedTurns(parsed.turns, s) : null;
+      // Si lo que queda tras quitar los repetidos no sirve, el motivo nombra los repetidos (el control de calidad sigue).
+      const issues = clean && clean.turns.length ? segmentIssues(clean.turns, s, k) : clean?.removed ? [`sus ${clean.removed} turnos repetidos de lo ya escrito`] : ["no es un diálogo con los dos participantes"];
+      if (clean?.removed && clean.turns.length && issues.length) issues.push(`se quitaron ${clean.removed} turno(s) repetidos de lo ya escrito`);
+      if (!clean || issues.length) throw Object.assign(new LongScriptError("INVALIDO", `El bloque ${k + 1} de ${n} no cumplió los requisitos (${issues.join("; ")}); reintenta desde ahí (lo anterior se conserva).`, true), { state });
+      turns = clean.turns;
+      if (clean.removed) dropNote = `Se quitaron ${clean.removed} turno(s) repetido(s) de lo ya escrito.`;
+    }
   } else if (p.ext >= MAX_EXTENSIONS_PER_BLOCK) {
     // Ampliaciones agotadas (p. ej. estado guardado por una versión anterior): se cierra con lo escrito SIN pagar otra.
     return commit({ ...s, partial: null }, k, p.turns, steps, `El bloque ${k + 1} quedó algo más corto de lo previsto; se conservó lo escrito.`);
   } else {
     attempt = p.attempt; ext = p.ext + 1;
-    const parsed = parseSegment(await llm(extensionPrompt(s, p), { step: `s${k}-a${attempt}-x${ext}`, maxTokens: segmentMaxTokens(Math.max(1200, blockTarget(s, k) - charsOf(p.turns))) }), s.input);
+    const raw = parseSegment(await llm(extensionPrompt(s, p), { step: `s${k}-a${attempt}-x${ext}`, maxTokens: segmentMaxTokens(Math.max(1200, blockTarget(s, k) - charsOf(p.turns))) }), s.input);
     const last = k === n - 1;
+    const cleanExt = raw ? dropRepeatedTurns(raw.turns, s, p.turns) : null;
+    const parsed = raw && cleanExt ? { ...raw, turns: cleanExt.turns } : null;
+    if (cleanExt?.removed) dropNote = `Se quitaron ${cleanExt.removed} turno(s) repetido(s) de lo ya escrito.`;
     const issues = parsed ? segmentFormIssues(parsed.turns, s, k, { allowFarewell: false, before: p.turns }) : ["no es un diálogo con los dos participantes"];
     if (!parsed || !parsed.turns.length || issues.length) {
       // La ampliación no sirvió: se descarta ESA respuesta (lo escrito antes se conserva) y se gasta una ampliación.
@@ -334,11 +374,30 @@ export async function advanceLongScript(s: LongScriptState, llm: LlmStepFn): Pro
     state = { ...s, partial: null };
   }
   const verdict = blockVerdict(state, k, turns, ext);
+  const withDrop = (note?: string) => [dropNote, note].filter(Boolean).join(" ") || undefined;
   if (verdict === "ampliar") {
     return { state: { ...state, partial: { k, attempt, ext, turns } }, done: false, step: 1 + k, steps, phase: "ampliando",
-      note: `El bloque ${k + 1} de ${n} quedó corto (${charsOf(turns)} de ${blockTarget(state, k)} caracteres); se amplía sin repetir lo escrito.` };
+      note: withDrop(`El bloque ${k + 1} de ${n} quedó corto (${charsOf(turns)} de ${blockTarget(state, k)} caracteres); se amplía sin repetir lo escrito.`) };
   }
-  return commit(state, k, turns, steps, verdict === "compensar" ? `El bloque ${k + 1} quedó algo corto; los siguientes lo compensan.` : verdict === "conservar" ? `El bloque ${k + 1} quedó algo más corto de lo previsto; se conservó lo escrito.` : undefined);
+  return commit(state, k, turns, steps, withDrop(verdict === "compensar" ? `El bloque ${k + 1} quedó algo corto; los siguientes lo compensan.` : verdict === "conservar" ? `El bloque ${k + 1} quedó algo más corto de lo previsto; se conservó lo escrito.` : undefined));
+}
+
+/**
+ * Reevalúa gratis los intentos YA PAGADOS del bloque `k` (s<k>-a1…a<usados>) con las reglas vigentes; devuelve el primero
+ * que sirve (sin sus turnos repetidos) o null. No llama al proveedor: `replay` solo lee resultados del libro.
+ */
+async function reusePaidAttempt(s: LongScriptState, k: number, replay: StepReplayFn): Promise<{ attempt: number; turns: SegmentTurn[]; removed: number } | null> {
+  const used = Math.min(s.attempts[`s${k}`] ?? 0, MAX_ATTEMPTS_PER_STEP);
+  for (let a = 1; a <= used; a++) {
+    let out: LlmStepOut | null = null;
+    try { out = await replay(`s${k}-a${a}`); } catch { out = null; }
+    if (!out) continue;
+    const parsed = parseSegment(out, s.input);
+    if (!parsed) continue;
+    const clean = dropRepeatedTurns(parsed.turns, s);
+    if (clean.turns.length && !segmentIssues(clean.turns, s, k).length) return { attempt: a, turns: clean.turns, removed: clean.removed };
+  }
+  return null;
 }
 
 function commit(s: LongScriptState, k: number, turns: SegmentTurn[], steps: number, note?: string): StepResult {
