@@ -61,8 +61,16 @@ const REASON: Record<string, string> = {
   "supply policies unavailable": "no se pudieron leer las políticas de gasto",
 };
 /** Motivo de bloqueo previo legible (ProviderNotReadyError lo guarda en el episodio y se ve en «Tus episodios»). */
-export function readinessMessage(failure: { provider: string; reason: string } | undefined): string {
+export function readinessMessage(failure: { provider: string; reason: string; quota?: { max: number; today: number; calls: number; timezone: string } } | undefined): string {
   const who = PROVIDER_NAME[failure?.provider ?? ""] ?? failure?.provider ?? "un proveedor";
+  // Cuota diaria de llamadas de ATOMIVID (pi_supply_policies.max_daily_calls), no un error del proveedor. Con los números se
+  // distingue si esperar sirve (cabe mañana) o no (el episodio necesita más llamadas de las que el límite permite en un día).
+  const q = failure?.reason === "daily request quota" ? failure.quota : undefined;
+  if (q) {
+    const zone = q.timezone === "America/Cancun" ? "Cancún" : q.timezone;
+    if (q.calls > q.max) return `${who}: este episodio necesita ${q.calls} llamadas y el límite diario de la plataforma es ${q.max}; no cabe en un día aunque se espere. Reduce las apariciones del avatar (menos planos con avatar o un episodio más corto) o pide al operador que revise ese límite.`;
+    return `${who}: hoy ya se usaron ${q.today} de las ${q.max} llamadas diarias de la plataforma y este episodio necesita ${q.calls}; el límite se restablece a las 00:00 hora de ${zone}.`;
+  }
   const why = REASON[failure?.reason ?? ""] ?? failure?.reason ?? "no está disponible";
   return `${who}: ${why}.`;
 }

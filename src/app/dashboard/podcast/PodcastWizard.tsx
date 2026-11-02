@@ -546,7 +546,8 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
               {cur?.episode.status === "failed" && <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={() => { set({ draftId: d.episodeId, episodeId: null, authorized: false }); }}>Reintentar (no se cobra dos veces lo ya generado)</Button>}
               {cur?.episode.status === "authorized" && <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={() => void run(async () => { const again = await api(`/api/podcast/v3/${d.episodeId}`, { confirm: true }); if (again.note) setNote(String(again.note)); })}>Volver a pedir el inicio (no se cobra otra vez)</Button>}
               {statusError && <p role="alert" className="mt-2 text-danger" data-testid="wizard-estado-sin-respuesta">{statusError}</p>}
-              {cur?.episode.status !== "ready" && <p className="mt-2 text-xs text-ink-muted">Puedes cerrar esta página: el episodio sigue generándose y aparecerá en «Tus episodios».</p>}
+              {/* Solo mientras de verdad está en curso: un episodio fallido (p. ej. bloqueado antes de cobrar) no «sigue generándose». */}
+              {episodeInProgress(cur?.episode.status) && <p className="mt-2 text-xs text-ink-muted" data-testid="wizard-sigue-generando">Puedes cerrar esta página: el episodio sigue generándose y aparecerá en «Tus episodios».</p>}
               {cur?.episode.status === "ready" && <Button type="button" variant="secondary" size="sm" className="mt-2" data-testid="wizard-crear-otro" onClick={() => { set({ ...releaseEpisode(d), step: STEP.modalidad }); setStatus(null); }}>Crear otro episodio</Button>}
             </div>
           )}
@@ -666,6 +667,8 @@ export function LongScriptStatus({ status: s }: { status: LongStatus | null }) {
     </div>
   );
 }
+/** ¿El episodio está realmente en curso? Solo «authorized» (en cola) y «generating»; «failed» y «ready» son finales. */
+export const episodeInProgress = (status: unknown) => status === "authorized" || status === "generating";
 /** Lo ya escrito y guardado del guion con IA (o nada si no hay bloques). */
 export function SavedProgressPanel({ saved }: { saved: ReturnType<typeof savedProgress> }) {
   if (!saved) return null;

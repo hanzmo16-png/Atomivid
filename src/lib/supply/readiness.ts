@@ -13,8 +13,10 @@ import { REFRESHABLE_PROVIDERS, refreshProviderSnapshot, type RefreshableProvide
 export const START_SUPPLY_UNAVAILABLE = "No pudimos confirmar en este momento la capacidad de los proveedores. No se inició la producción ni se generó ningún cargo; tu solicitud sigue lista y puedes volver a intentarlo en unos minutos.";
 /** Resume of a production that already advanced: earlier steps may have been paid, so only «nothing new» is claimed. */
 export const RESUME_SUPPLY_UNAVAILABLE = "No pudimos confirmar en este momento la capacidad de los proveedores de Atomicvid. No se hizo ninguna llamada de pago nueva y tus avances se conservan; no tienes que recargar nada. Vuelve a intentarlo en unos minutos.";
-export type ProviderReadiness = { provider: string; refreshed: boolean; level: string | null; reason: string | null; free: number | null; units: number | null; usd: number; ok: boolean; failure?: string };
-export type SupplyReadiness = { ready: boolean; providers: ProviderReadiness[]; failure?: { provider: string; reason: string } };
+/** Daily call quota numbers when the job is refused by it: lets callers say whether waiting helps (calls ≤ max) or not. */
+export type QuotaDetail = { max: number; today: number; calls: number; timezone: string };
+export type ProviderReadiness = { provider: string; refreshed: boolean; level: string | null; reason: string | null; free: number | null; units: number | null; usd: number; ok: boolean; failure?: string; quota?: QuotaDetail };
+export type SupplyReadiness = { ready: boolean; providers: ProviderReadiness[]; failure?: { provider: string; reason: string; quota?: QuotaDetail } };
 type Policy = { provider: string; enabled: boolean; unit: string; unit_cost_usd: number; daily_cap_usd: number; monthly_cap_usd: number; max_daily_calls?: number; timezone: string; evidence?: string };
 type State = { level?: string; reason?: string; free?: number | null; todayCalls?: number };
 
@@ -76,7 +78,7 @@ export async function ensureJobSupplyReady(service: SupabaseClient, demands: Job
     if (d.calls !== undefined && d.calls > 0) {
       const max = Number(p.max_daily_calls), today = Number(s.todayCalls);
       if (!Number.isFinite(max) || !Number.isFinite(today)) { row.failure = "daily request quota unavailable"; continue; }
-      if (today + d.calls > max) { row.failure = "daily request quota"; continue; }
+      if (today + d.calls > max) { row.failure = "daily request quota"; row.quota = { max, today, calls: d.calls, timezone: p.timezone || "America/Cancun" }; continue; }
     }
     const tz = p.timezone || "America/Cancun", at = new Date(now());
     const day = await spend(provider, periodStart(tz, "day", at)), month = await spend(provider, periodStart(tz, "month", at));
@@ -86,7 +88,7 @@ export async function ensureJobSupplyReady(service: SupabaseClient, demands: Job
     totalUsd += d.usd;
   }
   const failed = out.find(r => !r.ok);
-  if (failed) return { ready: false, providers: out, failure: { provider: failed.provider, reason: failed.failure ?? "unavailable" } };
+  if (failed) return { ready: false, providers: out, failure: { provider: failed.provider, reason: failed.failure ?? "unavailable", ...(failed.quota ? { quota: failed.quota } : {}) } };
   const g = policies.get("__global__");
   if (!g || !g.enabled || !(g.daily_cap_usd > 0) || !(g.monthly_cap_usd > 0) || !String(g.evidence ?? "").trim())
     return { ready: false, providers: out, failure: { provider: "production", reason: "funded global budget unconfigured" } };
