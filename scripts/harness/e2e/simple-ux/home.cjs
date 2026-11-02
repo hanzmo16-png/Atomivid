@@ -90,12 +90,68 @@ const overflow = (p) => p.evaluate(() => document.documentElement.scrollWidth - 
           continue;
         }
         await card.click(); await p.getByTestId("crear-idea").fill(IDEA);
-        if (id === "podcast") check(`[${dev}] podcast: avisa que el tema se escribe en el primer paso`, /primer paso/.test(await p.getByTestId("crear-nota").innerText()));
+        if (id === "podcast") {
+          const note = await p.getByTestId("crear-nota").innerText();
+          check(`[${dev}] podcast: Personalizado lleva la idea; Automático la escribe en contenido`, /Personalizado/.test(note) && /Automático/.test(note) && /paso de contenido/.test(note), note);
+        }
         await p.getByTestId("crear-continuar").click(); await p.waitForURL(re);
         if (field) check(`[${dev}] ${id}: abre su formulario con la idea como tema`, (await p.locator(field).inputValue()) === IDEA.slice(0, 200));
         else check(`[${dev}] ${id}: abre la ruta real`, re.test(p.url()), p.url());
         await p.screenshot({ path: path.join(OUT, `${dev}-04-${id}.png`), fullPage: true });
       }
+
+      // Podcast Personalizado: con un borrador en el paso 9, la entrada nueva abre Participantes y no lo borra.
+      // La entrada directa (sin modo ni entrada) sigue reanudando ese borrador. No se archiva ni se borra ningún episodio.
+      const PRIOR_TITLE = "Borrador previo E2E paso 9";
+      const PRIOR = JSON.stringify({ step: 9, title: PRIOR_TITLE, topic: "tema que no se debe perder", episodeId: null });
+      await p.evaluate((raw) => localStorage.setItem("atomivid.podcast.asistente.v2", raw), PRIOR);
+      await p.goto(`${BASE}/dashboard/podcast`);
+      await p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
+      await p.waitForFunction((title) => {
+        try {
+          const d = JSON.parse(localStorage.getItem("atomivid.podcast.asistente.v2") || "null");
+          return d && d.step === 9 && d.title === title && Array.isArray(d.participants);
+        } catch { return false; }
+      }, PRIOR_TITLE);
+      const priorSaved = await p.evaluate(() => localStorage.getItem("atomivid.podcast.asistente.v2"));
+      const resumed = await p.getByTestId("wizard-step-title").innerText();
+      const resumedBody = await p.getByTestId("podcast-wizard").innerText();
+      check(`[${dev}] /dashboard/podcast directo reanuda el borrador del paso 9`, /Paso 4 de 4: Producir/.test(resumed) && resumedBody.includes(PRIOR_TITLE), resumed);
+      check(`[${dev}] la entrada directa no aparca el borrador`, await p.getByTestId("podcast-recuperar-borrador").count() === 0);
+
+      await home();
+      await p.getByTestId("crear-podcast").click();
+      await p.getByTestId("crear-idea").fill(IDEA);
+      await p.getByTestId("crear-modo-custom").check();
+      await p.getByTestId("crear-continuar").click();
+      await p.waitForURL(/\/dashboard\/podcast\?/);
+      await p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
+      await p.getByTestId("wizard-step-title").filter({ hasText: "Participantes" }).waitFor();
+      const freshUrl = new URL(p.url());
+      check(`[${dev}] Podcast Personalizado: URL con modo, entrada nueva e idea`, freshUrl.searchParams.get("modo") === "personalizado" && /^nueva-/.test(freshUrl.searchParams.get("entrada") || "") && freshUrl.searchParams.get("idea") === IDEA, p.url());
+      check(`[${dev}] Podcast Personalizado abre la pantalla 1 (Participantes)`, /Paso 1 de 4: Participantes/.test(await p.getByTestId("wizard-step-title").innerText()));
+      check(`[${dev}] la idea de la portada sigue a la vista`, (await p.getByTestId("podcast-idea-conservada").innerText()).includes(IDEA));
+      const bag = await p.evaluate(() => ({ main: localStorage.getItem("atomivid.podcast.asistente.v2"), recovery: localStorage.getItem("atomivid.podcast.asistente.v2.recuperable") }));
+      const parked = bag.recovery ? JSON.parse(bag.recovery).items : [];
+      const mainDraft = bag.main ? JSON.parse(bag.main) : {};
+      check(`[${dev}] el borrador del paso 9 queda recuperable, byte a byte`, parked.some((x) => x.raw === priorSaved), { steps: parked.map((x) => x.step) });
+      check(`[${dev}] la configuración nueva está en el paso 1 y conserva la idea`, mainDraft.step === 0 && mainDraft.topic === IDEA, mainDraft);
+      await p.screenshot({ path: path.join(OUT, `${dev}-06-podcast-personalizado.png`), fullPage: true });
+
+      await p.getByTestId("podcast-recuperar-borrador").click();
+      await p.getByTestId("wizard-step-title").filter({ hasText: "Producir" }).waitFor();
+      await p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
+      const recovered = await p.getByTestId("podcast-wizard").innerText();
+      check(`[${dev}] recuperar devuelve el paso 9`, /Paso 4 de 4: Producir/.test(await p.getByTestId("wizard-step-title").innerText()) && recovered.includes(PRIOR_TITLE));
+      const after = await p.evaluate(() => ({ main: localStorage.getItem("atomivid.podcast.asistente.v2"), recovery: localStorage.getItem("atomivid.podcast.asistente.v2.recuperable") }));
+      const restoredMain = after.main ? JSON.parse(after.main) : {};
+      check(`[${dev}] al recuperar, el paso 9 vuelve a ser el borrador activo`, restoredMain.step === 9 && restoredMain.title === PRIOR_TITLE && restoredMain.topic === "tema que no se debe perder", restoredMain);
+      const still = after.recovery ? JSON.parse(after.recovery).items : [];
+      check(`[${dev}] la configuración nueva no se borra al recuperar la anterior`, still.some((x) => { try { return JSON.parse(x.raw).topic === IDEA; } catch { return false; } }));
+      await p.goto(`${BASE}/dashboard/podcast`);
+      await p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
+      check(`[${dev}] otra entrada directa sigue en el borrador recuperado`, /Paso 4 de 4: Producir/.test(await p.getByTestId("wizard-step-title").innerText()) && (await p.getByTestId("podcast-wizard").innerText()).includes(PRIOR_TITLE));
+
       check(`[${dev}] la portada no envía nada (cero POST/PUT/PATCH/DELETE)`, posts.length === 0, posts.slice(0, 5));
 
       // PR #258: preparaciones de guion en «Mis proyectos».

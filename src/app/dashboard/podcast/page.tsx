@@ -10,6 +10,7 @@ import { listAccountVoices, VoicesUnavailableError, type AccountVoice } from "@/
 import { PODCAST_MAX_CHARS, type PodcastEpisode } from "@/lib/podcast/episode";
 import { NewEpisode } from "./NewEpisode";
 import { PodcastWizard, type WizardAvatar, type WizardHost } from "./PodcastWizard";
+import { PodcastFreshEntry } from "./PodcastFreshEntry";
 import { HOST_CATALOG } from "@/lib/podcast/v3/catalog";
 import { StudioEpisodeCard } from "./StudioEpisodeList";
 import { voiceAvailability } from "@/lib/podcast/v3/spec";
@@ -23,7 +24,7 @@ import { RECORDING_BUCKET } from "@/lib/video/avatar/recording";
 const STATUS: Record<PodcastEpisode["status"], string> = { draft: "Borrador", generating: "Generando", ready: "Listo", failed: "Con error" };
 const VIDEO: Record<string, string> = { scheduled: "programado", queued: "en cola", running: "en producción", ready: "entregado", failed: "con error", blocked: "detenido" };
 
-export default async function PodcastPage({ searchParams }: { searchParams: Promise<{ vista?: string; mostrar?: string }> }) {
+export default async function PodcastPage({ searchParams }: { searchParams: Promise<{ vista?: string; mostrar?: string; modo?: string; entrada?: string; idea?: string }> }) {
   const sp = await searchParams;
   const view = sp.vista === "archivados" ? "archivados" : "principal";
   const supabase = await createClient();
@@ -103,7 +104,9 @@ export default async function PodcastPage({ searchParams }: { searchParams: Prom
         </section>
       )}
       {voicesError && <p className="mt-3 text-sm text-danger">{voicesError}</p>}
-      <PodcastWizard voices={wizardVoices} avatars={avatars} v2Enabled={podcastV2Enabled()} v3Enabled={v3Enabled} generationEnabled={generationEnabled} providers={visualProviders(process.env, recraftBlock)} previewNotice={previewNotice} hosts={hosts} />
+      <PodcastFreshEntry modo={typeof sp.modo === "string" ? sp.modo : undefined} entrada={typeof sp.entrada === "string" ? sp.entrada : undefined} idea={typeof sp.idea === "string" ? sp.idea : undefined}>
+        <PodcastWizard voices={wizardVoices} avatars={avatars} v2Enabled={podcastV2Enabled()} v3Enabled={v3Enabled} generationEnabled={generationEnabled} providers={visualProviders(process.env, recraftBlock)} previewNotice={previewNotice} hosts={hosts} />
+      </PodcastFreshEntry>
       <details className="mt-4 rounded-lg border border-border p-3">
         <summary className="cursor-pointer text-sm font-medium text-ink">Formulario clásico (grabación propia, guion A/B)</summary>
         <NewEpisode voices={voices} voicesError={voicesError} usdPer1kChars={getPricingConfig().elevenLabsUsdPer1kChars} maxChars={PODCAST_MAX_CHARS} v2Enabled={podcastV2Enabled()} />
