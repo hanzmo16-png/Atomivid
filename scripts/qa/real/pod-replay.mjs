@@ -34,7 +34,9 @@ for (const [job, steps] of jobs) for (const [step, r] of steps) {
   const variant = labs.some(([a], i) => labs.some(([b], j) => i !== j && (b.toLowerCase().includes(a.toLowerCase()))));
   const firma = createHash("sha256").update(labs.map(([l]) => l).sort().join("|")).digest("hex").slice(0, 8); // misma firma = mismas etiquetas
   const sinEtiqueta = r.text.split("\n").filter((l) => l.trim() && !/^([^:]{1,60}):\s*\S/.test(l.trim())).length;
-  out("ETIQUETAS", { job: job.slice(0, 8), step, distintas: labs.length, conteos: labs.map(([, n], i) => `L${i + 1}:${n}`), variante: variant, firma, lineasSinEtiqueta: sinEtiqueta, stop: r.stopReason });
+  out("ETIQUETAS", { job: job.slice(0, 8), step, distintas: labs.length, conteos: labs.map(([, n], i) => `L${i + 1}:${n}`), variante: variant, firma, lineasSinEtiqueta: sinEtiqueta, stop: r.stopReason,
+    // Quién abre el bloque: índice de su etiqueta en el orden alfabético (estable entre pasos con la misma firma), sin nombre.
+    abre: (() => { const f = /^([^:]{1,60}):\s*\S/.exec(r.text.split("\n").find((l) => /^([^:]{1,60}):\s*\S/.test(l.trim()))?.trim() ?? ""); return f ? labs.map(([l]) => l).sort().indexOf(f[1].trim()) : null; })() });
 }
 for (const [label, root] of roots) {
   const L = await import(pathToFileURL(`${root}/src/lib/podcast/v3/long-script.ts`).href);
