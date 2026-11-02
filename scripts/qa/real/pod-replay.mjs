@@ -24,6 +24,15 @@ for (const o of ops ?? []) {
 }
 // Nombres de los participantes: las dos etiquetas «Nombre:» más frecuentes del primer bloque, en orden de aparición.
 const names = (txt) => { const c = new Map(); for (const l of txt.split("\n")) { const m = /^([^:]{1,60}):\s*\S/.exec(l.trim()); if (m) c.set(m[1].trim(), (c.get(m[1].trim()) ?? 0) + 1); } return [...c.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2).map((x) => x[0]); };
+// Etiquetas de hablante de cada paso pagado, enmascaradas (L1, L2…): cuántas distintas y si alguna es variante de otra
+// (p. ej. «Hans» frente a «El Duro Hans»). Sin nombres ni texto.
+for (const [job, steps] of jobs) for (const [step, r] of steps) {
+  if (step.startsWith("plan")) continue;
+  const c = new Map(); for (const l of r.text.split("\n")) { const m = /^([^:]{1,60}):\s*\S/.exec(l.trim()); if (m) c.set(m[1].trim(), (c.get(m[1].trim()) ?? 0) + 1); }
+  const labs = [...c.entries()].sort((a, b) => b[1] - a[1]);
+  const variant = labs.some(([a], i) => labs.some(([b], j) => i !== j && (b.toLowerCase().includes(a.toLowerCase()))));
+  out("ETIQUETAS", { job: job.slice(0, 8), step, distintas: labs.length, conteos: labs.map(([, n], i) => `L${i + 1}:${n}`), variante: variant });
+}
 for (const [label, root] of roots) {
   const L = await import(pathToFileURL(`${root}/src/lib/podcast/v3/long-script.ts`).href);
   for (const [job, steps] of jobs) {
