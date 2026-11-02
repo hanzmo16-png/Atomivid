@@ -3,7 +3,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { podcastUser } from "@/lib/podcast/auth";
 import { listAccountVoices } from "@/lib/podcast/voices";
 import { studioAction } from "@/lib/podcast/v3/api";
-import { realLlmStep, STUDIO_SCRIPT_PROJECT_PREFIX } from "@/lib/podcast/v3/adapters";
+import { realLlmReplay, realLlmStep, STUDIO_SCRIPT_PROJECT_PREFIX } from "@/lib/podcast/v3/adapters";
 import { STUDIO_TABLE } from "@/lib/podcast/v3/store";
 import { dispatchPodcastJob } from "@/lib/podcast/video-jobs";
 import { studioRecraftBlocker } from "@/lib/podcast/v3/readiness";
@@ -34,6 +34,11 @@ export async function POST(request: Request) {
     // escribe por pasos (escaleta + bloques de ~10 min), uno por petición: cada paso cabe holgadamente en maxDuration.
     llm: null,
     llmStep: studioGenerationEnabled(user) && process.env.PODCAST_V3_LLM === "1" ? (jobId) => realLlmStep(user.id, jobId) : null,
+    llmReplay: studioGenerationEnabled(user) && process.env.PODCAST_V3_LLM === "1" ? (jobId) => realLlmReplay(user.id, jobId) : null,
+    supplyPolicy: async () => {
+      const { data } = await service.from("pi_supply_policies").select("max_daily_calls,timezone,daily_cap_usd,monthly_cap_usd").eq("provider", "anthropic").maybeSingle();
+      return data ? { maxDailyCalls: Number(data.max_daily_calls), timezone: String(data.timezone), dailyCapUsd: Number(data.daily_cap_usd), monthlyCapUsd: Number(data.monthly_cap_usd) } : null;
+    },
     // Gasto de guion con IA de esta persona en 24 h: llamadas admitidas (enviadas, sin confirmar o liquidadas).
     scriptSpend: async () => {
       const { data, error } = await service.from("pi_paid_operations").select("reserved_usd, committed_usd").like("project_id", `${STUDIO_SCRIPT_PROJECT_PREFIX}${user.id}:%`)

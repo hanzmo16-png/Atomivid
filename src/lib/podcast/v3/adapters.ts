@@ -224,6 +224,17 @@ export const STUDIO_SCRIPT_PROJECT_PREFIX = "studio-script:";
  * nunca se cobra dos veces. Cliente Anthropic con supplyProtectedAnthropic (reserva en pi_paid_operations, sin
  * reintentos del SDK). Los errores del proveedor o del control de gasto se propagan: nunca hay plantilla de respaldo.
  */
+/** Lectura gratuita del resultado ya pagado de un paso (mismo modelo que realLlmStep); null si no se pagó. */
+export function realLlmReplay(ownerId: string, jobId: string): (step: string) => Promise<{ text: string; stopReason: string | null } | null> {
+  return async (step) => {
+    const { replayPaidStep } = await import("@/lib/supply/anthropic");
+    const model = process.env.ANTHROPIC_SCRIPT_MODEL || "claude-sonnet-5";
+    const res = await replayPaidStep<{ stop_reason?: string | null; content?: { type: string; text?: string }[] }>(studioScriptProject(ownerId, jobId), step, model);
+    if (!res) return null;
+    return { text: (res.content ?? []).filter((c) => c.type === "text").map((c) => c.text ?? "").join("\n"), stopReason: res.stop_reason ?? null };
+  };
+}
+
 export function realLlmStep(ownerId: string, jobId: string): (prompt: string, o: { step: string; maxTokens: number }) => Promise<{ text: string; stopReason: string | null }> {
   return async (prompt, o) => {
     const [{ default: Anthropic }, { supplyProtectedAnthropic, withSupplyStepContext }] = await Promise.all([import("@anthropic-ai/sdk"), import("@/lib/supply/anthropic")]);

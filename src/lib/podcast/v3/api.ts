@@ -11,7 +11,8 @@ import { isPrivateVoice } from "@/lib/voices/private-voices";
 import { preflight, type ImageProvider, type Providers, type VisualDirector } from "./pipeline";
 import { RECRAFT_USD_PER_IMAGE, RECRAFT_USD_STYLE_CREATION } from "@/lib/providers/image/recraft";
 import { generateConversation, type LlmFn } from "./script";
-import { advanceLongScript, assembleLongScript, checkLongState, LONG_SCRIPT_MAX_MINUTES, LongScriptError, newLongScript, normalizeLongInput, sameLongInput, segmentCount, type LlmStepFn, type LongScriptState } from "./long-script";
+import { supplyBlockMessage, type SupplyPolicyInfo } from "./supply-message";
+import { advanceLongScript, assembleLongScript, checkLongState, LONG_SCRIPT_MAX_MINUTES, LongScriptError, newLongScript, normalizeLongInput, sameLongInput, segmentCount, type LlmStepFn, type LongScriptState, type StepReplayFn } from "./long-script";
 import { estimateHeygenCost } from "@/lib/providers/avatar/heygen";
 import { getPricingConfig } from "@/lib/billing/pricing";
 import type { StudioEpisodeRow } from "./store";
@@ -34,6 +35,10 @@ export type ApiDeps = {
   userId: string; viewer: VoiceViewer; voices: () => Promise<AccountVoice[]>; enabled: boolean; llm: LlmFn | null;
   /** Guion largo por segmentos: modelo para el trabajo `jobId` (clave determinista por paso). null = IA no disponible. */
   llmStep?: ((jobId: string) => LlmStepFn) | null;
+  /** Lectura gratuita de pasos ya pagados del trabajo (reevaluación sin coste antes de pagar otro intento). */
+  llmReplay?: ((jobId: string) => StepReplayFn) | null;
+  /** Política de suministro de la IA (cuota diaria y zona horaria) para explicar un bloqueo con su hora real de restablecimiento. */
+  supplyPolicy?: () => Promise<SupplyPolicyInfo | null>;
   newJobId?: () => string;
   /** USD de guion con IA de esta persona en las últimas 24 h (libro de gastos). Lanza si no se puede leer (falla cerrado). */
   scriptSpend?: () => Promise<number>;
@@ -238,7 +243,9 @@ export function describeLlmFailure(e: unknown): { status: number; error: string;
       "authorization exceeded": "se alcanzó el tope autorizado de este proyecto",
       "job envelope exhausted": "se agotó el presupuesto reservado del trabajo",
     };
-    return { status: 503, error: `La IA no pudo empezar: ${human[reason] ?? "el control de gasto no admitió la llamada"}. No se cobró nada y lo ya escrito se conserva; reintenta en unos minutos.`, detail: `supply:${reason.slice(0, 60)}` };
+    // Sin la política a mano (p. ej. otros llamadores): el motivo, sin prometer un plazo; scriptStepAction lo sustituye
+    // por el mensaje con la hora real de restablecimiento (supplyBlockMessage).
+    return { status: 503, error: `La IA no pudo empezar: ${human[reason] ?? "el control de gasto no admitió la llamada"}. No se cobró nada y lo ya escrito se conserva.`, detail: `supply:${reason.slice(0, 60)}` };
   }
   if (name === "SubmissionInFlightError") return { status: 409, error: "Ese paso ya se está generando (¿otra pestaña?). Espera un momento y reintenta: no se paga dos veces.", detail: "in-flight" };
   if (/Reconciliation/i.test(name)) return { status: 409, error: "Una llamada de este guion quedó sin confirmar con el proveedor; por seguridad no se repite hasta reconciliarla (nunca se cobra dos veces). Lo ya escrito se conserva: puedes reintentar más tarde, o pulsar «Empezar de nuevo» (este guion queda guardado y recuperable).", detail: "reconciliation" };
@@ -279,7 +286,7 @@ async function scriptStepAction(d: ApiDeps, b: Record<string, unknown>): Promise
     if (used >= cap) return { status: 429, body: { error: `Alcanzaste el límite diario de guiones con IA (USD ${cap.toFixed(2)} en 24 h). Lo ya escrito se conserva; podrás continuar más tarde.`, code: "LIMITE_DIARIO", recoverable: true, state } };
   }
   try {
-    const r = await advanceLongScript(state, d.llmStep(state.jobId));
+    const r = await advanceLongScript(state, d.llmStep(state.jobId), d.llmReplay?.(state.jobId) ?? undefined);
     const base = { state: r.state, step: r.step, steps: r.steps, segments: segmentCount(minutes), phase: r.phase, ...(r.note ? { stepNote: r.note } : {}) };
     if (!r.done) return { status: 200, body: { ...base, done: false } };
     const final = assembleLongScript(r.state);
@@ -296,6 +303,14 @@ async function scriptStepAction(d: ApiDeps, b: Record<string, unknown>): Promise
     }
     const f = describeLlmFailure(e);
     console.error("podcast-studio script-step", { job: state.jobId, step: state.plan ? `s${state.segments.length}` : "plan", detail: f.detail });
-    return { status: f.status, body: { error: f.error, code: "IA_FALLO", detail: f.detail, recoverable: true, state, step: state.segments.length + (state.plan ? 1 : 0), steps: 1 + segmentCount(minutes) } };
+    let resetAt: string | null = null;
+    if (f.detail.startsWith("supply:")) {
+      // Bloqueo del control de suministro: el mensaje dice el límite real y CUÁNDO se restablece (nunca «unos minutos»).
+      let policy: SupplyPolicyInfo | null = null;
+      try { policy = d.supplyPolicy ? await d.supplyPolicy() : null; } catch { policy = null; }
+      const m = supplyBlockMessage(f.detail.slice("supply:".length), policy);
+      f.error = m.error; resetAt = m.resetAt;
+    }
+    return { status: f.status, body: { error: f.error, code: "IA_FALLO", detail: f.detail, recoverable: true, state, step: state.segments.length + (state.plan ? 1 : 0), steps: 1 + segmentCount(minutes), ...(resetAt ? { resetAt } : {}) } };
   }
 }
