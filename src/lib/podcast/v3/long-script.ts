@@ -75,6 +75,12 @@ export type LlmStepFn = (prompt: string, o: { step: string; maxTokens: number })
  */
 export type StepReplayFn = (step: string) => Promise<LlmStepOut | null>;
 
+/**
+ * Plantilla breve gratuita (unos 5 min, sin IA): SOLO para el modo corto, el que se escribe de una vez
+ * (≤ SINGLE_CALL_MAX_MINUTES). Un episodio más largo se escribe con IA por bloques; ofrecer ahí una plantilla de 5 min
+ * mezclaba dos cosas distintas (P0 «Base Dulce», 2026-11-02: 30 min pedidos, botón de plantilla visible, 5,9 min en el cuadro).
+ */
+export const briefTemplateAllowed = (minutes: unknown) => Math.round(Math.min(LONG_SCRIPT_MAX_MINUTES, Math.max(1, Number(minutes) || 5))) <= SINGLE_CALL_MAX_MINUTES;
 export const segmentCount = (minutes: number) => minutes <= SINGLE_CALL_MAX_MINUTES ? 1 : Math.ceil(minutes / SEGMENT_MINUTES);
 export const segmentChars = (minutes: number) => Math.round(targetChars(minutes) / segmentCount(minutes));
 /** Tokens de salida de un segmento: ~3 caracteres por token en español, con holgura para el tope del rango. */

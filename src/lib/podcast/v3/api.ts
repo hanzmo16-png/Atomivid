@@ -12,7 +12,7 @@ import { preflight, type ImageProvider, type Providers, type VisualDirector } fr
 import { RECRAFT_USD_PER_IMAGE, RECRAFT_USD_STYLE_CREATION } from "@/lib/providers/image/recraft";
 import { generateConversation, type LlmFn } from "./script";
 import { supplyBlockMessage, type SupplyPolicyInfo } from "./supply-message";
-import { advanceLongScript, assembleLongScript, checkLongState, LONG_SCRIPT_MAX_MINUTES, LongScriptError, newLongScript, normalizeLongInput, sameLongInput, segmentCount, type LlmStepFn, type LongScriptState, type StepReplayFn } from "./long-script";
+import { advanceLongScript, assembleLongScript, briefTemplateAllowed, SINGLE_CALL_MAX_MINUTES, checkLongState, LONG_SCRIPT_MAX_MINUTES, LongScriptError, newLongScript, normalizeLongInput, sameLongInput, segmentCount, type LlmStepFn, type LongScriptState, type StepReplayFn } from "./long-script";
 import { estimateHeygenCost } from "@/lib/providers/avatar/heygen";
 import { getPricingConfig } from "@/lib/billing/pricing";
 import type { StudioEpisodeRow } from "./store";
@@ -72,6 +72,8 @@ export async function studioAction(d: ApiDeps, body: Record<string, unknown> | n
     // Guion con IA: solo por pasos («script-step»), con errores claros. Una página antigua que aún pida la IA aquí recibe
     // un aviso en vez de la plantilla (P0 2026-11-01: «El modelo no respondió; se usó la plantilla» para 30 min pedidos).
     if (b.useAi === true) return { status: 409, body: { error: "Actualiza la página: la conversación con IA ahora se escribe por bloques.", code: "ACTUALIZAR" } };
+    // La plantilla breve (unos 5 min) es solo del modo corto: para un episodio largo se escribe con IA por bloques.
+    if (!briefTemplateAllowed(minutes)) return { status: 409, body: { error: `La plantilla breve (unos 5 min, sin IA) es solo para episodios de hasta ${SINGLE_CALL_MAX_MINUTES} min. Para ${minutes} min la conversación se escribe con IA por bloques.`, code: "PLANTILLA_SOLO_CORTO" } };
     // Plantilla breve gratuita, solo cuando la persona la elige expresamente: su nota dice cuánto dura de verdad.
     const r = await generateConversation({ topic, hostName: host, guestName: guest, guestRole: String(b.guestRole ?? "").slice(0, 120), minutes, hostPersonality: String(b.hostPersonality ?? "").slice(0, 160), guestPersonality: String(b.guestPersonality ?? "").slice(0, 160) }, null);
     const names = { A: host, B: guest };

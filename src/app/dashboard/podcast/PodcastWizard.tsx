@@ -10,7 +10,7 @@ import { classifyClientFetchError } from "@/lib/http/client-error";
 import { MODE_LABEL, MOODS, MOOD_LABEL } from "@/lib/podcast/v3/spec";
 import { STUDIOS, type StudioId } from "@/lib/podcast/v3/studios";
 import { progressView, type LedgerActivity } from "@/lib/podcast/v3/progress";
-import { normalizeLongInput, sameLongInput } from "@/lib/podcast/v3/long-script";
+import { briefTemplateAllowed, normalizeLongInput, sameLongInput, segmentCount } from "@/lib/podcast/v3/long-script";
 import { runScriptGeneration, type ScriptProgress } from "@/lib/podcast/v3/script-client";
 import { DRAFT_RECOVERY_KEY, draftOwner, hasParked, hasWork, parkDraft, takeParked } from "@/lib/podcast/v3/draft-recovery";
 import { AtomProgress } from "@/components/podcast/AtomProgress";
@@ -146,7 +146,13 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
         onProgress: (p) => { if (live()) setScriptProgress((prev) => (p?.waiting && prev ? { ...prev, waiting: p.waiting } : p)); },
       });
       if (!live()) return;
-      if (r.kind === "done") { set({ script: r.script, scriptJob: null }); setNote(r.note); }
+      if (r.kind === "done") {
+        // El texto que ya había en el cuadro «Guion» (p. ej. 5,9 min de una plantilla o pegado) no se pierde al llegar el
+        // guion largo: el borrador con ese texto queda aparcado y se recupera con «Recuperar el borrador anterior».
+        const prev = d.script.trim();
+        if (prev && prev !== r.script.trim()) { try { if (parkDraft(localStorage, ownedRaw({ ...d, scriptJob: null }))) setRecoverable(true); } catch { /* sin almacenamiento */ } }
+        set({ script: r.script, scriptJob: null }); setNote(r.note);
+      }
       else if (r.reason !== "cancelado") setError(r.message);
     } finally {
       if (scriptSeq.current === id) { scriptRun.current = null; setBusy(false); setScriptProgress(null); }
@@ -303,7 +309,9 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
               («0 caracteres») aunque había bloques guardados. Se muestra lo guardado, tal cual, sin mezclarlo con el guion final. */}
           {d.mode === "dialogo" && <SavedProgressPanel saved={savedProgress(d.scriptJob, { A: d.participants[0]?.name ?? "A", B: d.participants[1]?.name ?? "B" })} />}
           {d.mode === "dialogo" && scriptProgress?.note && <p className="text-xs text-ink-muted" data-testid="nota-bloque">{scriptProgress.note}</p>}
-          {d.mode === "dialogo" && !busy && d.topic.trim().length >= 3 && <button type="button" className="justify-self-start text-xs text-ink-muted underline" onClick={applyTemplate} data-testid="usar-plantilla">Usar la plantilla breve (unos 5 min, sin IA)</button>}
+          {/* P0 2026-11-02: la plantilla breve (unos 5 min) solo en el modo corto; para un episodio largo se informa el estado real. */}
+          {d.mode === "dialogo" && !busy && d.topic.trim().length >= 3 && briefTemplateAllowed(d.minutes) && <button type="button" className="justify-self-start text-xs text-ink-muted underline" onClick={applyTemplate} data-testid="usar-plantilla">Usar la plantilla breve (unos 5 min, sin IA)</button>}
+          {d.mode === "dialogo" && <LongScriptStatus status={longScriptStatus(d.minutes, d.script, staleJob(d.scriptJob, scriptAsk()) ? null : d.scriptJob)} />}
           {d.mode === "dialogo" && d.topic.trim().length < 3 && <p className="text-xs text-ink-muted" data-testid="motivo-generar-guion">Escribe el tema (al menos 3 letras) para generar la conversación, o pega tu guion abajo.</p>}
           <label>{d.mode === "dialogo" ? "Guion (una línea por turno: «Nombre: texto»)" : "Texto del episodio (un párrafo por idea)"}
             <textarea aria-label="Guion" value={d.script} rows={8} onChange={(e) => set({ script: e.target.value })} className={input} /></label>
@@ -634,6 +642,29 @@ export function jobConfigPatch(d: WizardDraft, job: unknown): Partial<WizardDraf
       ...d.participants.slice(2),
     ] as WizardDraft["participants"],
   };
+}
+/** Estado de un episodio LARGO (más de lo que se escribe de una vez): objetivo, lo recuperado, lo pendiente y el cuadro «Guion». */
+export type LongStatus = { target: number; blocks: number; saved: number; savedMinutes: number; planReady: boolean; boxChars: number; boxMinutes: number; boxShort: boolean };
+export function longScriptStatus(minutes: number, script: string, job: unknown): LongStatus | null {
+  if (briefTemplateAllowed(minutes)) return null;
+  const target = Math.round(Math.min(60, Math.max(1, Number(minutes) || 5)));
+  const s = job as { plan?: { segments?: unknown[] } | null } | null | undefined;
+  const sp = savedProgress(job, { A: "A", B: "B" });
+  const blocks = Array.isArray(s?.plan?.segments) ? s!.plan!.segments!.length : segmentCount(target);
+  return { target, blocks, saved: sp?.blocks ?? 0, savedMinutes: sp?.minutes ?? 0, planReady: Array.isArray(s?.plan?.segments), boxChars: script.trim().length, boxMinutes: script.trim() ? estimateMinutes(script) : 0, boxShort: durationFit(script, target) === "corto" };
+}
+const fmtMin = (x: number) => x.toFixed(1).replace(".", ",");
+export function LongScriptStatus({ status: s }: { status: LongStatus | null }) {
+  if (!s) return null;
+  const pending = s.blocks - s.saved;
+  return (
+    <div className="grid gap-1 rounded border border-border p-2 text-xs text-ink" data-testid="estado-guion-largo">
+      <p className="font-semibold">Episodio largo: objetivo {s.target} min. La conversación se escribe con IA en {s.blocks} bloques; la plantilla breve de unos 5 min no aplica a esta duración.</p>
+      <p data-testid="estado-recuperado">Recuperado y guardado (no se vuelve a pagar): {s.saved} de {s.blocks} bloques{s.saved ? `, unos ${fmtMin(s.savedMinutes)} min` : ""}.</p>
+      <p data-testid="estado-pendiente">Pendiente: {s.planReady ? "" : "la escaleta y "}{pending} {pending === 1 ? "bloque" : "bloques"}. Al continuar, cada paso pendiente es una nueva llamada de IA pagada (los intentos ya pagados se reutilizan sin costo).</p>
+      <p data-testid="estado-cuadro">Cuadro «Guion»: {s.boxChars.toLocaleString("es-MX")} caracteres, unos {fmtMin(s.boxMinutes)} min de {s.target} min{s.boxChars && s.boxShort ? " — no es el episodio terminado. Cuando estén todos los bloques, el guion completo ocupa el cuadro y este texto queda guardado en «Recuperar el borrador anterior»" : ""}.</p>
+    </div>
+  );
 }
 /** Lo ya escrito y guardado del guion con IA (o nada si no hay bloques). */
 export function SavedProgressPanel({ saved }: { saved: ReturnType<typeof savedProgress> }) {
