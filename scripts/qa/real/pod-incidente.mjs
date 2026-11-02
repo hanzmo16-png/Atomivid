@@ -11,9 +11,12 @@ const mask = (s) => String(s ?? "").replaceAll(OWNER, "<dueño>").replace(/studi
 const since = new Date(Date.now() - 36 * 3600_000).toISOString();
 
 // 1) Política y estado de la cuota (mismas funciones de solo lectura que usa pi_submit_with_supply).
-const { data: pol } = await db.from("pi_supply_policies").select("provider,enabled,max_concurrent,max_daily_calls,daily_cap_usd,monthly_cap_usd,timezone").in("provider", ["anthropic", "__global__"]);
+const { data: pol } = await db.from("pi_supply_policies").select("provider,enabled,max_concurrent,max_daily_calls,daily_cap_usd,monthly_cap_usd,timezone").in("provider", ["anthropic", "heygen", "elevenlabs", "recraft", "__global__"]);
 out("POLICY", pol ?? []);
 const { data: st } = await db.rpc("pi_supply_state", { p_provider: "anthropic" });
+for (const pv of ["heygen", "elevenlabs", "recraft"]) { const { data: ps } = await db.rpc("pi_supply_state", { p_provider: pv }); out(`STATE_${pv.toUpperCase()}`, { level: ps?.level ?? null, todayCalls: ps?.todayCalls ?? null, activeCalls: ps?.activeCalls ?? null }); }
+// Episodio de estudio de Base Dulce que falló por «daily request quota» (solo estado y error; sin guion ni dueño).
+{ const { data: ep } = await db.from("podcast_studio_episodes").select("id,status,error,updated_at,cost_usd").eq("id", "18989245-eb29-4755-be7f-2cd13655bf1c").maybeSingle(); out("EPISODIO_18989245", ep ? { status: ep.status, error: ep.error, updated_at: ep.updated_at, cost_usd: ep.cost_usd } : null); }
 out("ANTHROPIC_STATE", { level: st?.level ?? null, todayCalls: st?.todayCalls ?? null, activeCalls: st?.activeCalls ?? null, dailySpend: st?.dailySpend ?? null });
 
 // 2) Todas las operaciones de Anthropic de las últimas 36 h, por clase de proyecto (quién consumió la cuota).
