@@ -2,12 +2,8 @@
  * Contrato REAL de recuperación entre #269 (entrada «Personalizado», src/lib/podcast/v3/wizard.ts) y #272 («Empezar de
  * nuevo», draft-recovery.ts) sobre el MISMO almacén. Ejecuta los dos módulos reales, sin copias.
  *
- * No forma parte de test:podcast3 (allí no se admiten pruebas omitidas y wizard.ts de esta rama aún no tiene el código de
- * #269). Se ejecuta en la rama integrada, o en un merge efímero de #269 + #272:
- *   node --import tsx --test scripts/qa/contrato-recuperacion-269-272.test.ts
- * Falla si wizard.ts no exporta applyFreshHomeEntry/restorePreviousDraft/recoveryList (rama sin #269).
- * Resultado con #269 @ 7583bbc7 + #272: sin el parser único de docs/podcast-guion-integridad.md FALLA (el crudo no se
- * lista); con él PASA junto con wizard-pantallas.test.ts.
+ * Integrado #269 + #272: forma parte de test:podcast3 (wizard.ts importa el parser único de draft-recovery.ts).
+ * Antes del parser único (wizard.ts de #269 @ 7583bbc7 con su propia copia) FALLABA: el crudo no se listaba.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

@@ -4,6 +4,7 @@ import type { Mood, StudioMode, StudioSet } from "./spec";
 import { DURATION_TOLERANCE, OPEN_CLOSE_SECONDS, SPOKEN_CHARS_PER_SECOND, TURN_GAP_SECONDS } from "./script";
 import { STUDIO_IDS, legacyStudio } from "./studios";
 import { catalogHost, type CatalogHost } from "./catalog";
+import { DRAFT_RECOVERY_KEY, parseRecovery } from "./draft-recovery";
 
 export const WIZARD_STORAGE_KEY = "atomivid.podcast.asistente.v2";
 /** Tope por episodio que el servidor y la BD hacen cumplir (STUDIO_MAX_AUTHORIZED_USD en api.ts; CHECK ≤ 50 en 140000).
@@ -293,7 +294,7 @@ export function durationFit(script: string, minutes: number): "ok" | "largo" | "
  * `/dashboard/podcast` sin `modo=personalizado` y sin `entrada=nueva-…` no toca nada (sigue el borrador guardado).
  * Los tokens ya usados viven en `WIZARD_ENTRY_TOKENS_KEY`: recargar el mismo enlace no vuelve a empezar.
  */
-export const WIZARD_RECOVERY_KEY = "atomivid.podcast.asistente.v2.recuperable";
+export const WIZARD_RECOVERY_KEY = DRAFT_RECOVERY_KEY;
 export const WIZARD_ENTRY_TOKENS_KEY = "atomivid.podcast.asistente.v2.entradas";
 const ENTRY_IDEA_MAX = 500;
 const ENTRY_TOKEN_KEEP = 40;
@@ -332,26 +333,7 @@ export function entryScreenLabel(step: number): { paso: number; name: (typeof SC
 
 type RecoveryFile = { v: 1; items: ParkedDraft[]; legacy?: string };
 
-function parseRecovery(raw: string | null): { items: ParkedDraft[]; legacy: string | null } {
-  if (!raw) return { items: [], legacy: null };
-  try {
-    const v = JSON.parse(raw) as unknown;
-    if (Array.isArray(v)) return { items: v.filter(isParked).map(normParked), legacy: null };
-    if (v && typeof v === "object" && Array.isArray((v as { items?: unknown }).items)) {
-      const o = v as { items: unknown[]; legacy?: unknown };
-      return { items: o.items.filter(isParked).map(normParked), legacy: typeof o.legacy === "string" ? o.legacy : null };
-    }
-    return { items: [], legacy: raw };
-  } catch { return { items: [], legacy: raw }; }
-}
-
-function isParked(x: unknown): x is { raw: string; at?: unknown; step?: unknown } {
-  return !!x && typeof x === "object" && typeof (x as { raw?: unknown }).raw === "string" && (x as { raw: string }).raw.length > 0;
-}
-function normParked(x: { raw: string; at?: unknown; step?: unknown }): ParkedDraft {
-  return { raw: x.raw, at: typeof x.at === "string" ? x.at : "", step: Number.isFinite(Number(x.step)) ? Number(x.step) : storedDraftStep(x.raw) };
-}
-
+// Parser ÚNICO de la clave recuperable, compartido con «Empezar de nuevo» (#272): crudo → ítem, legado intacto, sin tope.
 export function recoveryList(raw: string | null): ParkedDraft[] {
   return parseRecovery(raw).items;
 }
