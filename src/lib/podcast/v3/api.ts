@@ -241,7 +241,7 @@ export function describeLlmFailure(e: unknown): { status: number; error: string;
     return { status: 503, error: `La IA no pudo empezar: ${human[reason] ?? "el control de gasto no admitió la llamada"}. No se cobró nada y lo ya escrito se conserva; reintenta en unos minutos.`, detail: `supply:${reason.slice(0, 60)}` };
   }
   if (name === "SubmissionInFlightError") return { status: 409, error: "Ese paso ya se está generando (¿otra pestaña?). Espera un momento y reintenta: no se paga dos veces.", detail: "in-flight" };
-  if (/Reconciliation/i.test(name)) return { status: 409, error: "Una llamada de este guion quedó sin confirmar con el proveedor; por seguridad no se repite. Empieza un guion nuevo.", detail: "reconciliation" };
+  if (/Reconciliation/i.test(name)) return { status: 409, error: "Una llamada de este guion quedó sin confirmar con el proveedor; por seguridad no se repite hasta reconciliarla (nunca se cobra dos veces). Lo ya escrito se conserva: puedes reintentar más tarde, o pulsar «Empezar de nuevo» (este guion queda guardado y recuperable).", detail: "reconciliation" };
   if (name === "PaidLedgerUnavailableError" || name === "ScriptLedgerUnavailableError") return { status: 503, error: "No se pudo registrar el gasto de la llamada; no se llamó a la IA. Reintenta en unos minutos.", detail: "ledger" };
   if (typeof err?.status === "number") return { status: 502, error: `El modelo respondió con un error (${err.status}). No se usó ninguna plantilla; lo ya escrito se conserva y puedes reintentar.`, detail: `provider:${err.status}` };
   return { status: 502, error: "El modelo no respondió. No se usó ninguna plantilla; lo ya escrito se conserva y puedes reintentar.", detail: `error:${name.slice(0, 40) || "desconocido"}` };
@@ -258,10 +258,14 @@ async function scriptStepAction(d: ApiDeps, b: Record<string, unknown>): Promise
   if (!d.enabled || !d.llmStep) return { status: 503, body: { error: "La generación con IA no está disponible en este momento. No se usó ninguna plantilla: puedes escribir o pegar tu guion, o elegir expresamente la plantilla breve.", code: "IA_NO_DISPONIBLE" } };
   let state: LongScriptState;
   try {
-    // Un trabajo guardado de OTRO tema, nombres o duración no se continúa: se empieza uno nuevo.
+    // Un trabajo guardado NUNCA se sustituye en silencio (Grok, CORRECCION-2, defecto 4): si su tema, nombres o duración
+    // no coinciden con la petición, se responde OTRO_TRABAJO sin tocarlo ni llamar a la IA. Empezar otro guion exige
+    // enviar `state: null` de forma explícita (el asistente aparca antes el anterior, recuperable con sus bloques pagados).
     const prev = b.state as LongScriptState | null | undefined;
-    const same = !!prev && sameLongInput(prev.input, input);
-    state = same ? checkLongState(prev, input) : newLongScript((d.newJobId ?? (() => crypto.randomUUID()))(), input);
+    if (prev != null && typeof prev === "object" && prev.input && !sameLongInput(prev.input, input)) {
+      return { status: 409, body: { error: "El guion a medias es de otra configuración (tema, participantes o duración). No se empezó otro ni se cobró nada: vuelve a esa configuración para continuarlo, o empieza uno nuevo (el anterior queda guardado y recuperable).", code: "OTRO_TRABAJO", recoverable: true } };
+    }
+    state = prev != null ? checkLongState(prev, input) : newLongScript((d.newJobId ?? (() => crypto.randomUUID()))(), input);
   } catch (e) {
     if (e instanceof LongScriptError) return { status: 400, body: { error: e.message, code: e.code, recoverable: false } };
     throw e;
@@ -276,7 +280,7 @@ async function scriptStepAction(d: ApiDeps, b: Record<string, unknown>): Promise
   }
   try {
     const r = await advanceLongScript(state, d.llmStep(state.jobId));
-    const base = { state: r.state, step: r.step, steps: r.steps, segments: segmentCount(minutes) };
+    const base = { state: r.state, step: r.step, steps: r.steps, segments: segmentCount(minutes), phase: r.phase, ...(r.note ? { stepNote: r.note } : {}) };
     if (!r.done) return { status: 200, body: { ...base, done: false } };
     const final = assembleLongScript(r.state);
     const names = { A: input.hostName, B: input.guestName };

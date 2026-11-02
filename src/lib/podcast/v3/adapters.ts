@@ -224,14 +224,15 @@ export const STUDIO_SCRIPT_PROJECT_PREFIX = "studio-script:";
  * nunca se cobra dos veces. Cliente Anthropic con supplyProtectedAnthropic (reserva en pi_paid_operations, sin
  * reintentos del SDK). Los errores del proveedor o del control de gasto se propagan: nunca hay plantilla de respaldo.
  */
-export function realLlmStep(ownerId: string, jobId: string): (prompt: string, o: { step: string; maxTokens: number }) => Promise<string> {
+export function realLlmStep(ownerId: string, jobId: string): (prompt: string, o: { step: string; maxTokens: number }) => Promise<{ text: string; stopReason: string | null }> {
   return async (prompt, o) => {
     const [{ default: Anthropic }, { supplyProtectedAnthropic, withSupplyStepContext }] = await Promise.all([import("@anthropic-ai/sdk"), import("@/lib/supply/anthropic")]);
     const model = process.env.ANTHROPIC_SCRIPT_MODEL || "claude-sonnet-5";
     const params = { model, max_tokens: o.maxTokens, messages: [{ role: "user" as const, content: prompt }], ...(model === "claude-sonnet-5" ? { thinking: { type: "disabled" as const } } : {}) };
     const client = new Anthropic();
     const res = await withSupplyStepContext(studioScriptProject(ownerId, jobId), o.step, () =>
-      supplyProtectedAnthropic(params, () => client.messages.create(params as never, { maxRetries: 0 }) as unknown as Promise<{ usage?: never; content: { type: string; text?: string }[] }>));
-    return res.content.filter((c) => c.type === "text").map((c) => c.text ?? "").join("\n");
+      supplyProtectedAnthropic(params, () => client.messages.create(params as never, { maxRetries: 0 }) as unknown as Promise<{ usage?: never; stop_reason?: string | null; content: { type: string; text?: string }[] }>));
+    // stop_reason «max_tokens» = respuesta truncada: long-script.ts descarta el turno a medias y amplía el bloque.
+    return { text: res.content.filter((c) => c.type === "text").map((c) => c.text ?? "").join("\n"), stopReason: res.stop_reason ?? null };
   };
 }

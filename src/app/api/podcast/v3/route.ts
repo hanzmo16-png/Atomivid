@@ -48,3 +48,13 @@ export async function POST(request: Request) {
   }, body);
   return NextResponse.json(out.body, { status: out.status });
 }
+
+/**
+ * Cuenta con sesión, solo lectura (GET): el asistente aísla por cuenta sus borradores locales en un navegador compartido.
+ * Sin efectos: no crea, no cobra, no llama a ningún proveedor.
+ */
+export async function GET() {
+  const user = await podcastUser();
+  if ("error" in user) return NextResponse.json({ error: user.error }, { status: user.status });
+  return NextResponse.json({ ownerId: user.id }, { headers: { "cache-control": "no-store" } });
+}
