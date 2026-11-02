@@ -25,7 +25,7 @@ const ok = (name, cond, info = "") => { console.log(`${cond ? "PASS" : "FAIL"} $
 const H = { apikey: process.env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}` };
 const rest = (q, extra = {}) => fetch(`${process.env.SUPABASE_URL}/rest/v1/${q}`, { headers: { ...H, ...extra } });
 const count = async (t) => { const r = await fetch(`${process.env.SUPABASE_URL}/rest/v1/${t}`, { method: "HEAD", headers: { ...H, Prefer: "count=exact" } }); return Number((r.headers.get("content-range") ?? "").split("/")[1] ?? NaN); };
-const counts = async () => ({ studio: await count(`podcast_studio_episodes?select=id&user_id=eq.${OWNER}`), v2: await count(`podcast_episodes?select=id&user_id=eq.${OWNER}`), guion: await count("pi_paid_operations?select=id&project_id=like.studio-script:*"), podcast: await count("pi_paid_operations?select=id&project_id=like.podcast-*") });
+const counts = async () => ({ studio: await count(`podcast_studio_episodes?select=id&user_id=eq.${OWNER}`), v2: await count(`podcast_episodes?select=id&user_id=eq.${OWNER}`), guion: await count("pi_paid_operations?select=idempotency_key&project_id=like.studio-script:*"), podcast: await count("pi_paid_operations?select=idempotency_key&project_id=like.podcast-*") });
 
 const BEFORE = await counts();
 console.log(`COUNTS_BEFORE ${JSON.stringify(BEFORE)}`);
@@ -39,6 +39,17 @@ for (const t of ["podcast_studio_episodes", "podcast_episodes"]) {
   const r = await rest(`podcast_studio_episodes?select=archived_at&user_id=eq.${OWNER}&archived_at=not.is.null`, { Prefer: "count=exact" });
   const n = Number((r.headers.get("content-range") ?? "").split("/")[1] ?? NaN);
   console.log(`ARCHIVADOS_ESTUDIO_DUENO ${JSON.stringify({ http: r.status, n })}`);
+}
+
+// 1b) Conteos agregados por fuente × estado × archivado (todas las cuentas; sin IDs, títulos ni dueños) y estados
+// imposibles: un episodio en producción (authorized/generating) marcado como archivado.
+for (const t of ["podcast_studio_episodes", "podcast_episodes"]) {
+  const r = await rest(`${t}?select=status,archived_at`, { Range: "0-49999" });
+  const rows = r.status === 200 || r.status === 206 ? await r.json() : [];
+  const agg = {}; let imposibles = 0;
+  for (const o of rows) { const k = `${o.status}|${o.archived_at ? "archivado" : "visible"}`; agg[k] = (agg[k] ?? 0) + 1; if (o.archived_at && ["authorized", "generating"].includes(o.status)) imposibles++; }
+  console.log(`AGREGADO ${t} ${JSON.stringify({ http: r.status, filas: rows.length, porEstado: agg })}`);
+  ok(`estados imposibles en ${t}: ninguno en producción y archivado`, imposibles === 0, `n=${imposibles}`);
 }
 
 // 2) Libro real del guion largo: por proyecto y nombre de paso. Claves nuevas («script:<paso>:paso») nunca duplicadas.
@@ -70,7 +81,9 @@ for (const [label, opts] of [["escritorio", { viewport: { width: 1366, height: 9
   const p = await ctx.newPage();
   const shot = (n) => p.screenshot({ path: path.join(EVID, `cierre-${FASE}-${label}-${n}.png`), fullPage: true }).catch(() => {});
   const W = () => p.getByTestId("podcast-wizard");
-  const posts = [];
+  const posts = [], writes = [];
+  // Toda petición que no sea GET (cualquier destino), solo método + host + ruta, sin cuerpo: identifica escrituras al cargar.
+  p.on("request", (req) => { if (req.method() !== "GET") { try { const u = new URL(req.url()); writes.push(`${req.method()} ${u.host}${u.pathname}`); } catch {} } });
   await p.route("**/api/podcast/**", async (route) => {
     const req = route.request(); if (req.method() === "GET") return route.continue();
     const body = req.postData() ?? "";
@@ -83,7 +96,9 @@ for (const [label, opts] of [["escritorio", { viewport: { width: 1366, height: 9
   try {
     await p.goto(`${APP}/dashboard/podcast`);
     if (!ok(`${label}: abre el estudio con la sesión del dueño`, new URL(p.url()).hostname === HOST && /\/dashboard\/podcast/.test(p.url()), p.url())) { await ctx.close(); continue; }
-    await hydrated();
+    await hydrated(); await p.waitForTimeout(3000);
+    console.log(`CARGA_NO_GET ${label} ${JSON.stringify(writes)}`);
+    ok(`${label}: al cargar /dashboard/podcast no hay escrituras a la app (POST/PUT/PATCH/DELETE a ${HOST})`, writes.filter((w) => w.split(" ")[1].startsWith(HOST)).length === 0, JSON.stringify(writes));
     // 3a) Cuenta con sesión (GET de solo lectura).
     const who = await p.evaluate(async () => { const r = await fetch("/api/podcast/v3", { cache: "no-store" }); return { status: r.status, body: await r.json().catch(() => null) }; });
     ok(`${label}: GET /api/podcast/v3 devuelve la cuenta con sesión`, who.status === 200 && who.body?.ownerId === OWNER, `HTTP ${who.status}`);
