@@ -28,6 +28,10 @@ export function nextLocalMonthStart(tz: string, now: Date): Date {
   return new Date(Date.UTC(y, m, 1, 0, 0, 0) - offsetMs);
 }
 const hhmmUtc = (t: Date) => t.toISOString().slice(11, 16);
+/** Fecha LOCAL (AAAA-MM-DD) del instante `t` en `tz`. No usar toISOString: en zonas UTC+ daría el día anterior. */
+export function localDate(tz: string, t: Date): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(t);
+}
 const until = (t: Date, now: Date) => {
   const min = Math.max(1, Math.ceil((t.getTime() - now.getTime()) / 60000));
   return min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, "0")} min`;
@@ -49,7 +53,7 @@ export function supplyBlockMessage(reason: string, policy: SupplyPolicyInfo | nu
     // El motivo no dice si se agotó el tope DIARIO o el MENSUAL: no se inventa una hora (resetAt null) y se explican ambas.
     const day = nextLocalMidnight(tz, now), month = nextLocalMonthStart(tz, now);
     const scope = reason === "global funded spend ceiling" ? "de toda la plataforma" : "de este proveedor de IA";
-    return { error: `La IA no pudo empezar: se alcanzó un tope de gasto de IA ${scope}. Puede ser el tope diario o el mensual, y este aviso no indica cuál. Si es el diario, se restablece a las 00:00 hora de ${zone} (${hhmmUtc(day)} UTC); si es el mensual, el ${month.toISOString().slice(0, 10)} a las 00:00 hora de ${zone}. ${keep}: pulsa «Continuar la conversación» más tarde; si sigue bloqueado tras la medianoche, es el tope mensual y lo resuelve el operador de la plataforma.`, resetAt: null };
+    return { error: `La IA no pudo empezar: se alcanzó un tope de gasto de IA ${scope}. Puede ser el tope diario o el mensual, y este aviso no indica cuál. Si es el diario, se restablece a las 00:00 hora de ${zone} (${hhmmUtc(day)} UTC); si es el mensual, el ${localDate(tz, month)} a las 00:00 hora de ${zone}. ${keep}: pulsa «Continuar la conversación» más tarde; si sigue bloqueado tras la medianoche, es el tope mensual y lo resuelve el operador de la plataforma.`, resetAt: null };
   }
   if (reason === "concurrency") return { error: `La IA no pudo empezar: otra llamada de IA de la plataforma está en curso (solo se admite una a la vez; cada llamada dura como máximo 5 minutos). ${keep}: pulsa «Continuar la conversación» cuando termine.`, resetAt: null };
   return { error: `La IA no pudo empezar: el control de gasto no admitió la llamada (${reason || "motivo no informado"}). No hay una hora fija de restablecimiento: lo resuelve el operador de la plataforma. ${keep}.`, resetAt: null };
