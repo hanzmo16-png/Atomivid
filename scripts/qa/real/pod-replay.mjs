@@ -4,6 +4,7 @@
 // Uso: REPLAY_ROOTS="desplegado=/ruta/a/worktree,corregido=/ruta/a/worktree" node pod-replay.mjs
 import { createClient } from "@supabase/supabase-js";
 import { pathToFileURL } from "node:url";
+import { createHash } from "node:crypto";
 
 const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 const out = (k, v) => console.log(`${k} ${JSON.stringify(v)}`);
@@ -31,7 +32,9 @@ for (const [job, steps] of jobs) for (const [step, r] of steps) {
   const c = new Map(); for (const l of r.text.split("\n")) { const m = /^([^:]{1,60}):\s*\S/.exec(l.trim()); if (m) c.set(m[1].trim(), (c.get(m[1].trim()) ?? 0) + 1); }
   const labs = [...c.entries()].sort((a, b) => b[1] - a[1]);
   const variant = labs.some(([a], i) => labs.some(([b], j) => i !== j && (b.toLowerCase().includes(a.toLowerCase()))));
-  out("ETIQUETAS", { job: job.slice(0, 8), step, distintas: labs.length, conteos: labs.map(([, n], i) => `L${i + 1}:${n}`), variante: variant });
+  const firma = createHash("sha256").update(labs.map(([l]) => l).sort().join("|")).digest("hex").slice(0, 8); // misma firma = mismas etiquetas
+  const sinEtiqueta = r.text.split("\n").filter((l) => l.trim() && !/^([^:]{1,60}):\s*\S/.test(l.trim())).length;
+  out("ETIQUETAS", { job: job.slice(0, 8), step, distintas: labs.length, conteos: labs.map(([, n], i) => `L${i + 1}:${n}`), variante: variant, firma, lineasSinEtiqueta: sinEtiqueta, stop: r.stopReason });
 }
 for (const [label, root] of roots) {
   const L = await import(pathToFileURL(`${root}/src/lib/podcast/v3/long-script.ts`).href);
