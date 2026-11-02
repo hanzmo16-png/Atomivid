@@ -106,7 +106,7 @@ jobs:
               git fetch -q --depth 1 "https://github.com/${{ github.repository }}.git" "$s" && d="$RUNNER_TEMP/v-$n" && git worktree add -q --detach "$d" FETCH_HEAD && ln -s "$GITHUB_WORKSPACE/node_modules" "$d/node_modules" && R="$R$n=$d,"; done
             REPLAY_ROOTS="$R" npx tsx scripts/qa/real/pod-replay.mjs; exit $?; fi
           # Cierre de Podcast Studio (#272/#269), USD 0: pod_episode_id = fase (272 | 269). Nada se genera ni se cobra.
-          if [ "$CASO" = pod-cierre ]; then F="${{ inputs.pod_episode_id }}"; case "$F" in 272|269) ;; *) echo "::error::pod_episode_id debe ser 272 o 269"; exit 1;; esac; POD_CIERRE_FASE="$F" node scripts/qa/real/pod-cierre.mjs; exit $?; fi
+          if [ "$CASO" = pod-cierre ]; then F="${{ inputs.pod_episode_id }}"; case "$F" in 272|269|273) ;; *) echo "::error::pod_episode_id debe ser 272, 269 o 273"; exit 1;; esac; POD_CIERRE_FASE="$F" node scripts/qa/real/pod-cierre.mjs; exit $?; fi
           if [ "$CASO" = lf-ui ]; then node scripts/qa/real/lf-ui.mjs; exit $?; fi
           if [ "$CASO" = pod-ui ]; then POD_UI_UNTIL="${{ (inputs.pod_episode_id == 'visuales' && 'visuales') || '' }}" node scripts/qa/real/pod-ui.mjs; exit $?; fi
           if [ "$CASO" = pod-borrador-fix ]; then POD_EXPECT=corregido node scripts/qa/real/pod-borrador.mjs; exit $?; fi

@@ -1,4 +1,4 @@
-// USD 0, SIN GENERAR NADA: cierre de Podcast Studio (#272 y #269) en PRODUCCIÓN con la sesión de la cuenta dueña.
+// USD 0, SIN GENERAR NADA: cierre de Podcast Studio (#272, #269 y #273) en PRODUCCIÓN con la sesión de la cuenta dueña.
 // Comprueba lo DESPLEGADO, no una simulación local:
 //  1) esquema real: archived_at en las dos tablas de episodios (archivar/restaurar), lectura con service role;
 //  2) libro real: operaciones del guion largo (studio-script:*) agrupadas por paso; ninguna clave nueva duplicada;
@@ -115,6 +115,11 @@ for (const [label, opts] of [["escritorio", { viewport: { width: 1366, height: 9
     const btn = await W().getByTestId("generar-guion").innerText().catch(() => "");
     ok(`${label}: trabajo a medias → «Continuar la conversación (bloque 2 de 3)»`, /Continuar la conversación \(bloque 2 de 3\)/.test(btn), btn);
     ok(`${label}: aviso «Retomaste tu borrador»`, (await p.getByTestId("borrador-retomado").count()) === 1);
+    if (FASE === "273") {
+      // #273 desplegado: el progreso guardado se ve (antes, «0 caracteres» con bloques guardados).
+      const g = await W().getByTestId("progreso-guardado").innerText().catch(() => "");
+      ok(`${label}: #273 en producción: panel «Guardado en este navegador: 1 de 3 bloques»`, /Guardado en este navegador: 1 de 3 bloques/.test(g), g.slice(0, 160));
+    }
     // 3b) Sonda de servidor: el MISMO trabajo con OTRA configuración → 409 OTRO_TRABAJO sin IA (o 503 si la IA está apagada).
     const probe = await p.evaluate(async ([st]) => {
       const r = await fetch("/api/podcast/v3", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "script-step", __sonda: "otro-trabajo", topic: "Otra configuración (sonda de cierre)", minutes: 20, hostName: "X", guestName: "Y", state: st }) });
