@@ -133,6 +133,22 @@ test("cuota diaria: el mensaje dice el límite real y la hora EXACTA de restable
   assert.doesNotMatch(describeLlmFailure(Object.assign(new Error("SUPPLY_UNAVAILABLE:anthropic:daily request quota"), { name: "SupplyUnavailableError" })).error, /unos minutos/);
 });
 
+test("tope de gasto (proveedor o global): no se sabe si es diario o mensual → sin hora inventada (resetAt null), se explican ambas", () => {
+  const now = new Date("2026-11-02T04:30:00Z");
+  for (const reason of ["provider funded spend ceiling", "global funded spend ceiling"]) {
+    const m = supplyBlockMessage(reason, { maxDailyCalls: 20, timezone: "America/Cancun", dailyCapUsd: 20, monthlyCapUsd: 150 }, now);
+    assert.equal(m.resetAt, null, reason);
+    assert.match(m.error, /Puede ser el tope diario o el mensual/);
+    assert.match(m.error, /Si es el diario, se restablece a las 00:00 hora de Cancún \(05:00 UTC\)/);
+    assert.match(m.error, /si es el mensual, el 2026-12-01 a las 00:00 hora de Cancún/);
+    assert.doesNotMatch(m.error, /dentro de/); assert.doesNotMatch(m.error, /unos minutos/);
+  }
+  assert.match(supplyBlockMessage("global funded spend ceiling", null, now).error, /de toda la plataforma/);
+  assert.match(supplyBlockMessage("provider funded spend ceiling", null, now).error, /de este proveedor de IA/);
+  // La cuota diaria de llamadas sí conserva su medianoche exacta y verificable.
+  assert.equal(supplyBlockMessage("daily request quota", { maxDailyCalls: 20, timezone: "America/Cancun" }, new Date("2026-11-02T06:50:00Z")).resetAt, "2026-11-03T05:00:00.000Z");
+});
+
 test("API: un bloqueo por cuota responde con la política real y resetAt; el trabajo guardado se devuelve intacto", async () => {
   const viewer = { id: "u1", email: "h@example.com", email_confirmed_at: "x" };
   const blocked: LlmStepFn = async () => { throw Object.assign(new Error("SUPPLY_UNAVAILABLE:anthropic:daily request quota"), { name: "SupplyUnavailableError" }); };
