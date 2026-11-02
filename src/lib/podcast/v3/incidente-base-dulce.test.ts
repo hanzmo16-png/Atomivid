@@ -11,6 +11,7 @@ import { advanceLongScript, assembleLongScript, dropRepeatedTurns, MAX_ATTEMPTS_
   type LlmStepFn, type LongInput, type LongScriptState, type StepReplayFn } from "./long-script";
 import { nextLocalMidnight, nextLocalMonthStart, supplyBlockMessage } from "./supply-message";
 import { describeLlmFailure, studioAction, type ApiDeps } from "./api";
+import { parseLabeledScript } from "./script";
 
 const A = "Valeria Moncler", B = "El Duro Hans";
 const input = (minutes = 44): LongInput => ({ topic: "BASE DULCE: LOS SIETE NIVELES DEL HORROR", minutes, hostName: A, guestName: B, hostPersonality: "curiosa", guestPersonality: "escéptico" });
@@ -142,4 +143,15 @@ test("API: un bloqueo por cuota responde con la política real y resetAt; el tra
   assert.equal(r.status, 503); assert.equal(r.body.recoverable, true);
   assert.match(String(r.body.error), /20 llamadas de IA/); assert.match(String(r.body.resetAt), /T05:00:00\.000Z$/);
   assert.ok(r.body.state, "el estado vuelve al navegador");
+});
+
+test("etiqueta abreviada («Hans:» por «El Duro Hans») se asigna a su persona, no por orden de aparición", () => {
+  const names = { A: "Valeria Moncler", B: "El Duro Hans" };
+  const who = (t: string) => parseLabeledScript(t, names)!.turns.map((x) => x.speaker).join("");
+  assert.equal(who("Hans: Uno.\nValeria Moncler: Dos.\nHans: Tres."), "BAB"); // antes «AAA»: bloque rechazado («Solo habla un participante»)
+  assert.equal(who("El Duro Hans: Uno.\nValeria: Dos."), "BA"); // antes «BB»
+  assert.equal(who("Hans: Uno.\nValeria: Dos."), "BA"); // antes «AB»: voces cruzadas en silencio
+  assert.equal(who("Valeria Moncler: Uno.\nEl Duro Hans: Dos."), "AB");
+  assert.equal(parseLabeledScript("Ana: Uno.\nLuis: Dos.")!.turns.map((x) => x.speaker).join(""), "AB"); // sin nombres: por orden, como antes
+  assert.equal(parseLabeledScript("Hans: a.\nValeria: b.\nNarrador: c.", names), null); // una tercera voz sigue invalidando
 });
