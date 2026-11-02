@@ -283,7 +283,7 @@ async function scriptStepAction(d: ApiDeps, b: Record<string, unknown>): Promise
   if (d.scriptSpend) {
     let used: number;
     try { used = await d.scriptSpend(); } catch { return { status: 503, body: { error: "No se pudo comprobar tu gasto de IA de hoy; no se llamó a la IA. Reintenta en unos minutos.", code: "IA_FALLO", recoverable: true, state } }; }
-    if (used >= cap) return { status: 429, body: { error: `Alcanzaste el límite diario de guiones con IA (USD ${cap.toFixed(2)} en 24 h). Lo ya escrito se conserva; podrás continuar más tarde.`, code: "LIMITE_DIARIO", recoverable: true, state } };
+    if (used >= cap) return { status: 429, body: { error: `Alcanzaste el límite diario de guiones con IA (USD ${cap.toFixed(2)} en 24 h). Cuenta lo reservado o cobrado en las últimas 24 h como ventana móvil: cada gasto deja de contar 24 h después de hecho, y podrás continuar cuando lo de las últimas 24 h baje de USD ${cap.toFixed(2)}. Lo ya escrito se conserva.`, code: "LIMITE_DIARIO", recoverable: true, state } };
   }
   try {
     const r = await advanceLongScript(state, d.llmStep(state.jobId), d.llmReplay?.(state.jobId) ?? undefined);

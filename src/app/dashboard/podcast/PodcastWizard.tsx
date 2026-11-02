@@ -299,6 +299,9 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
           )}
           {d.mode === "dialogo" && !staleJob(d.scriptJob, scriptAsk()) && <Button type="button" variant="secondary" size="sm" onClick={() => void generateScript()} loading={busy} disabled={d.topic.trim().length < 3} data-testid="generar-guion">{pendingJob(d.scriptJob, scriptAsk()) ? `Continuar la conversación (${pendingJob(d.scriptJob, scriptAsk())})` : "Generar conversación desde el tema"}</Button>}
           {d.mode === "dialogo" && scriptProgress && <p className="text-xs text-ink" role="status" data-testid="progreso-guion">{progressText(scriptProgress)}</p>}
+          {/* Incidente «Base Dulce»: el guion con IA a medias vive en el borrador (scriptJob) y el cuadro «Guion» seguía vacío
+              («0 caracteres») aunque había bloques guardados. Se muestra lo guardado, tal cual, sin mezclarlo con el guion final. */}
+          {d.mode === "dialogo" && <SavedProgressPanel saved={savedProgress(d.scriptJob, { A: d.participants[0]?.name ?? "A", B: d.participants[1]?.name ?? "B" })} />}
           {d.mode === "dialogo" && scriptProgress?.note && <p className="text-xs text-ink-muted" data-testid="nota-bloque">{scriptProgress.note}</p>}
           {d.mode === "dialogo" && !busy && d.topic.trim().length >= 3 && <button type="button" className="justify-self-start text-xs text-ink-muted underline" onClick={applyTemplate} data-testid="usar-plantilla">Usar la plantilla breve (unos 5 min, sin IA)</button>}
           {d.mode === "dialogo" && d.topic.trim().length < 3 && <p className="text-xs text-ink-muted" data-testid="motivo-generar-guion">Escribe el tema (al menos 3 letras) para generar la conversación, o pega tu guion abajo.</p>}
@@ -631,6 +634,28 @@ export function jobConfigPatch(d: WizardDraft, job: unknown): Partial<WizardDraf
       ...d.participants.slice(2),
     ] as WizardDraft["participants"],
   };
+}
+/** Lo ya escrito y guardado del guion con IA (o nada si no hay bloques). */
+export function SavedProgressPanel({ saved }: { saved: ReturnType<typeof savedProgress> }) {
+  if (!saved) return null;
+  return (
+    <div className="rounded border border-border p-2 text-xs text-ink" data-testid="progreso-guardado">
+      <p>Guardado en este navegador: {saved.blocks} de {saved.total} bloques ({saved.chars.toLocaleString("es-MX")} caracteres, unos {saved.minutes.toFixed(1).replace(".", ",")} min). Al terminar, el guion completo aparece en el cuadro «Guion»; lo guardado no se vuelve a pagar.</p>
+      <details className="mt-1"><summary className="cursor-pointer">Ver lo escrito hasta ahora</summary>
+        <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-words font-sans" data-testid="progreso-guardado-texto">{saved.text}</pre>
+      </details>
+    </div>
+  );
+}
+/** Bloques del guion con IA ya guardados en el borrador (texto «Nombre: turno»), o null si no hay ninguno. */
+export function savedProgress(job: unknown, names: { A: string; B: string }): { blocks: number; total: number; chars: number; minutes: number; text: string } | null {
+  const s = job as { plan?: { segments?: unknown[] } | null; segments?: { speaker?: string; text?: string }[][] } | null | undefined;
+  if (!s || !Array.isArray(s.segments) || !s.segments.length) return null;
+  const turns = s.segments.flat().filter((t) => t && typeof t.text === "string" && (t.speaker === "A" || t.speaker === "B"));
+  if (!turns.length) return null;
+  const text = turns.map((t) => `${t.speaker === "A" ? names.A : names.B}: ${t.text}`).join("\n");
+  const total = Array.isArray(s.plan?.segments) ? s.plan!.segments!.length : s.segments.length;
+  return { blocks: s.segments.length, total, chars: turns.reduce((n, t) => n + String(t.text).length, 0), minutes: estimateMinutes(text), text };
 }
 /** Trabajo de guion con IA a medias (guardado en el borrador): «bloque k de n», o null si no hay. */
 export function pendingJob(job: unknown, ask?: { topic?: unknown; minutes?: unknown; hostName?: unknown; guestName?: unknown; guestRole?: unknown; hostPersonality?: unknown; guestPersonality?: unknown }): string | null {

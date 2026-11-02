@@ -209,8 +209,8 @@ export function segmentFormIssues(turns: SegmentTurn[], s: LongScriptState, k: n
 }
 
 /**
- * Incidente «Base Dulce» (2026-11-02): el modelo repetía UN turno largo de lo ya escrito (casi siempre el último del
- * bloque anterior, que el prompt le muestra como contexto) y el bloque entero, ya pagado, se rechazaba. Ahora el turno
+ * Incidente «Base Dulce» (2026-11-02): el modelo copiaba turnos largos de lo ya escrito (en el caso real, de las últimas
+ * líneas del bloque anterior, que el prompt le mostraba como contexto) y el bloque entero, ya pagado, se rechazaba. Ahora el turno
  * repetido se QUITA (nunca entra al guion: el control de calidad sigue) y el resto del bloque se juzga normalmente; si
  * sin él queda corto, lo cubren la compensación o la ampliación. También se quitan repeticiones dentro del propio bloque.
  */
@@ -345,7 +345,9 @@ export async function advanceLongScript(s: LongScriptState, llm: LlmStepFn, repl
       const parsed = parseSegment(await llm(segmentPrompt(s, k), { step: `${key}-a${attempt}`, maxTokens: segmentMaxTokens(target) }), s.input);
       state = { ...s, attempts: { ...s.attempts, [key]: attempt }, partial: null };
       const clean = parsed ? dropRepeatedTurns(parsed.turns, s) : null;
-      const issues = clean && clean.turns.length ? segmentIssues(clean.turns, s, k) : ["no es un diálogo con los dos participantes"];
+      // Si lo que queda tras quitar los repetidos no sirve, el motivo nombra los repetidos (el control de calidad sigue).
+      const issues = clean && clean.turns.length ? segmentIssues(clean.turns, s, k) : clean?.removed ? [`sus ${clean.removed} turnos repetidos de lo ya escrito`] : ["no es un diálogo con los dos participantes"];
+      if (clean?.removed && clean.turns.length && issues.length) issues.push(`se quitaron ${clean.removed} turno(s) repetidos de lo ya escrito`);
       if (!clean || issues.length) throw Object.assign(new LongScriptError("INVALIDO", `El bloque ${k + 1} de ${n} no cumplió los requisitos (${issues.join("; ")}); reintenta desde ahí (lo anterior se conserva).`, true), { state });
       turns = clean.turns;
       if (clean.removed) dropNote = `Se quitaron ${clean.removed} turno(s) repetido(s) de lo ya escrito.`;
