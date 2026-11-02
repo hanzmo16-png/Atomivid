@@ -1120,9 +1120,85 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     await db.query("delete from public.podcast_studio_episodes where id = any($1)", [ids19.s]);
     await db.query("delete from public.podcast_episodes where id = any($1)", [ids19.v]);
   }
+  if (cases.includes("20")) {
+    // P0 2026-11-02 (captura real del dueño, 709×1536): con 30 min elegidos seguía visible «Usar la plantilla breve (unos 5
+    // min, sin IA)»; el cuadro «Guion» tenía 5,028 caracteres (~5,9 min) junto a «Continuar la conversación (bloque 1 de 3)».
+    // Render REAL del asistente (Next + Supabase locales), móvil 709×1536. No se pulsa nada que llame a la IA ni cobre.
+    const KEY = "atomivid.podcast.asistente.v2", JOB20 = "b5d0c0de-0000-4000-8000-000000000020";
+    const TITLE = "Base Dulce: los siete niveles del horror", TOPIC = "Base Dulce: los siete niveles del horror (los siete niveles, rumores y evidencia)";
+    const script5028 = (() => { const l = []; let i = 0; while (l.join("\n").length < 5028) { l.push(`${i % 2 ? "El Duro Hans" : "Valeria Moncler"}: Nivel ${i + 1} de Base Dulce, con un dato verificable y una pregunta.`); i++; } let x = l.join("\n").slice(0, 5028); if (/\s$/.test(x)) x = x.slice(0, -1) + "."; return x; })();
+    const paid20 = async () => (await db.query("select count(*)::int n from public.pi_paid_operations")).rows[0].n;
+    const eps20 = async () => (await db.query("select count(*)::int n from public.podcast_studio_episodes where user_id=$1", [OWNER.id])).rows[0].n;
+    const before20 = { paid: await paid20(), eps: await eps20() };
+    const dev = { viewport: { width: 709, height: 1536 }, isMobile: true, hasTouch: true };
+    const S = await session(OWNER, "c20-709", dev), P = S.p, W = () => P.getByTestId("podcast-wizard");
+    const aiPosts = []; P.on("request", (r) => { const a = /"action":"([\w-]+)"/.exec(r.postData() ?? "")?.[1]; if (r.method() !== "GET" && /\/api\/podcast\//.test(r.url()) && (a === "script" || a === "script-step")) aiPosts.push(a); });
+    const hydrated = () => P.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor({ timeout: 60000 });
+    const draft = () => P.evaluate((k) => JSON.parse(localStorage.getItem(k) || "{}"), KEY);
+    const load = async (patch) => {
+      await P.evaluate(([k, pt]) => { const d = JSON.parse(localStorage.getItem(k) || "{}"); const ps = Array.isArray(d.participants) ? d.participants : [{}, {}]; ps[0] = { ...ps[0], name: "Valeria Moncler" }; ps[1] = { ...ps[1], name: "El Duro Hans" };
+        const n = { ...d, modality: "dialogo", mode: "dialogo", count: 2, participants: ps, step: 1, ...pt };
+        if (pt.__job) { const minutes = n.minutes, k2 = minutes <= 12 ? 1 : Math.ceil(minutes / 10);
+          const input = { topic: String(n.topic).trim().slice(0, 2000), minutes, hostName: ps[0].name, guestName: ps[1].name, guestRole: String(ps[1].role || "").slice(0, 120), hostPersonality: String(ps[0].personality || "").slice(0, 300), guestPersonality: String(ps[1].personality || "").slice(0, 300) };
+          n.scriptJob = { v: 1, jobId: pt.__job, input, plan: { title: "t", segments: Array.from({ length: k2 }, (_, j) => ({ title: `Nivel ${j + 1}`, points: ["a", "b"] })) }, segments: pt.__segments ?? [], attempts: { plan: 1 }, partial: null }; }
+        else n.scriptJob = null;
+        delete n.__job; delete n.__segments; localStorage.setItem(k, JSON.stringify(n)); }, [KEY, patch]);
+      await P.reload(); await hydrated();
+      for (let i = 0; i < 6 && !(await W().getByLabel("Tema", { exact: true }).isVisible().catch(() => false)); i++) { await W().getByRole("button", { name: "Siguiente", exact: true }).click().catch(() => {}); await P.waitForTimeout(300); }
+    };
+    const scriptLen = async () => (await W().getByLabel("Guion").inputValue()).trim().length;
+    await P.goto(`${BASE}/dashboard/podcast`); await hydrated();
+    // A) Caso del dueño: 30 min, 5,028 caracteres en el cuadro, escaleta lista y bloque 1 de 3 pendiente.
+    await load({ title: TITLE, topic: TOPIC, minutes: 30, script: script5028, __job: JOB20 });
+    ok("c20: 30 min · la plantilla breve NO aparece", (await W().getByTestId("usar-plantilla").count()) === 0);
+    const btn = await W().getByTestId("generar-guion").innerText().catch(() => "");
+    ok("c20: 30 min · «Continuar la conversación (bloque 1 de 3)»", /Continuar la conversación \(bloque 1 de 3\)/.test(btn), btn);
+    const est = await W().getByTestId("estado-guion-largo").innerText().catch(() => "");
+    ok("c20: 30 min · estado: objetivo 30 min en 3 bloques y la plantilla no aplica", /objetivo 30 min/.test(est) && /en 3 bloques/.test(est) && /plantilla breve de unos 5 min no aplica/.test(est), est.slice(0, 200));
+    ok("c20: 30 min · recuperado 0 de 3, pendiente 3 (nueva llamada pagada), cuadro 5,028 caracteres «no es el episodio terminado»", /0 de 3 bloques/.test(est) && /Pendiente: 3 bloques/.test(est) && /nueva llamada de IA pagada/.test(est) && /5,028 caracteres/.test(est) && /no es el episodio terminado/.test(est), est.slice(0, 400));
+    ok("c20: 30 min · el guion recuperado conserva sus 5,028 caracteres", (await scriptLen()) === 5028, String(await scriptLen()));
+    ok("c20: 30 min · título, tema y duración conservados", (await W().getByLabel("Título del episodio").inputValue()) === TITLE && (await W().getByLabel("Tema", { exact: true }).inputValue()) === TOPIC && (await W().getByLabel("Duración en minutos").inputValue()) === "30");
+    ok("c20: 709 · sin desbordamiento horizontal", (await P.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 1);
+    await W().getByTestId("estado-guion-largo").scrollIntoViewIfNeeded().catch(() => {});
+    await P.screenshot({ path: path.join(OUT, "c20-709-30min-pantalla.png") }); await shot(P, "c20-709-30min");
+    // B) Recuperar el borrador: «Empezar de nuevo» lo aparca y «Recuperar» lo devuelve sin reiniciar el trabajo.
+    await W().getByTestId("empezar-de-nuevo").click(); await P.waitForTimeout(800);
+    await W().getByTestId("recuperar-borrador").click();
+    await P.waitForFunction((t) => document.querySelector('[aria-label="Título del episodio"]')?.value === t, TITLE, { timeout: 10000 }).catch(() => {});
+    for (let i = 0; i < 6 && !(await W().getByLabel("Tema", { exact: true }).isVisible().catch(() => false)); i++) { await W().getByRole("button", { name: "Siguiente", exact: true }).click().catch(() => {}); await P.waitForTimeout(300); }
+    const rec = await draft();
+    ok("c20: recuperar · título, tema, duración, guion (5,028) y el MISMO trabajo", rec.title === TITLE && rec.topic === TOPIC && rec.minutes === 30 && String(rec.script).trim().length === 5028 && rec.scriptJob?.jobId === JOB20 && (rec.scriptJob?.segments ?? []).length === 0, JSON.stringify({ t: rec.title === TITLE, m: rec.minutes, n: String(rec.script ?? "").trim().length, j: rec.scriptJob?.jobId === JOB20 }));
+    ok("c20: recuperar · sigue «bloque 1 de 3» y sin plantilla breve", /bloque 1 de 3/.test(await W().getByTestId("generar-guion").innerText().catch(() => "")) && (await W().getByTestId("usar-plantilla").count()) === 0);
+    await shot(P, "c20-709-recuperado");
+    // C) Continuación con un bloque ya guardado: progreso correcto, sin pérdida.
+    const seg1 = [{ speaker: "A", text: "Bienvenidos a Base Dulce: hoy bajamos los siete niveles, empezando por el primero." }, { speaker: "B", text: "Y separando rumor de evidencia en cada nivel." }];
+    await load({ title: TITLE, topic: TOPIC, minutes: 30, script: script5028, __job: JOB20, __segments: [seg1] });
+    const est2 = await W().getByTestId("estado-guion-largo").innerText().catch(() => "");
+    ok("c20: continuación · «bloque 2 de 3», guardado 1 de 3, pendiente 2", /bloque 2 de 3/.test(await W().getByTestId("generar-guion").innerText().catch(() => "")) && /Guardado en este navegador: 1 de 3 bloques/.test(await W().getByTestId("progreso-guardado").innerText().catch(() => "")) && /1 de 3 bloques/.test(est2) && /Pendiente: 2 bloques/.test(est2), est2.slice(0, 300));
+    ok("c20: continuación · el cuadro conserva los 5,028 caracteres y el bloque guardado sigue en el borrador", (await scriptLen()) === 5028 && (await draft()).scriptJob?.segments?.[0]?.length === 2);
+    await shot(P, "c20-709-continuacion");
+    // D) 45 y 60 min: tampoco hay plantilla breve.
+    for (const [m, n] of [[45, 5], [60, 6]]) {
+      await load({ title: TITLE, topic: TOPIC, minutes: m, script: "" });
+      const e = await W().getByTestId("estado-guion-largo").innerText().catch(() => "");
+      ok(`c20: ${m} min · la plantilla breve NO aparece y el estado dice ${n} bloques`, (await W().getByTestId("usar-plantilla").count()) === 0 && new RegExp(`objetivo ${m} min`).test(e) && new RegExp(`en ${n} bloques`).test(e), e.slice(0, 160));
+      await shot(P, `c20-709-${m}min`);
+    }
+    // E) Modo corto: la plantilla sigue disponible y no hay panel de episodio largo.
+    await load({ title: "Corto c20", topic: "Los volcanes de México", minutes: 5, script: "" });
+    ok("c20: 5 min · la plantilla breve SÍ aparece y no hay panel largo", (await W().getByTestId("usar-plantilla").count()) === 1 && (await W().getByTestId("estado-guion-largo").count()) === 0);
+    await shot(P, "c20-709-5min");
+    // F) Servidor: la plantilla para 30 min se rechaza aunque una página vieja la pida.
+    const api = await P.evaluate(async () => { const r = await fetch("/api/podcast/v3", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "script", topic: "Base Dulce", minutes: 30, hostName: "Valeria", guestName: "Hans" }) }); return { s: r.status, b: await r.json().catch(() => null) }; });
+    ok("c20: API · plantilla con 30 min → 409 PLANTILLA_SOLO_CORTO sin guion", api.s === 409 && api.b?.code === "PLANTILLA_SOLO_CORTO" && api.b?.script === undefined, JSON.stringify({ s: api.s, c: api.b?.code }));
+    ok("c20: la interfaz no llamó a la IA (solo la sonda directa al API)", aiPosts.length === 1 && aiPosts[0] === "script", JSON.stringify(aiPosts));
+    await S.ctx.close();
+    const after20 = { paid: await paid20(), eps: await eps20() };
+    ok("c20: nada cobrado ni creado (libro y episodios iguales)", JSON.stringify(after20) === JSON.stringify(before20), JSON.stringify({ before20, after20 }));
+  }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
-  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 14: 32, 15: 5, 16: 24, 17: 17, 18: 9, 19: 18 };
+  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 14: 32, 15: 5, 16: 24, 17: 17, 18: 9, 19: 18, 20: 17 };
   const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[a-d]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name)) || (c === "12" && /^c12-/.test(r.name))).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));

@@ -220,9 +220,12 @@ test("API: sin IA disponible → error claro, NUNCA la plantilla", async () => {
   // La acción antigua ya no cae a la plantilla cuando se pidió IA.
   const old = await studioAction(deps(() => fakeModel(30).llm), { action: "script", topic: BASE_DULCE, minutes: 30, useAi: true });
   assert.equal(old.status, 409); assert.equal(old.body.script, undefined);
-  // La plantilla sigue existiendo como elección expresa, y dice cuánto dura de verdad.
+  // P0 2026-11-02: la plantilla breve (unos 5 min) ya no se ofrece para 30 min: es solo del modo corto (≤ 12 min).
   const tpl = await studioAction(deps(null), { action: "script", topic: BASE_DULCE, minutes: 30 });
-  assert.equal(tpl.body.source, "plantilla"); assert.match(String(tpl.body.note), /La plantilla da para unos .* y pediste 30/);
+  assert.equal(tpl.status, 409); assert.equal(tpl.body.code, "PLANTILLA_SOLO_CORTO"); assert.equal(tpl.body.script, undefined);
+  // En el modo corto sigue existiendo como elección expresa, y dice cuánto dura de verdad.
+  const short = await studioAction(deps(null), { action: "script", topic: BASE_DULCE, minutes: 10 });
+  assert.equal(short.body.source, "plantilla"); assert.match(String(short.body.note), /La plantilla da para unos .* y pediste 10/);
 });
 
 test("API: fallo del proveedor → 503/502 recuperable con el estado intacto; reintento sin duplicar trabajo ni pasos pagados", async () => {
