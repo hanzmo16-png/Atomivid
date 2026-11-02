@@ -1,4 +1,4 @@
-// USD 0, SIN GENERAR NADA: cierre de Podcast Studio (#272, #269 y #273) en PRODUCCIÓN con la sesión de la cuenta dueña.
+// USD 0, SIN GENERAR NADA: cierre de Podcast Studio (#272, #269, #273 y #274) en PRODUCCIÓN con la sesión de la cuenta dueña.
 // Comprueba lo DESPLEGADO, no una simulación local:
 //  1) esquema real: archived_at en las dos tablas de episodios (archivar/restaurar), lectura con service role;
 //  2) libro real: operaciones del guion largo (studio-script:*) agrupadas por paso; ninguna clave nueva duplicada;
@@ -115,6 +115,22 @@ for (const [label, opts] of [["escritorio", { viewport: { width: 1366, height: 9
     const btn = await W().getByTestId("generar-guion").innerText().catch(() => "");
     ok(`${label}: trabajo a medias → «Continuar la conversación (bloque 2 de 3)»`, /Continuar la conversación \(bloque 2 de 3\)/.test(btn), btn);
     ok(`${label}: aviso «Retomaste tu borrador»`, (await p.getByTestId("borrador-retomado").count()) === 1);
+    if (FASE === "274") {
+      // #274 desplegado: con 30 min NO aparece la plantilla breve y sí el estado del episodio largo; con 5 min, sí la plantilla.
+      ok(`${label}: #274 en producción: 30 min sin «Usar la plantilla breve»`, (await W().getByTestId("usar-plantilla").count()) === 0);
+      const e = await W().getByTestId("estado-guion-largo").innerText().catch(() => "");
+      ok(`${label}: #274 en producción: panel «Episodio largo: objetivo 30 min» con lo recuperado y lo pendiente`, /objetivo 30 min/.test(e) && /1 de 3 bloques/.test(e) && /Pendiente: 2 bloques/.test(e), e.slice(0, 200));
+      await shot("274-30min");
+      const sh = { ...(await draft()), minutes: 5, scriptJob: null };
+      await p.evaluate(([k, v]) => localStorage.setItem(k, v), [KEY, JSON.stringify(sh)]);
+      await p.reload(); await hydrated();
+      for (let i = 0; i < 6 && !(await W().getByLabel("Tema", { exact: true }).isVisible().catch(() => false)); i++) { await W().getByRole("button", { name: "Siguiente", exact: true }).click().catch(() => {}); await p.waitForTimeout(400); }
+      ok(`${label}: #274 en producción: 5 min muestra la plantilla breve y no el panel largo`, (await W().getByTestId("usar-plantilla").count()) === 1 && (await W().getByTestId("estado-guion-largo").count()) === 0);
+      await shot("274-5min");
+      await p.evaluate(([k, v]) => localStorage.setItem(k, v), [KEY, JSON.stringify(dd)]);
+      await p.reload(); await hydrated();
+      for (let i = 0; i < 6 && !(await W().getByLabel("Tema", { exact: true }).isVisible().catch(() => false)); i++) { await W().getByRole("button", { name: "Siguiente", exact: true }).click().catch(() => {}); await p.waitForTimeout(400); }
+    }
     if (FASE === "273") {
       // #273 desplegado: el progreso guardado se ve (antes, «0 caracteres» con bloques guardados).
       const g = await W().getByTestId("progreso-guardado").innerText().catch(() => "");
