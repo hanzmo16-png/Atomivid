@@ -138,6 +138,41 @@ function isCelestialScene(visual: BeatVisual): boolean {
   return OFF_EARTH_PLACE.test((visual.place ?? "").toLowerCase());
 }
 
+/**
+ * Region, biome and captivity coherence (incident 2026-10-28, «Un día en la sabana africana», request c14f1e): the
+ * category equivalences let every grassland and buffalo pass, so the documentary showed kangaroos in Australia,
+ * grasslands in Argentina, antelopes on the Tibetan Plateau, pronghorns, Indian blackbucks and water buffalo, and
+ * cattle on a foggy mountain pasture. Decided from the provider's own words; fail-closed (only ever adds conflicts).
+ */
+const REGIONS: { id: string; place: RegExp; foreign: RegExp }[] = [
+  {
+    id: "africa",
+    place: /\b(?:africa|african|serengeti|sahara|sahel|kenyan?|tanzanian?|botswana|namibian?|zimbabwean?|zambian?|ugandan?|congo|ethiopian?|madagascar|kruger|ma(?:a)?sai|okavango|kalahari|kilimanjaro)\b/,
+    foreign: /\b(?:australian?|kangaroos?|wallab(?:y|ies)|koalas?|emus?|argentin(?:a|e|ian)|patagonian?|pampas|brazil(?:ian)?|tibet(?:an)?|himalaya[ns]?|mongolian?|india|indian|kawardha|nepal(?:i|ese)?|chin(?:a|ese)|japan(?:ese)?|asian?|american|americas|texas|wyoming|montana|yellowstone|alaskan?|canad(?:a|ian)|european?|alps|alpine|scot(?:land|tish)|pronghorns?|bison|blackbucks?|water buffalo(?:es|s)?|yaks?|moose|reindeer|caribou|llamas?|alpacas?|elks?)\b/,
+  },
+];
+/** Hot, open biomes vs. cold or alpine context in the candidate ("cattle grazing in a foggy mountain pasture"). */
+const HOT_BIOME = /\b(?:savannah?s?|deserts?|sahara|sahel|tropical|arid|dry season)\b/;
+const COLD_CONTEXT = /\b(?:snow(?:y|fall|capped)?|frost(?:y|ed)?|frozen|winter|glaciers?|icebergs?|arctic|antarctic|tundra|alpine|mountain pastures?|mountain meadows?)\b/;
+/** Wild scenes vs. animals in captivity (a zoo shot is not "the savanna at midday"). */
+const WILD_CONTEXT = /\b(?:wild|wildlife|savannah?s?|habitat|safari|serengeti|jungle|rainforest|reserve)\b/;
+const CAPTIVE_CONTEXT = /\b(?:zoos?|zoological|enclosures?|captive|captivity|cages?|caged|aquariums?|petting)\b/;
+
+function contextConflicts(visual: BeatVisual, text: string): string[] {
+  const intent = [visual.place, visual.subject, visual.description].filter(Boolean).join(" ").toLowerCase();
+  const out: string[] = [];
+  const candidate = text.replace(/\bindian ocean\b/g, " ");
+  for (const r of REGIONS) {
+    // A candidate that names the scene's own region ("mud covered water buffalo in african savanna") is not foreign.
+    if (!r.place.test(intent) || r.place.test(candidate)) continue;
+    const m = r.foreign.exec(candidate);
+    if (m) out.push(`región: "${m[0]}" fuera de ${r.id}`);
+  }
+  if (HOT_BIOME.test(intent)) { const m = COLD_CONTEXT.exec(candidate); if (m) out.push(`bioma: "${m[0]}"`); }
+  if (WILD_CONTEXT.test(intent) && !CAPTIVE_CONTEXT.test(intent)) { const m = CAPTIVE_CONTEXT.exec(candidate); if (m) out.push(`cautiverio: "${m[0]}"`); }
+  return out;
+}
+
 export function englishTerms(text: string | undefined): string[] {
   if (!text) return [];
   const out: string[] = [];
@@ -172,6 +207,7 @@ export function assessRelevance(visual: BeatVisual, candidateText: string | unde
   if (isOnMoonScene(visual)) {
     for (const marker of EARTH_VANTAGE) if (new RegExp(`\\b${marker}\\b`).test(text)) conflicts.push(`vista desde la Tierra: "${marker}"`);
   }
+  conflicts.push(...contextConflicts(visual, text));
   const place = visual.place?.toLowerCase();
   if (place) {
     for (const other of KNOWN_PLACES) {
