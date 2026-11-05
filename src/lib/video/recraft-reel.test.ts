@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createElement } from "react";
+import { createElement, type ComponentProps, type FunctionComponent } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { parseRecraftSelection, recraftReelEstimateUsd, recraftScenePrompt, parseStoredRecraftStyle, isValidStyleId, recraftClientBlockMessage, RECRAFT_CLIENT_NEED_PATH, RECRAFT_CLIENT_BAD_STYLE, RECRAFT_CLIENT_TOO_MANY_REFS, RECRAFT_CLIENT_BAD_REFS, RECRAFT_MAX_REFERENCE_BYTES } from "./recraft-reel";
 import { ReelImageSourcePicker } from "@/app/dashboard/new/ReelImageSourcePicker";
@@ -8,6 +8,10 @@ import { NewVideoForm } from "@/app/dashboard/new/NewVideoForm";
 import { jobSupplyDemands } from "@/lib/supply/job";
 import { getFeatureFlags } from "./feature-flags";
 import { intentFingerprint } from "./submission-key";
+
+/** The picker's props parameter is optional (`= {}`), so React's createElement overload does not infer them. */
+type ReelPickerProps = NonNullable<ComponentProps<typeof ReelImageSourcePicker>>;
+const ReelPicker: FunctionComponent<ReelPickerProps> = ReelImageSourcePicker;
 
 const base = { styleId: "", match: "", styleNote: "", referenceCount: 0 };
 
@@ -56,7 +60,7 @@ test("cliente: estilo inválido, más de 10 archivos o un archivo no válido blo
 });
 
 test("el selector de un Reel empieza en Material de archivo", () => {
-  const html = renderToStaticMarkup(createElement(ReelImageSourcePicker));
+  const html = renderToStaticMarkup(createElement(ReelPicker));
   assert.match(html, /Material de archivo \(como hasta ahora\)/);
   assert.match(html, /name="reel_image_source"/);
   assert.equal(html.includes("Elige una sola vía"), false, "el panel de Recraft no aparece hasta que la persona lo elige");
@@ -70,7 +74,7 @@ test("el selector de un Reel empieza en Material de archivo", () => {
 });
 
 test("con Recraft elegido, la regla visible no trata el estilo como opcional", () => {
-  const html = renderToStaticMarkup(createElement(ReelImageSourcePicker, { defaultSource: "recraft" }));
+  const html = renderToStaticMarkup(createElement<ReelPickerProps>(ReelPicker, { defaultSource: "recraft" }));
   assert.match(html, /Elige una sola vía: indica un estilo guardado O sube de 1 a 10 imágenes de referencia\./);
   assert.match(html, /Identificador de estilo guardado/);
   assert.match(html, /Un identificador de solicitud del proveedor no es un estilo guardado\./);
@@ -87,12 +91,14 @@ test("el formulario de Reel no preselecciona Recraft cuando la función está ac
   assert.match(html, /Material de archivo \(como hasta ahora\)/);
   assert.equal(html.includes("Elige una sola vía"), false);
   const checked = html.match(/<input[^>]*name="reel_image_source"[^>]*>/g) ?? [];
-  assert.match(checked[0], /value="default"/);
-  assert.match(checked[0], /checked/);
+  const chosen = checked[0];
+  assert.ok(chosen);
+  assert.match(chosen, /value="default"/);
+  assert.match(chosen, /checked/);
 });
 
 test("Long Form conserva la elección inicial anterior si no se pasa defaultSource", () => {
-  const html = renderToStaticMarkup(createElement(ReelImageSourcePicker, { format: "long_form" }));
+  const html = renderToStaticMarkup(createElement<ReelPickerProps>(ReelPicker, { format: "long_form" }));
   const checked = html.match(/<input[^>]*name="image_source"[^>]*>/g) ?? [];
   assert.match(checked[1], /value="recraft"/);
   assert.match(checked[1], /checked/);
