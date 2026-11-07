@@ -441,7 +441,9 @@ export function ConfigureProduction({
         <PackagingOptions value={packaging} onChange={setPackaging} onValidityChange={onValidityChange} disabled={loading} ownChannel={ownChannel} />
       )}
 
-      <div className="sticky bottom-0 z-10 mt-6 border-t border-accent-border bg-surface pb-6 pt-3 sm:static sm:z-auto sm:border-t-0 sm:bg-transparent sm:pb-8 sm:pt-0">
+      {/* Sin «sticky» en móvil: con el resumen completo ocupaba ~400 de 664 px de un iPhone y tapaba lo que se configura
+          encima. El botón ya es lo último de la página. */}
+      <div className="mt-6 pb-6 sm:pb-8">
         <PreProduceClarity input={{
           topic,
           publicationTitle,

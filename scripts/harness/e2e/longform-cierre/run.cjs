@@ -30,7 +30,7 @@ const TOPIC = `${fx.topic} — cierre ${Date.now().toString(36)}`;
 
 async function browserCtx(kind) {
   const b = await chromium.launch({ executablePath: PATHS.CHROME });
-  const DEV = { android: "Pixel 7", samsung: "Galaxy S9+" };
+  const DEV = { android: "Pixel 7", samsung: "Galaxy S9+", iphone: "iPhone 13" };
   const opts = DEV[kind] ? { ...devices[DEV[kind]], acceptDownloads: true } : { viewport: { width: 1440, height: 900 }, acceptDownloads: true };
   const ctx = await b.newContext(opts); const p = await ctx.newPage(); p.setDefaultTimeout(120000);
   return { b, ctx, p };
@@ -64,9 +64,11 @@ function reviewScript(script) {
   const q = async (sql, args = []) => (await c.query(sql, args)).rows;
   fs.writeFileSync(FAULTS, "{}");
   // ── A. Formulario (UI, escritorio) ─────────────────────────────────────────────────────────────────────────────
-  let { b, p } = await browserCtx("desktop"); await login(p);
+  // LF_UI_DEVICE=iphone recorre crear y configurar a 390 px (móvil); por defecto, escritorio.
+  const UI = process.env.LF_UI_DEVICE || "desktop", UIL = UI === "desktop" ? "escritorio" : UI;
+  let { b, p } = await browserCtx(UI); await login(p);
   await p.goto(`${BASE}/dashboard/long-form/new`); await skipTour(p);
-  let o = await overflow(p); check("[escritorio] formulario Long Form sin scroll horizontal", o.sw <= o.iw + 1, o);
+  let o = await overflow(p); check(`[${UIL}] formulario Long Form sin scroll horizontal`, o.sw <= o.iw + 1, o);
   await p.fill("input[name=topic]", TOPIC); await p.selectOption("select[name=language]", "es"); await p.fill("input[name=duration_minutes]", "3");
   await shot(p, "A01-formulario");
   await p.getByRole("button", { name: "Crear y revisar guion" }).click(); await p.waitForURL((u) => !String(u).includes("/long-form/new"));
@@ -103,7 +105,7 @@ function reviewScript(script) {
   const uiLimit = Number(((txt.match(/Límite autorizado por producción\s*USD\s*([0-9]+[.,][0-9]+)/) || [])[1] || "NaN").replace(",", "."));
   const usd = [...txt.matchAll(/USD\s?([0-9]+[.,][0-9]+)/g)].map((m) => Number(m[1].replace(",", ".")));
   log("importes en la pantalla de configuración:", usd);
-  o = await overflow(p); check("[escritorio] configurar sin scroll horizontal", o.sw <= o.iw + 1, o);
+  o = await overflow(p); check(`[${UIL}] configurar sin scroll horizontal`, o.sw <= o.iw + 1, o);
   // Fallo de proveedor inyectado ANTES de confirmar: las búsquedas de Pexels devuelven 503 (suficientes para agotar los reintentos).
   fs.writeFileSync(FAULTS, JSON.stringify({ pexels: { mode: "503", remaining: Number(process.env.PEXELS_FAULTS || 400) } }));
   const tts0 = mockEvents().filter((e) => e.kind === "tts" && !e.fault).length;
@@ -193,7 +195,7 @@ function reviewScript(script) {
   // ── F. Resultado: reproducción y descarga en escritorio y Android ────────────────────────────────────────────
   const files = {};
   for (const kind of ["desktop", "android", "samsung"]) {
-    const ctx2 = kind === "desktop" ? { b, p } : await browserCtx(kind); if (kind !== "desktop") await login(ctx2.p);
+    const ctx2 = kind === UI ? { b, p } : await browserCtx(kind); if (kind !== UI) await login(ctx2.p);
     const pg2 = ctx2.p; const tag = { desktop: "escritorio", android: "Android Pixel 7", samsung: "Android Samsung Galaxy S9+" }[kind];
     await pg2.goto(`${BASE}/dashboard/videos/${R}`); await skipTour(pg2); await sleep(3000); await shot(pg2, `F-${kind}-resultado`);
     o = await overflow(pg2); check(`[${tag}] resultado sin scroll horizontal`, o.sw <= o.iw + 1, o);
