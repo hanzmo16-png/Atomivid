@@ -91,15 +91,20 @@ export default async function NewLongFormVideoPage({
             </select>
           </Field>
 
-          <Field id="duration_minutes" label="Duración (minutos)" hint="Entre 3 y 30. Recomendado: 7. Más minutos tardan más y cuestan más.">
+          {/* Sin valor por defecto (incidente Anunnaki, 2026-11-07): un «7» ya escrito se enviaba sin que el cliente lo
+              eligiera y el documental de 30 min salía de 7. La duración se escribe siempre a propósito. */}
+          <Field id="duration_minutes" label="Duración (minutos)" hint="Escribe entre 3 y 30. Por ejemplo, 10 para un video o 30 para un documental. Más minutos tardan más y cuestan más.">
             <input
               id="duration_minutes"
               name="duration_minutes"
               type="number"
+              inputMode="numeric"
               required
               min={3}
               max={30}
-              defaultValue={durationMinutes ?? "7"}
+              step={1}
+              placeholder="Ej.: 10"
+              defaultValue={durationMinutes ?? ""}
               className={INPUT_CLASS}
             />
           </Field>

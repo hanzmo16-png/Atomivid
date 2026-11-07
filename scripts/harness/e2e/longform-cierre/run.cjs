@@ -69,9 +69,15 @@ function reviewScript(script) {
   let { b, p } = await browserCtx(UI); await login(p);
   await p.goto(`${BASE}/dashboard/long-form/new`); await skipTour(p);
   let o = await overflow(p); check(`[${UIL}] formulario Long Form sin scroll horizontal`, o.sw <= o.iw + 1, o);
+  // Incidente Anunnaki (2026-11-07): un «7» escrito por defecto se enviaba sin elegirlo. La duración llega vacía y es obligatoria.
+  const dur0 = await p.$eval("input[name=duration_minutes]", (e) => ({ value: e.value, missing: e.validity.valueMissing }));
+  check(`[${UIL}] formulario: la duración llega vacía y es obligatoria (nada escrito por defecto)`, dur0.value === "" && dur0.missing === true, dur0);
   await p.fill("input[name=topic]", TOPIC); await p.selectOption("select[name=language]", "es"); await p.fill("input[name=duration_minutes]", "3");
   await shot(p, "A01-formulario");
   await p.getByRole("button", { name: "Crear y revisar guion" }).click(); await p.waitForURL((u) => !String(u).includes("/long-form/new"));
+  await sleep(1500);
+  const cardTxt = await p.locator("main").innerText().catch(() => "");
+  check(`[${UIL}] tarjeta del guion: muestra los minutos pedidos («3 min») antes de pagar el guion`, /\b3 min\b/.test(cardTxt), cardTxt.slice(0, 300));
   const job = (await q("select id,request_id,status from documentary_script_jobs where user_id=$1 and input->'fields'->>'topic'=$2 order by created_at desc limit 1", [OWNER.id, TOPIC]))[0];
   check("formulario: crea la solicitud y su trabajo de guion durable", !!job?.request_id, job);
   const R = job.request_id; const IDS = path.join(OUT, "ids.json"); fs.writeFileSync(IDS, JSON.stringify({ jobId: job.id, requestId: R }));
@@ -87,6 +93,22 @@ function reviewScript(script) {
   // ── C. Revisar y configurar (UI) ─────────────────────────────────────────────────────────────────────────────
   await p.goto(`${BASE}/dashboard/long-form/configure/${R}`); await skipTour(p);
   const main = () => p.locator("main").innerText();
+  // Antes de abrir ningún desplegable: duración pedida/estimada, salida «Cambiar duración» y techo, a la vista.
+  const notice = await p.locator("[data-testid=duration-notice]").innerText().catch(() => "");
+  check(`[${UIL}] configurar: la duración pedida y la estimada se ven sin abrir nada`, /Duración pedida: 3 min/.test(notice) && /Este guion dura ~\d+:\d\d/.test(notice), notice);
+  const chHref = await p.locator("[data-testid=duration-notice] a", { hasText: "Cambiar duración" }).getAttribute("href").catch(() => null);
+  const chQ = new URL(chHref || "/", BASE).searchParams;
+  check(`[${UIL}] configurar: «Cambiar duración» abre el formulario con el mismo tema y la duración vacía`, !!chHref && chHref.startsWith("/dashboard/long-form/new?") && chQ.get("topic") === TOPIC && chQ.get("duration_minutes") === null, chHref);
+  const clarity = await p.locator("[data-testid=pre-produce-clarity]").innerText().catch(() => "");
+  check(`[${UIL}] configurar: el techo que se autorizaría se ve con el desglose cerrado (hallazgo Grok)`, /Techo que se autorizaría/.test(clarity), clarity.slice(0, 300));
+  if (chHref) {
+    await p.goto(`${BASE}${chHref}`); await skipTour(p);
+    const back = await p.$eval("input[name=topic]", (e) => e.value).catch(() => null);
+    const backDur = await p.$eval("input[name=duration_minutes]", (e) => e.value).catch(() => null);
+    const nJobs = (await q("select count(*)::int n from documentary_script_jobs where user_id=$1 and input->'fields'->>'topic'=$2", [OWNER.id, TOPIC]))[0].n;
+    check(`[${UIL}] «Cambiar duración»: formulario con el tema y sin duración; no crea ni cobra nada al abrirlo`, back === TOPIC && backDur === "" && nJobs === 1, { back, backDur, nJobs });
+    await p.goto(`${BASE}/dashboard/long-form/configure/${R}`); await skipTour(p);
+  }
   for (const t of ["Ver estructura narrativa", "Ver referencias recuperadas"]) await p.getByText(t).first().click().catch(() => log("sin desplegable", t));
   await p.getByText(/Revisar el guion \(/).first().click().catch(() => {});
   // Interfaz sencilla (T-LF100): el plan y la comprobación previa viven en un desplegable; se abren todos sin alternar.

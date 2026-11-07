@@ -10,7 +10,8 @@ export function ScriptJobCard({job,nowMs}:{job:ScriptJobSummary;nowMs:number}) {
    <Link href={`/dashboard/long-form/jobs/${job.id}`} className="font-medium text-ink hover:text-accent">{job.topic}</Link>
    <Badge tone={view.kind==="technical"?"danger":view.kind?"warning":view.refresh?"info":"warning"}>{view.label}</Badge>
   </div>
-  <p className="mt-2 text-sm text-ink-muted">{job.stage} · {new Date(job.created_at).toLocaleString("es-MX")}</p>
+  {/* La duración pedida, a la vista desde el primer momento (incidente Anunnaki: 7 min en lugar de 30, visto tarde). */}
+ <p className="mt-2 text-sm text-ink-muted">{job.duration_minutes != null && job.duration_minutes !== "" ? <><strong className="text-ink">{job.duration_minutes} min</strong> · </> : null}{job.stage} · {new Date(job.created_at).toLocaleString("es-MX")}</p>
   {view.message ? <p className="mt-2 text-sm text-warning" role="status">{view.message}</p> :
    <p className="mt-2 text-sm text-ink-muted">Tu trabajo está guardado. Puedes salir y volver a consultar el progreso aquí.</p>}
   {job.status==="queued" && (job.error_message || nowMs-Date.parse(job.updated_at)>90000) ?

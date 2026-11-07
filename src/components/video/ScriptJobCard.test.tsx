@@ -18,3 +18,9 @@ test("completed preparation offers only the approved production configuration li
  const html=renderToStaticMarkup(<ScriptJobCard job={{...job,status:"completed"}} nowMs={now}/>);
  assert.ok(html.includes("/dashboard/long-form/configure/request-id"));assert.ok(!html.includes("/render"));
 });
+test("the requested duration is visible on the card (incidente Anunnaki)",()=>{
+ const html=renderToStaticMarkup(<ScriptJobCard job={{...job,duration_minutes:"30"}} nowMs={now}/>);
+ assert.match(html,/30 min/);
+ const without=renderToStaticMarkup(<ScriptJobCard job={job} nowMs={now}/>);
+ assert.doesNotMatch(without,/ min<\/strong>/);
+});
