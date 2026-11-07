@@ -237,6 +237,8 @@ test("A1-3 error temporal del proveedor de stock → estado recuperable claro, 0
   assert.equal(r.error!.name, "LongFormMaterialPreflightTemporaryError", `nombre: ${r.error!.name}: ${r.error!.message.slice(0, 200)}`);
   assert.equal(r.error!.recoverable, true);
   assert.match(r.error!.message, /temporal/i);
+  // Issue #279: el cliente no ve el nombre interno del proveedor ni su respuesta HTTP.
+  assert.doesNotMatch(r.error!.message, /switchable-stock|pexels|HTTP|\b503\b/i, r.error!.message);
   assert.equal(r.voice, 0);
   assert.equal(r.sh.ledger.ops.size, 0);
   assert.equal(sw.state.calls, 1, "fallo rápido: no insiste escena por escena con el proveedor caído");

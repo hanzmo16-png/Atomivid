@@ -134,6 +134,7 @@ function reviewScript(script) {
     await p.goto(`${BASE}/dashboard/videos/${R}`); await skipTour(p); await sleep(2000); const t = await main(); fs.writeFileSync(path.join(OUT, `D0${n}-antes-reintento.txt`), t); await shot(p, `D0${n}-antes-reintento`);
     const btn = p.getByRole("button", { name: "Reintentar" });
     check(`intento ${n}: la UI muestra el fallo y ofrece «Reintentar»`, (await btn.count()) > 0, t.slice(0, 300));
+    check(`intento ${n}: el fallo visible no expone proveedores internos ni respuestas HTTP (Issue #279)`, !/pexels|elevenlabs|openai|recraft|anthropic|\bHTTP\b|respondió \d{3}/i.test(t), (t.match(/.{0,80}(pexels|elevenlabs|openai|recraft|anthropic|HTTP|respondió \d{3}).{0,80}/i) || [""])[0]);
     await btn.first().click(); await sleep(6000);
   };
   // Intento 1 — fallo de proveedor de stock (503 en todas las búsquedas) ANTES de cualquier gasto.
