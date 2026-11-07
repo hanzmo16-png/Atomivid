@@ -95,7 +95,14 @@ export default async function DashboardLayout({
           </nav>
         </div>
         <div className="border-t border-border px-4 py-2 sm:hidden">
-          <div className="flex gap-4 overflow-x-auto whitespace-nowrap text-sm font-medium">
+          {/*
+            Franja móvil: flex-wrap (no overflow-x-auto). En 360–390px con owner/admin
+            el último ítem («Command Center») quedaba recortado al borde inicial
+            (T-20261107-1517); el scroll horizontal de la franja no era evidente y el
+            foco no lo traía a la vista. Envolver mantiene todos los ítems alcanzables
+            sin scroll horizontal de página ni de franja.
+          */}
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm font-medium">
             <NavLink href="/dashboard" exact>
               Historial
             </NavLink>
