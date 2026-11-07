@@ -320,6 +320,9 @@ export function ConfigureProduction({
   const needsReview = Boolean(blockedReason)
     || Boolean(selectedPreflight?.providers.some((p) => p.verdict !== "Suficiente"))
     || selectedPreflight?.material?.status === "temporary_error";
+  // Abre el desglose cuando aparece algo que revisar; nunca lo cierra (lo que el cliente abrió sigue abierto).
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => { if (needsReview && detailsRef.current) detailsRef.current.open = true; }, [needsReview]);
 
   async function handleConfirm() {
     // Synchronous guard: a second click before React re-renders sends nothing (the server stays the real guard).
@@ -417,9 +420,9 @@ export function ConfigureProduction({
         </Card>
       )}
 
-      {/* Interfaz sencilla (T-LF100): el resumen y el botón quedan a la vista; el desglose técnico se pliega y solo se
-          abre cuando hay algo que revisar (bloqueo, proveedor sin verificar o material pendiente). */}
-      <details className="mt-4 rounded-md border border-border px-4 py-3" open={needsReview || undefined}>
+      {/* Interfaz sencilla (T-LF100): el resumen y el botón quedan a la vista; el desglose técnico se pliega. Sin `open`
+          controlado por React (un nuevo render lo cerraría bajo el cliente): se abre una vez si hay algo que revisar. */}
+      <details ref={detailsRef} className="mt-4 rounded-md border border-border px-4 py-3">
         <summary className="cursor-pointer text-sm font-medium text-ink">Ver plan y costos detallados</summary>
         <div className="mt-3">
           <h2 className="text-sm font-medium text-ink">Plan de producción</h2>
