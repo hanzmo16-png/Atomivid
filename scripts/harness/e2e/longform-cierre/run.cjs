@@ -87,6 +87,8 @@ function reviewScript(script) {
   const main = () => p.locator("main").innerText();
   for (const t of ["Ver estructura narrativa", "Ver referencias recuperadas"]) await p.getByText(t).first().click().catch(() => log("sin desplegable", t));
   await p.getByText(/Revisar el guion \(/).first().click().catch(() => {});
+  // Interfaz sencilla (T-LF100): el plan y la comprobación previa viven en un desplegable; se abren todos sin alternar.
+  await p.evaluate(() => document.querySelectorAll("details").forEach((d) => { d.open = true; })); await sleep(300);
   let txt = await main(); fs.writeFileSync(path.join(OUT, "C01-configurar.txt"), txt); await shot(p, "C01-configurar");
   check("revisión: la UI muestra la revisión editorial completada y la pregunta central", /Revisión editorial completada/.test(txt) && txt.includes(fx.storyPlan.centralQuestion), txt.slice(0, 200));
   check("revisión: la UI lista las fuentes del guion", fx.sources.every((s) => txt.includes(s.title)), fx.sources.map((s) => s.title));
