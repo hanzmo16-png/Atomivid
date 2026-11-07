@@ -316,6 +316,13 @@ export function ConfigureProduction({
     : selectedPreflight.providers.some((p) => p.verdict === "Insuficiente") ? "Un proveedor no tiene capacidad suficiente (ver Comprobación previa)."
     : selectedPreflight.material?.status === "unavoidable_gap" ? `Material de archivo: ${materialBlockText(selectedPreflight.material, strategy)}`
     : null;
+  // El desglose se abre solo si hay algo que el cliente debe ver: un bloqueo, un proveedor sin verificar o material por comprobar.
+  const needsReview = Boolean(blockedReason)
+    || Boolean(selectedPreflight?.providers.some((p) => p.verdict !== "Suficiente"))
+    || selectedPreflight?.material?.status === "temporary_error";
+  // Abre el desglose cuando aparece algo que revisar; nunca lo cierra (lo que el cliente abrió sigue abierto).
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => { if (needsReview && detailsRef.current) detailsRef.current.open = true; }, [needsReview]);
 
   async function handleConfirm() {
     // Synchronous guard: a second click before React re-renders sends nothing (the server stays the real guard).
@@ -413,24 +420,30 @@ export function ConfigureProduction({
         </Card>
       )}
 
-      <Card className="mt-4 p-4">
-        <h2 className="text-sm font-medium text-ink">Plan de producción</h2>
-        <PlanSummary plan={plans[strategy]} />
-      </Card>
-
-      {summary && selectedPreflight && visual && (
-        <Card className="mt-4 p-4">
-          <h2 className="text-sm font-medium text-ink">Comprobación previa</h2>
-          <PreflightPanel summary={summary} preflight={selectedPreflight} visual={visual} visualBlockText={visualBlockText}
-            refresh={{ onRefresh: handleRefresh, loading: refreshing, cooldownSeconds, checkedAt, error: refreshError }} />
-        </Card>
-      )}
+      {/* Interfaz sencilla (T-LF100): el resumen y el botón quedan a la vista; el desglose técnico se pliega. Sin `open`
+          controlado por React (un nuevo render lo cerraría bajo el cliente): se abre una vez si hay algo que revisar. */}
+      <details ref={detailsRef} className="mt-4 rounded-md border border-border px-4 py-3">
+        <summary className="cursor-pointer text-sm font-medium text-ink">Ver plan y costos detallados</summary>
+        <div className="mt-3">
+          <h2 className="text-sm font-medium text-ink">Plan de producción</h2>
+          <PlanSummary plan={plans[strategy]} />
+        </div>
+        {summary && selectedPreflight && visual && (
+          <div className="mt-4 border-t border-border pt-3">
+            <h2 className="text-sm font-medium text-ink">Comprobación previa</h2>
+            <PreflightPanel summary={summary} preflight={selectedPreflight} visual={visual} visualBlockText={visualBlockText}
+              refresh={{ onRefresh: handleRefresh, loading: refreshing, cooldownSeconds, checkedAt, error: refreshError }} />
+          </div>
+        )}
+      </details>
 
       {packaging && (
         <PackagingOptions value={packaging} onChange={setPackaging} onValidityChange={onValidityChange} disabled={loading} ownChannel={ownChannel} />
       )}
 
-      <div className="sticky bottom-0 z-10 mt-6 border-t border-accent-border bg-surface pb-6 pt-3 sm:static sm:z-auto sm:border-t-0 sm:bg-transparent sm:pb-8 sm:pt-0">
+      {/* Sin «sticky» en móvil: con el resumen completo ocupaba ~400 de 664 px de un iPhone y tapaba lo que se configura
+          encima. El botón ya es lo último de la página. */}
+      <div className="mt-6 pb-6 sm:pb-8">
         <PreProduceClarity input={{
           topic,
           publicationTitle,

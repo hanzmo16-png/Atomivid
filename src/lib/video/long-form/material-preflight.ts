@@ -147,7 +147,9 @@ export async function materialAvailabilityPreflight(input: {
         try {
           candidates = await search(provider, query, preferVideo, minDur);
         } catch (err) {
-          return { ...base, status: "temporary", reason: `error temporal del proveedor ${provider.name}: ${err instanceof Error ? err.message.slice(0, 120) : "error"}` };
+          // Al cliente nunca el nombre interno del proveedor ni su respuesta HTTP (Issue #279); el detalle va al log del worker.
+          console.warn(`material-preflight: fallo temporal de ${provider.name}: ${err instanceof Error ? err.message.slice(0, 200) : "error"}`);
+          return { ...base, status: "temporary", reason: TEMPORARY_STOCK_REASON };
         }
         for (const candidate of candidates) {
           considered++;
@@ -215,13 +217,16 @@ export class LongFormMaterialUnavailableError extends Error {
   }
 }
 
+/** Motivo visible para el cliente cuando el banco de imágenes no responde (sin nombres internos ni códigos HTTP). */
+export const TEMPORARY_STOCK_REASON = "el banco de imágenes no respondió (fallo temporal)";
+
 /** El proveedor de stock falló al comprobar disponibilidad: no se sabe si hay material. Reintentable, USD 0. */
 export class LongFormMaterialPreflightTemporaryError extends Error {
   readonly recoverable = true;
   constructor(readonly temporary: MaterialShotVerdict[]) {
     super(
-      `No se pudo comprobar el material (error temporal del proveedor de stock en ${temporary.length} escena(s): ${temporary[0]?.reason ?? ""}). ` +
-        "No se ha gastado nada; reintenta la misma producción cuando el proveedor responda.",
+      `No se pudo comprobar el material de archivo: ${TEMPORARY_STOCK_REASON} en ${temporary.length} escena(s). ` +
+        "No se ha gastado nada; reintenta la misma producción en unos minutos.",
     );
     this.name = "LongFormMaterialPreflightTemporaryError";
   }
