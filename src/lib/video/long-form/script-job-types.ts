@@ -1,8 +1,12 @@
 import { z } from "zod";
 import type { CreativeHistoryEntry } from "./creative-direction";
+/** Duración admitida para Long Form, en minutos (formulario, trabajo durable y base de datos). */
+export const LONG_FORM_MIN_MINUTES = 3, LONG_FORM_MAX_MINUTES = 30;
 export const ScriptJobFieldsSchema = z.object({
  topic: z.string().trim().min(3).max(200),
- durationMinutes: z.string().refine(v => Number.isFinite(Number(v)) && Number(v)>=3 && Number(v)<=15),
+ // 3–30, el mismo rango que el formulario (actions.ts) y el CHECK de video_requests (20261010050000_long_form_30_minutes).
+ // Hasta 2026-11-07 decía 15: todo pedido de 16–30 min fallaba al guardarse con un error genérico (incidente Anunnaki).
+ durationMinutes: z.string().refine(v => Number.isFinite(Number(v)) && Number(v)>=LONG_FORM_MIN_MINUTES && Number(v)<=LONG_FORM_MAX_MINUTES),
  sources: z.string().max(12000), openQuestions: z.string().max(4000), language: z.enum(["en","es"]),
 });
 export type ScriptJobFields = z.infer<typeof ScriptJobFieldsSchema>;

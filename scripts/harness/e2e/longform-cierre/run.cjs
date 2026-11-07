@@ -255,6 +255,16 @@ function reviewScript(script) {
     const cap = JSON.parse(cp.stdout || "{}"); fs.writeFileSync(path.join(OUT, "captions-probe.json"), JSON.stringify(cap));
     check("subtítulos quemados presentes en ≥ 80 % de los fotogramas muestreados (heurística de píxeles, sin OCR)", cap.ratio >= 0.8, cap);
   }
+  // ── H. Incidente Anunnaki: un pedido de 30 min se guarda con 30 (antes el trabajo durable cortaba en 15 y fallaba) ──
+  {
+    const T30 = `${TOPIC} — 30 min`;
+    await p.goto(`${BASE}/dashboard/long-form/new`); await skipTour(p);
+    await p.fill("input[name=topic]", T30); await p.selectOption("select[name=language]", "es"); await p.fill("input[name=duration_minutes]", "30");
+    await p.getByRole("button", { name: "Crear y revisar guion" }).click(); await p.waitForURL((u) => !String(u).includes("/long-form/new"), { timeout: 60000 }).catch(() => {});
+    const url30 = p.url(); await sleep(1000);
+    const j30 = (await q("select input->'fields'->>'durationMinutes' d from documentary_script_jobs where user_id=$1 and input->'fields'->>'topic'=$2", [OWNER.id, T30]));
+    check(`[${UIL}] 30 min: el formulario guarda la preparación con 30 minutos (sin error de guardado)`, j30.length === 1 && j30[0].d === "30" && !/error=/.test(url30), { url: url30.replace(BASE, ""), rows: j30 });
+  }
   const egress = fs.existsSync(path.join(E, "logs/egress.jsonl")) ? fs.readFileSync(path.join(E, "logs/egress.jsonl"), "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)) : [];
   const bad = egress.filter((e) => /elevenlabs|pexels|fal\.|openai|anthropic|recraft|heygen|supabase\.co|stripe|wikimedia/i.test(e.host || ""));
   check("sin salida a proveedores reales (las salidas no locales se rechazan y registran)", bad.length === 0, [...new Set(egress.map((e) => e.host))]);
