@@ -1196,9 +1196,90 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     const after20 = { paid: await paid20(), eps: await eps20() };
     ok("c20: nada cobrado ni creado (libro y episodios iguales)", JSON.stringify(after20) === JSON.stringify(before20), JSON.stringify({ before20, after20 }));
   }
+  if (cases.includes("21")) {
+    // Salto Cuántico (T-20261108-0618: parches T-2314 + T-0415 integrados). Portada «¿Qué quieres crear hoy?» → Podcast →
+    // Personalizado → Participantes, sin el falso «Retomaste tu borrador»; el borrador real anterior queda recuperable;
+    // «Empezar de nuevo» no reutiliza nada; un borrador real sí conserva aviso y controles; en «Archivados», un fallido
+    // archivado a mano avisa antes y ofrece «Quitar archivo manual» (sigue agrupado, no se borra). Escritorio y móvil.
+    const KEY = "atomivid.podcast.asistente.v2", REC = "atomivid.podcast.asistente.v2.recuperable";
+    const DEVICES = [["d", { viewport: { width: 1440, height: 900 } }], ["m", { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }]];
+    const n0 = async () => (await db.query("select (select count(*) from public.podcast_studio_episodes)::int e, (select count(*) from public.podcast_studio_operations)::int o, (select count(*) from public.pi_paid_operations)::int p")).rows[0];
+    const before21 = await n0();
+    for (const [dt, device] of DEVICES) {
+      const S = await session(OWNER, `c21${dt}`, device), P = S.p, W = () => P.getByTestId("podcast-wizard");
+      const hydrated = () => P.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
+      const draft = () => P.evaluate((k) => JSON.parse(localStorage.getItem(k) || "null"), KEY);
+      const parked = () => P.evaluate((k) => (JSON.parse(localStorage.getItem(k) || "null")?.items ?? []).map((i) => JSON.parse(i.raw)), REC);
+      const title = async () => (await W().getByTestId("wizard-step-title").textContent()) ?? "";
+      // Borrador REAL previo (título y guion) en este navegador.
+      await P.goto(`${BASE}/dashboard`); await P.getByTestId("crear-inicio").waitFor();
+      await P.evaluate(([k, r]) => { localStorage.removeItem(r); localStorage.setItem(k, JSON.stringify({ step: 1, title: `Borrador real c21${location.host}`, topic: "Tema real previo", script: "Ana: guion real previo con texto suficiente para contar.", minutes: 7 })); }, [KEY, REC]);
+      await P.getByTestId("crear-podcast").click(); await P.getByTestId("crear-idea").fill(`Idea c21${dt}: el misterio de la señal Wow`);
+      await P.getByTestId("crear-modo-custom").check(); await shot(P, `c21${dt}-01-portada`);
+      await P.getByTestId("crear-continuar").click(); await P.waitForURL(/\/dashboard\/podcast\?/); await hydrated(); await P.waitForTimeout(800);
+      const d1 = await draft();
+      ok(`c21: ${dt} · Personalizado abre «Paso 1 de 4: Participantes»`, /Paso 1 de 4: Participantes/.test(await title()), await title());
+      ok(`c21: ${dt} · entrada nueva sin «Retomaste tu borrador» ni «Empezar uno nuevo»`, await W().getByTestId("borrador-retomado").count() === 0 && await W().getByTestId("empezar-uno-nuevo").count() === 0);
+      ok(`c21: ${dt} · la entrada nueva lleva solo la idea (sin título, guion, episodio ni trabajo previo)`, d1?.topic === `Idea c21${dt}: el misterio de la señal Wow` && !d1?.title && !d1?.script && !d1?.episodeId && !d1?.scriptJob && d1?.minutes === 5, JSON.stringify(d1).slice(0, 200));
+      ok(`c21: ${dt} · el borrador real anterior quedó aparcado y se ofrece recuperarlo`, await P.getByTestId("podcast-recuperar-borrador").count() === 1 && (await parked()).some((x) => /Borrador real c21/.test(x.title)));
+      ok(`c21: ${dt} · nada de Producir en la pantalla 1`, await W().getByTestId("wizard-estimate").count() === 0 && await W().getByTestId("wizard-preview").count() === 0);
+      await shot(P, `c21${dt}-02-participantes`);
+      // Recargar el mismo enlace: ya no es una entrada nueva (comportamiento documentado de #269): se avisa como retomado.
+      await P.reload(); await hydrated(); await P.waitForTimeout(800);
+      ok(`c21: ${dt} · recargar el mismo enlace no vuelve a empezar (misma idea, sin aparcar otra vez)`, (await draft())?.topic === d1.topic && (await parked()).length === 1);
+      // «Empezar de nuevo»: estado limpio; lo anterior queda aparcado (no se borra).
+      await W().getByTestId("empezar-de-nuevo").click(); await P.waitForTimeout(800); await hydrated();
+      const d2 = await draft(), pk = await parked();
+      ok(`c21: ${dt} · «Empezar de nuevo» deja un borrador vacío (sin idea, guion, episodio ni trabajo)`, !d2?.topic && !d2?.title && !d2?.script && !d2?.episodeId && !d2?.scriptJob && d2?.minutes === 5 && /Paso 1 de 4/.test(await title()), JSON.stringify(d2).slice(0, 160));
+      ok(`c21: ${dt} · «Empezar de nuevo» aparca la entrada anterior junto al borrador real (2, nada borrado)`, pk.length === 2 && pk.some((x) => x.topic === d1.topic) && pk.some((x) => /Borrador real c21/.test(x.title)), String(pk.length));
+      await shot(P, `c21${dt}-03-empezar-de-nuevo`);
+      // Un borrador real retomado (sin entrada nueva) conserva el aviso y sus controles.
+      await P.evaluate((k) => localStorage.setItem(k, JSON.stringify({ step: 1, title: "Retomado real c21", topic: "x", script: "Ana: un guion que ya existía en este navegador.", minutes: 4 })), KEY);
+      await P.goto(`${BASE}/dashboard/podcast`); await hydrated(); await P.waitForTimeout(800);
+      ok(`c21: ${dt} · un borrador real conserva «Retomaste tu borrador» y «Empezar uno nuevo»`, /Retomado real c21/.test(await W().getByTestId("borrador-retomado").innerText().catch(() => "")) && await W().getByTestId("empezar-uno-nuevo").count() === 1);
+      const ov = await P.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      ok(`c21: ${dt} · sin desbordamiento horizontal`, ov <= 1, `${ov}px`);
+      await shot(P, `c21${dt}-04-retomado-real`);
+      await S.ctx.close();
+    }
+    // «Quitar archivo manual» (T-2314): un FALLIDO archivado a mano sigue en «Archivados» por su estado; se avisa antes.
+    // Igual que el caso 16: la columna archived_at (migración ya versionada) se aplica en esta base DESECHABLE si falta.
+    await db.query(fs.readFileSync(path.join(REPO, "supabase/migrations/20261030170000_podcast_library_archive.sql"), "utf8"));
+    await db.query("notify pgrst, 'reload schema'"); await new Promise((r) => setTimeout(r, 1500));
+    const X = "c21a0000-0000-4000-8000-000000000001", Y = "c21a0000-0000-4000-8000-000000000002", Z = "c21a0000-0000-4000-8000-000000000003";
+    const ins = (id, user, t, status, arch) => db.query(`insert into public.podcast_studio_episodes(id,user_id,title,mode,spec,status,cost_usd,created_at,updated_at,archived_at) values ($1,$2,$3,'dialogo','{"version":"podcast-studio/3"}',$4,0,now() - interval '1 day',now() - interval '1 day',${arch ? "now()" : "null"}) on conflict (id) do update set status=excluded.status, archived_at=excluded.archived_at`, [id, user, t, status]);
+    const preexist = (await db.query("select count(*)::int n from public.podcast_studio_episodes where id = any($1::uuid[])", [[X, Y, Z]])).rows[0].n;
+    await ins(X, OWNER.id, "c21 fallido archivado a mano", "failed", true); await ins(Y, OWNER.id, "c21 listo archivado a mano", "ready", true); await ins(Z, OTHER.id, "c21 fallido de otra cuenta", "failed", true);
+    for (const [dt, device] of DEVICES) {
+      const S = await session(OWNER, `c21${dt}-lib`, device), P = S.p, card = (id) => P.getByTestId(`studio-episode-${id}`);
+      await P.goto(`${BASE}/dashboard/podcast?vista=archivados`); await P.getByTestId("biblioteca-vistas").waitFor();
+      if (dt === "m") await db.query("update public.podcast_studio_episodes set archived_at=now() where id=$1", [X]);
+      if (dt === "m") { await P.reload(); await P.getByTestId("biblioteca-vistas").waitFor(); }
+      const note = await card(X).getByTestId(`biblioteca-quitar-archivo-${X}`).innerText().catch(() => "");
+      ok(`c21: ${dt} · fallido archivado: avisa ANTES que seguirá en «Archivados» porque tiene un error y no se borra`, /seguirá en «Archivados» porque tiene un error/.test(note) && /no se borra nada/.test(note), note.slice(0, 160));
+      ok(`c21: ${dt} · fallido archivado: «Quitar archivo manual» y no «Restaurar»`, await card(X).getByRole("button", { name: "Quitar archivo manual" }).count() === 1 && await card(X).getByRole("button", { name: "Restaurar" }).count() === 0);
+      ok(`c21: ${dt} · listo archivado conserva «Restaurar» sin aviso`, await card(Y).getByRole("button", { name: "Restaurar" }).count() === 1 && await card(Y).getByTestId(`biblioteca-quitar-archivo-${Y}`).count() === 0);
+      ok(`c21: ${dt} · la otra cuenta no aparece`, await card(Z).count() === 0);
+      await shot(P, `c21${dt}-05-archivados`);
+      const st0 = (await db.query("select status, cost_usd, created_at from public.podcast_studio_episodes where id=$1", [X])).rows[0];
+      await card(X).getByRole("button", { name: "Quitar archivo manual" }).click();
+      let row; for (let i = 0; i < 40; i++) { row = (await db.query("select status, cost_usd, created_at, archived_at from public.podcast_studio_episodes where id=$1", [X])).rows[0]; if (row.archived_at === null) break; await P.waitForTimeout(250); }
+      await P.reload(); await P.getByTestId("biblioteca-vistas").waitFor();
+      ok(`c21: ${dt} · quitar el archivo solo borra la marca (estado, costo y fecha intactos; la fila sigue)`, row?.archived_at === null && row.status === st0.status && Number(row.cost_usd) === Number(st0.cost_usd) && +row.created_at === +st0.created_at);
+      ok(`c21: ${dt} · tras quitar el archivo sigue en «Archivados» por su estado (agrupado, sin control manual)`, await card(X).count() === 1 && /Con error/.test(await card(X).innerText()) && await card(X).getByTestId(`biblioteca-quitar-archivo-${X}`).count() === 0);
+      await P.goto(`${BASE}/dashboard/podcast`); await P.getByTestId("biblioteca-vistas").waitFor();
+      ok(`c21: ${dt} · y no aparece en la vista principal`, await card(X).count() === 0);
+      await shot(P, `c21${dt}-06-tras-quitar`);
+      await S.ctx.close();
+    }
+    const z = (await db.query("select archived_at from public.podcast_studio_episodes where id=$1", [Z])).rows[0];
+    ok("c21: la fila de la otra cuenta no cambió", !!z?.archived_at);
+    const after21 = await n0();
+    ok("c21: nada cobrado ni borrado (operaciones y pagos iguales; solo las filas sembradas)", after21.o === before21.o && after21.p === before21.p && after21.e === before21.e + 3 - preexist, JSON.stringify({ before21, after21, preexist }));
+  }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
-  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 14: 32, 15: 5, 16: 24, 17: 17, 18: 9, 19: 18, 20: 17 };
+  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 14: 32, 15: 5, 16: 24, 17: 17, 18: 9, 19: 18, 20: 17, 21: 36 };
   const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[a-d]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name)) || (c === "12" && /^c12-/.test(r.name))).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));
