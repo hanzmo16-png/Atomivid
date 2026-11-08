@@ -119,11 +119,11 @@ test("UI: el botón «Generar episodio» depende de la disponibilidad y un 409 d
   assert.equal(isProviderNotReady(Object.assign(new Error("Otra solicitud cambió el episodio; recarga la página."), { status: 409 })), false);
 });
 
-test("las rutas reales conectan la verificación de solo lectura (refresh: false) y el worker usa la misma cuenta de llamadas", () => {
+test("las rutas reales conectan la verificación (misma regla que el worker) y el worker usa la misma cuenta de llamadas", () => {
   const root = path.join(__dirname, "../../..");
   for (const f of ["app/api/podcast/v3/route.ts", "app/api/podcast/v3/[id]/route.ts"]) assert.match(readFileSync(path.join(root, f), "utf8"), /supplyCheck: studioProvidersSimulated\(\) \? undefined : \(needs\) => studioSupplyCheck\(service, needs\)/, f);
   assert.match(readFileSync(path.join(root, "app/api/podcast/v3/[id]/route.ts"), "utf8"), /settledOps: .*\.eq\("user_id", user\.id\)\.eq\("state", "settled"\)/);
-  assert.match(readFileSync(path.join(root, "lib/podcast/v3/readiness.ts"), "utf8"), /ensureJobSupplyReady\(service, demands, \{ refresh: false, now \}\)/);
+  assert.match(readFileSync(path.join(root, "lib/podcast/v3/readiness.ts"), "utf8"), /ensureJobSupplyReady\(service, demands, \{ now \}\)/);
   assert.match(readFileSync(path.join(root, "lib/podcast/v3/pipeline.ts"), "utf8"), /const needs = providerNeeds\(spec, pf, settledRows,/);
 });
 

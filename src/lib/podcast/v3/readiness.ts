@@ -76,8 +76,8 @@ export function readinessMessage(failure: { provider: string; reason: string; qu
 }
 
 /**
- * Verificación previa al INICIO (API, antes de autorizar y despachar): la misma regla que aplica el worker, en solo
- * lectura (`refresh: false`: sin refrescar saldos ni escribir instantáneas). Incidente 4290175a (2026-11-08): el
+ * Verificación previa al INICIO (API, antes de autorizar y despachar): la misma regla que aplica el worker (incluido
+ * el refresco gratuito de un saldo no verificado). Nunca llama a generación ni cobra. Incidente 4290175a (2026-11-08): el
  * episodio necesitaba 48 llamadas de HeyGen sobre el límite diario de la plataforma y solo el runner lo descubría,
  * con el episodio ya «autorizado» y la persona viendo 0 %. Lanza si no se puede leer el gasto del estudio (falla cerrado).
  */
@@ -89,7 +89,9 @@ export async function studioSupplyCheck(service: import("@supabase/supabase-js")
   if (blocked) return { ready: false, providers: [], failure: { provider: "recraft", reason: blocked } };
   const demands = studioSupplyDemands(needs, studioSpendByProvider(recent ?? []));
   if (!demands.length) return { ready: true, providers: [] };
-  return ensureJobSupplyReady(service, demands, { refresh: false, now });
+  // Misma regla que el worker: una lectura de saldo no verificada se refresca (GET de facturación gratuito); sin
+  // refrescar, un saldo viejo bloquearía de más a quien sí puede producir. RED sigue RED.
+  return ensureJobSupplyReady(service, demands, { now });
 }
 
 /**
