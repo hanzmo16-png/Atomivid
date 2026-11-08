@@ -408,7 +408,18 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     // Las opciones avanzadas van plegadas (<details>): se abren para poder elegirlas.
     const advanced = () => W().locator("details").evaluateAll((ds) => ds.forEach((d) => { d.open = true; }));
     const disp0 = fs.existsSync(path.join(E2E, "logs/dispatch.jsonl")) ? fs.readFileSync(path.join(E2E, "logs/dispatch.jsonl"), "utf8").length : 0;
-    await S.p.goto(`${BASE}/dashboard/podcast`); await S.p.evaluate(() => localStorage.removeItem("atomivid.podcast.asistente.v2")); await S.p.reload(); await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
+    if (opts.fromHome) {
+      // Recorrido completo (caso 22): la idea se escribe en la portada «¿Qué quieres crear hoy?» y entra por Personalizado.
+      await S.p.goto(`${BASE}/dashboard`); await S.p.getByTestId("crear-inicio").waitFor();
+      await S.p.evaluate(() => localStorage.removeItem("atomivid.podcast.asistente.v2"));
+      await S.p.getByTestId("crear-podcast").click(); await S.p.getByTestId("crear-idea").fill(opts.fromHome);
+      await S.p.getByTestId("crear-modo-custom").check(); await snap("paso00-portada");
+      await S.p.getByTestId("crear-continuar").click(); await S.p.waitForURL(/\/dashboard\/podcast\?/);
+      await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor(); await S.p.waitForTimeout(800);
+      const t = await S.p.evaluate(() => JSON.parse(localStorage.getItem("atomivid.podcast.asistente.v2") || "null")?.topic);
+      ok(`${tag}: la idea de la portada llega al asistente como tema`, t === opts.fromHome, String(t));
+      ok(`${tag}: entrada nueva sin falso «Retomaste tu borrador»`, await W().getByTestId("borrador-retomado").count() === 0 && await W().getByTestId("empezar-uno-nuevo").count() === 0);
+    } else { await S.p.goto(`${BASE}/dashboard/podcast`); await S.p.evaluate(() => localStorage.removeItem("atomivid.podcast.asistente.v2")); await S.p.reload(); await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor(); }
     // Pantalla 1 — Participantes: modalidad, formato, quién habla, voces y avatares.
     ok(`${tag}: el asistente empieza por Participantes (paso 1 de 4)`, /Paso 1 de 4: Participantes/.test(await stepTitle()), await stepTitle());
     await W().getByRole("radio", { name: new RegExp(m.mode) }).click(); await snap("paso01-modalidad");
@@ -1277,9 +1288,20 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     const after21 = await n0();
     ok("c21: nada cobrado ni borrado (operaciones y pagos iguales; solo las filas sembradas)", after21.o === before21.o && after21.p === before21.p && after21.e === before21.e + 3 - preexist, JSON.stringify({ before21, after21, preexist }));
   }
+  if (cases.includes("22")) {
+    // Recorrido COMPLETO en una sola sesión (Salto Cuántico): portada (idea) → Personalizado → Participantes → Guion →
+    // Estilo → Producir (autorizar) → worker con proveedores SIMULADOS → biblioteca → reproducción → descarga.
+    // Escritorio 1440×900 (narración con imágenes, MP4 16:9) y móvil 390×844 (conversación con dos avatares, MP4 9:16).
+    const D = await session(OWNER, "c22-escritorio", { viewport: { width: 1440, height: 900 } });
+    await studioFlow(D, "c22-escritorio", { ...MODES.find((x) => x.tag === "c10d"), title: "E2E recorrido completo escritorio" }, { fromHome: "Idea c22: la señal Wow de 1977 contada en un episodio" });
+    await D.ctx.close();
+    const M = await session(OWNER, "c22-movil", { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    await studioFlow(M, "c22-movil", { ...MODES.find((x) => x.tag === "c10c"), title: "E2E recorrido completo móvil" }, { fromHome: "Idea c22: la luna Europa y su océano" });
+    await M.ctx.close();
+  }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
-  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 14: 32, 15: 5, 16: 24, 17: 17, 18: 9, 19: 18, 20: 17, 21: 36 };
+  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 14: 32, 15: 5, 16: 24, 17: 17, 18: 9, 19: 18, 20: 17, 21: 36, 22: 60 };
   const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[a-d]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name)) || (c === "12" && /^c12-/.test(r.name))).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));
