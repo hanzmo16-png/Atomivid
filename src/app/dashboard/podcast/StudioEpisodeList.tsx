@@ -10,7 +10,9 @@ import { LibraryArchiveButton } from "./LibraryArchiveButton";
 export type StudioListEpisode = { id: string; title: string; status: string; mode: string; cost_usd: number | null;
   /** Biblioteca limpia: archivado por el dueño; `autoNote` = agrupado solo en «Archivados» (con error, de prueba o
    *  sin terminar hace más de 7 días), sin escribir nada: se explica y no ofrece archivar/restaurar a mano. */
-  archived?: boolean; autoNote?: string | null };
+  archived?: boolean; autoNote?: string | null;
+  /** Archivado a mano que seguirá agrupado solo al quitar el archivo (ver `restoreNote` en library.ts). */
+  restoreNote?: string | null };
 
 const STATUS: Record<string, string> = { draft: "Borrador", authorized: "Autorizado", generating: "Generando", ready: "Listo", failed: "Con error" };
 const MODE: Record<string, string> = { narracion: "narración", avatar: "avatar", dialogo: "conversación" };
@@ -102,7 +104,7 @@ export function StudioEpisodeCard({ episode, canArchive }: { episode: StudioList
       {episode.autoNote && <p className="mt-1 text-xs text-ink-muted">{episode.autoNote}</p>}
       {closedByDefault && !opened && <Button type="button" variant="secondary" size="sm" className="mt-2" data-testid={`studio-abrir-${episode.id}`} onClick={() => setOpened(true)}>Ver episodio</Button>}
       {closedByDefault && opened && <p className="mt-1 text-xs text-ink-muted" data-testid={`studio-abierto-${episode.id}`}>{openError ?? `Estado actual: ${STATUS[status] ?? status}. Abrirlo no lo saca de «Archivados» ni cambia nada.`}</p>}
-      {canArchive && !episode.autoNote && status !== "authorized" && status !== "generating" && <LibraryArchiveButton kind="studio" id={episode.id} title={episode.title} archived={!!episode.archived} />}
+      {canArchive && !episode.autoNote && status !== "authorized" && status !== "generating" && <LibraryArchiveButton kind="studio" id={episode.id} title={episode.title} archived={!!episode.archived} restoreNote={episode.restoreNote ?? null} />}
     </li>
   );
 }

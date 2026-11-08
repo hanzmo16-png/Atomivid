@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { ARCHIVE_COLUMN_MISSING, AUTO_GROUPED, bucketOf, fetchAllByCursor, incompleteLibraryNotice, isMissingRelation, isTestTitle, libraryAction, libraryView, listClassicEpisodes, ownerRowsByCursor, shownCount, VIEW_STEP, type LibraryItem, type OwnerRowsClient, type PageCursor } from "./library";
+import { ARCHIVE_COLUMN_MISSING, AUTO_GROUPED, bucketOf, restoreNote, fetchAllByCursor, incompleteLibraryNotice, isMissingRelation, isTestTitle, libraryAction, libraryView, listClassicEpisodes, ownerRowsByCursor, shownCount, VIEW_STEP, type LibraryItem, type OwnerRowsClient, type PageCursor } from "./library";
 import { listStudioEpisodes } from "./v3/store";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -334,4 +334,31 @@ test("la migración archived_at es solo aditiva y su reversión vive fuera de su
   assert.doesNotMatch(sql, /grant|policy|revoke/i, "los permisos de anon/authenticated no cambian");
   assert.ok(readdirSync(path.join(__dirname, "../../../supabase/migrations")).every((f) => !/rollback/i.test(f)), "ninguna reversión en migrations/");
   assert.match(read("supabase/rollbacks/20261030170000_podcast_library_archive.rollback.sql"), /drop column if exists archived_at/);
+});
+
+test("T-20261107-2314: quitar el archivo manual — un listo vuelve a «Mis episodios»; fallido, prueba y borrador viejo siguen agrupados y se avisa antes", () => {
+  // Listo archivado: restaurar lo devuelve a la vista principal y no hay aviso.
+  const ready = it(1, "ready", 3, { archived_at: ago(1) });
+  assert.equal(restoreNote(ready, NOW), null);
+  assert.equal(libraryView([{ ...ready, archived_at: null }], "principal", NOW).length, 1);
+  // Borrador reciente archivado: también vuelve (sin aviso).
+  assert.equal(restoreNote(it(2, "draft", 2, { archived_at: ago(1) }), NOW), null);
+  // Fallido, prueba y borrador viejo archivados: al quitar el archivo siguen en «Archivados», con su motivo de grupo.
+  const cases: [LibraryItem, RegExp, string][] = [
+    [it(3, "failed", 2, { archived_at: ago(1) }), /tiene un error/, "fallido"],
+    [it(4, "ready", 1, { archived_at: ago(0.5), title: "QA micrófono" }), /es un episodio de prueba/, "prueba"],
+    [it(5, "draft", 10, { archived_at: ago(9) }), /más de 7 días sin terminar/, "antiguo"],
+  ];
+  for (const [item, reason, bucket] of cases) {
+    const note = restoreNote(item, NOW);
+    assert.ok(note && reason.test(note) && /seguirá en «Archivados»/.test(note) && /no se borra nada/.test(note), `${bucket}: ${note}`);
+    const after = { ...item, archived_at: null };
+    assert.equal(bucketOf(after, NOW), bucket);
+    assert.equal(libraryView([after], "principal", NOW).length, 0, `${bucket}: no se fuerza a la vista principal`);
+    assert.equal(libraryView([after], "archivados", NOW).length, 1, `${bucket}: sigue recuperable en «Archivados»`);
+    assert.equal(after.status, item.status, "no se cambia el estado para simular la recuperación");
+  }
+  // Sin archivo manual o en producción: nada que avisar.
+  assert.equal(restoreNote(it(6, "failed", 2), NOW), null);
+  assert.equal(restoreNote(it(7, "generating", 0.1, { archived_at: ago(1) }), NOW), null);
 });

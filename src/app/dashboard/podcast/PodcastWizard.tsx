@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -19,6 +19,7 @@ import { HostPicker, type HostCard } from "@/components/podcast/HostPicker";
 import { SavedAvatarPicker } from "@/components/podcast/SavedAvatarPicker";
 import { CONSENT_TEXT, INTENSITY_DB, MODALITIES, MODALITY_LABEL, SCREENS, SCREEN_SECTIONS, STEP, STUDIO_BUDGET_MAX_USD, screenErrors, screenOf, screenStart, withFormat, WIZARD_STORAGE_KEY, bindEpisode, defaultDraft, syncScriptNames, withOwnAvatar, withSavedAvatar, avatarSummary, draftToSpec, releaseEpisode, specKey, draftToV2, durationFit, estimateMinutes, shortScriptNotice, loadDraft, modalityToMode, voiceKindFor, withHost, withoutHost, withVoiceKinds, type Modality, type WizardDraft } from "@/lib/podcast/v3/wizard";
 import type { VisualProvider } from "@/lib/podcast/v3/studio";
+import { FreshEntryContext } from "./PodcastFreshEntry";
 
 export type WizardVoice = { voiceId: string; name: string; available: boolean; note: string | null; kind: "sintetica" | "clonada" };
 export type WizardAvatar = { id: string; name: string; photoUrl?: string | null };
@@ -42,6 +43,8 @@ const KIND_LABEL: Record<string, string> = { pregunta: "pregunta", respuesta: "r
 
 export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generationEnabled = v3Enabled, providers = [], previewNotice = null, hosts = [] }: { voices: WizardVoice[]; avatars: WizardAvatar[]; v2Enabled: boolean; v3Enabled: boolean; generationEnabled?: boolean; providers?: VisualProvider[]; previewNotice?: string | null; hosts?: WizardHost[] }) {
   const router = useRouter();
+  // Valor del montaje (T-20261108-0415): el aviso de «retomado» se decide una vez, al leer el borrador.
+  const freshEntry = useRef(useContext(FreshEntryContext));
   const [raw, setRawState] = useState<WizardDraft>(defaultDraft);
   // Cualquier cambio del borrador mantiene el guion al día con los nombres de los participantes (syncScriptNames).
   const setRaw = (u: WizardDraft | ((x: WizardDraft) => WizardDraft)) => setRawState((x) => syncScriptNames(x, typeof u === "function" ? u(x) : u));
@@ -86,7 +89,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
         if (owner && other && other !== owner) { parkDraft(localStorage, raw); localStorage.removeItem(WIZARD_STORAGE_KEY); raw = null; }
       } catch { raw = null; }
       const draft = loadDraft(raw);
-      setRawState(draft); setLoaded(true); setResumed(resumedDraft(draft)); setRecoverable(hasParkedSafe(owner));
+      setRawState(draft); setLoaded(true); setResumed(entryResumeNotice(draft, freshEntry.current)); setRecoverable(hasParkedSafe(owner));
     })();
     return () => { cancelled = true; };
   }, []);
@@ -625,6 +628,15 @@ export function resumedDraft(x: { title?: string; topic?: string; script?: strin
   if (!String(x.topic ?? "").trim() && !script.trim() && !x.scriptJob) return null;
   const label = (String(x.title ?? "").trim() || String(x.topic ?? "").trim() || "sin título").slice(0, 70);
   return { label, minutes: script.trim() ? estimateMinutes(script) : 0 };
+}
+/**
+ * Aviso al montar (T-20261108-0415): una entrada nueva de «Personalizado» que solo trae la idea (`topic`) no es un borrador
+ * retomado, así que no se anuncia ni ofrece «Empezar uno nuevo». Con contenido propio (título, guion o guion con IA) o
+ * fuera de una entrada nueva, se avisa como siempre.
+ */
+export function entryResumeNotice(x: { title?: string; topic?: string; script?: string; scriptJob?: unknown }, freshEntry: boolean): ReturnType<typeof resumedDraft> {
+  if (freshEntry && !String(x.title ?? "").trim() && !String(x.script ?? "").trim() && !x.scriptJob) return null;
+  return resumedDraft(x);
 }
 /** ¿Hay un guion con IA a medias que NO corresponde a la configuración actual (tema, duración o participantes)? */
 export function staleJob(job: unknown, ask: Parameters<typeof pendingJob>[1]): boolean {
