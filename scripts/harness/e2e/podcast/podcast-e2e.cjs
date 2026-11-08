@@ -1326,7 +1326,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       music: { enabled: true, mood: "auto", volume_db: -22, stings: true, ambient: "ninguno", intensity: "media", intro: true, outro: true, ducking: true }, format: "16:9", audio_export: "mp3", budget_usd: 40 };
     const ERR = "Proveedor no listo: HeyGen (avatar): alcanzó su cuota diaria de llamadas. No se hizo ningún cargo.";
     const DLOG = path.join(E2E, "logs/dispatch.jsonl"), nDisp = () => (fs.existsSync(DLOG) ? fs.readFileSync(DLOG, "utf8").trim().split("\n").filter(Boolean).length : 0);
-    const DEVICES = [["d", "c23a0000-4290-475a-8000-000000000001", { viewport: { width: 1440, height: 900 } }], ["m", "c23a0000-4290-475a-8000-000000000002", { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }]];
+    const DEVICES = [["d", "4290175a-f7b4-49a8-9ec5-2977b98d486a", { viewport: { width: 1440, height: 900 } }], ["m", "c23a0000-4290-475a-8000-000000000002", { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }]];
     for (const [dt, ID, device] of DEVICES) {
       await db.query("delete from public.podcast_studio_operations where episode_id=$1", [ID]); await db.query("delete from public.podcast_studio_episodes where id=$1", [ID]);
       await db.query("insert into public.podcast_studio_episodes(id,user_id,title,mode,spec,status,estimate,estimated_usd,authorized_usd,authorized_at,run_started_at,error,cost_usd,created_at,updated_at) values ($1,$2,$3,'dialogo',$4,'failed','{}',20.22,40,now()-interval '20 minutes',now()-interval '19 minutes',$5,0,now()-interval '20 minutes',now()-interval '19 minutes')", [ID, OWNER.id, `Anunnaki c23${dt}`, JSON.stringify(SPEC23), ERR]);
@@ -1406,6 +1406,9 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       const w2 = await worker(ID, "studio"); const r4 = await row();
       const ops2 = (await db.query("select op, state, count(*)::int n from public.podcast_studio_operations where episode_id=$1 group by 1,2", [ID])).rows;
       ok(`c23: ${dt} · un segundo runner no duplica trabajo ni cobro (libro, costo y entrega iguales)`, JSON.stringify(ops2) === JSON.stringify(ops) && Number(r4.cost_usd) === Number(r3.cost_usd) && r4.status === "ready" && r4.video_path === r3.video_path, `exit ${w2.code} ${w2.out.split("\n").filter((l) => /STUDIO_|Duplicate|ya/.test(l)).slice(-2).join(" | ").slice(0, 200)}`);
+      // Narración intacta: una operación de voz liquidada por turno del guion (96), ninguna recortada ni repetida.
+      const tts = ops.filter((o) => o.op === "tts").reduce((a, o) => a + o.n, 0);
+      ok(`c23: ${dt} · narración íntegra: ${tts} turnos de voz liquidados (guion de 96), sin recortes`, tts === 96 && ops.filter((o) => o.op === "tts").every((o) => o.state === "settled"), JSON.stringify(ops.filter((o) => o.op === "tts")));
       ok(`c23: ${dt} · costo liquidado ≤ lo autorizado`, Number(r3.cost_usd) <= Number(r3.authorized_usd) + 1e-6, `${r3.cost_usd} / ${r3.authorized_usd}`);
       const shotsK = (r3.result?.shots ?? r3.result?.plan?.shots ?? []);
       const cam = shotsK.filter((x) => ["avatar_a", "avatar_b", "two_shot", "over_shoulder"].includes(x.kind)).length, lastEnd = shotsK.length ? shotsK[shotsK.length - 1].end : 0;
@@ -1419,7 +1422,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
   }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
-  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 14: 32, 15: 5, 16: 24, 17: 17, 18: 9, 19: 18, 20: 17, 21: 36, 22: 60, 23: 40 };
+  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 14: 32, 15: 5, 16: 24, 17: 17, 18: 9, 19: 18, 20: 17, 21: 36, 22: 60, 23: 48 };
   const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[a-d]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name)) || (c === "12" && /^c12-/.test(r.name))).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));

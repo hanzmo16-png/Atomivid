@@ -202,3 +202,35 @@ test("se guarda el spec ORIGINAL sin normalizar: solo se añaden el tope y su re
   assert.deepEqual({ ...visual, avatar_max_calls: undefined }, { ...v0, avatar_max_calls: undefined });
   assert.equal(visual.avatar_max_calls, 40); assert.ok(adaptation);
 });
+
+test("escenario de referencia (prueba, no gasto): 48 → 40 llamadas, 862,8 s conservados, USD 20,22 → 17,77", async () => {
+  const before = await preflight(SPEC, planningProviders());
+  const adapted = { ...SPEC, visual: { ...SPEC.visual, avatar_max_calls: 40 } };
+  const after = await preflight(adapted, planningProviders());
+  assert.equal(providerNeeds(SPEC, before, [], { prepare: true }).avatarCalls, 48);
+  assert.equal(providerNeeds(adapted, after, [], { prepare: true }).avatarCalls, 40);
+  const dur = (p: typeof before) => p.plan.shots[p.plan.shots.length - 1].end;
+  assert.equal(Math.round(dur(before) * 10) / 10, 862.8); assert.equal(dur(after), dur(before), "duración idéntica");
+  assert.equal(after.ttsChars, before.ttsChars, "narración idéntica (mismos caracteres)"); assert.equal(after.turns.length, before.turns.length);
+  assert.equal(before.estimate.totalUsd.toFixed(2), "20.22"); assert.equal(after.estimate.totalUsd.toFixed(2), "17.77");
+  const voz = (p: typeof before) => p.estimate.lines.find((l) => l.concept === "voz")!.usd;
+  assert.equal(voz(after), voz(before), "la voz no cambia de costo: no se recorta narración");
+});
+
+test("el tope se mantiene con duraciones REALES distintas (plan definitivo) y en cualquier reintento", async () => {
+  const pf = await preflight(SPEC, planningProviders());
+  const cam = (p: ReturnType<typeof planEpisode>) => p.shots.filter((s) => ["avatar_a", "avatar_b", "two_shot", "over_shoulder"].includes(s.kind)).length;
+  for (const seed of [1, 2, 3, 4, 5]) {
+    // Duraciones reales arbitrarias (la voz real nunca coincide con la estimación).
+    const real = pf.turns.map((t, i) => ({ ...t, seconds: 2 + ((i * 37 + seed * 11) % 23) }));
+    const plan = planEpisode({ mode: SPEC.mode, turns: real, assets: pf.assets, avatarFrequency: 0.5, avatarMaxSeconds: 20, recreations: true, hasAvatar: { A: true, B: true }, introSeconds: 4, avatarMaxShots: 40 });
+    assert.ok(cam(plan) <= 40, `semilla ${seed}: ${cam(plan)}`);
+    assert.deepEqual(planIssues(plan), []);
+    const total = real.reduce((n, t) => n + t.seconds, 4);
+    assert.ok(Math.abs(plan.shots[plan.shots.length - 1].end - total) < 1e-6, "cubre exactamente la voz real");
+  }
+  // Reintento tras liquidar 25 clips: solo se piden los 15 que faltan (total ≤ 40), nunca 40 nuevos.
+  const adapted = { ...SPEC, visual: { ...SPEC.visual, avatar_max_calls: 40 } };
+  const pf2 = await preflight(adapted, planningProviders());
+  assert.equal(providerNeeds(adapted, pf2, Array.from({ length: 25 }, () => ({ op: "avatar_clip" })), { prepare: true }).avatarCalls, 15);
+});
