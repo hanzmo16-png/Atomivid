@@ -62,12 +62,26 @@ export type ApiDeps = {
   supplyCheck?: (needs: ProviderNeeds) => Promise<SupplyReadiness>;
   /** Operaciones ya liquidadas del episodio (se reutilizan al reintentar: no cuentan para la cuota). Lanza si falla. */
   settledOps?: (episodeId: string) => Promise<{ op: string }[]>;
+  /** Adaptación al límite disponible: CAS que guarda el spec adaptado y su estimación solo si el episodio sigue en
+   *  draft/failed (true = cambió exactamente una fila). Nunca toca guion, participantes, ledger ni gastos. */
+  saveAdaptation?: (id: string, spec: Record<string, unknown>, estimate: Record<string, unknown>, estimatedUsd: number) => Promise<boolean>;
 };
 type Out = { status: number; body: Record<string, unknown> };
 export const STUDIO_MAX_AUTHORIZED_USD = 50;
 /** Más que el timeout del job de estudio (podcast-video.yml: 200 min): pasado esto, ningún runner sigue vivo. */
 export const STUDIO_RUNNER_MAX_MS = 4 * 3600_000;
 const DISABLED: Out = { status: 503, body: { error: "Los modos de estudio (avatar y conversación) se activan tras autorizar la migración y PODCAST_V3_ENABLED. La narración sigue disponible." } };
+
+/** Estimación que ve la persona (y que se guarda con el episodio): una sola forma para crear, estimar y adaptar. */
+export function estimateView(stored: Spec, pf: Awaited<ReturnType<typeof preflight>>, env: Record<string, string | undefined>, recraftBlock: string | null) {
+  return { lines: pf.estimate.lines, totalUsd: pf.estimate.totalUsd, assumptions: pf.estimate.assumptions, rates: pf.estimate.rates, turns: pf.turns.length, mood: pf.mood,
+    shots: pf.plan.shots.reduce<Record<string, number>>((m, s) => ({ ...m, [s.kind]: (m[s.kind] ?? 0) + 1 }), {}), overBudget: pf.estimate.totalUsd > stored.budget_usd,
+    byProvider: pf.estimate.lines.reduce<Record<string, number>>((m, l) => ({ ...m, [l.provider]: Math.round(((m[l.provider] ?? 0) + l.usd) * 1e4) / 1e4 }), {}),
+    providers: visualProviders(env, recraftBlock), lipTimeline: lipTimeline(pf.plan).slice(0, 40), coverage: shotCoverage(pf.plan),
+    turnList: pf.turns.slice(0, 60).map((t) => ({ id: t.id, speaker: t.speaker, kind: t.kind, text: t.text.slice(0, 140) })),
+    // Duración estimada del guion frente a la pedida (incidente 8f05fc37): la pantalla Producir la muestra antes de cobrar.
+    duration: scriptDuration(stored) };
+}
 
 export async function studioAction(d: ApiDeps, body: Record<string, unknown> | null): Promise<Out> {
   const b = body ?? {};
@@ -108,13 +122,7 @@ export async function studioAction(d: ApiDeps, body: Record<string, unknown> | n
     if (p.avatar.kind === "existente" && d.ownsAvatar && !(await d.ownsAvatar(p.avatar.avatar_id))) return { status: 403, body: { error: "Ese avatar no está disponible en tu cuenta." } };
   }
   const pf = await preflight(stored, planningProviders());
-  const estimate = { lines: pf.estimate.lines, totalUsd: pf.estimate.totalUsd, assumptions: pf.estimate.assumptions, rates: pf.estimate.rates, turns: pf.turns.length, mood: pf.mood,
-    shots: pf.plan.shots.reduce<Record<string, number>>((m, s) => ({ ...m, [s.kind]: (m[s.kind] ?? 0) + 1 }), {}), overBudget: pf.estimate.totalUsd > spec.budget_usd,
-    byProvider: pf.estimate.lines.reduce<Record<string, number>>((m, l) => ({ ...m, [l.provider]: Math.round(((m[l.provider] ?? 0) + l.usd) * 1e4) / 1e4 }), {}),
-    providers: visualProviders(d.env ?? process.env, recraftBlock), lipTimeline: lipTimeline(pf.plan).slice(0, 40), coverage: shotCoverage(pf.plan),
-    turnList: pf.turns.slice(0, 60).map((t) => ({ id: t.id, speaker: t.speaker, kind: t.kind, text: t.text.slice(0, 140) })),
-    // Duración estimada del guion frente a la pedida (incidente 8f05fc37): la pantalla Producir la muestra antes de cobrar.
-    duration: scriptDuration(stored) };
+  const estimate = estimateView(stored, pf, d.env ?? process.env, recraftBlock);
   if (b.action === "estimate") {
     // La pantalla «Producir» muestra la disponibilidad real antes de que exista el botón activo (sin cargos).
     const readiness = await startReadiness(d, stored, null, pf);
@@ -357,4 +365,35 @@ async function scriptStepAction(d: ApiDeps, b: Record<string, unknown>): Promise
     }
     return { status: f.status, body: { error: f.error, code: "IA_FALLO", detail: f.detail, recoverable: true, state, step: state.segments.length + (state.plan ? 1 : 0), steps: 1 + segmentCount(minutes), ...(resetAt ? { resetAt } : {}) } };
   }
+}
+
+/**
+ * «Adaptar producción al límite disponible» (incidente 4290175a): `{ preview: true }` devuelve la propuesta sin cambiar nada;
+ * `{ confirm: true, maxCalls }` la aplica (solo si sigue siendo la misma, cabe, conserva la duración y la calidad, y entra
+ * en el presupuesto) y reintenta el MISMO episodio por la autorización de siempre (verificación previa incluida).
+ */
+export async function adaptAction(d: ApiDeps, id: string, body: Record<string, unknown> | null): Promise<Out> {
+  if (!d.enabled) return DISABLED;
+  const row = await d.load(id);
+  if (row === "missing") return DISABLED;
+  if (!row || row.user_id !== d.userId) return { status: 404, body: { error: "Episodio no encontrado." } };
+  if (!d.supplyCheck || !d.settledOps || !d.saveAdaptation) return { status: 503, body: { error: "La adaptación no está disponible en este entorno." } };
+  const { planAdaptation, proposalSummary } = await import("./adapt");
+  let plan: Awaited<ReturnType<typeof planAdaptation>>;
+  try { plan = await planAdaptation({ supplyCheck: d.supplyCheck, settledOps: d.settledOps }, row); }
+  catch { return { status: 409, body: { error: SUPPLY_CHECK_UNAVAILABLE, code: "SIN_VERIFICAR" } }; }
+  if (!plan.ok) return { status: plan.status, body: { error: plan.error, code: plan.code } };
+  if (!plan.proposal) return { status: 200, body: { fits: true, message: "Tu episodio ya cabe en el límite disponible: puedes reintentarlo sin adaptar nada." } };
+  const proposal = plan.proposal, summary = proposalSummary(proposal);
+  if (body?.preview === true) return { status: 200, body: { proposal, summary } };
+  if (body?.confirm !== true) return { status: 400, body: { error: "Revisa la propuesta y confírmala para aplicarla." } };
+  if (Number(body.maxCalls) !== proposal.maxCalls) return { status: 409, body: { error: "La disponibilidad cambió desde que viste la propuesta. Revísala de nuevo antes de confirmar.", code: "CAMBIO", proposal, summary } };
+  if (!proposal.quality.ok) return { status: 409, body: { error: `No se aplica: ${proposal.quality.issues.join(" ")}`, code: "CALIDAD", proposal, summary } };
+  if (!proposal.withinBudget) return { status: 402, body: { error: `Con el ajuste el costo estimado (USD ${proposal.estimateAfterUsd.toFixed(2)}) supera tu tope (USD ${proposal.budgetUsd.toFixed(2)}).`, code: "PRESUPUESTO", proposal, summary } };
+  // Bloqueo preventivo: si con el ajuste algún proveedor sigue sin capacidad, no se guarda ni se inicia nada.
+  if (!proposal.readyAfter) return { status: 409, body: { error: `Proveedor no listo: ${proposal.blockAfter} No se inició la producción ni se hizo ningún cargo; tu episodio se conserva.`, code: "PROVEEDOR_NO_LISTO", proposal, summary } };
+  const estimate = estimateView(plan.adapted, plan.preflight, d.env ?? process.env, null);
+  if (!(await d.saveAdaptation(id, plan.stored, estimate, estimate.totalUsd))) return { status: 409, body: { error: "Otra solicitud cambió el episodio; recarga la página." } };
+  const started = await authorizeAction(d, id, { confirm: true, authorizedUsd: Math.min(plan.adapted.budget_usd, STUDIO_MAX_AUTHORIZED_USD) });
+  return { status: started.status, body: { ...started.body, adapted: true, proposal, summary } };
 }

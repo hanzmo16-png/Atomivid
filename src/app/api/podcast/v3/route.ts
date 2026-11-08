@@ -6,7 +6,7 @@ import { studioAction } from "@/lib/podcast/v3/api";
 import { realLlmReplay, realLlmStep, STUDIO_SCRIPT_PROJECT_PREFIX } from "@/lib/podcast/v3/adapters";
 import { STUDIO_TABLE } from "@/lib/podcast/v3/store";
 import { dispatchPodcastJob } from "@/lib/podcast/video-jobs";
-import { studioProvidersSimulated, studioRecraftBlocker, studioSupplyCheck } from "@/lib/podcast/v3/readiness";
+import { studioSupplyGateOn, studioRecraftBlocker, studioSupplyCheck } from "@/lib/podcast/v3/readiness";
 import { studioGenerationEnabled } from "@/lib/podcast/v3/studio";
 
 // Cada petición hace como mucho UNA llamada al modelo (escaleta o un bloque de ~10 min, 40–90 s); 300 s como las demás
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     load: async () => null, authorize: async () => false, dispatch: (id) => dispatchPodcastJob(id, "studio"),
     recraftBlocker: () => studioRecraftBlocker(service),
     // Verificación previa de solo lectura (cuota diaria, saldo, topes): sin ella no se puede iniciar (incidente 4290175a).
-    supplyCheck: studioProvidersSimulated() ? undefined : (needs) => studioSupplyCheck(service, needs),
+    supplyCheck: studioSupplyGateOn() ? (needs) => studioSupplyCheck(service, needs) : undefined,
   }, body);
   return NextResponse.json(out.body, { status: out.status });
 }

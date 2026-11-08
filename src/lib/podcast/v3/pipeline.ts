@@ -217,13 +217,21 @@ export function providerNeeds(spec: StudioSpec, pf: Preflight, settledRows: { op
   return { ttsChars: pf.ttsChars, ttsUsd: line("voz"), avatarUsd: line("avatar"), imagesUsd: line("imagenes"), ttsCalls, avatarCalls, imagesCalls };
 }
 
+/** Preparaciones de foto que el avatar pedirá (una por participante con foto o del catálogo, si tiene avatar). */
+export const avatarPrepares = (spec: StudioSpec) => spec.output === "audio" ? 0 : spec.participants.filter((p) => (p.avatar.kind === "foto" || p.avatar.kind === "catalogo") && hasAvatar(spec, p.id)).length;
+/** Tope de apariciones del avatar derivado del tope de llamadas aceptado (llamadas − preparaciones); sin tope, undefined. */
+export function avatarShotCap(spec: StudioSpec): number | undefined {
+  const max = spec.visual.avatar_max_calls;
+  return max === undefined ? undefined : Math.max(0, max - avatarPrepares(spec));
+}
+
 /** Paso 9 del asistente: plan y costo ANTES de generar (sin llamadas de pago; búsqueda de imágenes gratuita). */
 export async function preflight(spec: StudioSpec, providers: Providers, rates?: StudioRates): Promise<Preflight> {
   const { turns, names } = turnsFor(spec);
   const audioOnly = spec.output === "audio";
   const assets = audioOnly || spec.visual.provider === "solo_set" ? [] : await gatherAssets(turns, providers.images, spec.title, spec.visual.recreations, spec.topic);
   const plan = planEpisode({ mode: spec.mode, turns, assets, topicTerms: topicTermsFor(spec, turns), avatarFrequency: spec.mode === "narracion" ? 0 : spec.visual.avatar_frequency, avatarMaxSeconds: spec.visual.avatar_max_seconds,
-    recreations: spec.visual.recreations, hasAvatar: { A: hasAvatar(spec, "A"), B: hasAvatar(spec, "B") }, introSeconds: INTRO_SECONDS });
+    recreations: spec.visual.recreations, hasAvatar: { A: hasAvatar(spec, "A"), B: hasAvatar(spec, "B") }, introSeconds: INTRO_SECONDS, avatarMaxShots: avatarShotCap(spec) });
   const ttsChars = turns.reduce((n, t) => n + t.text.length, 0);
   const seconds = INTRO_SECONDS + OUTRO_SECONDS + turns.reduce((n, t) => n + estimateSeconds(t.text) + 0.4, 0);
   const pricing = rates ? { ...getPricingConfig(), elevenLabsUsdPer1kChars: rates.voiceUsdPer1kChars } : undefined;
@@ -354,7 +362,7 @@ export async function runEpisode(spec: StudioSpec, ctx: { owner: string; episode
     // 2) Plan definitivo con duraciones reales.
     const realTurns = pf.turns.map((t, i) => ({ ...t, seconds: (i + 1 < voice.timeline.length ? voice.timeline[i + 1].start : voice.duration) - voice.timeline[i].start }));
     const plan = planEpisode({ mode: spec.mode, turns: realTurns, assets: pf.assets, topicTerms: topicTermsFor(spec, pf.turns), avatarFrequency: spec.mode === "narracion" ? 0 : spec.visual.avatar_frequency, avatarMaxSeconds: spec.visual.avatar_max_seconds,
-      recreations: spec.visual.recreations, hasAvatar: { A: hasAvatar(spec, "A"), B: hasAvatar(spec, "B") }, introSeconds: voice.timeline[0]?.start ?? INTRO_SECONDS });
+      recreations: spec.visual.recreations, hasAvatar: { A: hasAvatar(spec, "A"), B: hasAvatar(spec, "B") }, introSeconds: voice.timeline[0]?.start ?? INTRO_SECONDS, avatarMaxShots: avatarShotCap(spec) });
     const issues = planIssues(plan);
     if (issues.length) throw new Error(`Plan editorial inválido: ${issues.join("; ")}`);
     // Segundo control con duraciones REALES: si los clips de avatar ya no caben en el tope, se para ANTES de pedirlos

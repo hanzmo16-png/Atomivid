@@ -102,3 +102,9 @@ export function studioProvidersSimulated(env: Record<string, string | undefined>
   const production = env.NODE_ENV === "production" || env.VERCEL === "1" || env.ATOMIVID_RUNTIME === "production";
   return env.PODCAST_V3_PROVIDERS === "mock" && !production;
 }
+
+/** ¿Se aplica la verificación previa en la API? Siempre fuera del arnés simulado; en el arnés, solo si el ensayo la
+ *  activa expresamente (PODCAST_V3_SUPPLY_GATE=1) para probar el bloqueo y la adaptación contra la base local. */
+export function studioSupplyGateOn(env: Record<string, string | undefined> = process.env): boolean {
+  return !studioProvidersSimulated(env) || env.PODCAST_V3_SUPPLY_GATE === "1";
+}

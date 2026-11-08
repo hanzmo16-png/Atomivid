@@ -6,6 +6,7 @@ import { safeParseJsonResponse } from "@/lib/http/safe-json";
 import { progressView, type LedgerActivity } from "@/lib/podcast/v3/progress";
 import { AtomProgress } from "@/components/podcast/AtomProgress";
 import { LibraryArchiveButton } from "./LibraryArchiveButton";
+import { AdaptLimitPanel, isAvatarQuotaError } from "./AdaptLimitPanel";
 
 export type StudioListEpisode = { id: string; title: string; status: string; mode: string; cost_usd: number | null;
   /** Biblioteca limpia: archivado por el dueño; `autoNote` = agrupado solo en «Archivados» (con error, de prueba o
@@ -98,6 +99,8 @@ export function StudioEpisodeCard({ episode, canArchive }: { episode: StudioList
         onRedispatch={() => void redispatch()}
       />
       {(status === "authorized" || status === "generating") && <div className="mt-2"><AtomProgress compact view={progressView({ status, progress: media?.progress, updated_at: media?.updatedAt, output: media?.output, audio_path: media?.audioPath }, undefined, media?.activity)} /></div>}
+      {/* Incidente 4290175a: bloqueado por el límite diario del avatar → la persona lo adapta y reintenta aquí mismo. */}
+      {status === "failed" && isAvatarQuotaError(media?.error) && <AdaptLimitPanel episodeId={episode.id} onStarted={() => setMedia((m) => (m ? { ...m, status: "authorized", error: null } : m))} />}
       {/* Duración entregada frente a la pedida (registrada por el generador): visible, nunca silenciosa. */}
       {media?.durationNote && <p className="mt-1 rounded border border-border p-2 text-xs text-ink" data-testid={`studio-duracion-${episode.id}`}>{media.durationNote}</p>}
       {note && <p className="mt-1 text-xs text-ink-muted">{note}</p>}

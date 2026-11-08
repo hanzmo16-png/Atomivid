@@ -1304,9 +1304,122 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     await studioFlow(M, "c22-movil", { ...MODES.find((x) => x.tag === "c10c"), title: "E2E recorrido completo móvil" }, { fromHome: "Idea c22: la luna Europa y su océano" });
     await M.ctx.close();
   }
+  if (cases.includes("23")) {
+    // P0 «Adaptar producción al límite disponible» (episodio real 4290175a, 2026-11-08): 48 llamadas de HeyGen pedidas con un
+    // límite diario de 40. Se siembra un episodio FALLIDO equivalente (diálogo de 96 turnos, dos avatares, Recraft) y la
+    // persona lo recupera sola desde «Tus episodios» con clics reales: vista previa (nada cambia) → cancelar → confirmar →
+    // el MISMO episodio se reintenta → worker con proveedores SIMULADOS → listo con 40 apariciones. Escritorio y móvil.
+    // Requiere la pila arrancada con PODCAST_V3_SUPPLY_GATE=1 (la verificación previa real contra esta base desechable).
+    await db.query(fs.readFileSync(path.join(REPO, "supabase/migrations/20261030170000_podcast_library_archive.sql"), "utf8"));
+    await db.query("notify pgrst, 'reload schema'"); await new Promise((r) => setTimeout(r, 1500));
+    for (const [id, name] of AV) await db.query("insert into public.avatars (id,user_id,name,provider,provider_avatar_id,status,consent_given) values ($1,$2,$3,'heygen','asset:simulado','ready',true) on conflict (id) do nothing", [id, OWNER.id, name]);
+    // Suministro de esta base DESECHABLE: HeyGen con el límite diario de producción (40); saldos verificados y en verde.
+    await db.query(`insert into public.pi_supply_policies(provider,enabled,unit,baseline,unit_cost_usd,daily_forecast,daily_cap_usd,monthly_cap_usd,max_concurrent,max_daily_calls,free_daily_cap_usd,timezone,evidence)
+      values ('heygen',true,'usd',200,1,1,100,500,4,40,0,'America/Cancun','arnés local c23 (USD 0)') on conflict (provider) do update set enabled=true,unit='usd',baseline=200,unit_cost_usd=1,daily_cap_usd=100,monthly_cap_usd=500,max_concurrent=4,max_daily_calls=40,evidence=excluded.evidence`);
+    await db.query("update pi_supply_policies set enabled=true, baseline=25, unit_cost_usd=1, daily_cap_usd=10, monthly_cap_usd=50, max_concurrent=4, max_daily_calls=250 where provider='recraft'");
+    for (const [prov, unit, avail] of [["heygen", "usd", 190], ["elevenlabs", "character", 950000], ["recraft", "usd", 24]]) await db.query("insert into public.pi_capacity_snapshots(provider,unit,available,reserved,pending,health,reliability,status,checked_at) values ($1,$2,$3,0,0,'OK','manual_entry','GREEN',now())", [prov, unit, avail]);
+    const lines = Array.from({ length: 96 }, (_, i) => `${i % 2 ? "Luis" : "Ana"}: Los anunnaki y las tablillas de Nippur, parte ${i + 1}.`);
+    const SPEC23 = { version: "podcast-studio/3", mode: "dialogo", output: "video", title: "Anunnaki (c23)", language: "es", topic: "Anunnaki", script: lines.join("\n"), target_minutes: 5,
+      participants: [{ id: "A", name: "Ana", role: "", voice_id: ANA, voice_kind: "sintetica", style: "", personality: "", avatar: { kind: "existente", avatar_id: AV[0][0] } },
+        { id: "B", name: "Luis", role: "", voice_id: LEO, voice_kind: "sintetica", style: "", personality: "", avatar: { kind: "existente", avatar_id: AV[1][0] } }],
+      visual: { set: "moderno", swap_sides: false, subtitles: true, avatar_frequency: 0.5, avatar_max_seconds: 20, recreations: false, provider: "recraft" },
+      music: { enabled: true, mood: "auto", volume_db: -22, stings: true, ambient: "ninguno", intensity: "media", intro: true, outro: true, ducking: true }, format: "16:9", audio_export: "mp3", budget_usd: 40 };
+    const ERR = "Proveedor no listo: HeyGen (avatar): alcanzó su cuota diaria de llamadas. No se hizo ningún cargo.";
+    const DLOG = path.join(E2E, "logs/dispatch.jsonl"), nDisp = () => (fs.existsSync(DLOG) ? fs.readFileSync(DLOG, "utf8").trim().split("\n").filter(Boolean).length : 0);
+    const DEVICES = [["d", "c23a0000-4290-475a-8000-000000000001", { viewport: { width: 1440, height: 900 } }], ["m", "c23a0000-4290-475a-8000-000000000002", { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }]];
+    for (const [dt, ID, device] of DEVICES) {
+      await db.query("delete from public.podcast_studio_operations where episode_id=$1", [ID]); await db.query("delete from public.podcast_studio_episodes where id=$1", [ID]);
+      await db.query("insert into public.podcast_studio_episodes(id,user_id,title,mode,spec,status,estimate,estimated_usd,authorized_usd,authorized_at,run_started_at,error,cost_usd,created_at,updated_at) values ($1,$2,$3,'dialogo',$4,'failed','{}',20.22,40,now()-interval '20 minutes',now()-interval '19 minutes',$5,0,now()-interval '20 minutes',now()-interval '19 minutes')", [ID, OWNER.id, `Anunnaki c23${dt}`, JSON.stringify(SPEC23), ERR]);
+      const row = async () => (await db.query("select * from public.podcast_studio_episodes where id=$1", [ID])).rows[0];
+      const nEps = async () => (await db.query("select count(*)::int n from public.podcast_studio_episodes where user_id=$1", [OWNER.id])).rows[0].n;
+      const r0 = await row(), e0 = await nEps(), d0 = nDisp();
+      const S = await session(OWNER, `c23${dt}`, device), P = S.p, card = () => P.getByTestId(`studio-episode-${ID}`);
+      const consoleLog = []; P.on("console", (m) => consoleLog.push(`${new Date().toISOString()} ${m.type()} ${m.text().slice(0, 200)}`)); P.on("framenavigated", (f) => { if (f === P.mainFrame()) consoleLog.push(`${new Date().toISOString()} NAV ${f.url()}`); });
+      // Bloqueo preventivo intacto: pedir el inicio sin adaptar no despacha nada.
+      // Llamadas directas a la API con la sesión del navegador (cliente HTTP del contexto: no depende de la navegación).
+      const post = async (ctx, body) => { const r = await ctx.request.post(`${BASE}/api/podcast/v3/${ID}`, { data: body }); return { status: r.status(), body: await r.json().catch(() => ({})) }; };
+      const direct = await post(S.ctx, { confirm: true, authorizedUsd: 40 });
+      ok(`c23: ${dt} · sin adaptar, el inicio sigue bloqueado antes de despachar (48 > 40)`, direct.status === 409 && direct.body.code === "PROVEEDOR_NO_LISTO" && /48 llamadas y el límite diario de la plataforma es 40/.test(direct.body.error) && nDisp() === d0 && (await row()).status === "failed", `${direct.status} ${String(direct.body.error).slice(0, 140)}`);
+      // `next dev` compila bajo demanda y recarga la página (Fast Refresh) la primera vez: se precalienta la ruta con una
+      // vista previa por API (sin cambios) y se espera a que no haya más recargas antes de la parte visual.
+      const warm = await post(S.ctx, { action: "adaptar", preview: true });
+      ok(`c23: ${dt} · la vista previa por API responde y no cambia nada`, warm.status === 200 && warm.body.proposal?.callsAfter === 40 && (await row()).status === "failed" && nDisp() === d0, `${warm.status}`);
+      let navs = 0; P.on("framenavigated", (f) => { if (f === P.mainFrame()) navs++; });
+      await P.goto(`${BASE}/dashboard/podcast?vista=archivados`); await P.getByTestId("biblioteca-vistas").waitFor();
+      for (let quiet = 0, last = navs; quiet < 8; ) { await P.waitForTimeout(1000); if (navs === last) quiet++; else { quiet = 0; last = navs; } }
+      await P.getByTestId("biblioteca-vistas").waitFor();
+      const openCard = async () => { if (await card().getByTestId(`studio-abrir-${ID}`).count()) await card().getByTestId(`studio-abrir-${ID}`).click(); };
+      await openCard();
+      const open = card().getByTestId(`adaptar-abrir-${ID}`);
+      await open.waitFor({ timeout: 30000 }).catch(() => {});
+      ok(`c23: ${dt} · el episodio fallido muestra el motivo y «Adaptar producción al límite disponible»`, await open.count() === 1 && /cuota diaria de llamadas/.test(await card().innerText()), (await card().innerText()).slice(0, 200));
+      await shot(P, `c23${dt}-01-fallido`);
+      const respP = P.waitForResponse((r) => r.request().method() === "POST" && r.url().endsWith(`/api/podcast/v3/${ID}`), { timeout: 60000 }).catch(() => null);
+      await open.click();
+      const resp1 = await respP; const body1 = resp1 ? await resp1.text().catch(() => "") : "sin respuesta";
+      const prop = card().getByTestId(`adaptar-propuesta-${ID}`); await prop.waitFor({ timeout: 30000 }).catch(() => {});
+      if (await prop.count() !== 1) { fs.writeFileSync(path.join(OUT, `c23${dt}-diag-preview.txt`), `${resp1?.status()} ${body1.slice(0, 3000)}\n---\n${await card().innerText()}`); await shot(P, `c23${dt}-diag-preview`); }
+      const txt = await prop.innerText();
+      ok(`c23: ${dt} · vista previa: 40 apariciones en lugar de 48; 8 pasan a ilustraciones del mismo momento`, /aparecerá 40 veces en lugar de 48: 8 apariciones pasan a ilustraciones o imágenes del mismo momento/.test(txt), txt.slice(0, 220));
+      ok(`c23: ${dt} · vista previa: llamadas 40 (antes 48), disponibles hoy 40 de 40`, /Llamadas del avatar: 40 \(antes 48\); disponibles hoy: 40 de 40/.test(txt));
+      ok(`c23: ${dt} · vista previa: guion, voces, participantes y duración se conservan`, /Se conservan el guion, las voces, los participantes y la duración/.test(txt));
+      const cost = /Costo estimado: USD ([\d.]+) \(antes USD ([\d.]+)\); tu tope sigue en USD 40\.00/.exec(txt);
+      ok(`c23: ${dt} · vista previa: presupuesto actualizado (menor que antes) y tope intacto`, !!cost && Number(cost[1]) < Number(cost[2]), cost ? `${cost[2]} → ${cost[1]}` : txt.slice(-160));
+      const r1 = await row();
+      ok(`c23: ${dt} · la vista previa no cambia nada (estado, spec, ningún despacho)`, r1.status === "failed" && JSON.stringify(r1.spec) === JSON.stringify(r0.spec) && nDisp() === d0);
+      const ov = await P.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      ok(`c23: ${dt} · sin desbordamiento horizontal con la propuesta abierta`, ov <= 1, `${ov}px`);
+      await shot(P, `c23${dt}-02-propuesta`);
+      await card().getByTestId(`adaptar-cancelar-${ID}`).click();
+      ok(`c23: ${dt} · cancelar cierra la propuesta sin cambios`, await prop.count() === 0 && JSON.stringify((await row()).spec) === JSON.stringify(r0.spec) && nDisp() === d0);
+      await openCard(); await open.click();
+      await prop.or(card().getByTestId(`adaptar-nota-${ID}`)).first().waitFor({ timeout: 60000 }).catch(() => {});
+      if (await prop.count() !== 1) { await shot(P, `c23${dt}-diag-reabrir`); fs.writeFileSync(path.join(OUT, `c23${dt}-diag-console.txt`), consoleLog.join("\n")); }
+      ok(`c23: ${dt} · volver a abrir la propuesta tras cancelar la muestra de nuevo`, await prop.count() === 1, (await card().innerText()).slice(-300));
+      await card().getByTestId(`adaptar-confirmar-${ID}`).click();
+      let r2; for (let i = 0; i < 120; i++) { r2 = await row(); if (r2.status !== "failed") break; await P.waitForTimeout(250); }
+      await card().getByTestId(`adaptar-nota-${ID}`).waitFor({ timeout: 30000 }).catch(() => {});
+      await shot(P, `c23${dt}-03-confirmado`);
+      ok(`c23: ${dt} · confirmar reintenta el MISMO episodio (autorizado, un despacho, ningún episodio nuevo)`, ["authorized", "generating"].includes(r2.status) && nDisp() === d0 + 1 && await nEps() === e0, `${r2.status} disp+${nDisp() - d0}`);
+      const { adaptation: ad2, visual: v2, ...rest2 } = r2.spec, { visual: v0, ...rest0 } = r0.spec;
+      const sameRest = JSON.stringify(rest2) === JSON.stringify(rest0), sameVisual = JSON.stringify({ ...v2, avatar_max_calls: undefined }) === JSON.stringify({ ...v0, avatar_max_calls: undefined });
+      ok(`c23: ${dt} · se guarda solo el tope aceptado y su registro (guion, participantes, voces y el resto idénticos)`, sameRest && sameVisual && v2.avatar_max_calls === 40 && ad2?.calls_before === 48 && ad2?.calls_after === 40, `resto=${sameRest} visual=${sameVisual} ${JSON.stringify(ad2)}`);
+      ok(`c23: ${dt} · la estimación guardada baja y queda dentro del tope`, Number(r2.estimated_usd) < 20.22 && Number(r2.estimated_usd) <= Number(r2.authorized_usd), `${r2.estimated_usd} / ${r2.authorized_usd}`);
+      const twice = (await post(S.ctx, { action: "adaptar", confirm: true, maxCalls: 40 })).status;
+      const again = (await post(S.ctx, { confirm: true, authorizedUsd: 40 })).status;
+      // Repetir la confirmación de la adaptación: 409, sin otro despacho. «Volver a pedir el inicio» de un autorizado que
+      // ningún runner tomó SÍ vuelve a despachar (comportamiento existente); el guard del worker impide un segundo trabajo:
+      // se comprueba abajo ejecutando un segundo runner tras el primero.
+      ok(`c23: ${dt} · repetir la confirmación de la adaptación no despacha otra vez (409)`, twice === 409, `${twice} disp+${nDisp() - d0}`);
+      ok(`c23: ${dt} · «volver a pedir el inicio» no crea otro episodio ni cambia lo autorizado`, [200, 409].includes(again) && await nEps() === e0 && Number((await row()).authorized_usd) === Number(r2.authorized_usd), `${again}`);
+      // Otra cuenta no puede ver ni adaptar este episodio.
+      const X = await session(OTHER, `c23${dt}-otra`, device);
+      const foreign = (await post(X.ctx, { action: "adaptar", preview: true })).status;
+      ok(`c23: ${dt} · otra cuenta no puede adaptar el episodio (404)`, foreign === 404, String(foreign)); await X.ctx.close();
+      const w = await worker(ID, "studio");
+      const r3 = await row();
+      const ops = (await db.query("select op, state, count(*)::int n from public.podcast_studio_operations where episode_id=$1 group by 1,2", [ID])).rows;
+      const clips = ops.filter((o) => o.op === "avatar_clip").reduce((a, o) => a + o.n, 0);
+      ok(`c23: ${dt} · el worker entrega el episodio adaptado (proveedores SIMULADOS)`, w.code === 0 && r3.status === "ready" && /STUDIO_PROVIDERS mock/.test(w.out), `${r3.status} ${r3.error ?? ""}`);
+      ok(`c23: ${dt} · 40 clips de avatar en el libro (no 48), todo liquidado una vez`, clips === 40 && ops.every((o) => o.state === "settled"), JSON.stringify(ops));
+      // Segundo runner (el despacho repetido): no genera ni cobra nada más.
+      const w2 = await worker(ID, "studio"); const r4 = await row();
+      const ops2 = (await db.query("select op, state, count(*)::int n from public.podcast_studio_operations where episode_id=$1 group by 1,2", [ID])).rows;
+      ok(`c23: ${dt} · un segundo runner no duplica trabajo ni cobro (libro, costo y entrega iguales)`, JSON.stringify(ops2) === JSON.stringify(ops) && Number(r4.cost_usd) === Number(r3.cost_usd) && r4.status === "ready" && r4.video_path === r3.video_path, `exit ${w2.code} ${w2.out.split("\n").filter((l) => /STUDIO_|Duplicate|ya/.test(l)).slice(-2).join(" | ").slice(0, 200)}`);
+      ok(`c23: ${dt} · costo liquidado ≤ lo autorizado`, Number(r3.cost_usd) <= Number(r3.authorized_usd) + 1e-6, `${r3.cost_usd} / ${r3.authorized_usd}`);
+      const shotsK = (r3.result?.shots ?? r3.result?.plan?.shots ?? []);
+      const cam = shotsK.filter((x) => ["avatar_a", "avatar_b", "two_shot", "over_shoulder"].includes(x.kind)).length, lastEnd = shotsK.length ? shotsK[shotsK.length - 1].end : 0;
+      ok(`c23: ${dt} · el video entregado tiene 40 apariciones del avatar y cubre toda la voz (sin huecos ni recortes)`, cam === 40 && Math.abs(Number(r3.result?.duration) - lastEnd) <= 1.5 && shotsK.every((x, i) => i === 0 || Math.abs(x.start - shotsK[i - 1].end) < 0.01), `cam=${cam} dur=${r3.result?.duration} fin=${lastEnd}`);
+      await P.goto(`${BASE}/dashboard/podcast`); await P.getByTestId("biblioteca-vistas").waitFor();
+      await card().getByTestId("studio-player").waitFor({ timeout: 30000 }).catch(() => {});
+      ok(`c23: ${dt} · el episodio recuperado se reproduce y descarga desde «Tus episodios»`, await card().getByTestId("studio-player").count() === 1 && await card().getByTestId("studio-download-mp4").count() === 1, String(shotsK.length));
+      await shot(P, `c23${dt}-04-listo`);
+      await S.ctx.close();
+    }
+  }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
-  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 14: 32, 15: 5, 16: 24, 17: 17, 18: 9, 19: 18, 20: 17, 21: 36, 22: 60 };
+  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 14: 32, 15: 5, 16: 24, 17: 17, 18: 9, 19: 18, 20: 17, 21: 36, 22: 60, 23: 40 };
   const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[a-d]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name)) || (c === "12" && /^c12-/.test(r.name))).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));

@@ -121,14 +121,19 @@ test("UI: el botón «Generar episodio» depende de la disponibilidad y un 409 d
 
 test("las rutas reales conectan la verificación (misma regla que el worker) y el worker usa la misma cuenta de llamadas", () => {
   const root = path.join(__dirname, "../../..");
-  for (const f of ["app/api/podcast/v3/route.ts", "app/api/podcast/v3/[id]/route.ts"]) assert.match(readFileSync(path.join(root, f), "utf8"), /supplyCheck: studioProvidersSimulated\(\) \? undefined : \(needs\) => studioSupplyCheck\(service, needs\)/, f);
+  for (const f of ["app/api/podcast/v3/route.ts", "app/api/podcast/v3/[id]/route.ts"]) assert.match(readFileSync(path.join(root, f), "utf8"), /supplyCheck: studioSupplyGateOn\(\) \? \(needs\) => studioSupplyCheck\(service, needs\) : undefined/, f);
   assert.match(readFileSync(path.join(root, "app/api/podcast/v3/[id]/route.ts"), "utf8"), /settledOps: .*\.eq\("user_id", user\.id\)\.eq\("state", "settled"\)/);
   assert.match(readFileSync(path.join(root, "lib/podcast/v3/readiness.ts"), "utf8"), /ensureJobSupplyReady\(service, demands, \{ now \}\)/);
   assert.match(readFileSync(path.join(root, "lib/podcast/v3/pipeline.ts"), "utf8"), /const needs = providerNeeds\(spec, pf, settledRows,/);
 });
 
 test("solo el arnés local con proveedores simulados omite la verificación; en producción nunca", async () => {
-  const { studioProvidersSimulated } = await import("./readiness");
+  const { studioProvidersSimulated, studioSupplyGateOn } = await import("./readiness");
+  // La verificación está activa fuera del arnés simulado; en el arnés, solo si el ensayo la pide (PODCAST_V3_SUPPLY_GATE=1).
+  assert.equal(studioSupplyGateOn({ VERCEL: "1", PODCAST_V3_PROVIDERS: "mock" }), true);
+  assert.equal(studioSupplyGateOn({ NODE_ENV: "production" }), true);
+  assert.equal(studioSupplyGateOn({ PODCAST_V3_PROVIDERS: "mock", NODE_ENV: "development" }), false);
+  assert.equal(studioSupplyGateOn({ PODCAST_V3_PROVIDERS: "mock", NODE_ENV: "development", PODCAST_V3_SUPPLY_GATE: "1" }), true);
   assert.equal(studioProvidersSimulated({ PODCAST_V3_PROVIDERS: "mock", NODE_ENV: "development" }), true);
   for (const env of [{ PODCAST_V3_PROVIDERS: "mock", NODE_ENV: "production" }, { PODCAST_V3_PROVIDERS: "mock", VERCEL: "1" }, { PODCAST_V3_PROVIDERS: "mock", ATOMIVID_RUNTIME: "production" }, { NODE_ENV: "development" }])
     assert.equal(studioProvidersSimulated(env), false, JSON.stringify(env));
