@@ -688,12 +688,14 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     await S.p.getByRole("button", { name: "Empezar de nuevo" }).click();
     const card = S.p.getByTestId(`studio-episode-${row.id}`);
     await card.getByTestId("studio-download-mp4").waitFor({ timeout: 20000 });
+    // El enlace de audio llega con su propio enlace firmado (puede pintarse un instante después del MP4).
+    await card.getByTestId("studio-download-audio").waitFor({ timeout: 20000 }).catch(() => {});
     const listed = await card.getByTestId("studio-player").evaluate(async (v) => { v.muted = true; await v.play().catch(() => {}); await new Promise((r) => setTimeout(r, 3000)); const o = { rs: v.readyState, t: v.currentTime, err: v.error?.code ?? null }; v.pause(); return o; });
-    ok(`${tag}: tras reiniciar el asistente, la cuenta reproduce y descarga el MP4`, listed.rs >= 2 && listed.t > 1 && !listed.err && await card.getByTestId("studio-download-audio").count() === 1 && await W().getByTestId("wizard-player").count() === 0, JSON.stringify(listed));
+    ok(`${tag}: tras reiniciar el asistente, la cuenta reproduce y descarga el MP4`, listed.rs >= 2 && listed.t > 1 && !listed.err && await card.getByTestId("studio-download-audio").count() === 1 && await W().getByTestId("wizard-player").count() === 0, JSON.stringify({ ...listed, descargaAudio: await card.getByTestId("studio-download-audio").count(), reproductorAsistente: await W().getByTestId("wizard-player").count(), paso: await W().getByTestId("wizard-step-title").textContent().catch(() => null) }));
     summary[tag] = { id: row.id, result: row.result, cost: row.cost_usd };
   }
   const AV = [["aaaaaaaa-0000-4000-8000-000000000001", "Avatar Hans (simulado)"], ["aaaaaaaa-0000-4000-8000-000000000002", "Avatar Invitada (simulado)"]];
-  if (cases.includes("10") || cases.includes("11")) for (const [id, name] of AV) await db.query("insert into public.avatars (id,user_id,name,provider,provider_avatar_id,status,consent_given) values ($1,$2,$3,'heygen','asset:simulado','ready',true) on conflict (id) do nothing", [id, OWNER.id, name]);
+  if (cases.includes("10") || cases.includes("11") || cases.includes("22")) for (const [id, name] of AV) await db.query("insert into public.avatars (id,user_id,name,provider,provider_avatar_id,status,consent_given) values ($1,$2,$3,'heygen','asset:simulado','ready',true) on conflict (id) do nothing", [id, OWNER.id, name]);
   const MODES = [
     { tag: "c10a", mode: "Solo audio", title: "E2E estudio audio", script: "En 1977 el radiotelescopio Big Ear registró una señal intensa y breve.\n\nEl astrónomo Jerry Ehman escribió Wow en el margen.\n\nLa señal nunca volvió a detectarse.", count: 2, voices: [ANA, LEO], mood: "misterio", intensity: "alta" },
     { tag: "c10d", mode: "Narración con imágenes", title: "E2E estudio narración visual", script: "En 1977 el radiotelescopio Big Ear registró una señal intensa y breve.\n\nEl astrónomo Jerry Ehman escribió Wow en el margen.\n\nLa señal nunca volvió a detectarse.", count: 2, voices: [ANA, LEO], mood: "misterio" },
