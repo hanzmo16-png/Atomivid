@@ -74,3 +74,29 @@ export function readinessMessage(failure: { provider: string; reason: string; qu
   const why = REASON[failure?.reason ?? ""] ?? failure?.reason ?? "no está disponible";
   return `${who}: ${why}.`;
 }
+
+/**
+ * Verificación previa al INICIO (API, antes de autorizar y despachar): la misma regla que aplica el worker, en solo
+ * lectura (`refresh: false`: sin refrescar saldos ni escribir instantáneas). Incidente 4290175a (2026-11-08): el
+ * episodio necesitaba 48 llamadas de HeyGen sobre el límite diario de la plataforma y solo el runner lo descubría,
+ * con el episodio ya «autorizado» y la persona viendo 0 %. Lanza si no se puede leer el gasto del estudio (falla cerrado).
+ */
+export async function studioSupplyCheck(service: import("@supabase/supabase-js").SupabaseClient, needs: ProviderNeeds, now: () => number = Date.now) {
+  const { ensureJobSupplyReady } = await import("@/lib/supply/readiness");
+  const { data: recent, error } = await service.from("podcast_studio_operations").select("provider,state,reserved_usd,actual_usd").gte("created_at", new Date(now() - 24 * 3600_000).toISOString());
+  if (error) throw new Error("STUDIO_SPEND_UNAVAILABLE");
+  const blocked = unsupportedSpend(needs, true);
+  if (blocked) return { ready: false, providers: [], failure: { provider: "recraft", reason: blocked } };
+  const demands = studioSupplyDemands(needs, studioSpendByProvider(recent ?? []));
+  if (!demands.length) return { ready: true, providers: [] };
+  return ensureJobSupplyReady(service, demands, { refresh: false, now });
+}
+
+/**
+ * Arnés E2E local con proveedores simulados (PODCAST_V3_PROVIDERS=mock fuera de producción): el worker simulado no
+ * verifica suministro, y la API tampoco (misma regla). En producción (Vercel / NODE_ENV=production) nunca es cierto.
+ */
+export function studioProvidersSimulated(env: Record<string, string | undefined> = process.env): boolean {
+  const production = env.NODE_ENV === "production" || env.VERCEL === "1" || env.ATOMIVID_RUNTIME === "production";
+  return env.PODCAST_V3_PROVIDERS === "mock" && !production;
+}

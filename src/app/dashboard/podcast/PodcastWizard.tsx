@@ -26,7 +26,9 @@ export type WizardAvatar = { id: string; name: string; photoUrl?: string | null 
 type LipSeg = { start: number; end: number; shot: string; speaker: "A" | "B" | null; lips: { A: string; B: string } };
 type Estimate = { lines: { concept: string; detail: string; usd: number; provider: string }[]; totalUsd: number; assumptions: string[]; turns: number; mood: string; shots: Record<string, number>; overBudget: boolean; byProvider?: Record<string, number>; lipTimeline?: LipSeg[]; coverage?: Record<string, boolean>; turnList?: { id: string; speaker: "A" | "B"; kind: string; text: string }[];
   /** Duración que da el guion frente a la pedida (incidente 8f05fc37); en un episodio largo muy corto, hay que aceptarla. */
-  duration?: { needsAcceptance: boolean; short: boolean; message: string | null; estimatedMinutes: number; targetMinutes: number } };
+  duration?: { needsAcceptance: boolean; short: boolean; message: string | null; estimatedMinutes: number; targetMinutes: number };
+  /** Disponibilidad real de los proveedores (cuota diaria, saldo, topes) antes de poder iniciar (incidente 4290175a). */
+  readiness?: { ready: boolean; message: string | null; provider?: string; waitHelps?: boolean } | null };
 type Status = { episode: { id?: string; title?: string; status: string; progress: unknown; updated_at?: string | null; error: string | null; cost_usd: number | null; output?: "audio" | "video"; audio_path?: string | null }; activity?: LedgerActivity | null; video_url: string | null; audio_url: string | null };
 /** Anfitrión del catálogo con lo que la página necesita: tarjeta (foto, muestra de voz) y recorte para la vista previa. */
 export type WizardHost = HostCard & { cutout: PreviewHost };
@@ -223,7 +225,13 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
       if (mustAcceptDuration && !acceptDuration) { setError(estimate?.duration?.message ?? "Acepta la duración real del episodio para continuar."); return; }
       const created = d.draftId ? { id: d.draftId } : await api("/api/podcast/v3", { action: "create", spec: draftToSpec(withVoiceKinds(d, voices)), ...(mustAcceptDuration ? { acceptDuration: true } : {}) });
       set({ draftId: String(created.id), boundSpec: specKey(d) });
-      const r = await api(`/api/podcast/v3/${String(created.id)}`, { confirm: true, authorizedUsd: d.budgetUsd });
+      let r: Record<string, unknown>;
+      try { r = await api(`/api/podcast/v3/${String(created.id)}`, { confirm: true, authorizedUsd: d.budgetUsd }); }
+      catch (e) {
+        // Proveedor no listo (409): el borrador queda intacto y el botón se desactiva con el motivo; nada se inició ni cobró.
+        if (isProviderNotReady(e)) { setEstimate((prev) => prev ? { ...prev, readiness: { ready: false, message: (e as Error).message, provider: "production" } } : prev); return; }
+        throw e;
+      }
       if (r.note) setNote(String(r.note));
       set({ step: STEP.generacion, episodeId: String(created.id) });
     });
@@ -532,7 +540,8 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
               checked={acceptDuration} onChange={setAcceptDuration} />}
             <p>Se generará «{d.title}» ({d.modality ? MODALITY_LABEL[d.modality] : MODE_LABEL[d.mode ?? "narracion"]}). Costo estimado: <b>{estimate ? USD(estimate.totalUsd) : "—"}</b>. Nunca se cobrará más de <b>{USD(d.budgetUsd)}</b>.</p>
             <label><input type="checkbox" aria-label="Autorizo el cargo" checked={d.authorized} onChange={(e) => set({ authorized: e.target.checked })} /> Autorizo generar este episodio con un cargo máximo de {USD(d.budgetUsd)}.</label>
-            <Button type="button" onClick={authorizeAndGenerate} loading={busy} disabled={!d.authorized || (estimate?.totalUsd ?? 0) > d.budgetUsd || (mustAcceptDuration && !acceptDuration)}>Generar episodio</Button>
+            {providerBlocked(estimate) && <p role="alert" className="rounded border border-danger p-2 text-danger" data-testid="proveedor-no-listo">{providerBlockText(estimate)}</p>}
+            <Button type="button" onClick={authorizeAndGenerate} loading={busy} disabled={!d.authorized || (estimate?.totalUsd ?? 0) > d.budgetUsd || (mustAcceptDuration && !acceptDuration) || providerBlocked(estimate)} data-testid="wizard-generar">Generar episodio</Button>
             {(!d.authorized || (estimate?.totalUsd ?? 0) > d.budgetUsd) && <p className="text-xs text-ink-muted" data-testid="motivo-generar">{(estimate?.totalUsd ?? 0) > d.budgetUsd ? "El costo estimado supera tu presupuesto máximo: súbelo o reduce las apariciones del avatar." : "Marca la casilla de autorización para poder generar."}</p>}
           </>))}
           {started && foreign && (
@@ -678,6 +687,16 @@ export function LongScriptStatus({ status: s }: { status: LongStatus | null }) {
       <p data-testid="estado-cuadro">Cuadro «Guion»: {s.boxChars.toLocaleString("es-MX")} caracteres, unos {fmtMin(s.boxMinutes)} min de {s.target} min{s.boxChars && s.boxShort ? " — no es el episodio terminado. Cuando estén todos los bloques, el guion completo ocupa el cuadro y este texto queda guardado en «Recuperar el borrador anterior»" : ""}.</p>
     </div>
   );
+}
+export const isProviderNotReady = (e: unknown) => e instanceof Error && (e as Error & { status?: number }).status === 409 && /^(Proveedor no listo:|No pudimos confirmar ahora la disponibilidad)/.test(e.message);
+/** P0 4290175a: un proveedor indispensable no está listo → no se puede iniciar (sin despacho ni cargo). */
+export const providerBlocked = (e: { readiness?: { ready: boolean } | null } | null | undefined) => e?.readiness?.ready === false;
+export function providerBlockText(e: { readiness?: { message: string | null; provider?: string; waitHelps?: boolean } | null } | null | undefined): string {
+  const r = e?.readiness;
+  if (!r) return "";
+  if (r.provider === "production") return r.message ?? "";
+  const tail = r.waitHelps === false ? "" : " Puedes volver a calcular el costo más tarde para comprobarlo.";
+  return `Ahora no se puede iniciar: ${r.message ?? "un proveedor no está disponible."} No se hará ningún cargo y tu configuración se conserva.${tail}`;
 }
 /** ¿El episodio está realmente en curso? Solo «authorized» (en cola) y «generating»; «failed» y «ready» son finales. */
 export const episodeInProgress = (status: unknown) => status === "authorized" || status === "generating";

@@ -197,6 +197,26 @@ export const opaqueMatte: Matter = async (input, _out, still) => {
 
 export type Preflight = { turns: Turn[]; names: Record<"A" | "B", string>; plan: EditorialPlan; estimate: CostEstimate; mood: Mood; ttsChars: number; assets: VisualAsset[] };
 
+/**
+ * Llamadas de pago que FALTAN por proveedor (lo liquidado en el libro se reutiliza, nunca se vuelve a llamar) y su costo.
+ * Una sola fuente para el worker (antes del primer cargo) y para la API (antes de autorizar: incidente 4290175a,
+ * 2026-11-08, el bloqueo por cuota diaria de HeyGen solo se descubría en el runner, con el episodio ya «autorizado»).
+ * `ttsSettled`: identidad exacta de cada turno en el libro (worker); sin ella se descuentan los turnos ya liquidados por cantidad.
+ */
+export function providerNeeds(spec: StudioSpec, pf: Preflight, settledRows: { op: string }[], opts: { prepare: boolean; ttsSettled?: (t: Turn) => boolean }): ProviderNeeds {
+  const line = (c: string) => pf.estimate.lines.find((l) => l.concept === c)?.usd ?? 0;
+  const count = (op: string) => settledRows.filter((r) => r.op === op).length;
+  const ttsCalls = opts.ttsSettled ? pf.turns.filter((t) => !opts.ttsSettled!(t)).length : Math.max(0, pf.turns.length - count("tts"));
+  // Avatar clips of the preliminary plan (the definitive plan is re-checked by the cap trigger before each call) plus
+  // the photo preparations, minus those already settled.
+  const onCamera = pf.plan.shots.filter((s) => s.kind === "avatar_a" || s.kind === "avatar_b" || s.kind === "two_shot" || s.kind === "over_shoulder");
+  const prepares = opts.prepare ? spec.participants.filter((p) => (p.avatar.kind === "foto" || p.avatar.kind === "catalogo") && onCamera.some((s) => s.speaker === p.id)).length : 0;
+  const avatarCalls = spec.output === "audio" ? 0 : Math.max(0, onCamera.length - count("avatar_clip")) + Math.max(0, prepares - count("avatar_prepare"));
+  const illustrations = pf.plan.shots.filter((x) => x.asset_id && assetKind(pf.assets, x.asset_id) === "ilustracion").length;
+  const imagesCalls = spec.output === "audio" ? 0 : Math.max(0, illustrations + imageRetries(illustrations) - count("ilustracion"));
+  return { ttsChars: pf.ttsChars, ttsUsd: line("voz"), avatarUsd: line("avatar"), imagesUsd: line("imagenes"), ttsCalls, avatarCalls, imagesCalls };
+}
+
 /** Paso 9 del asistente: plan y costo ANTES de generar (sin llamadas de pago; búsqueda de imágenes gratuita). */
 export async function preflight(spec: StudioSpec, providers: Providers, rates?: StudioRates): Promise<Preflight> {
   const { turns, names } = turnsFor(spec);
@@ -257,17 +277,10 @@ export async function runEpisode(spec: StudioSpec, ctx: { owner: string; episode
       const settledRows = (await ctx.ledger.byEpisode(ctx.episode)).filter((r) => r.state === "settled");
       const settled = new Set(settledRows.map((r) => r.key));
       const voiceFor = (s: "A" | "B") => spec.participants.find((p) => p.id === s)?.voice_id ?? spec.participants[0].voice_id;
-      const ttsCalls = pf.turns.filter((t) => !settled.has(opKey({ owner: ctx.owner, episode: ctx.episode, provider: ctx.providers.tts.name, op: "tts",
-        payload: { voice: voiceFor(t.speaker), model: ctx.providers.tts.model, text: t.text } }))).length;
-      // Avatar clips of the preliminary plan (the definitive plan is re-checked by the cap trigger before each call) plus
-      // the photo preparations, minus those already settled.
-      const count = (op: string) => settledRows.filter((r) => r.op === op).length;
-      const onCamera = pf.plan.shots.filter((s) => s.kind === "avatar_a" || s.kind === "avatar_b" || s.kind === "two_shot" || s.kind === "over_shoulder");
-      const prepares = ctx.providers.avatar.prepare ? spec.participants.filter((p) => (p.avatar.kind === "foto" || p.avatar.kind === "catalogo") && onCamera.some((s) => s.speaker === p.id)).length : 0;
-      const avatarCalls = spec.output === "audio" ? 0 : Math.max(0, onCamera.length - count("avatar_clip")) + Math.max(0, prepares - count("avatar_prepare"));
-      const illustrations = pf.plan.shots.filter((x) => x.asset_id && assetKind(pf.assets, x.asset_id) === "ilustracion").length;
-      const imagesCalls = spec.output === "audio" ? 0 : Math.max(0, illustrations + imageRetries(illustrations) - count("ilustracion"));
-      const why = await ctx.providers.readiness({ ttsChars: pf.ttsChars, ttsUsd: line("voz"), avatarUsd: line("avatar"), imagesUsd: line("imagenes"), ttsCalls, avatarCalls, imagesCalls });
+      const needs = providerNeeds(spec, pf, settledRows, { prepare: !!ctx.providers.avatar.prepare,
+        ttsSettled: (t) => settled.has(opKey({ owner: ctx.owner, episode: ctx.episode, provider: ctx.providers.tts.name, op: "tts",
+          payload: { voice: voiceFor(t.speaker), model: ctx.providers.tts.model, text: t.text } })) });
+      const why = await ctx.providers.readiness(needs);
       if (why) throw new ProviderNotReadyError(why);
     }
     // Foto fija de quien escucha en los planos de conversación: se comprueba ANTES del primer cargo (P2 real: se leía

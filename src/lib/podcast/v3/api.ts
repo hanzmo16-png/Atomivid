@@ -8,7 +8,9 @@ import type { AccountVoice } from "@/lib/podcast/voices";
 import type { VoiceViewer } from "@/lib/voices/private-voices";
 import { StudioSpec, validateSpec, STUDIO_VERSION, type StudioSpec as Spec } from "./spec";
 import { isPrivateVoice } from "@/lib/voices/private-voices";
-import { preflight, type ImageProvider, type Providers, type VisualDirector } from "./pipeline";
+import { preflight, providerNeeds, type ImageProvider, type ProviderNeeds, type Providers, type VisualDirector } from "./pipeline";
+import { readinessMessage } from "./readiness";
+import type { SupplyReadiness } from "@/lib/supply/readiness";
 import { RECRAFT_USD_PER_IMAGE, RECRAFT_USD_STYLE_CREATION } from "@/lib/providers/image/recraft";
 import { generateConversation, type LlmFn } from "./script";
 import { supplyBlockMessage, type SupplyPolicyInfo } from "./supply-message";
@@ -55,6 +57,11 @@ export type ApiDeps = {
   env?: Record<string, string | undefined>;
   /** Motivo por el que Recraft no puede producir hoy (null = listo). Solo lectura; sin él no se comprueba. */
   recraftBlocker?: () => Promise<string | null>;
+  /** Disponibilidad de los proveedores para estas llamadas (misma regla que el worker, solo lectura). Lanza si no se
+   *  puede comprobar: entonces no se inicia (falla cerrado). Sin ella no se comprueba (solo pruebas antiguas). */
+  supplyCheck?: (needs: ProviderNeeds) => Promise<SupplyReadiness>;
+  /** Operaciones ya liquidadas del episodio (se reutilizan al reintentar: no cuentan para la cuota). Lanza si falla. */
+  settledOps?: (episodeId: string) => Promise<{ op: string }[]>;
 };
 type Out = { status: number; body: Record<string, unknown> };
 export const STUDIO_MAX_AUTHORIZED_USD = 50;
@@ -108,7 +115,11 @@ export async function studioAction(d: ApiDeps, body: Record<string, unknown> | n
     turnList: pf.turns.slice(0, 60).map((t) => ({ id: t.id, speaker: t.speaker, kind: t.kind, text: t.text.slice(0, 140) })),
     // Duración estimada del guion frente a la pedida (incidente 8f05fc37): la pantalla Producir la muestra antes de cobrar.
     duration: scriptDuration(stored) };
-  if (b.action === "estimate") return { status: 200, body: { estimate } };
+  if (b.action === "estimate") {
+    // La pantalla «Producir» muestra la disponibilidad real antes de que exista el botón activo (sin cargos).
+    const readiness = await startReadiness(d, stored, null);
+    return { status: 200, body: { estimate: readiness ? { ...estimate, readiness } : estimate } };
+  }
   if (b.action === "create") {
     if (!d.enabled) return DISABLED;
     if (estimate.overBudget) return { status: 402, body: { error: `El costo estimado (USD ${estimate.totalUsd.toFixed(2)}) supera tu presupuesto máximo (USD ${spec.budget_usd.toFixed(2)}). Sube el presupuesto o reduce apariciones del avatar.`, estimate } };
@@ -126,6 +137,30 @@ export async function studioAction(d: ApiDeps, body: Record<string, unknown> | n
   }
   return { status: 400, body: { error: "Acción no válida." } };
 }
+
+/** Resultado de la verificación previa de proveedores que ve la persona ANTES de poder iniciar. */
+export type StartReadiness = { ready: boolean; message: string | null; provider?: string; waitHelps?: boolean;
+  quota?: { max: number; today: number; calls: number; timezone: string } };
+export const SUPPLY_CHECK_UNAVAILABLE = "No pudimos confirmar ahora la disponibilidad de los proveedores. No se inició la producción ni se hizo ningún cargo; tu borrador se conserva. Vuelve a intentarlo en unos minutos.";
+/**
+ * P0 incidente 4290175a (2026-11-08): ATOMIVID no inicia a ciegas. Antes de autorizar y despachar se calcula lo que el
+ * episodio necesita de cada proveedor (descontando lo ya liquidado) y se comprueba con la regla del worker. Si un
+ * proveedor indispensable no está listo, el episodio NO cambia de estado, NO se despacha ningún runner y nada se cobra.
+ */
+export async function startReadiness(d: Pick<ApiDeps, "supplyCheck" | "settledOps">, spec: Spec, episodeId: string | null): Promise<StartReadiness | null> {
+  if (!d.supplyCheck) return null;
+  try {
+    const pf = await preflight(spec, planningProviders());
+    const settled = episodeId && d.settledOps ? await d.settledOps(episodeId) : [];
+    const r = await d.supplyCheck(providerNeeds(spec, pf, settled, { prepare: true }));
+    if (r.ready) return { ready: true, message: null };
+    const q = r.failure?.quota;
+    return { ready: false, message: readinessMessage(r.failure), provider: r.failure?.provider, ...(q ? { quota: q, waitHelps: q.calls <= q.max } : {}) };
+  } catch {
+    return { ready: false, message: SUPPLY_CHECK_UNAVAILABLE, provider: "production" };
+  }
+}
+const notReady = (r: StartReadiness): Out => ({ status: 409, body: { error: r.provider === "production" ? r.message : `Proveedor no listo: ${r.message} No se inició la producción ni se hizo ningún cargo; tu borrador se conserva.`, code: "PROVEEDOR_NO_LISTO", readiness: r } });
 
 /** Autorización explícita del cargo (paso 10). Requiere confirmación, monto ≥ estimación y ≤ presupuesto. */
 export async function authorizeAction(d: ApiDeps, id: string, body: Record<string, unknown> | null): Promise<Out> {
@@ -150,6 +185,9 @@ export async function authorizeAction(d: ApiDeps, id: string, body: Record<strin
   const notStarted = !row.run_started_at || (!!row.authorized_at && Date.parse(row.run_started_at) < Date.parse(row.authorized_at));
   if (row.status === "authorized" && notStarted) {
     if (body?.confirm !== true) return { status: 400, body: { error: "Confirma explícitamente el costo antes de generar." } };
+    const spec0 = StudioSpec.safeParse(row.spec);
+    const gate0 = spec0.success ? await startReadiness(d, spec0.data, id) : null;
+    if (gate0 && !gate0.ready) return notReady(gate0);
     const dispatched = await d.dispatch(id);
     return { status: 200, body: { ok: true, dispatched, note: dispatched ? null : "Autorizado. No pudimos confirmar el inicio del trabajo; pulsa «Reintentar» (no se cobra dos veces)." } };
   }
@@ -171,6 +209,10 @@ export async function authorizeAction(d: ApiDeps, id: string, body: Record<strin
     try { requireProvider("recraft", d.env ?? process.env, await d.recraftBlocker()); }
     catch (e) { if (e instanceof ProviderUnavailableError) return { status: 409, body: { error: e.message, provider: "recraft" } }; throw e; }
   }
+  // Disponibilidad de los proveedores (cuota diaria, saldo, topes) ANTES de autorizar: un reintento con la cuota aún
+  // agotada tampoco despacha nada (sin runners ni llamadas inútiles).
+  const gate = await startReadiness(d, spec.data, id);
+  if (gate && !gate.ready) return notReady(gate);
   if (!(await d.authorize(id, usd))) return { status: 409, body: { error: "Otra solicitud cambió el episodio; recarga la página." } };
   const dispatched = await d.dispatch(id);
   return { status: 200, body: { ok: true, dispatched, note: dispatched ? null : "Autorizado. No pudimos confirmar el inicio del trabajo; pulsa «Reintentar» (no se cobra dos veces)." } };
