@@ -407,6 +407,9 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     const snap = (n) => shot(S.p, `${tag}-${n}`);
     // Las opciones avanzadas van plegadas (<details>): se abren para poder elegirlas.
     const advanced = () => W().locator("details").evaluateAll((ds) => ds.forEach((d) => { d.open = true; }));
+    // Inicio del flujo en el reloj de la BD: las comprobaciones de «mismo episodio» solo cuentan lo creado en ESTA corrida
+    // (la base local se reutiliza entre baterías y conserva episodios de corridas anteriores con el mismo título).
+    const flowT0 = (await db.query("select now() t")).rows[0].t;
     const disp0 = fs.existsSync(path.join(E2E, "logs/dispatch.jsonl")) ? fs.readFileSync(path.join(E2E, "logs/dispatch.jsonl"), "utf8").length : 0;
     if (opts.fromHome) {
       // Recorrido completo (caso 22): la idea se escribe en la portada «¿Qué quieres crear hoy?» y entra por Personalizado.
@@ -574,7 +577,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       await retry.click();
       await W().getByLabel("Autorizo el cargo").check(); await W().getByRole("button", { name: "Generar episodio" }).click(); await W().getByTestId("wizard-progress").waitFor();
       let r2; for (let i = 0; i < 40; i++) { r2 = (await db.query("select id, status from podcast_studio_episodes where id=$1", [row0.id])).rows[0]; if (r2?.status === "authorized") break; await S.p.waitForTimeout(250); }
-      ok(`${tag}: el reintento vuelve a autorizar el MISMO episodio (no crea otro)`, r2?.status === "authorized" && (await db.query("select count(*)::int n from podcast_studio_episodes where user_id=$1 and title=$2", [OWNER.id, m.title])).rows[0].n === 1, r2?.status);
+      ok(`${tag}: el reintento vuelve a autorizar el MISMO episodio (no crea otro)`, r2?.status === "authorized" && (await db.query("select count(*)::int n from podcast_studio_episodes where user_id=$1 and title=$2 and created_at >= $3", [OWNER.id, m.title, flowT0])).rows[0].n === 1, r2?.status);
     }
     // Avance real (incidente ec30c594): mientras el worker trabaja, la BASE recibe el avance (antes un `void` sobre la
     // consulta perezosa no enviaba nada) y la PÁGINA lo muestra; nunca retrocede ni marca 100 % antes de «ready».
