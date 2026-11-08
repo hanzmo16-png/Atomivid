@@ -117,7 +117,7 @@ export async function studioAction(d: ApiDeps, body: Record<string, unknown> | n
     duration: scriptDuration(stored) };
   if (b.action === "estimate") {
     // La pantalla «Producir» muestra la disponibilidad real antes de que exista el botón activo (sin cargos).
-    const readiness = await startReadiness(d, stored, null);
+    const readiness = await startReadiness(d, stored, null, pf);
     return { status: 200, body: { estimate: readiness ? { ...estimate, readiness } : estimate } };
   }
   if (b.action === "create") {
@@ -147,10 +147,10 @@ export const SUPPLY_CHECK_UNAVAILABLE = "No pudimos confirmar ahora la disponibi
  * episodio necesita de cada proveedor (descontando lo ya liquidado) y se comprueba con la regla del worker. Si un
  * proveedor indispensable no está listo, el episodio NO cambia de estado, NO se despacha ningún runner y nada se cobra.
  */
-export async function startReadiness(d: Pick<ApiDeps, "supplyCheck" | "settledOps">, spec: Spec, episodeId: string | null): Promise<StartReadiness | null> {
+export async function startReadiness(d: Pick<ApiDeps, "supplyCheck" | "settledOps">, spec: Spec, episodeId: string | null, planned?: Awaited<ReturnType<typeof preflight>>): Promise<StartReadiness | null> {
   if (!d.supplyCheck) return null;
   try {
-    const pf = await preflight(spec, planningProviders());
+    const pf = planned ?? await preflight(spec, planningProviders());
     const settled = episodeId && d.settledOps ? await d.settledOps(episodeId) : [];
     const r = await d.supplyCheck(providerNeeds(spec, pf, settled, { prepare: true }));
     if (r.ready) return { ready: true, message: null };
