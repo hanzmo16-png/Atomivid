@@ -61,8 +61,50 @@ const REASON: Record<string, string> = {
   "supply policies unavailable": "no se pudieron leer las políticas de gasto",
 };
 /** Motivo de bloqueo previo legible (ProviderNotReadyError lo guarda en el episodio y se ve en «Tus episodios»). */
-export function readinessMessage(failure: { provider: string; reason: string } | undefined): string {
+export function readinessMessage(failure: { provider: string; reason: string; quota?: { max: number; today: number; calls: number; timezone: string } } | undefined): string {
   const who = PROVIDER_NAME[failure?.provider ?? ""] ?? failure?.provider ?? "un proveedor";
+  // Cuota diaria de llamadas de ATOMIVID (pi_supply_policies.max_daily_calls), no un error del proveedor. Con los números se
+  // distingue si esperar sirve (cabe mañana) o no (el episodio necesita más llamadas de las que el límite permite en un día).
+  const q = failure?.reason === "daily request quota" ? failure.quota : undefined;
+  if (q) {
+    const zone = q.timezone === "America/Cancun" ? "Cancún" : q.timezone;
+    if (q.calls > q.max) return `${who}: este episodio necesita ${q.calls} llamadas y el límite diario de la plataforma es ${q.max}; no cabe en un día aunque se espere. Reduce las apariciones del avatar (menos planos con avatar o un episodio más corto) o pide al operador que revise ese límite.`;
+    return `${who}: hoy ya se usaron ${q.today} de las ${q.max} llamadas diarias de la plataforma y este episodio necesita ${q.calls}; el límite se restablece a las 00:00 hora de ${zone}.`;
+  }
   const why = REASON[failure?.reason ?? ""] ?? failure?.reason ?? "no está disponible";
   return `${who}: ${why}.`;
+}
+
+/**
+ * Verificación previa al INICIO (API, antes de autorizar y despachar): la misma regla que aplica el worker (incluido
+ * el refresco gratuito de un saldo no verificado). Nunca llama a generación ni cobra. Incidente 4290175a (2026-11-08): el
+ * episodio necesitaba 48 llamadas de HeyGen sobre el límite diario de la plataforma y solo el runner lo descubría,
+ * con el episodio ya «autorizado» y la persona viendo 0 %. Lanza si no se puede leer el gasto del estudio (falla cerrado).
+ */
+export async function studioSupplyCheck(service: import("@supabase/supabase-js").SupabaseClient, needs: ProviderNeeds, now: () => number = Date.now) {
+  const { ensureJobSupplyReady } = await import("@/lib/supply/readiness");
+  const { data: recent, error } = await service.from("podcast_studio_operations").select("provider,state,reserved_usd,actual_usd").gte("created_at", new Date(now() - 24 * 3600_000).toISOString());
+  if (error) throw new Error("STUDIO_SPEND_UNAVAILABLE");
+  const blocked = unsupportedSpend(needs, true);
+  if (blocked) return { ready: false, providers: [], failure: { provider: "recraft", reason: blocked } };
+  const demands = studioSupplyDemands(needs, studioSpendByProvider(recent ?? []));
+  if (!demands.length) return { ready: true, providers: [] };
+  // Misma regla que el worker: una lectura de saldo no verificada se refresca (GET de facturación gratuito); sin
+  // refrescar, un saldo viejo bloquearía de más a quien sí puede producir. RED sigue RED.
+  return ensureJobSupplyReady(service, demands, { now });
+}
+
+/**
+ * Arnés E2E local con proveedores simulados (PODCAST_V3_PROVIDERS=mock fuera de producción): el worker simulado no
+ * verifica suministro, y la API tampoco (misma regla). En producción (Vercel / NODE_ENV=production) nunca es cierto.
+ */
+export function studioProvidersSimulated(env: Record<string, string | undefined> = process.env): boolean {
+  const production = env.NODE_ENV === "production" || env.VERCEL === "1" || env.ATOMIVID_RUNTIME === "production";
+  return env.PODCAST_V3_PROVIDERS === "mock" && !production;
+}
+
+/** ¿Se aplica la verificación previa en la API? Siempre fuera del arnés simulado; en el arnés, solo si el ensayo la
+ *  activa expresamente (PODCAST_V3_SUPPLY_GATE=1) para probar el bloqueo y la adaptación contra la base local. */
+export function studioSupplyGateOn(env: Record<string, string | undefined> = process.env): boolean {
+  return !studioProvidersSimulated(env) || env.PODCAST_V3_SUPPLY_GATE === "1";
 }

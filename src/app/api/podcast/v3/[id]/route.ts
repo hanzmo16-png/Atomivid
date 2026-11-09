@@ -3,10 +3,10 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { podcastUser } from "@/lib/podcast/auth";
 import { studioGenerationEnabled } from "@/lib/podcast/v3/studio";
 import { listAccountVoices } from "@/lib/podcast/voices";
-import { authorizeAction, episodeAction } from "@/lib/podcast/v3/api";
+import { adaptAction, authorizeAction, episodeAction, type ApiDeps } from "@/lib/podcast/v3/api";
 import { STUDIO_COLUMNS, STUDIO_OPS_TABLE, STUDIO_TABLE, type StudioEpisodeRow } from "@/lib/podcast/v3/store";
 import { dispatchPodcastJob } from "@/lib/podcast/video-jobs";
-import { studioRecraftBlocker } from "@/lib/podcast/v3/readiness";
+import { studioSupplyGateOn, studioRecraftBlocker, studioSupplyCheck } from "@/lib/podcast/v3/readiness";
 
 const BUCKET = "videos";
 
@@ -37,12 +37,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const service = createServiceClient();
-  const out = await authorizeAction({
+  const deps: ApiDeps = {
     userId: user.id, viewer: user, voices: () => listAccountVoices(), enabled: studioGenerationEnabled(user), llm: null,
     insert: async () => null, load: (x) => load(service, x),
     authorize: async (x, usd) => { const { data } = await service.from(STUDIO_TABLE).update({ status: "authorized", authorized_usd: usd, authorized_at: new Date().toISOString(), error: null, updated_at: new Date().toISOString() }).eq("id", x).eq("user_id", user.id).in("status", ["draft", "failed"]).select("id"); return (data?.length ?? 0) === 1; },
     dispatch: (x) => dispatchPodcastJob(x, "studio"),
     recraftBlocker: () => studioRecraftBlocker(service),
+    // Verificación previa de solo lectura (cuota diaria, saldo, topes): sin ella no se puede iniciar (incidente 4290175a).
+    supplyCheck: studioSupplyGateOn() ? (needs) => studioSupplyCheck(service, needs) : undefined,
+    settledOps: async (x) => { const { data, error } = await service.from(STUDIO_OPS_TABLE).select("op").eq("episode_id", x).eq("user_id", user.id).eq("state", "settled"); if (error) throw new Error("OPS"); return data ?? []; },
     markStale: async (x, startedBefore) => {
       const at = new Date().toISOString();
       const { data } = await service.from(STUDIO_TABLE).update({ status: "failed", error: "La generación se interrumpió. Lo ya pagado se conserva y se reutiliza al reintentar; no se cobra dos veces.", updated_at: at })
@@ -51,6 +54,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       await service.from("podcast_studio_operations").update({ state: "uncertain", updated_at: at }).eq("episode_id", x).eq("state", "reserved");
       return true;
     },
-  }, id, body);
+    // Adaptación al límite disponible: solo el spec (tope aceptado + registro) y su estimación, y solo en draft/failed.
+    saveAdaptation: async (x, spec, estimate, usd) => {
+      const { data } = await service.from(STUDIO_TABLE).update({ spec, estimate, estimated_usd: usd, updated_at: new Date().toISOString() })
+        .eq("id", x).eq("user_id", user.id).in("status", ["draft", "failed"]).select("id");
+      return (data?.length ?? 0) === 1;
+    },
+  };
+  const out = body?.action === "adaptar" ? await adaptAction(deps, id, body) : await authorizeAction(deps, id, body);
   return NextResponse.json(out.body, { status: out.status });
 }

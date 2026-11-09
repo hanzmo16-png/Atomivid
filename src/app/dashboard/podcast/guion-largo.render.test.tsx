@@ -3,8 +3,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { hasRecoverableDraft, jobConfigPatch, pendingJob, progressText, resumedDraft, staleJob, WIZARD_RECOVERABLE_KEY } from "./PodcastWizard";
-import { defaultDraft } from "@/lib/podcast/v3/wizard";
+import { entryResumeNotice, hasRecoverableDraft, jobConfigPatch, pendingJob, progressText, resumedDraft, staleJob, WIZARD_RECOVERABLE_KEY } from "./PodcastWizard";
+import { freshEntrySnapshot } from "./PodcastFreshEntry";
+import { defaultDraft, WIZARD_STORAGE_KEY } from "@/lib/podcast/v3/wizard";
 
 test("progreso por bloques, en español y con números reales", () => {
   assert.equal(progressText({ step: 1, steps: 7 }), "Escaleta lista. Escribiendo el bloque 1 de 6…");
@@ -96,4 +97,41 @@ test("aislamiento por cuenta: la cuenta se pide al servidor con un GET de solo l
   assert.match(wiz, /fetch\("\/api\/podcast\/v3", \{ method: "GET", cache: "no-store"/);
   assert.match(route, /export async function GET\(\) \{\s*const user = await podcastUser\(\);[\s\S]{0,200}ownerId: user\.id/);
   assert.match(wiz, /localStorage\.setItem\(WIZARD_STORAGE_KEY, ownedRaw\(d\)\)/);
+});
+
+test("T-20261108-0415: una entrada nueva de Personalizado con solo la idea no se anuncia como borrador retomado", () => {
+  // Aviso al montar: entrada nueva con solo `topic` → sin «Retomaste tu borrador» (y sin «Empezar uno nuevo»).
+  assert.equal(entryResumeNotice({ title: "", topic: "El misterio de la señal Wow", script: "" }, true), null);
+  // Con contenido propio sí es trabajo real aunque llegue por la portada: se avisa como siempre.
+  assert.equal(entryResumeNotice({ title: "Señal Wow", topic: "x", script: "" }, true)?.label, "Señal Wow");
+  assert.ok(entryResumeNotice({ topic: "x", script: "Ana: hola, esto ya es un guion con texto." }, true));
+  assert.ok(entryResumeNotice({ topic: "x", scriptJob: { segments: [] } }, true));
+  // Fuera de una entrada nueva (borrador realmente previo), el aviso y sus controles se conservan.
+  assert.equal(entryResumeNotice({ topic: "Volcanes" }, false)?.label, "Volcanes");
+  assert.equal(entryResumeNotice({ title: "", topic: "", script: "" }, false), null);
+
+  // La entrada solo es «nueva» en la lectura que la crea: recargar el mismo enlace la trata como retomada.
+  const mem = new Map<string, string>();
+  const store = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v), removeItem: (k: string) => void mem.delete(k) };
+  const previo = JSON.stringify({ ...defaultDraft(), step: 1, title: "Borrador real", topic: "Tema previo", script: "Ana: guion anterior con contenido." });
+  store.setItem(WIZARD_STORAGE_KEY, previo);
+  const params = { modo: "personalizado", entrada: "nueva-0415", idea: "El misterio de la señal Wow" };
+  const first = freshEntrySnapshot(store, params);
+  assert.equal(first.fresh, true);
+  assert.equal(first.parked.length, 1); assert.equal(first.parked[0]!.raw, previo, "el borrador anterior queda aparcado, byte a byte, sin borrarse");
+  const nuevo = JSON.parse(store.getItem(WIZARD_STORAGE_KEY)!);
+  assert.equal(nuevo.topic, "El misterio de la señal Wow"); assert.equal(nuevo.title, ""); assert.equal(nuevo.script, "");
+  assert.equal(entryResumeNotice(nuevo, first.fresh), null);
+  const again = freshEntrySnapshot(store, params);
+  assert.equal(again.fresh, false, "mismo token: ya no es una entrada nueva");
+  assert.equal(again.parked.length, 1);
+  assert.equal(freshEntrySnapshot(store, { modo: undefined, entrada: undefined, idea: undefined }).fresh, false, "sin señal no hay entrada nueva");
+
+  // El montaje usa el aviso condicionado; «Empezar de nuevo» y «Recuperar» no cambian.
+  const wiz = readFileSync(path.join(__dirname, "PodcastWizard.tsx"), "utf8");
+  assert.match(wiz, /setResumed\(entryResumeNotice\(draft, freshEntry\.current\)\)/);
+  assert.match(wiz, /function recoverPrevious[\s\S]*?setResumed\(resumedDraft\(draft\)\)/);
+  const gate = readFileSync(path.join(__dirname, "PodcastFreshEntry.tsx"), "utf8");
+  assert.match(gate, /<FreshEntryContext\.Provider value=\{snap\.fresh\}>/);
+  assert.match(gate, /idea: null, fresh: false \}\)/, "recuperar una configuración anterior deja de tratarla como nueva");
 });

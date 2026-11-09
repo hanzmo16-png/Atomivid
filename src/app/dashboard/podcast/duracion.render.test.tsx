@@ -17,7 +17,7 @@ test("Producir: la aceptación dice la duración real y la pedida", () => {
 
 test("Generar queda bloqueado sin aceptar y la creación envía la aceptación; la tarjeta muestra la duración entregada", () => {
   const wiz = readFileSync(path.join(__dirname, "PodcastWizard.tsx"), "utf8");
-  assert.match(wiz, /disabled=\{!d\.authorized \|\| \(estimate\?\.totalUsd \?\? 0\) > d\.budgetUsd \|\| \(mustAcceptDuration && !acceptDuration\)\}/);
+  assert.match(wiz, /disabled=\{!d\.authorized \|\| \(estimate\?\.totalUsd \?\? 0\) > d\.budgetUsd \|\| \(mustAcceptDuration && !acceptDuration\) \|\| providerBlocked\(estimate\)\}/);
   assert.match(wiz, /if \(mustAcceptDuration && !acceptDuration\) \{ setError/);
   assert.match(wiz, /\.\.\.\(mustAcceptDuration \? \{ acceptDuration: true \} : \{\}\)/);
   const card = readFileSync(path.join(__dirname, "StudioEpisodeList.tsx"), "utf8");
