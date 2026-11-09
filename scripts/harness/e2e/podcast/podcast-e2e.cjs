@@ -1398,13 +1398,13 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       ok(`c23: ${dt} · otra cuenta no puede adaptar el episodio (404)`, foreign === 404, String(foreign)); await X.ctx.close();
       const w = await worker(ID, "studio");
       const r3 = await row();
-      const ops = (await db.query("select op, state, count(*)::int n from public.podcast_studio_operations where episode_id=$1 group by 1,2", [ID])).rows;
+      const ops = (await db.query("select op, state, count(*)::int n from public.podcast_studio_operations where episode_id=$1 group by 1,2 order by 1,2", [ID])).rows;
       const clips = ops.filter((o) => o.op === "avatar_clip").reduce((a, o) => a + o.n, 0);
       ok(`c23: ${dt} · el worker entrega el episodio adaptado (proveedores SIMULADOS)`, w.code === 0 && r3.status === "ready" && /STUDIO_PROVIDERS mock/.test(w.out), `${r3.status} ${r3.error ?? ""}`);
       ok(`c23: ${dt} · 40 clips de avatar en el libro (no 48), todo liquidado una vez`, clips === 40 && ops.every((o) => o.state === "settled"), JSON.stringify(ops));
       // Segundo runner (el despacho repetido): no genera ni cobra nada más.
       const w2 = await worker(ID, "studio"); const r4 = await row();
-      const ops2 = (await db.query("select op, state, count(*)::int n from public.podcast_studio_operations where episode_id=$1 group by 1,2", [ID])).rows;
+      const ops2 = (await db.query("select op, state, count(*)::int n from public.podcast_studio_operations where episode_id=$1 group by 1,2 order by 1,2", [ID])).rows;
       ok(`c23: ${dt} · un segundo runner no duplica trabajo ni cobro (libro, costo y entrega iguales)`, JSON.stringify(ops2) === JSON.stringify(ops) && Number(r4.cost_usd) === Number(r3.cost_usd) && r4.status === "ready" && r4.video_path === r3.video_path, `exit ${w2.code} ${w2.out.split("\n").filter((l) => /STUDIO_|Duplicate|ya/.test(l)).slice(-2).join(" | ").slice(0, 200)}`);
       // Narración intacta: una operación de voz liquidada por turno del guion (96), ninguna recortada ni repetida.
       const tts = ops.filter((o) => o.op === "tts").reduce((a, o) => a + o.n, 0);
