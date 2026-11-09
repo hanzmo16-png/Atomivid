@@ -1310,6 +1310,10 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     // persona lo recupera sola desde «Tus episodios» con clics reales: vista previa (nada cambia) → cancelar → confirmar →
     // el MISMO episodio se reintenta → worker con proveedores SIMULADOS → listo con 40 apariciones. Escritorio y móvil.
     // Requiere la pila arrancada con PODCAST_V3_SUPPLY_GATE=1 (la verificación previa real contra esta base desechable).
+    if (process.env.PODCAST_V3_SUPPLY_GATE !== "1") {
+      // Sin la verificación previa, en modo simulado la API no comprueba la cuota: el caso no prueba nada y fallaría de forma confusa.
+      ok("c23: requiere PODCAST_V3_SUPPLY_GATE=1 al arrancar la pila (verificación previa de proveedores activa)", false, `PODCAST_V3_SUPPLY_GATE=${process.env.PODCAST_V3_SUPPLY_GATE ?? "(sin definir)"}`);
+    } else {
     await db.query(fs.readFileSync(path.join(REPO, "supabase/migrations/20261030170000_podcast_library_archive.sql"), "utf8"));
     await db.query("notify pgrst, 'reload schema'"); await new Promise((r) => setTimeout(r, 1500));
     for (const [id, name] of AV) await db.query("insert into public.avatars (id,user_id,name,provider,provider_avatar_id,status,consent_given) values ($1,$2,$3,'heygen','asset:simulado','ready',true) on conflict (id) do nothing", [id, OWNER.id, name]);
@@ -1418,6 +1422,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       ok(`c23: ${dt} · el episodio recuperado se reproduce y descarga desde «Tus episodios»`, await card().getByTestId("studio-player").count() === 1 && await card().getByTestId("studio-download-mp4").count() === 1, String(shotsK.length));
       await shot(P, `c23${dt}-04-listo`);
       await S.ctx.close();
+    }
     }
   }
   await s.ctx.close(); await browser.close(); await db.end();
