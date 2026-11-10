@@ -9,9 +9,10 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { safeParseJsonResponse } from "@/lib/http/safe-json";
 import type { AdaptProposal } from "@/lib/podcast/v3/adapt";
+import { isAvatarQuotaError } from "@/lib/podcast/library";
 
-/** ¿El error del episodio es el límite diario de llamadas del avatar? (texto de readinessMessage, con o sin números). */
-export const isAvatarQuotaError = (error: string | null | undefined) => !!error && /HeyGen \(avatar\)/.test(error) && /(llamadas|cuota diaria)/.test(error);
+/** ¿El error del episodio es el límite diario de llamadas del avatar? Una sola regla, compartida con la biblioteca. */
+export { isAvatarQuotaError };
 
 /** Por qué no se puede confirmar (o null si se puede). */
 export function confirmBlocker(p: AdaptProposal): string | null {

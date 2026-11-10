@@ -118,3 +118,13 @@ test("T-20261107-2314: archivado que seguirá agrupado — avisa antes y ofrece 
   assert.match(ready, />Restaurar</);
   assert.doesNotMatch(ready, /Quitar archivo manual|seguirá en «Archivados»/);
 });
+
+test("fallido recuperable (límite del avatar): a la vista y abierto, con «Necesita tu decisión», adaptar y archivar; sin peticiones en el render", () => {
+  const actionNote = "Necesita tu decisión: no se pudo producir por el límite diario de apariciones del avatar. Puedes adaptarlo aquí sin perder el guion ni la voz, o archivarlo.";
+  const { html, calls } = renderCounting(<StudioEpisodeList canArchive episodes={[{ ...base, status: "failed", actionNote }]} />);
+  assert.equal(calls, 0);
+  assert.ok(html.includes(actionNote));
+  assert.match(html, new RegExp(`studio-decision-${ID}`));
+  assert.match(html, new RegExp(`biblioteca-archivar-${ID}`), "se puede archivar a mano");
+  assert.doesNotMatch(html, />Ver episodio</, "no está cerrado como los agrupados");
+});
