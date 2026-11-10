@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { ARCHIVE_COLUMN_MISSING, AUTO_GROUPED, bucketOf, restoreNote, fetchAllByCursor, incompleteLibraryNotice, isMissingRelation, isTestTitle, libraryAction, libraryView, listClassicEpisodes, ownerRowsByCursor, shownCount, VIEW_STEP, type LibraryItem, type OwnerRowsClient, type PageCursor } from "./library";
+import { ACTION_NOTE, ARCHIVE_COLUMN_MISSING, AUTO_GROUPED, bucketOf, isAvatarQuotaError, recoverableFailure, restoreNote, fetchAllByCursor, incompleteLibraryNotice, isMissingRelation, isTestTitle, libraryAction, libraryView, listClassicEpisodes, ownerRowsByCursor, shownCount, VIEW_STEP, type LibraryItem, type OwnerRowsClient, type PageCursor } from "./library";
 import { listStudioEpisodes } from "./v3/store";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -361,4 +361,29 @@ test("T-20261107-2314: quitar el archivo manual — un listo vuelve a «Mis epis
   // Sin archivo manual o en producción: nada que avisar.
   assert.equal(restoreNote(it(6, "failed", 2), NOW), null);
   assert.equal(restoreNote(it(7, "generating", 0.1, { archived_at: ago(1) }), NOW), null);
+});
+
+test("fallido recuperable (límite diario del avatar, incidente 4290175a): se queda en «Mis episodios» con «Necesita tu decisión»", () => {
+  const QUOTA_OLD = "HeyGen (avatar): alcanzó su cuota diaria de llamadas.";  // texto que hoy guarda producción
+  const QUOTA_NEW = "Proveedor no listo: HeyGen (avatar): este episodio necesita 48 llamadas y el límite diario de la plataforma es 40; no cabe en un día aunque se espere.";
+  const items = [it(1, "failed", 2, { error: QUOTA_OLD }), it(2, "failed", 1, { error: QUOTA_NEW }), it(3, "failed", 1, { error: "ElevenLabs (voz): no se pudo verificar un saldo suficiente." }),
+    it(4, "ready", 0.5), it(5, "generating", 0.1), it(6, "failed", 3, { error: QUOTA_OLD, archived_at: ago(0.2) }), it(7, "failed", 1, { error: QUOTA_OLD, title: "QA prueba de cuota" }),
+    { kind: "v2", id: id(8), status: "failed", created_at: ago(1), error: QUOTA_OLD } as LibraryItem];
+  const main = libraryView(items, "principal", NOW);
+  // En curso → recuperables (más reciente arriba) → terminados.
+  assert.deepEqual(main.map((x) => [x.id.slice(-1), x.bucket]), [["5", "en_curso"], ["2", "recuperable"], ["1", "recuperable"], ["4", "listo"]]);
+  const arch = libraryView(items, "archivados", NOW);
+  assert.deepEqual(arch.map((x) => [x.id.slice(-1), x.bucket]).sort(), [["3", "fallido"], ["6", "archivado"], ["7", "prueba"], ["8", "fallido"]].sort(),
+    "otro error, archivado a mano, de prueba o del clásico: siguen en «Archivados»");
+  assert.equal(main.length + arch.length, items.length, "nada se pierde");
+  assert.ok(ACTION_NOTE.recuperable && /Necesita tu decisión/.test(ACTION_NOTE.recuperable) && /sin perder el guion/.test(ACTION_NOTE.recuperable));
+  assert.equal("recuperable" in AUTO_GROUPED, false, "no es un grupo automático: se puede archivar a mano");
+  assert.equal(isAvatarQuotaError(QUOTA_OLD), true); assert.equal(recoverableFailure({ kind: "studio", status: "ready", error: QUOTA_OLD }), false);
+});
+
+test("recuperable archivado a mano: al restaurar vuelve a «Mis episodios» (sin aviso de que seguiría oculto)", () => {
+  const e = it(1, "failed", 2, { error: "HeyGen (avatar): alcanzó su cuota diaria de llamadas.", archived_at: ago(0.1) });
+  assert.equal(bucketOf(e, NOW), "archivado");
+  assert.equal(restoreNote(e, NOW), null);
+  assert.equal(bucketOf({ ...e, archived_at: null }, NOW), "recuperable");
 });

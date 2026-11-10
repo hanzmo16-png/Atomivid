@@ -3,14 +3,30 @@
  * Nada se borra:
  *  - vista «Mis episodios»: una sola lista (estudio y clásico juntos): en curso primero, luego lo terminado y los
  *    borradores recientes, cada grupo por actividad más reciente (`updated_at`, o `created_at` si no hay);
- *  - vista «Archivados»: lo que el dueño archivó y, sin escribir nada, los episodios con error, los de prueba
+ *  - un fallido que la persona puede recuperar sola (límite diario del avatar) se queda en «Mis episodios» («Necesita tu decisión»);
+ *  - vista «Archivados»: lo que el dueño archivó y, sin escribir nada, los demás episodios con error, los de prueba
  *    (regla `isTestTitle`) y los borradores de hace más de 7 días;
  *  - archivar/restaurar solo marca `archived_at` (columna de supabase/migrations/20261030170000_podcast_library_archive.sql);
  *    nunca toca archivos, enlaces, costos ni el libro de gastos. Lo que está en producción no se puede archivar.
  */
 export type LibraryKind = "studio" | "v2";
-export type LibraryItem = { kind: LibraryKind; id: string; status: string; created_at: string; updated_at?: string | null; archived_at?: string | null; video_status?: string | null; title?: string | null };
-export type LibraryBucket = "en_curso" | "listo" | "borrador" | "archivado" | "fallido" | "prueba" | "antiguo";
+export type LibraryItem = { kind: LibraryKind; id: string; status: string; created_at: string; updated_at?: string | null; archived_at?: string | null; video_status?: string | null; title?: string | null; error?: string | null };
+export type LibraryBucket = "en_curso" | "recuperable" | "listo" | "borrador" | "archivado" | "fallido" | "prueba" | "antiguo";
+
+/**
+ * ¿El error del episodio es el límite diario de llamadas del avatar? (texto de readinessMessage, con o sin números;
+ * también el de producción anterior: «HeyGen (avatar): alcanzó su cuota diaria de llamadas.»).
+ */
+export const isAvatarQuotaError = (error: string | null | undefined) => !!error && /HeyGen \(avatar\)/.test(error) && /(llamadas|cuota diaria)/.test(error);
+
+/**
+ * Fallido que la persona puede recuperar ella misma desde la interfaz («Adaptar producción al límite disponible»,
+ * incidente 4290175a): episodio del estudio bloqueado por el límite diario del avatar. No se esconde en «Archivados»
+ * (allí nadie lo buscaba): sigue en «Mis episodios» marcado «Necesita tu decisión» hasta que se recupere o se archive a mano.
+ */
+export function recoverableFailure(i: Pick<LibraryItem, "kind" | "status" | "error">): boolean {
+  return i.kind === "studio" && i.status === "failed" && isAvatarQuotaError(i.error);
+}
 
 /**
  * Episodio de prueba, regla determinista (solo el título; sin adivinar por palabras sueltas):
@@ -39,13 +55,19 @@ export function bucketOf(i: LibraryItem, now = Date.now()): LibraryBucket {
   if (inProgress(i)) return "en_curso";
   if (i.archived_at) return "archivado";
   if (isTestTitle(i.title)) return "prueba";
+  if (recoverableFailure(i)) return "recuperable";
   if (i.status === "failed") return "fallido";
   if (i.status === "ready") return "listo";
   const age = now - Date.parse(i.updated_at || i.created_at);
   return age > STALE_DAYS * DAY ? "antiguo" : "borrador";
 }
 
-const ORDER: Record<LibraryBucket, number> = { en_curso: 0, listo: 1, borrador: 2, archivado: 3, fallido: 4, prueba: 5, antiguo: 6 };
+const ORDER: Record<LibraryBucket, number> = { en_curso: 0, recuperable: 1, listo: 2, borrador: 3, archivado: 4, fallido: 5, prueba: 6, antiguo: 7 };
+
+/** Nota de los grupos que SÍ se ven en «Mis episodios» pero piden algo a la persona. */
+export const ACTION_NOTE: Partial<Record<LibraryBucket, string>> = {
+  recuperable: "Necesita tu decisión: no se pudo producir por el límite diario de apariciones del avatar. Puedes adaptarlo aquí sin perder el guion ni la voz, o archivarlo.",
+};
 /** Grupos que se ocultan solos (sin escribir nada): se ven en «Archivados» y no ofrecen archivar/restaurar a mano. */
 export const AUTO_GROUPED: Partial<Record<LibraryBucket, string>> = {
   fallido: "Con error: se agrupa aquí automáticamente. Ábrelo para ver el motivo o reintentar.",

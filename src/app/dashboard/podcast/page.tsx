@@ -15,7 +15,7 @@ import { HOST_CATALOG } from "@/lib/podcast/v3/catalog";
 import { StudioEpisodeCard } from "./StudioEpisodeList";
 import { voiceAvailability } from "@/lib/podcast/v3/spec";
 import { listStudioEpisodes } from "@/lib/podcast/v3/store";
-import { AUTO_GROUPED, incompleteLibraryNotice, libraryView, listClassicEpisodes, restoreNote, shownCount, VIEW_STEP, type OwnerRowsClient } from "@/lib/podcast/library";
+import { ACTION_NOTE, AUTO_GROUPED, incompleteLibraryNotice, libraryView, listClassicEpisodes, restoreNote, shownCount, VIEW_STEP, type OwnerRowsClient } from "@/lib/podcast/library";
 import { LibraryArchiveButton } from "./LibraryArchiveButton";
 import { studioFlagFor, studioGenerationEnabled, visualProviders } from "@/lib/podcast/v3/studio";
 import { studioRecraftBlocker } from "@/lib/podcast/v3/readiness";
@@ -117,7 +117,7 @@ export default async function PodcastPage({ searchParams }: { searchParams: Prom
         <Link href="/dashboard/podcast?vista=archivados#episodios" aria-current={view === "archivados" ? "page" : undefined} className={`rounded px-3 py-1 ${view === "archivados" ? "bg-accent text-accent-ink" : "border border-border text-ink"}`} data-testid="biblioteca-archivados">Archivados ({archivedCount})</Link>
       </nav>
       {incompleteNotice && <p role="status" className="mt-2 rounded border border-border p-2 text-sm text-ink" data-testid="biblioteca-incompleta">{incompleteNotice}</p>}
-      {view === "principal" && archivedCount > 0 && <p className="mt-2 text-xs text-ink-muted" data-testid="biblioteca-ocultos">Los episodios con error, los de prueba, los borradores de hace más de 7 días y lo que archives están en «Archivados» ({archivedCount}). No se borra nada.</p>}
+      {view === "principal" && archivedCount > 0 && <p className="mt-2 text-xs text-ink-muted" data-testid="biblioteca-ocultos">Los episodios con error (salvo los que puedes recuperar aquí), los de prueba, los borradores de hace más de 7 días y lo que archives están en «Archivados» ({archivedCount}). No se borra nada.</p>}
       {view === "archivados" && <p className="mt-2 text-xs text-ink-muted">Aquí están lo que archivaste y, agrupados solos, los episodios con error, los de prueba y los borradores de hace más de 7 días. Sus archivos, enlaces y costos se conservan.</p>}
       {/* Sin la columna archived_at (migración 20261030170000 aún no aplicada) no se consulta para escribir ni se ofrece
           archivar: se dice por qué. La agrupación automática de lo viejo sigue funcionando sin escribir nada. */}
@@ -125,7 +125,7 @@ export default async function PodcastPage({ searchParams }: { searchParams: Prom
       {!empty && (
         <ul className="mt-2 grid min-w-0 gap-2" data-testid="studio-episodes">
           {library.map((e) => e.kind === "studio" ? (
-            <StudioEpisodeCard key={e.id} canArchive={archiveReady} episode={{ id: e.id, title: e.title, status: e.status, mode: e.mode, cost_usd: e.cost_usd, archived: e.bucket === "archivado", autoNote: AUTO_GROUPED[e.bucket] ?? null, restoreNote: restoreNote(e) }} />
+            <StudioEpisodeCard key={e.id} canArchive={archiveReady} episode={{ id: e.id, title: e.title, status: e.status, mode: e.mode, cost_usd: e.cost_usd, archived: e.bucket === "archivado", autoNote: AUTO_GROUPED[e.bucket] ?? null, actionNote: ACTION_NOTE[e.bucket] ?? null, restoreNote: restoreNote(e) }} />
           ) : (
             <li key={e.id} className="min-w-0 rounded-lg border border-border p-3 text-sm" data-testid={`episodio-v2-${e.id}`}>
               <Link href={`/dashboard/podcast/${e.id}`} className="font-medium text-ink underline">{e.title}</Link>

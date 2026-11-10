@@ -1349,13 +1349,15 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       const warm = await post(S.ctx, { action: "adaptar", preview: true });
       ok(`c23: ${dt} · la vista previa por API responde y no cambia nada`, warm.status === 200 && warm.body.proposal?.callsAfter === 40 && (await row()).status === "failed" && nDisp() === d0, `${warm.status}`);
       let navs = 0; P.on("framenavigated", (f) => { if (f === P.mainFrame()) navs++; });
-      await P.goto(`${BASE}/dashboard/podcast?vista=archivados`); await P.getByTestId("biblioteca-vistas").waitFor();
+      // Fallido recuperable (límite del avatar): se queda en «Mis episodios» con «Necesita tu decisión», no en «Archivados».
+      await P.goto(`${BASE}/dashboard/podcast`); await P.getByTestId("biblioteca-vistas").waitFor();
       for (let quiet = 0, last = navs; quiet < 8; ) { await P.waitForTimeout(1000); if (navs === last) quiet++; else { quiet = 0; last = navs; } }
       await P.getByTestId("biblioteca-vistas").waitFor();
       const openCard = async () => { if (await card().getByTestId(`studio-abrir-${ID}`).count()) await card().getByTestId(`studio-abrir-${ID}`).click(); };
       await openCard();
       const open = card().getByTestId(`adaptar-abrir-${ID}`);
       await open.waitFor({ timeout: 30000 }).catch(() => {});
+      ok(`c23: ${dt} · el fallido recuperable sigue en «Mis episodios» con «Necesita tu decisión» y se puede archivar a mano`, await card().getByTestId(`studio-decision-${ID}`).count() === 1 && await card().getByTestId(`studio-abrir-${ID}`).count() === 0, (await card().innerText()).slice(0, 200));
       ok(`c23: ${dt} · el episodio fallido muestra el motivo y «Adaptar producción al límite disponible»`, await open.count() === 1 && /cuota diaria de llamadas/.test(await card().innerText()), (await card().innerText()).slice(0, 200));
       await shot(P, `c23${dt}-01-fallido`);
       const respP = P.waitForResponse((r) => r.request().method() === "POST" && r.url().endsWith(`/api/podcast/v3/${ID}`), { timeout: 60000 }).catch(() => null);
@@ -1427,7 +1429,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
   }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
-  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 14: 32, 15: 5, 16: 24, 17: 17, 18: 9, 19: 18, 20: 17, 21: 36, 22: 60, 23: 48 };
+  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 14: 32, 15: 5, 16: 24, 17: 17, 18: 9, 19: 18, 20: 17, 21: 36, 22: 60, 23: 50 };
   const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[a-d]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name)) || (c === "12" && /^c12-/.test(r.name))).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));
