@@ -3,6 +3,10 @@
 The user-supplied `podcast-editor-entrega-v3.zip` was recovered and inspected.
 The runtime source is now in `scripts/podcast-editor-v3/`, unchanged from that
 archive. `podcast-editor-v3-fixture.json` records source SHA-256 checksums.
+Since the temporary-labels change, `editor.py` differs from the archive (opt-in
+`labels._modo = "temporal"` and the SRT cap at `expected_total_seconds`, see
+`podcast_editor/overlays.py` and `tests/test_overlays.py`); the checksums above
+describe the original archive, not the current file.
 No SQL from the archive was applied. No provider API was called.
 
 ## Failure found and fixed
