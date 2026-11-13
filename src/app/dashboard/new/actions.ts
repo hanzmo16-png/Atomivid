@@ -21,6 +21,7 @@ import { redirect } from "next/navigation";
 import { parseRecraftSelection } from "@/lib/video/recraft-reel";
 import { storeRecraftReferences } from "@/lib/video/recraft-reel-server";
 import { recraftAllowedFor } from "@/lib/video/recraft-access";
+import { fluxAllowedFor } from "@/lib/video/flux-images";
 import { checkProductionForRequest } from "@/lib/supply/production-check";
 import { formProduction, type ScriptChoice } from "@/lib/video/form-production";
 import { MAX_NARRATION_CHARS } from "@/lib/video/narration-fit";
@@ -134,10 +135,13 @@ export async function createVideoRequest(formData: FormData) {
     // «Imágenes IA con Recraft»: explicit per-video choice, validated here (never trusted from the browser).
     // Reference images are stored in our bucket; nothing is sent to fal.ai and nothing is paid at creation.
     const refFiles = formData.getAll("recraft_style_refs").filter((f): f is File => typeof f !== "string" && f.size > 0);
-    const recraftChoice = parseRecraftSelection({ source: formData.get("reel_image_source"), styleId: formData.get("recraft_style_id"),
+    // «Imágenes IA con FLUX» (second selectable provider): no style, nothing stored, permitted from the session only.
+    const fluxChosen = String(formData.get("reel_image_source") ?? "").trim() === "flux";
+    if (fluxChosen && !fluxAllowedFor(user)) redirect(formErrorUrl("Las imágenes IA con FLUX no están disponibles para esta cuenta todavía. No se ha creado ni cobrado nada."));
+    const recraftChoice = fluxChosen ? { source: "default" as const } : parseRecraftSelection({ source: formData.get("reel_image_source"), styleId: formData.get("recraft_style_id"),
       match: formData.get("recraft_style_match"), styleNote: formData.get("recraft_style_note"), referenceCount: refFiles.length, onMissingStyleId: formData.get("recraft_style_missing") }, recraftAllowedFor(user));
     if ("error" in recraftChoice) redirect(formErrorUrl(recraftChoice.error));
-    let recraftColumns: Record<string, unknown> = {};
+    let recraftColumns: Record<string, unknown> = fluxChosen ? { reel_image_source: "flux" } : {};
     if (recraftChoice.source === "recraft") {
       let referencePaths: string[] = [];
       if (!recraftChoice.styleId) {

@@ -1,0 +1,95 @@
+name: FLUX real test (preflight USD 0; one image only with explicit authorization)
+
+# FLUX.1 [dev] via fal.ai through ATOMIVID's own adapter (scripts/fal/flux-real-test.ts). Uses the EXISTING repository
+# secrets FAL_KEY / FAL_ADMIN_KEY (never printed). Two modes:
+#  - preflight (default, USD 0): model active, FAL_KEY authenticated, account price, fal's own estimate, balance.
+#  - generate: ONE image (720×1280, prompt fixed in the script), only when the preflight passes AND an explicit
+#    authorization (≤ USD 0.50, confirmation phrase) is given. Never retried: no loop, X-Fal-No-Retry, a single job.
+# Triggers:
+#  - push to the FLUX branch: preflight, EXCEPT when that very push adds/changes ops/flux-real-test/authorization.json
+#    (the owner's authorization, committed once): then generate, with the values of that file.
+#  - workflow_dispatch (once this file is on the default branch): mode + authorized_usd + confirm inputs.
+# Evidence (report JSON + image) is uploaded as a workflow artifact. Nothing is written to Supabase or the ledger.
+on:
+  push:
+    branches: [claude/hola-sn3dxy]
+    paths:
+      - ops/flux-real-test/**
+      - .github/workflows/flux-real-test.yml
+      - scripts/fal/flux-real-test.ts
+      - src/lib/providers/image/flux.ts
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "preflight (USD 0) or generate (ONE paid image)"
+        required: true
+        default: preflight
+        type: choice
+        options: [preflight, generate]
+      authorized_usd:
+        description: "Explicit authorization for generate (≤ 0.50)"
+        required: false
+        default: "0"
+      confirm:
+        description: "Type GENERAR-UNA-IMAGEN-FLUX to generate"
+        required: false
+        default: ""
+permissions:
+  contents: read
+concurrency:
+  group: flux-real-test
+  cancel-in-progress: false
+jobs:
+  flux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 20
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Decide mode (never generate unless explicitly authorized)
+        id: mode
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          IN_MODE: ${{ inputs.mode }}
+          IN_USD: ${{ inputs.authorized_usd }}
+          IN_CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          mode=preflight; usd=0; confirm=""
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            mode="$IN_MODE"; usd="$IN_USD"; confirm="$IN_CONFIRM"
+          elif [ "$EVENT" = "push" ] && [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
+               && git diff --name-only "$BEFORE" "$GITHUB_SHA" | grep -qx 'ops/flux-real-test/authorization.json'; then
+            f=ops/flux-real-test/authorization.json
+            mode=generate
+            usd=$(node -e 'const a=require("./'"$f"'");process.stdout.write(String(a.authorizedUsd??0))')
+            confirm=$(node -e 'const a=require("./'"$f"'");process.stdout.write(String(a.confirm??""))')
+          fi
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "usd=$usd" >> "$GITHUB_OUTPUT"
+          echo "confirm=$confirm" >> "$GITHUB_OUTPUT"
+          echo "FLUX mode: $mode (authorized USD $usd)"
+      - name: FLUX ${{ steps.mode.outputs.mode }}
+        env:
+          FAL_KEY: ${{ secrets.FAL_KEY }}
+          FAL_ADMIN_KEY: ${{ secrets.FAL_ADMIN_KEY }}
+          FLUX_TEST_MODE: ${{ steps.mode.outputs.mode }}
+          FLUX_TEST_AUTHORIZED_USD: ${{ steps.mode.outputs.usd }}
+          FLUX_TEST_CONFIRM: ${{ steps.mode.outputs.confirm }}
+          OUT_DIR: flux-real-test-out
+        run: npx tsx scripts/fal/flux-real-test.ts
+      - name: Upload evidence (report + image)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flux-real-test-${{ steps.mode.outputs.mode }}-${{ github.run_id }}
+          path: flux-real-test-out/
+          if-no-files-found: warn
+          retention-days: 90

@@ -7,7 +7,11 @@ const providers = [
   { name: 'heygen', key: 'HEYGEN_API_KEY', url: 'https://api.heygen.com/v3/users/me', unit: 'usd' },
   // fal.ai (Recraft images): Platform API billing, Admin-scoped key only (optional supplier: skipped without it).
   { name: 'recraft', key: 'FAL_ADMIN_KEY', optional: true, url: 'https://api.fal.ai/v1/account/billing?expand=credits', unit: 'usd' },
+  // FLUX (same fal.ai account, its own supply policy). Observed only once its policy row exists (migration applied):
+  // before that, a snapshot row for an unknown provider would be refused and stop the whole hourly run.
+  { name: 'flux', key: 'FAL_ADMIN_KEY', optional: true, requiresPolicy: true, url: 'https://api.fal.ai/v1/account/billing?expand=credits', unit: 'usd' },
 ];
+const FAL_PROVIDERS = new Set(['recraft', 'flux']);
 const finite = x => typeof x === 'number' && Number.isFinite(x) && x >= 0;
 export function parseBalance(provider, value) {
   if (provider === 'elevenlabs') {
@@ -17,7 +21,7 @@ export function parseBalance(provider, value) {
     return { available: Math.max(0, value.character_limit - value.character_count), unit: 'character', baseline: value.character_limit,
       renewal_date: renewal?.slice(0, 10) ?? null, details: { renewalAt: renewal } };
   }
-  if (provider === 'recraft') {
+  if (FAL_PROVIDERS.has(provider)) {
     const c = value?.credits;
     return String(c?.currency ?? '').toUpperCase() === 'USD' && finite(c?.current_balance)
       ? { available: c.current_balance, unit: 'usd', baseline: null, renewal_date: null, details: {} } : null;
@@ -48,10 +52,11 @@ export async function observe(env, request = fetch, now = () => new Date().toISO
     const secret = env[p.key];
     // Optional supplier (fal.ai): no credential configured ⇒ not observed at all (no hourly "missing" notices).
     if (!secret && p.optional) continue;
+    if (p.requiresPolicy && !policies.some(x => x.provider === p.name)) continue;
     if (secret) {
       try {
         const headers = p.name === 'elevenlabs' ? { 'xi-api-key': secret } : p.name === 'heygen' ? { 'X-Api-Key': secret }
-          : p.name === 'recraft' ? { Authorization: `Key ${secret}`, Accept: 'application/json' } : { Authorization: `Bearer ${secret}`, 'X-Runway-Version': '2024-11-06' };
+          : FAL_PROVIDERS.has(p.name) ? { Authorization: `Key ${secret}`, Accept: 'application/json' } : { Authorization: `Bearer ${secret}`, 'X-Runway-Version': '2024-11-06' };
         const r = await request(p.url, { method: 'GET', headers, redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(10_000) });
         health = r.ok ? 'OK' : r.status >= 500 ? 'DEGRADED' : 'DOWN';
         failure = r.ok ? 'balance_not_supported_or_invalid' : `http_${r.status}`;

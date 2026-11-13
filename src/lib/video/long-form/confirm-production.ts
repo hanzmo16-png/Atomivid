@@ -95,6 +95,12 @@ export async function confirmLongFormProduction(
      */
     recraft?: ReelRecraftStyle;
     /**
+     * «Imágenes IA con FLUX», already permitted by the route (fluxAllowedFor). The plan pins image provider "flux" and
+     * `reel_image_source='flux'` is written in the SAME conditional update as the confirmation (immutable afterwards).
+     * Mutually exclusive with `recraft`.
+     */
+    flux?: boolean;
+    /**
      * Voz de narración elegida para ESTE documental, ya validada por la ruta contra el catálogo del usuario
      * (resolveReelVoiceSelection: voces privadas solo con su concesión). Se escribe en el MISMO UPDATE condicional que
      * confirma (trigger: inmutable después). Ausente = voz predeterminada del producto, como siempre.
@@ -170,7 +176,7 @@ export async function confirmLongFormProduction(
       beats,
       topic,
       strategy,
-      providers: { ...getRealLongFormProviderNames(), ...(input.recraft ? { image: "recraft" } : {}) },
+      providers: { ...getRealLongFormProviderNames(), ...(input.recraft ? { image: "recraft" } : input.flux ? { image: "flux" } : {}) },
       requestedDurationSeconds: data.duration_seconds ?? undefined,
       cinematicV6: input.cinematicV6 === true,
       materialGapImages,
@@ -228,7 +234,7 @@ export async function confirmLongFormProduction(
   const { data: updated, error: updateError } = await service
     .from("video_requests")
     .update({ long_form_production_plan: plan, long_form_confirmed_at: confirmedAt,
-      ...(input.recraft ? { reel_image_source: "recraft", reel_recraft_style: input.recraft } : {}),
+      ...(input.recraft ? { reel_image_source: "recraft", reel_recraft_style: input.recraft } : input.flux ? { reel_image_source: "flux" } : {}),
       ...(input.voiceId ? { reel_voice_id: input.voiceId } : {}) })
     .eq("id", input.requestId)
     .eq("user_id", input.userId)

@@ -33,13 +33,14 @@ import { evaluateQualityGate, QUALITY_GATE_MIN_SCORE } from "@/lib/video/quality
 import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { buildStoryboard } from "@/lib/video/storyboard";
 import type { Storyboard } from "@/lib/video/storyboard/types";
-import { getImageProvider, getRecraftImageProvider, type ImageGenerationRequest } from "@/lib/providers/image";
+import { getImageProvider, getRecraftImageProvider, getFluxImageProvider, type ImageGenerationRequest } from "@/lib/providers/image";
 import { recraftScenePrompt } from "@/lib/video/recraft-reel";
 import { checkGeneratedImage } from "@/lib/video/long-form/generated-image-qc";
 import { recraftEstimatedCostUsd } from "@/lib/providers/image/recraft";
+import { fluxEstimatedCostUsd } from "@/lib/providers/image/flux";
 import type { StoryboardScene } from "@/lib/video/storyboard/types";
 import { decideResourceStrategy, buildScenePlanEntry, type ScenePlanEntry } from "@/lib/video/visual-resource-planner";
-import { resolveGeneratedImageForScene, resolveRecraftReelScene } from "@/lib/video/visual-resource-resolver";
+import { resolveGeneratedImageForScene, resolveRecraftReelScene, resolveFluxReelScene } from "@/lib/video/visual-resource-resolver";
 import { cinematicDirectorRenderEnabled } from "@/lib/video/director/flag";
 import type { ResolvedBeat } from "@/lib/video/director/reel-render";
 import { footageResultLicense, GENERATED_IMAGE_LICENSE, licenseBlockAfterVoiceMessage } from "@/lib/video/director/beat-license";
@@ -81,8 +82,20 @@ export async function generateVideoFromScript({
   directorMaterialBudgetUsd,
   directorAdapter,
   recraft,
+  flux,
 }: {
   supabase: SupabaseClient;
+  /**
+   * «Imágenes IA con FLUX» chosen by the creator for THIS Reel (video_requests.reel_image_source='flux'): one FLUX.1
+   * [dev] image per scene (720×1280) through the same paid-call gate; a failure stops the render (no stock, no fixture,
+   * no other provider). Absent = the existing behaviour, unchanged.
+   */
+  flux?: {
+    /** Test seam only. */
+    provider?: import("@/lib/providers/image").ImageProvider;
+    /** Test seam only: pixel statistics for the automatic image check. */
+    imageStats?: (buffer: Buffer) => Promise<{ stdev: number[] } | null>;
+  };
   /**
    * «Imágenes IA con Recraft» chosen by the creator for THIS Reel (video_requests.reel_image_source='recraft').
    * Every scene gets one Recraft image in the video's own style; a failure stops the render clearly (no stock, no
@@ -136,6 +149,9 @@ export async function generateVideoFromScript({
   const imageProvider = getFeatureFlags().imageGenerationEnabled ? getImageProvider() : undefined;
   // Resolved up front: a Recraft Reel without FAL_KEY fails BEFORE any voice is paid.
   const recraftProvider = recraft ? (recraft.provider ?? getRecraftImageProvider()) : undefined;
+  if (recraft && flux) throw new Error("Este Reel tiene dos fuentes de imágenes elegidas (Recraft y FLUX). No se ha cobrado nada.");
+  // Same rule for FLUX: without FAL_KEY the Reel fails BEFORE any voice is paid.
+  const fluxProvider = flux ? (flux.provider ?? getFluxImageProvider()) : undefined;
   let recraftStyle: ImageGenerationRequest["style"] | undefined = recraft
     ? (recraft.styleId ? { styleId: recraft.styleId, ...(recraft.match ? { match: recraft.match } : {}) }
       : { referenceImageUrls: recraft.referenceImageUrls, ...(recraft.match ? { match: recraft.match } : {}) })
@@ -316,6 +332,28 @@ export async function generateVideoFromScript({
         console.log("[atomivid:director]", JSON.stringify({ requestId, sceneIndex: i, card: k, dataCard: neutral ? "(tarjeta neutral, sin cifra)" : w.card.figures.map((f) => f.display).join(" · ") || "(sin cifra)",
           treatment: w.treatment, neutralReason: w.neutralReason ?? null, ambiguousBetween: w.ambiguousBetween ?? null, timing: w.timing, start: w.start, end: w.end, shortWindow: w.end - w.start < MIN_CARD_SECONDS }));
       }
+      continue;
+    }
+    if (flux && fluxProvider) {
+      // One FLUX image per scene, held for the whole scene. Estimate BEFORE submit = what the ledger reserves and the
+      // Reel total cap admits; the fal request_id is recorded before polling (visual-resource-resolver.ts).
+      const prompt = recraftScenePrompt(segment, storyboard?.scenes[i]?.imagePrompt, null);
+      imagesRequestedCount += 1;
+      const generated = await resolveFluxReelScene({
+        ledger: gate.ledger, supabase, bucket: STORAGE_BUCKET, requestId, sceneIndex: i,
+        scene: { imagePrompt: prompt, negativePrompt: storyboard?.scenes[i]?.negativePrompt ?? "text, watermark, logo" } as StoryboardScene,
+        imageProvider: fluxProvider, remainingBudgetUsd: fluxEstimatedCostUsd({ aspectRatio: "9:16" }), signedUrlTtlSeconds: ASSET_SIGNED_URL_TTL_SECONDS,
+        qc: (asset) => checkGeneratedImage(asset, "9:16", flux.imageStats ? { stats: flux.imageStats } : {}),
+      });
+      storageBytes += generated.bufferBytes;
+      visualCostSpentUsd += generated.costUsd;
+      usedGeneratedImageProvider = generated.provider;
+      usedGeneratedImageModel = generated.model ?? usedGeneratedImageModel;
+      if (generated.width && generated.height) usedGeneratedImageSize = `${generated.width}x${generated.height}`;
+      if (generated.status === "generated") imagesGeneratedCount += 1; else imagesReusedCount += 1;
+      scenes.push({ mediaUrl: generated.url, mediaType: "image", startSeconds: timing.start, endSeconds: timing.end });
+      directorBeats[i].push({ url: generated.url, mediaType: "image", source: "generated", license: GENERATED_IMAGE_LICENSE, start: timing.start, end: timing.end });
+      console.log("[atomivid:visual]", JSON.stringify({ requestId, sceneIndex: i, status: generated.status, provider: "flux", costUsd: generated.costUsd, falRequestId: generated.providerJobId ?? null }));
       continue;
     }
     if (recraft && recraftProvider && recraftStyle) {

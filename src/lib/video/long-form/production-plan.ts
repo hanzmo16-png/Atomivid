@@ -36,6 +36,7 @@ import { ESTIMATED_COST_USD as OPENAI_IMAGE_ESTIMATED_COST_USD } from "@/lib/pro
 import { VEO_DURATION_SECONDS_1080P, getVeoCostUsdPerSecond } from "@/lib/providers/video-gen/veo";
 import { RUNWAY_COST_USD_PER_SECOND } from "@/lib/providers/video-gen/runway";
 import { RECRAFT_USD_PER_IMAGE, RECRAFT_USD_STYLE_CREATION } from "@/lib/providers/image/recraft";
+import { fluxEstimatedCostUsd } from "@/lib/providers/image/flux";
 import { allocateWithImagePriority, recraftImageBudget, RECRAFT_PRIORITY_VERSION, type ImagePriorityPlan } from "./image-priority";
 import type { BeatType, Shot, ShotType } from "./types";
 import { PLAN_ESTIMATE_AVAILABILITY, declaresImpact, resolveSequences, validateImpactIntents, validateSequenceIntents, type SequenceIntent } from "./sequence-intent";
@@ -104,13 +105,16 @@ export type GenerativeUnitCosts = {
   veoBilledSeconds: number;
 };
 
-/** Image providers a Long Form plan may pin. "recraft" only when the creator chose it for this video. */
-export const LONG_FORM_IMAGE_PROVIDERS = ["openai", "recraft"] as const;
+/** Image providers a Long Form plan may pin. "recraft" / "flux" only when the creator chose it for this video. */
+export const LONG_FORM_IMAGE_PROVIDERS = ["openai", "recraft", "flux"] as const;
 
 /** Estimated price of ONE AI image of the plan's image provider. Recraft is priced as if every image also created
  * the style (USD 0.035 + 0.005): only the first one does, so the estimate is a ceiling, never below the bill. */
 export function imageUnitUsd(imageProvider = "openai"): number {
-  return imageProvider === "recraft" ? round4(RECRAFT_USD_PER_IMAGE + RECRAFT_USD_STYLE_CREATION) : OPENAI_IMAGE_ESTIMATED_COST_USD;
+  if (imageProvider === "recraft") return round4(RECRAFT_USD_PER_IMAGE + RECRAFT_USD_STYLE_CREATION);
+  // FLUX.1 [dev] 1280×720 = 0.92 MP, billed as 1 MP at the published USD 0.025/MP (providers/image/flux.ts).
+  if (imageProvider === "flux") return fluxEstimatedCostUsd({ aspectRatio: "16:9" });
+  return OPENAI_IMAGE_ESTIMATED_COST_USD;
 }
 
 export function getGenerativeUnitCosts(provider = "veo", imageProvider = "openai"): GenerativeUnitCosts {

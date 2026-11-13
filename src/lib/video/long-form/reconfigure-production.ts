@@ -128,8 +128,8 @@ export async function reopenLongFormAfterMaterialGap(
   if (data.status !== "failed" || !data.long_form_confirmed_at || !isMaterialUnavailableFailure(data.error_message)) {
     return { ok: false, status: 409, error: NOT_ELIGIBLE };
   }
-  if (data.reel_image_source === "recraft") {
-    return { ok: false, status: 409, error: "Este documental tiene fijadas las imágenes de Recraft; no puede volver a configurarse desde aquí. Contacta al soporte. No se cambió nada." };
+  if (data.reel_image_source === "recraft" || data.reel_image_source === "flux") {
+    return { ok: false, status: 409, error: `Este documental tiene fijadas las imágenes de ${data.reel_image_source === "flux" ? "FLUX" : "Recraft"}; no puede volver a configurarse desde aquí. Contacta al soporte. No se cambió nada.` };
   }
 
   // Zero production spend, proven from the ledger and the durable production state (never assumed from the message).

@@ -34,7 +34,7 @@ export async function monitorSupply(service: SupabaseClient, opts: {
   return { states, pendingAlerts: pending?.length ?? 0 };
 }
 
-export const REFRESHABLE_PROVIDERS = ["elevenlabs", "runway", "heygen", "recraft"] as const;
+export const REFRESHABLE_PROVIDERS = ["elevenlabs", "runway", "heygen", "recraft", "flux"] as const;
 export type RefreshableProvider = (typeof REFRESHABLE_PROVIDERS)[number];
 
 /** One official balance observation (billing GET only, never generation) persisted
@@ -56,9 +56,10 @@ export async function refreshProviderSnapshot(service: SupabaseClient, provider:
     const snapshot = await runwayApiSnapshot(fetchImpl, env, checkedAt);
     row = { provider: snapshot.provider, unit: snapshot.unit, available: snapshot.available, reserved: 0, pending: 0, renewal_date: null,
       health: snapshot.health, reliability: snapshot.reliability, status: assessCapacity(snapshot).status, checked_at: checkedAt };
-  } else if (provider === "recraft") {
+  } else if (provider === "recraft" || provider === "flux") {
+    // Same fal.ai account and billing reader for both; each policy keeps its own snapshot rows and caps.
     if (!falBillingKey(env)) return false;
-    const snapshot = await falApiSnapshot(fetchImpl, env, checkedAt);
+    const snapshot = await falApiSnapshot(fetchImpl, env, checkedAt, provider);
     row = { provider: snapshot.provider, unit: snapshot.unit, available: snapshot.available, reserved: 0, pending: 0, renewal_date: null,
       health: snapshot.health, reliability: snapshot.reliability, status: assessCapacity(snapshot).status, checked_at: checkedAt };
   } else {

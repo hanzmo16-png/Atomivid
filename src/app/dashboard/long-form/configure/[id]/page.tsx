@@ -15,6 +15,7 @@ import { PRODUCT_DEFAULT_PLAN_VERSION, usesAnchoredVisuals } from "@/lib/video/l
 import { configurePlansWithMaterial, createMaterialSearchCache, materialCheckProviderWithDeadline, type MaterialPlanCheck } from "@/lib/video/long-form/material-plan";
 import { cinematicV6Enabled } from "@/lib/video/long-form/cinematic-v6-access";
 import { recraftAllowedFor } from "@/lib/video/recraft-access";
+import { fluxAllowedFor } from "@/lib/video/flux-images";
 import { createServiceClient } from "@/lib/supabase/service";
 import { canCurateAssets } from "@/lib/video/long-form/asset-curation";
 import type { ProductionPlanBeatInput } from "@/lib/video/long-form/production-plan";
@@ -61,9 +62,11 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
   const searchCache = createMaterialSearchCache();
   const planInput = { script, topic: data.topic, durationSeconds: data.duration_seconds, cinematicV6, footageProvider, searchCache };
   const recraftAllowed = recraftAllowedFor(user);
-  const [withMaterial, recraftWithMaterial] = await Promise.all([
+  const fluxAllowed = fluxAllowedFor(user);
+  const [withMaterial, recraftWithMaterial, fluxWithMaterial] = await Promise.all([
     configurePlansWithMaterial(planInput),
     recraftAllowed ? configurePlansWithMaterial({ ...planInput, imageProvider: "recraft" }) : Promise.resolve(undefined),
+    fluxAllowed ? configurePlansWithMaterial({ ...planInput, imageProvider: "flux" }) : Promise.resolve(undefined),
   ]);
   const results = withMaterial.results;
   const plans = Object.fromEntries(VISUAL_STRATEGIES.map((s) => [s, results[s].plan])) as Record<VisualStrategy, ProductionPlan>;
@@ -73,6 +76,9 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
   // «Imágenes IA con Recraft» (pilot account or general release): the same plans priced/pinned for Recraft, and their
   // own pre-flight (Recraft supply) — shown only when the creator picks it; confirm-production recomputes server-side.
   const recraftPlans = recraftWithMaterial ? Object.fromEntries(Object.entries(recraftWithMaterial.results)
+    .map(([s, r]) => [s, r.plan])) as Record<VisualStrategy, ProductionPlan> : undefined;
+  // «Imágenes IA con FLUX» (second selectable provider): same plans priced/pinned for FLUX, with their own pre-flight.
+  const fluxPlans = fluxWithMaterial ? Object.fromEntries(Object.entries(fluxWithMaterial.results)
     .map(([s, r]) => [s, r.plan])) as Record<VisualStrategy, ProductionPlan> : undefined;
   let scriptSpent: number | { error: string };
   try {
@@ -85,8 +91,9 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
     return Object.fromEntries(await Promise.all(VISUAL_STRATEGIES.map(async (strategy) =>
       [strategy, await strategyPreflight(service, { strategy, plan: set[strategy], scriptJson: script, workerBudget: budgets[strategy], material: material[strategy] })]))) as Record<VisualStrategy, StrategyPreflight>;
   };
-  const [preflight, recraftPreflight] = await Promise.all([check(plans, withMaterial.material),
-    recraftPlans && recraftWithMaterial ? check(recraftPlans, recraftWithMaterial.material) : Promise.resolve(undefined)]);
+  const [preflight, recraftPreflight, fluxPreflight] = await Promise.all([check(plans, withMaterial.material),
+    recraftPlans && recraftWithMaterial ? check(recraftPlans, recraftWithMaterial.material) : Promise.resolve(undefined),
+    fluxPlans && fluxWithMaterial ? check(fluxPlans, fluxWithMaterial.material) : Promise.resolve(undefined)]);
   const visual = await visualCheck(service, { requestId: id, plan: plans.balanced, beats: beats as ProductionPlanBeatInput[], topic: script.topic || data.topic })
     .catch((): VisualCheck => ({ applies: true, ready: false, codes: ["VISUAL_CHECK_UNAVAILABLE"], missingHeroIdentities: 0, missingHeroEvidence: 0, textCardRatio: null, maxTextCardRatio: 0.25, verifiedAssets: 0 }));
   const summary = {
@@ -169,6 +176,8 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
         preflight={preflight}
         recraftPlans={recraftPlans}
         recraftPreflight={recraftPreflight}
+        fluxPlans={fluxPlans}
+        fluxPreflight={fluxPreflight}
         visual={visual}
         summary={summary}
         visualBlockText={visual.ready ? null : visualBlockMessage(visual)}

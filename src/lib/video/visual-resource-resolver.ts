@@ -301,6 +301,26 @@ export async function resolveRecraftReelScene(
   return { generated, nextStyle: style };
 }
 
+/**
+ * One FLUX scene of a Reel (the second selectable provider, no per-video style): same gate as Recraft — reuse a stored
+ * image, resume a recorded fal request_id, or pay once — and ONE regeneration under its own key when the automatic
+ * check rejects the frame. A second rejection stops the Reel; never stock, fixture or another provider.
+ */
+export async function resolveFluxReelScene(
+  args: Omit<Parameters<typeof resolveGeneratedImageForScene>[0], "style" | "objectKey" | "onMissingStyleId">,
+): Promise<GeneratedImageOutcome> {
+  const key = `scene-${args.sceneIndex}-flux`;
+  const regenKey = `${key}-r1`;
+  const rejectedKeys = await rejectedQcKeys(args.supabase, args.bucket, args.artifactPrefix ?? args.requestId, key);
+  if (rejectedKeys.has(regenKey)) throw new GeneratedImageRejectedError(args.sceneIndex, { passed: false, checks: [] });
+  try {
+    return await resolveGeneratedImageForScene({ ...args, objectKey: rejectedKeys.has(key) ? regenKey : key });
+  } catch (err) {
+    if (!(err instanceof GeneratedImageRejectedError) || rejectedKeys.has(key)) throw err;
+    return resolveGeneratedImageForScene({ ...args, objectKey: regenKey });
+  }
+}
+
 export const QC_REJECTED_DIR = "qc-rejected";
 /** Keys of this scene already rejected by the automatic check (objects under `${prefix}/qc-rejected/`). Fail-closed. */
 async function rejectedQcKeys(supabase: SupabaseClient, bucket: string, artifactPrefix: string, key: string): Promise<Set<string>> {

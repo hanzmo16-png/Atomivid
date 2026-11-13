@@ -104,19 +104,30 @@ export function createImageStyleContext(choice: { styleId: string | null; refere
   };
 }
 
+/**
+ * The creator chose a provider WITHOUT a per-video style (FLUX): same strict contract (no fallback, request id resumed,
+ * zero-charge refusals retried on a later attempt), with no style to create, adopt or lose.
+ */
+export function createFixedProviderContext(): ImageStyleContext {
+  return { current: () => ({}), styleNote: null, async adopt() { /* no style */ }, async missing() { /* no style */ } };
+}
+
+/** Customer-facing name of a chosen image provider. */
+export const chosenProviderLabel = (name: string) => (name === "flux" ? "FLUX" : "Recraft");
+
 /** Customer-safe stop of a production whose chosen image provider could not deliver an image. */
 export class ChosenImageProviderError extends Error {
   readonly customerMessage: string;
   constructor(readonly shotId: string, readonly reason: string, readonly paidUncertain: boolean, readonly resumable = false,
     /** false when retrying cannot clear the cause (e.g. the confirmed image budget is used up): support reviews it. */
-    readonly retryable = true) {
+    readonly retryable = true, readonly providerLabel = "Recraft") {
     const customer = !retryable
       ? `La producción se detuvo: ${reason}. Reintentar no lo resuelve; tus avances y lo ya pagado se conservan y soporte revisa el caso. No se sustituyó ninguna imagen.`
       : resumable
-      ? `Recraft no terminó a tiempo una imagen (${reason}). Se detuvo la producción; al reintentar se recupera la misma imagen sin reenviarla ni volver a cobrarla. Tus avances se conservan.`
+      ? `${providerLabel} no terminó a tiempo una imagen (${reason}). Se detuvo la producción; al reintentar se recupera la misma imagen sin reenviarla ni volver a cobrarla. Tus avances se conservan.`
       : paidUncertain
-        ? `No se pudo confirmar una imagen de Recraft (${reason}). Se detuvo la producción sin reenviar ni volver a cobrar esa imagen; tus avances se conservan y el cobro se revisa antes de continuar.`
-        : `No se pudo generar una imagen de Recraft (${reason}). Se detuvo la producción sin sustituir imágenes; tus avances se conservan y puedes reintentar cuando se resuelva.`;
+        ? `No se pudo confirmar una imagen de ${providerLabel} (${reason}). Se detuvo la producción sin reenviar ni volver a cobrar esa imagen; tus avances se conservan y el cobro se revisa antes de continuar.`
+        : `No se pudo generar una imagen de ${providerLabel} (${reason}). Se detuvo la producción sin sustituir imágenes; tus avances se conservan y puedes reintentar cuando se resuelva.`;
     super(customer);
     this.name = "ChosenImageProviderError";
     this.customerMessage = customer;
@@ -138,7 +149,7 @@ export type ShotExecutionDeps = {
   topic: string;
   footageProvider: FootageProvider;
   imageProvider: ImageProvider;
-  /** Present when the creator chose the image provider for this video (Recraft): strict, styled AI images. */
+  /** Present when the creator chose the image provider for this video (Recraft: styled; FLUX: createFixedProviderContext): strict AI images. */
   imageStyle?: ImageStyleContext;
   /** Test seam: pixel statistics for the automatic image check (default: sharp). */
   imageStats?: (buffer: Buffer) => Promise<{ stdev: number[] } | null>;
@@ -430,7 +441,7 @@ async function resolveAiImage(shot: AllocatedShot, deps: ShotExecutionDeps): Pro
   if (deps.replayOnly) return { unavailable: "recuperación: sin imagen IA durable (no se genera)" };
   const strict = deps.imageStyle;
   const stop = (reason: string, paidUncertain = false, resumable = false): never => {
-    throw new ChosenImageProviderError(shot.id, reason, paidUncertain, resumable);
+    throw new ChosenImageProviderError(shot.id, reason, paidUncertain, resumable, true, chosenProviderLabel(deps.imageProvider.name));
   };
   const existing = await deps.store.read(shot.id, "ai_image");
   // Chosen provider: an earlier STARTED is handed to the ledger, which resumes a recorded request id or refuses

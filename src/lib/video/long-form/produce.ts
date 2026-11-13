@@ -42,7 +42,7 @@ import { getVideoProvider } from "@/lib/providers/video-gen";
 import { getVoiceIdentity } from "@/lib/ai/voice";
 import type { MusicResult, ScriptLanguage, VideoProvider } from "@/lib/providers/types";
 import { resolveLongFormProviders, type LongFormProviderSet } from "./mode";
-import { getRecraftImageProvider } from "@/lib/providers/image";
+import { getRecraftImageProvider, getFluxImageProvider } from "@/lib/providers/image";
 import { allocateWithImagePriority, RECRAFT_PRIORITY_VERSION } from "./image-priority";
 import type { BeatType } from "./types";
 import { getVoiceProvider } from "@/lib/providers/voice";
@@ -94,7 +94,7 @@ import { getPricingConfig } from "@/lib/billing/pricing";
 import { getLongFormBudget, LONG_FORM_RENDER_JOB_TIMEOUT_MIN, longFormRenderCeilingUsd } from "./cost";
 import { conservativeUnits, conservativeWorstCaseUsd, loadObservedMax, productionHardCap, type ObservedMax } from "./spend-cap";
 import { supabaseShotAssetStore, type ShotAssetStore } from "./durable-shot-assets";
-import { createImageStyleContext, executeShot, type ImageStyleContext, type ShotExecution } from "./shot-executor";
+import { createFixedProviderContext, createImageStyleContext, executeShot, type ImageStyleContext, type ShotExecution } from "./shot-executor";
 import { type LongFormStage } from "./stages";
 import {
   finalizeLongFormOutput,
@@ -199,6 +199,11 @@ export type LongFormRuntime = {
   recraftStyle?: { styleId: string | null; referenceImageUrls: string[]; match: "precise" | "flexible" | null; styleNote: string | null;
     onStyleId: (styleId: string) => Promise<void>; onMissingStyleId?: "stop" | "same_references"; styleMissing?: boolean;
     onStyleMissing?: (providerJobId: string | undefined) => Promise<void> };
+  /**
+   * «Imágenes IA con FLUX» chosen for THIS documentary (reel_image_source = 'flux', revalidated by run-job.ts). Required
+   * exactly when the confirmed plan pins image provider "flux"; AI images then use FLUX strictly (no fallback).
+   */
+  fluxImages?: boolean;
 };
 
 export class LongFormReplayError extends Error {
@@ -334,14 +339,22 @@ export async function generateLongFormVideoFromScript({
   if (!replayOnly && chosenRecraft !== Boolean(runtime.recraftStyle)) {
     throw new Error("La elección de imágenes de este documental no coincide con su plan confirmado. No se ha iniciado la generación.");
   }
-  const baseProviders = withChosenVoice(providers ?? resolveLongFormProviders("real"), runtime.voiceId, Boolean(providers));
-  // The plan pins Recraft: the per-video provider replaces the environment's image provider (FAL_KEY checked here,
-  // before narration or any reservation). Injected test providers must already be "recraft".
-  const resolvedProviders: LongFormProviderSet = chosenRecraft && !providers && !replayOnly ? { ...baseProviders, imageProvider: getRecraftImageProvider() } : baseProviders;
-  if (chosenRecraft && !replayOnly && resolvedProviders.imageProvider.name !== "recraft") {
-    throw new Error("El plan confirmado usa imágenes de Recraft, pero el proveedor de imágenes resuelto es otro. No se ha iniciado la generación.");
+  const chosenFlux = plan.providers.image === "flux";
+  if (!replayOnly && chosenFlux !== Boolean(runtime.fluxImages)) {
+    throw new Error("La elección de imágenes de este documental no coincide con su plan confirmado. No se ha iniciado la generación.");
   }
-  const imageStyle: ImageStyleContext | undefined = runtime.recraftStyle && !replayOnly ? createImageStyleContext(runtime.recraftStyle) : undefined;
+  const baseProviders = withChosenVoice(providers ?? resolveLongFormProviders("real"), runtime.voiceId, Boolean(providers));
+  // The plan pins Recraft or FLUX: the per-video provider replaces the environment's image provider (FAL_KEY checked
+  // here, before narration or any reservation). Injected test providers must already carry that name.
+  const chosenImage = chosenRecraft ? "recraft" : chosenFlux ? "flux" : null;
+  const resolvedProviders: LongFormProviderSet = chosenImage && !providers && !replayOnly
+    ? { ...baseProviders, imageProvider: chosenImage === "recraft" ? getRecraftImageProvider() : getFluxImageProvider() } : baseProviders;
+  if (chosenImage && !replayOnly && resolvedProviders.imageProvider.name !== chosenImage) {
+    throw new Error(`El plan confirmado usa imágenes de ${chosenImage === "flux" ? "FLUX" : "Recraft"}, pero el proveedor de imágenes resuelto es otro. No se ha iniciado la generación.`);
+  }
+  const imageStyle: ImageStyleContext | undefined = replayOnly ? undefined
+    : runtime.recraftStyle ? createImageStyleContext(runtime.recraftStyle)
+    : chosenFlux ? createFixedProviderContext() : undefined;
   const requireReal = !providers;
   const store = runtime.store ?? supabaseShotAssetStore(supabase, requestId, STORAGE_BUCKET);
   const allocation = executionAllocation(plan);
