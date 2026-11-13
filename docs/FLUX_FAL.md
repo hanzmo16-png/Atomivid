@@ -77,7 +77,7 @@ proveedor, y ningún otro proveedor lo sustituye a él.
 - **Evidencia:** el informe JSON y la imagen se suben como artefacto del workflow.
 - **No escribe** en Supabase ni en el ledger de producción.
 - **Disparadores:**
-  - `push` a la rama FLUX: preflight. Solo genera cuando ese mismo push añade o cambia
+  - `push` a `claude/flux-fal-images`: preflight. Solo genera cuando ese mismo push añade o cambia
     `ops/flux-real-test/authorization.json`.
   - `workflow_dispatch`: disponible una vez fusionado.
 

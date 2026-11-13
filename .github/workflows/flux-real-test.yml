@@ -12,7 +12,7 @@ name: FLUX real test (preflight USD 0; one image only with explicit authorizatio
 # Evidence (report JSON + image) is uploaded as a workflow artifact. Nothing is written to Supabase or the ledger.
 on:
   push:
-    branches: [claude/hola-sn3dxy]
+    branches: [claude/flux-fal-images]
     paths:
       - ops/flux-real-test/**
       - .github/workflows/flux-real-test.yml
