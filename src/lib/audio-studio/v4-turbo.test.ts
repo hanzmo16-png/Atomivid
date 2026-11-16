@@ -21,15 +21,16 @@ let n = 500;
 const ids = () => `cccccccc-cccc-4ccc-8ccc-${String(++n).padStart(12, "0")}`;
 const MUSIC = path.join(tmpdir(), "audio-studio-test-music");
 
-test("catálogo: Multilingual v2 por defecto y respaldo; v4 Turbo seleccionable, sin verificar y con solo stability/similarity", () => {
+test("catálogo: v4 Turbo preferido (por defecto en proyectos nuevos); Multilingual v2 respaldo explícito; proyectos guardados sin modelo siguen en v2", () => {
   assert.deepEqual(TTS_MODELS.map((m) => m.id), ["eleven_multilingual_v2", "eleven_v4_turbo"]);
   const p = newProject({ id: ids(), ownerId: A, now: NOW });
-  assert.equal(p.ttsModel, "eleven_multilingual_v2");
+  assert.equal(p.ttsModel, "eleven_v4_turbo");
+  assert.match(ttsModel("eleven_v4_turbo")!.label, /recomendado/);
   assert.equal(ttsModel("eleven_multilingual_v2")!.fallback, true);
   assert.equal(ttsModel("eleven_v4_turbo")!.verified, false);
   assert.deepEqual(Object.keys(settingsFor("eleven_v4_turbo")).sort(), ["similarity_boost", "stability"]);
   assert.deepEqual(Object.keys(settingsFor("eleven_multilingual_v2")).sort(), ["similarity_boost", "stability", "style", "use_speaker_boost"]);
-  assert.equal(applyInput(p, { ttsModel: "eleven_v4_turbo" }, NOW).ttsModel, "eleven_v4_turbo");
+  assert.equal(applyInput(p, { ttsModel: "eleven_multilingual_v2" }, NOW).ttsModel, "eleven_multilingual_v2");
   assert.throws(() => applyInput(p, { ttsModel: "eleven_v9" as TtsModelId }, NOW));
 });
 
@@ -155,7 +156,7 @@ test("fallo con v4 Turbo: no cambia de modelo solo; el respaldo es explícito y 
   assert.equal((await switchToFallbackModel({ store, env: {} }, A, id, p.revision)).status, 409, "ya está en el respaldo");
 });
 
-test("autorización ligada al modelo: autorizar con v2 y cambiar a Turbo exige autorizar de nuevo; el render rechaza un modelo distinto sin llamar", async () => {
+test("autorización ligada al modelo: autorizar con un modelo y cambiar al otro exige autorizar de nuevo; el render rechaza un modelo distinto sin llamar", async () => {
   const store = memoryStore();
   const id = ids(), now = new Date().toISOString();
   const p = applyInput(newProject({ id, ownerId: A, now, title: "Aut" }), { targetMinutes: 5, script: "palabra ".repeat(760), budgetUsd: 5 }, now);
@@ -164,7 +165,7 @@ test("autorización ligada al modelo: autorizar con v2 y cambiar a Turbo exige a
   const v = view(p, {});
   const ok = await requestGeneration({ store, env: {}, voice }, A, id, { revision: p.revision, confirmUsd: v.estimate.estimatedUsd });
   assert.equal(ok.status, 202);
-  assert.equal((ok.body as AudioProject).generation.authorization!.model, "eleven_multilingual_v2");
+  assert.equal((ok.body as AudioProject).generation.authorization!.model, "eleven_v4_turbo", "la autorización guarda el modelo preferido elegido");
   const { store: s2, id: id2 } = await seeded("eleven_v4_turbo");
   const calls: { model: TtsModelId; voiceId: string; text: string }[] = [];
   await queue(s2, id2, "eleven_multilingual_v2");
@@ -252,7 +253,7 @@ test("worker de producción, payload adversarial (USD 0): ajeno, manipulado, dup
   const variant = async (mut: (x: AudioProject) => AudioProject) => { const s = memoryStore(); await s.create(mut(structuredClone(base))); return workerPreflight(s, A, id); };
   assert.equal(await variant((x) => ({ ...x, generation: { ...x.generation, authorization: null } })), "sin autorización de gasto guardada");
   assert.equal(await variant((x) => ({ ...x, revision: x.revision + 1 })), "la autorización es de otra revisión del guion");
-  assert.equal(await variant((x) => ({ ...x, ttsModel: "eleven_v4_turbo" })), "la autorización es para otro modelo de voz");
+  assert.equal(await variant((x) => ({ ...x, ttsModel: x.ttsModel === "eleven_v4_turbo" ? "eleven_multilingual_v2" : "eleven_v4_turbo" })), "la autorización es para otro modelo de voz");
   assert.equal(await variant((x) => ({ ...x, generation: { ...x.generation, authorization: { ...x.generation.authorization!, usd: 999 } } })), "monto autorizado inválido o mayor que el tope del episodio");
   assert.equal(await variant((x) => ({ ...x, generation: { ...x.generation, authorization: { ...x.generation.authorization!, usd: 0 } } })), "monto autorizado inválido o mayor que el tope del episodio");
   // La verificación previa no escribe nada.
@@ -287,7 +288,7 @@ test("estado de voz en la vista: sin proveedor → no disponible con el motivo; 
   const { voiceStatus } = await import("./service");
   assert.deepEqual(voiceStatus(undefined).available, false);
   assert.match(voiceStatus({ ok: false, reason: "motivo" }).message!, /motivo/);
-  assert.deepEqual({ ...voiceStatus({ ok: true, voice: fixtureVoice() }), message: undefined }, { available: true, local: true, message: undefined });
+  assert.deepEqual({ ...voiceStatus({ ok: true, voice: fixtureVoice() }), message: undefined }, { available: true, local: true, message: undefined, realPresets: null });
   const store = memoryStore(); const id = ids(), now = new Date().toISOString();
   await store.create(newProject({ id, ownerId: A, now, title: "Estado" }));
   const { getProject } = await import("./service");

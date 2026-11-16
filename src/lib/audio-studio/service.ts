@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
-  applyInput, estimate, FALLBACK_TTS_MODEL, TTS_MODELS, generationActive, isUuid, modelRate, musicPlan, newProject, readinessIssues, ttsModel, ValidationError,
+  applyInput, estimate, isLanguage, voicePreset, FALLBACK_TTS_MODEL, TTS_MODELS, generationActive, isUuid, modelRate, musicPlan, newProject, readinessIssues, ttsModel, ValidationError,
   type AudioProject, type Estimate, type ModelRate, type MusicSection, type ProjectInput,
 } from "./model";
 import { PAID_BLOCKED, type VoiceAvailability } from "./voice";
@@ -9,19 +9,26 @@ import { SEED_EPISODE } from "./seed";
 
 export type Result<T> = { ok: true; status: number; body: T } | { ok: false; status: number; body: { error: string; field?: string; current?: ProjectView } };
 /** Estado de la voz para la interfaz: si no hay proveedor habilitado, el editor no ofrece «Generar» ni promete voz. */
-export type VoiceStatus = { available: boolean; local: boolean; message: string | null };
+export type VoiceStatus = { available: boolean; local: boolean; message: string | null; realPresets: string[] | null };
 export function voiceStatus(v: VoiceAvailability | undefined): VoiceStatus {
-  if (!v || !v.ok) return { available: false, local: false, message: v && !v.ok ? v.reason : PAID_BLOCKED };
+  if (!v || !v.ok) return { available: false, local: false, message: v && !v.ok ? v.reason : PAID_BLOCKED, realPresets: null };
   return v.voice.mode === "fixture"
-    ? { available: true, local: true, message: "Voz de prueba local (sintética, no es la voz final): solo para probar el estudio, sin costo." }
-    : { available: true, local: false, message: null };
+    ? { available: true, local: true, message: "Voz de prueba local (sintética, no es la voz final): solo para probar el estudio, sin costo.", realPresets: null }
+    : { available: true, local: false, message: null, realPresets: [...(v.voice.realPresets ?? [])] };
+}
+/** Con voz real, cada perfil elegido debe tener voz asignada en el mapa validado; si no, no se puede generar con él. */
+function voiceIssues(p: AudioProject, vs: VoiceStatus): string[] {
+  if (!vs.available || vs.local || !vs.realPresets) return [];
+  return p.voices.slice(0, p.voiceCount).filter((id) => !vs.realPresets!.includes(id))
+    .map((id) => `La voz «${voicePreset(id)?.label ?? id}» aún no tiene una voz real validada (en preparación). Elige otra para generar.`);
 }
 export type ProjectView = AudioProject & { estimate: Estimate; musicPlan: MusicSection[]; readiness: string[]; rate: ModelRate; rates: ModelRate[]; voiceStatus: VoiceStatus };
 
 export function view(p: AudioProject, env: Record<string, string | undefined> = process.env, voice?: VoiceAvailability): ProjectView {
   const rate = modelRate(p.ttsModel, env);
   const e = estimate(p, rate.rate);
-  return { ...p, estimate: e, musicPlan: musicPlan(p.script, p.music), readiness: readinessIssues(p, e), rate, rates: TTS_MODELS.map((m) => modelRate(m.id, env)), voiceStatus: voiceStatus(voice) };
+  const vs = voiceStatus(voice);
+  return { ...p, estimate: e, musicPlan: musicPlan(p.script, p.music), readiness: [...readinessIssues(p, e), ...voiceIssues(p, vs)], rate, rates: TTS_MODELS.map((m) => modelRate(m.id, env)), voiceStatus: vs };
 }
 
 const fail = (status: number, error: string, extra: { field?: string; current?: ProjectView } = {}) => ({ ok: false as const, status, body: { error, ...extra } });
@@ -48,10 +55,12 @@ export const getProject = (d: Deps, ownerId: string, id: string) => guard(async 
 });
 
 export const createProject = (d: Deps, ownerId: string, input: unknown) => guard(async () => {
-  const i = (input && typeof input === "object" ? input : {}) as { title?: unknown; voiceCount?: unknown };
+  const i = (input && typeof input === "object" ? input : {}) as { title?: unknown; voiceCount?: unknown; language?: unknown };
   const voiceCount = i.voiceCount === 2 ? 2 : 1;
+  if (i.language !== undefined && !isLanguage(i.language)) return fail(400, "Idioma no admitido: elige español o inglés.", { field: "language" });
+  const language = isLanguage(i.language) ? i.language : "es";
   const title = typeof i.title === "string" && i.title.trim() ? i.title : "Episodio sin título";
-  const p = newProject({ id: (d.newId ?? randomUUID)(), ownerId, now: nowOf(d), title, voiceCount });
+  const p = newProject({ id: (d.newId ?? randomUUID)(), ownerId, now: nowOf(d), title, voiceCount, language });
   if (!(await d.store.create(p))) return fail(409, "El proyecto ya existe.");
   return { ok: true, status: 201, body: view(p, d.env, d.voice) };
 });
@@ -65,8 +74,8 @@ export const saveProject = (d: Deps, ownerId: string, id: string, body: unknown)
   if (cur.archivedAt) return fail(409, "El proyecto está archivado. Restáuralo para editarlo.", { current: view(cur, d.env, d.voice) });
   if (generationActive(cur.generation, Date.parse(nowOf(d)))) return fail(409, "Se está generando el audio: espera a que termine para editar.", { current: view(cur, d.env, d.voice) });
   if (b.revision !== cur.revision) return fail(409, "El proyecto cambió en otra pestaña o dispositivo. Recarga para ver la última versión.", { current: view(cur, d.env, d.voice) });
-  const { title, voiceCount, voices, targetMinutes, script, notes, music, budgetUsd, ttsModel: model } = b;
-  const next = applyInput(cur, { title, voiceCount, voices, targetMinutes, script, notes, music, budgetUsd, ttsModel: model }, nowOf(d));
+  const { title, language, voiceCount, voices, targetMinutes, script, notes, music, budgetUsd, ttsModel: model } = b;
+  const next = applyInput(cur, { title, language, voiceCount, voices, targetMinutes, script, notes, music, budgetUsd, ttsModel: model }, nowOf(d));
   await d.store.put(next);
   return { ok: true, status: 200, body: view(next, d.env, d.voice) };
 });

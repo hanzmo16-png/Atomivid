@@ -4,12 +4,13 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { INPUT_CLASS } from "@/components/ui/Field";
-import { MAX_TITLE } from "@/lib/audio-studio/model";
+import { LANGUAGES, MAX_TITLE, type Language } from "@/lib/audio-studio/model";
 
 export function NewAudioEpisode() {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [voiceCount, setVoiceCount] = useState<1 | 2>(1);
+  const [language, setLanguage] = useState<Language>("es");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,7 +18,7 @@ export function NewAudioEpisode() {
     e.preventDefault();
     setBusy(true); setError(null);
     try {
-      const res = await fetch("/api/audio-studio/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, voiceCount }) });
+      const res = await fetch("/api/audio-studio/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, voiceCount, language }) });
       const body = await res.json().catch(() => null);
       if (!res.ok || !body?.id) throw new Error(body?.error ?? "No se pudo crear el episodio.");
       router.push(`/dashboard/audio-studio/${body.id}`);
@@ -42,6 +43,10 @@ export function NewAudioEpisode() {
             </label>
           ))}
         </fieldset>
+        <label htmlFor="audio-new-language" className="block text-sm font-medium text-ink">Idioma</label>
+        <select id="audio-new-language" data-testid="audio-new-language" className={INPUT_CLASS} value={language} onChange={(e) => setLanguage(e.target.value as Language)}>
+          {LANGUAGES.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+        </select>
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
         <Button type="submit" loading={busy} disabled={busy || !title.trim()} className="min-h-11">Crear episodio</Button>
       </form>

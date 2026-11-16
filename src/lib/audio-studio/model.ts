@@ -23,7 +23,10 @@ export const DEFAULT_VOICE_USD_PER_1K_CHARS = 0.2;
  * (GET /v1/models y facturación). Mientras no lo estén, el estudio:
  *  - estima con la tarifa CONSERVADORA (la de producción para Multilingual v2), nunca con la de lista más barata;
  *  - envía solo los parámetros comprobados (stability y similarity_boost), sin style/speed/break/previous_text.
- * Multilingual v2 es el modelo por defecto y el respaldo explícito: un fallo nunca cambia de modelo solo.
+ * v4 Turbo es el modelo preferido (lo eligió Hans tras escuchar el A/B real); Multilingual v2 es el respaldo explícito:
+ * un fallo nunca cambia de modelo solo. Los proyectos guardados sin modelo se leen como Multilingual v2 (LEGACY).
+ * Idioma: el estudio no envía `language_code` al proveedor (no hay evidencia de soporte en la cuenta para estos modelos);
+ * el idioma se conserva por la voz elegida, el texto y la clave de caché.
  */
 export type TtsModelId = "eleven_multilingual_v2" | "eleven_v4_turbo";
 export type TtsModel = {
@@ -36,32 +39,44 @@ export type TtsModel = {
   voiceSettings: readonly ("stability" | "similarity_boost" | "style" | "use_speaker_boost")[];
   verified: boolean; fallback: boolean;
 };
+export const TTS_MODELS_BY_PREFERENCE = (): readonly TtsModel[] => [...TTS_MODELS].sort((a, b) => (a.id === DEFAULT_TTS_MODEL ? -1 : b.id === DEFAULT_TTS_MODEL ? 1 : 0));
 export const TTS_MODELS: readonly TtsModel[] = [
-  { id: "eleven_multilingual_v2", label: "Multilingual v2 (estándar)", description: "Modelo actual de Atomivid. Máxima estabilidad en narraciones largas.",
+  { id: "eleven_multilingual_v2", label: "Multilingual v2 (respaldo)", description: "Modelo anterior de Atomivid, como respaldo explícito. Admite estilo y realce del hablante.",
     listUsdPer1k: 0.08, maxCharsPerRequest: 10_000, voiceSettings: ["stability", "similarity_boost", "style", "use_speaker_boost"], verified: true, fallback: true },
-  { id: "eleven_v4_turbo", label: "v4 Turbo (rápido, en evaluación)", description: "Modelo más reciente de ElevenLabs; admite solo estabilidad y similitud. Su tarifa de lista es la mitad que v2, pero el costo real en la cuenta aún no se comprobó con una muestra.",
+  { id: "eleven_v4_turbo", label: "v4 Turbo (recomendado)", description: "Modelo preferido del estudio. Admite solo estabilidad y similitud. Su tarifa de lista es la mitad que v2; mientras el costo de la cuenta no esté comprobado se estima igual que v2.",
     listUsdPer1k: 0.04, maxCharsPerRequest: 10_000, voiceSettings: ["stability", "similarity_boost"], verified: false, fallback: false },
 ];
-export const DEFAULT_TTS_MODEL: TtsModelId = "eleven_multilingual_v2";
+export const DEFAULT_TTS_MODEL: TtsModelId = "eleven_v4_turbo";
+/** Modelo con el que se leen proyectos, autorizaciones y audios guardados antes de existir el selector. */
+export const LEGACY_TTS_MODEL: TtsModelId = "eleven_multilingual_v2";
 export const FALLBACK_TTS_MODEL: TtsModelId = "eleven_multilingual_v2";
 export const ttsModel = (id: string): TtsModel | null => TTS_MODELS.find((m) => m.id === id) ?? null;
 export const DEFAULT_BUDGET_USD = 6;
 export const MAX_BUDGET_USD = 20;
 
 export type VoiceGender = "masculina" | "femenina";
-export type VoicePreset = { id: string; label: string; gender: VoiceGender; accent: string; style: string };
+export type Language = "es" | "en";
+export const LANGUAGES: readonly { id: Language; label: string }[] = [{ id: "es", label: "Español" }, { id: "en", label: "Inglés (English)" }];
+export const isLanguage = (v: unknown): v is Language => v === "es" || v === "en";
+export type VoicePreset = { id: string; label: string; gender: VoiceGender; accent: string; style: string; language: Language };
 
 /**
  * Perfiles de voz del estudio. Son perfiles, no voces del proveedor: la voz concreta de ElevenLabs se confirma al
  * autorizar la primera generación real (consultar el catálogo del proveedor no forma parte de 1.0).
  */
 export const VOICE_PRESETS: readonly VoicePreset[] = [
-  { id: "es-latam-m-profesional", label: "Mateo — masculina profesional", gender: "masculina", accent: "Español latinoamericano", style: "Grave, pausada, de locutor" },
-  { id: "es-latam-m-calida", label: "Andrés — masculina cálida", gender: "masculina", accent: "Español latinoamericano", style: "Cercana, conversacional" },
-  { id: "es-latam-f-profesional", label: "Lucía — femenina profesional", gender: "femenina", accent: "Español latinoamericano", style: "Clara, serena, de locutora" },
-  { id: "es-latam-f-energica", label: "Sofía — femenina enérgica", gender: "femenina", accent: "Español latinoamericano", style: "Dinámica, expresiva" },
+  { id: "es-latam-m-profesional", label: "Mateo — masculina profesional", gender: "masculina", accent: "Español latinoamericano", style: "Grave, pausada, de locutor", language: "es" },
+  { id: "es-latam-m-calida", label: "Andrés — masculina cálida", gender: "masculina", accent: "Español latinoamericano", style: "Cercana, conversacional", language: "es" },
+  { id: "es-latam-f-profesional", label: "Lucía — femenina profesional", gender: "femenina", accent: "Español latinoamericano", style: "Clara, serena, de locutora", language: "es" },
+  { id: "es-latam-f-energica", label: "Sofía — femenina enérgica", gender: "femenina", accent: "Español latinoamericano", style: "Dinámica, expresiva", language: "es" },
+  // Perfiles en inglés: sin nombres propios inventados; la voz real se asigna en el mapa validado del proveedor.
+  { id: "en-us-m-profesional", label: "Masculina profesional (inglés)", gender: "masculina", accent: "Inglés (EE. UU.)", style: "Grave, pausada, de locutor", language: "en" },
+  { id: "en-us-m-calida", label: "Masculina cálida (inglés)", gender: "masculina", accent: "Inglés (EE. UU.)", style: "Cercana, conversacional", language: "en" },
+  { id: "en-us-f-profesional", label: "Femenina profesional (inglés)", gender: "femenina", accent: "Inglés (EE. UU.)", style: "Clara, serena, de locutora", language: "en" },
+  { id: "en-us-f-energica", label: "Femenina enérgica (inglés)", gender: "femenina", accent: "Inglés (EE. UU.)", style: "Dinámica, expresiva", language: "en" },
 ];
 export const voicePreset = (id: string) => VOICE_PRESETS.find((v) => v.id === id) ?? null;
+export const voicesFor = (language: Language) => VOICE_PRESETS.filter((v) => v.language === language);
 
 export type MusicMode = "inteligente" | "fija" | "sin_musica";
 export const MUSIC_MOODS = ["calma", "reflexiva", "inspiradora", "intensa"] as const;
@@ -78,7 +93,7 @@ export type AudioProject = {
   ownerId: string;
   version: typeof MODULE_VERSION;
   title: string;
-  language: "es";
+  language: Language;
   voiceCount: 1 | 2;
   voices: string[];
   targetMinutes: number;
@@ -127,7 +142,7 @@ export function generationActive(g: Generation, now: number): boolean {
 }
 export const GENERATION_LABEL: Record<GenerationStatus, string> = { inactiva: "Sin generar", en_cola: "En cola", generando: "Generando", terminada: "Audio listo", fallida: "Falló" };
 
-export type ProjectInput = Partial<Pick<AudioProject, "title" | "voiceCount" | "voices" | "targetMinutes" | "script" | "notes" | "music" | "budgetUsd" | "ttsModel">>;
+export type ProjectInput = Partial<Pick<AudioProject, "title" | "language" | "voiceCount" | "voices" | "targetMinutes" | "script" | "notes" | "music" | "budgetUsd" | "ttsModel">>;
 
 export class ValidationError extends Error {
   constructor(readonly field: string, message: string) { super(message); this.name = "ValidationError"; }
@@ -161,11 +176,13 @@ function cleanMusic(v: unknown, prev: MusicConfig): MusicConfig {
   return { mode, mood: mood as MusicMood, volume: m.volume === undefined ? prev.volume : clampInt(m.volume, 0, 60, "volumen"), ducking: bool("ducking"), intro: bool("intro"), outro: bool("outro") };
 }
 
-function cleanVoices(count: 1 | 2, v: unknown): string[] {
+function cleanVoices(count: 1 | 2, v: unknown, language: Language): string[] {
   if (!Array.isArray(v)) throw new ValidationError("voices", "Elige las voces del episodio.");
   const ids = v.filter((x): x is string => typeof x === "string").slice(0, count);
   if (ids.length !== count) throw new ValidationError("voices", count === 1 ? "Elige una voz." : "Elige dos voces.");
   for (const id of ids) if (!voicePreset(id)) throw new ValidationError("voices", "Una de las voces elegidas no existe en el catálogo.");
+  // Nunca se sustituye la voz en silencio: si no es del idioma del episodio, se pide elegir otra.
+  for (const id of ids) if (voicePreset(id)!.language !== language) throw new ValidationError("voices", `La voz «${voicePreset(id)!.label}» no es del idioma del episodio. Elige voces en ${LANGUAGES.find((l) => l.id === language)!.label.toLowerCase()}.`);
   if (count === 2 && ids[0] === ids[1]) throw new ValidationError("voices", "Las dos voces deben ser distintas.");
   return ids;
 }
@@ -179,13 +196,17 @@ export function applyInput(prev: AudioProject, input: ProjectInput, now: string)
     if (!t) throw new ValidationError("title", "El episodio necesita un título.");
     next.title = t;
   }
+  if (input.language !== undefined) {
+    if (!isLanguage(input.language)) throw new ValidationError("language", "Idioma no admitido: elige español o inglés.");
+    next.language = input.language;
+  }
   if (input.voiceCount !== undefined) {
     if (input.voiceCount !== 1 && input.voiceCount !== 2) throw new ValidationError("voiceCount", "El episodio admite una o dos voces.");
     next.voiceCount = input.voiceCount;
   }
-  if (input.voices !== undefined || input.voiceCount !== undefined) {
+  if (input.voices !== undefined || input.voiceCount !== undefined || input.language !== undefined) {
     const wanted = input.voices ?? (next.voiceCount === 2 && next.voices.length === 1 ? [next.voices[0], defaultSecondVoice(next.voices[0])] : next.voices);
-    next.voices = cleanVoices(next.voiceCount, wanted);
+    next.voices = cleanVoices(next.voiceCount, wanted, next.language);
   }
   if (input.targetMinutes !== undefined) next.targetMinutes = clampInt(input.targetMinutes, MIN_TARGET_MINUTES, MAX_TARGET_MINUTES, "duración");
   if (input.script !== undefined) next.script = cleanText(input.script, MAX_SCRIPT, "guion");
@@ -208,20 +229,21 @@ export function applyInput(prev: AudioProject, input: ProjectInput, now: string)
 }
 
 const contentChanged = (a: AudioProject, b: AudioProject) =>
-  a.ttsModel !== b.ttsModel ||
+  a.ttsModel !== b.ttsModel || a.language !== b.language ||
   a.title !== b.title || a.script !== b.script || a.voiceCount !== b.voiceCount || a.voices.join() !== b.voices.join() ||
   a.targetMinutes !== b.targetMinutes || JSON.stringify(a.music) !== JSON.stringify(b.music) || a.budgetUsd !== b.budgetUsd;
 
 export function defaultSecondVoice(first: string): string {
-  const g = voicePreset(first)?.gender;
-  return (VOICE_PRESETS.find((v) => v.id !== first && v.gender !== g) ?? VOICE_PRESETS.find((v) => v.id !== first))!.id;
+  const f = voicePreset(first);
+  const pool = f ? voicesFor(f.language) : VOICE_PRESETS;
+  return (pool.find((v) => v.id !== first && v.gender !== f?.gender) ?? pool.find((v) => v.id !== first))!.id;
 }
 
-export function newProject(args: { id: string; ownerId: string; now: string; title?: string; voiceCount?: 1 | 2 }): AudioProject {
+export function newProject(args: { id: string; ownerId: string; now: string; title?: string; voiceCount?: 1 | 2; language?: Language }): AudioProject {
   if (!isUuid(args.id) || !isUuid(args.ownerId)) throw new ValidationError("id", "Identificador no válido.");
   const base: AudioProject = {
-    id: args.id, ownerId: args.ownerId, version: MODULE_VERSION, title: "Episodio sin título", language: "es", voiceCount: 1,
-    voices: [VOICE_PRESETS[0].id], targetMinutes: 10, script: "", notes: "", music: { ...DEFAULT_MUSIC }, budgetUsd: DEFAULT_BUDGET_USD, ttsModel: DEFAULT_TTS_MODEL,
+    id: args.id, ownerId: args.ownerId, version: MODULE_VERSION, title: "Episodio sin título", language: args.language ?? "es", voiceCount: 1,
+    voices: [voicesFor(args.language ?? "es")[0].id], targetMinutes: 10, script: "", notes: "", music: { ...DEFAULT_MUSIC }, budgetUsd: DEFAULT_BUDGET_USD, ttsModel: DEFAULT_TTS_MODEL,
     status: "borrador", spentUsd: 0, audio: null, generation: { ...IDLE_GENERATION }, revision: 0, archivedAt: null, createdAt: args.now, updatedAt: args.now,
   };
   const p = applyInput(base, { title: args.title ?? base.title, voiceCount: args.voiceCount ?? 1 }, args.now);
@@ -236,8 +258,8 @@ export function parseStored(raw: unknown, ownerId: string): AudioProject | null 
   try {
     const base = newProject({ id: r.id, ownerId, now: typeof r.createdAt === "string" ? r.createdAt : new Date(0).toISOString() });
     const p = applyInput(base, {
-      title: r.title as string, voiceCount: r.voiceCount as 1 | 2, voices: r.voices as string[], targetMinutes: r.targetMinutes as number,
-      script: r.script as string, notes: (r.notes as string) ?? "", music: r.music as MusicConfig, budgetUsd: r.budgetUsd as number, ttsModel: (ttsModel(String(r.ttsModel ?? "")) ? r.ttsModel : DEFAULT_TTS_MODEL) as TtsModelId,
+      title: r.title as string, language: isLanguage(r.language) ? r.language : "es", voiceCount: r.voiceCount as 1 | 2, voices: r.voices as string[], targetMinutes: r.targetMinutes as number,
+      script: r.script as string, notes: (r.notes as string) ?? "", music: r.music as MusicConfig, budgetUsd: r.budgetUsd as number, ttsModel: (ttsModel(String(r.ttsModel ?? "")) ? r.ttsModel : LEGACY_TTS_MODEL) as TtsModelId,
     }, typeof r.updatedAt === "string" ? r.updatedAt : base.updatedAt);
     return {
       ...p,
@@ -264,7 +286,7 @@ function parseAudio(v: unknown): AudioResult | null {
   if (!path || !/^audio-studio\/v1\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/audio\/[\w.-]+\.mp3$/.test(path) || !sha || !/^[0-9a-f]{64}$/.test(sha)) return null;
   return {
     path, sha256: sha, bytes: num(a.bytes) ?? 0, durationSeconds: num(a.durationSeconds) ?? 0, lufs: num(a.lufs) ?? 0, truePeak: num(a.truePeak) ?? 0,
-    revision: num(a.revision) ?? 0, renderedAt: str(a.renderedAt) ?? "", provider: str(a.provider) ?? "", model: (ttsModel(String(a.model ?? "")) ? a.model : DEFAULT_TTS_MODEL) as TtsModelId, segments: num(a.segments) ?? 0,
+    revision: num(a.revision) ?? 0, renderedAt: str(a.renderedAt) ?? "", provider: str(a.provider) ?? "", model: (ttsModel(String(a.model ?? "")) ? a.model : LEGACY_TTS_MODEL) as TtsModelId, segments: num(a.segments) ?? 0,
     reusedSegments: num(a.reusedSegments) ?? 0, musicTracks: Array.isArray(a.musicTracks) ? a.musicTracks.filter((x): x is string => typeof x === "string") : [],
   };
 }
@@ -277,7 +299,7 @@ function parseGeneration(v: unknown): Generation {
   const pr = g.progress as Record<string, unknown> | null | undefined;
   return {
     status,
-    authorization: au && num(au.usd) !== null && num(au.revision) !== null && str(au.at) ? { usd: num(au.usd)!, revision: num(au.revision)!, at: str(au.at)!, spentBefore: num(au.spentBefore) ?? 0, model: (ttsModel(String(au.model ?? "")) ? au.model : DEFAULT_TTS_MODEL) as TtsModelId } : null,
+    authorization: au && num(au.usd) !== null && num(au.revision) !== null && str(au.at) ? { usd: num(au.usd)!, revision: num(au.revision)!, at: str(au.at)!, spentBefore: num(au.spentBefore) ?? 0, model: (ttsModel(String(au.model ?? "")) ? au.model : LEGACY_TTS_MODEL) as TtsModelId } : null,
     kind: g.kind === "generar" || g.kind === "remezclar" ? g.kind : null,
     startedAt: str(g.startedAt), heartbeatAt: str(g.heartbeatAt), finishedAt: str(g.finishedAt),
     progress: pr && num(pr.done) !== null && num(pr.total) !== null ? { done: num(pr.done)!, total: num(pr.total)! } : null,
@@ -289,9 +311,9 @@ function parseGeneration(v: unknown): Generation {
 // Guion, duración y costo
 
 export type ScriptLine = { voice: 0 | 1; text: string; section: number };
-const SPEAKER = /^\s*(?:voz\s*([12])|\[([12])\])\s*[:\-—]\s*/i;
+const SPEAKER = /^\s*(?:vo(?:z|ice)\s*([12])|\[([12])\])\s*[:\-—]\s*/i;
 
-/** Divide el guion en intervenciones. Con dos voces, «Voz 1:» / «Voz 2:» (o «[1]:») cambian de voz. */
+/** Divide el guion en intervenciones. Con dos voces, «Voz 1:» / «Voz 2:» (en inglés «Voice 1:»; o «[1]:») cambian de voz. */
 export function scriptLines(script: string, voiceCount: 1 | 2): ScriptLine[] {
   const out: ScriptLine[] = [];
   let voice: 0 | 1 = 0;

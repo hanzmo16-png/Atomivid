@@ -6,12 +6,12 @@ import { Badge } from "@/components/ui/Badge";
 import { INPUT_CLASS } from "@/components/ui/Field";
 import {
   defaultSecondVoice, draftOutline, estimate, GENERATION_LABEL, generationActive, MAX_BUDGET_USD, MAX_SCRIPT, MAX_TARGET_MINUTES, MAX_TITLE, MIN_TARGET_MINUTES, MOOD_LABEL, MUSIC_MOODS,
-  FALLBACK_TTS_MODEL, musicPlan, readinessIssues, STATUS_LABEL, TTS_MODELS, ttsModel, VOICE_PRESETS, voicePreset, type AudioProject, type MusicConfig, type MusicMood, type TtsModelId,
+  FALLBACK_TTS_MODEL, LANGUAGES, musicPlan, TTS_MODELS_BY_PREFERENCE, voicesFor, readinessIssues, STATUS_LABEL, ttsModel, voicePreset, type AudioProject, type Language, type MusicConfig, type MusicMood, type TtsModelId,
 } from "@/lib/audio-studio/model";
 import type { ProjectView } from "@/lib/audio-studio/service";
 
-type Draft = Pick<AudioProject, "title" | "voiceCount" | "voices" | "targetMinutes" | "script" | "notes" | "music" | "budgetUsd" | "ttsModel">;
-const draftOf = (p: AudioProject): Draft => ({ title: p.title, voiceCount: p.voiceCount, voices: [...p.voices], targetMinutes: p.targetMinutes, script: p.script, notes: p.notes, music: { ...p.music }, budgetUsd: p.budgetUsd, ttsModel: p.ttsModel });
+type Draft = Pick<AudioProject, "title" | "language" | "voiceCount" | "voices" | "targetMinutes" | "script" | "notes" | "music" | "budgetUsd" | "ttsModel">;
+const draftOf = (p: AudioProject): Draft => ({ title: p.title, language: p.language, voiceCount: p.voiceCount, voices: [...p.voices], targetMinutes: p.targetMinutes, script: p.script, notes: p.notes, music: { ...p.music }, budgetUsd: p.budgetUsd, ttsModel: p.ttsModel });
 const same = (a: Draft, b: Draft) => JSON.stringify(a) === JSON.stringify(b);
 const usd = (n: number) => `USD ${n.toFixed(2)}`;
 const AUTOSAVE_MS = 2500;
@@ -113,6 +113,13 @@ export function AudioEditor({ initial }: { initial: ProjectView }) {
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setDraft((d) => ({ ...d, [k]: v }));
   const setMusic = <K extends keyof MusicConfig>(k: K, v: MusicConfig[K]) => setDraft((d) => ({ ...d, music: { ...d.music, [k]: v } }));
   const setVoiceCount = (n: 1 | 2) => setDraft((d) => ({ ...d, voiceCount: n, voices: n === 1 ? [d.voices[0]] : [d.voices[0], d.voices[1] ?? defaultSecondVoice(d.voices[0])] }));
+  // Cambiar el idioma cambia las voces a perfiles de ese idioma, a la vista (nunca en silencio en el servidor).
+  const setLanguage = (l: Language) => setDraft((d) => {
+    const pool = voicesFor(l);
+    const first = pool[0].id;
+    return { ...d, language: l, voices: d.voiceCount === 2 ? [first, defaultSecondVoice(first)] : [first] };
+  });
+  const real = saved.voiceStatus?.available && !saved.voiceStatus.local ? saved.voiceStatus.realPresets : null;
   const setVoice = (i: number, id: string) => setDraft((d) => { const v = [...d.voices]; v[i] = id; return { ...d, voices: v }; });
 
   const saveLabel = state === "saving" ? "Guardando…" : state === "conflict" ? "Conflicto de versiones" : state === "error" ? "No guardado" : dirty ? "Cambios sin guardar" : "Guardado";
@@ -140,6 +147,13 @@ export function AudioEditor({ initial }: { initial: ProjectView }) {
         </div>
         <fieldset>
           <legend className="mb-1.5 text-sm font-medium text-ink">Voces</legend>
+          <div className="mb-3">
+            <label htmlFor="audio-language" className="mb-1 block text-xs text-ink-muted">Idioma del episodio</label>
+            <select id="audio-language" data-testid="audio-language" className={INPUT_CLASS} value={draft.language} disabled={locked} onChange={(e) => setLanguage(e.target.value as Language)}>
+              {LANGUAGES.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+            </select>
+            {draft.language !== saved.language && <p className="mt-1 text-xs text-ink-muted" data-testid="audio-language-note">Cambiaste el idioma: las voces pasaron a perfiles en {LANGUAGES.find((l) => l.id === draft.language)!.label.toLowerCase()}. Revísalas antes de guardar.</p>}
+          </div>
           <div className="flex flex-wrap gap-2">
             {([1, 2] as const).map((n) => (
               <label key={n} className={`inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm ${draft.voiceCount === n ? "border-accent bg-accent-soft text-ink" : "border-border-strong text-ink-muted"}`}>
@@ -153,17 +167,18 @@ export function AudioEditor({ initial }: { initial: ProjectView }) {
               <div key={i}>
                 <label htmlFor={`audio-voice-${i}`} className="mb-1 block text-xs text-ink-muted">{draft.voiceCount === 1 ? "Voz" : `Voz ${i + 1}`}</label>
                 <select id={`audio-voice-${i}`} data-testid={`audio-voice-${i}`} className={INPUT_CLASS} value={v} disabled={locked} onChange={(e) => setVoice(i, e.target.value)}>
-                  {VOICE_PRESETS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+                  {voicesFor(draft.language).map((p) => <option key={p.id} value={p.id}>{p.label}{real && !real.includes(p.id) ? " — en preparación" : ""}</option>)}
                 </select>
                 <p className="mt-1 text-xs text-ink-faint">{voicePreset(v)?.accent} · {voicePreset(v)?.style}</p>
               </div>
             ))}
           </div>
-          {draft.voiceCount === 2 && <p className="mt-2 text-xs text-ink-muted">En el guion, empieza cada intervención con «Voz 1:» o «Voz 2:».</p>}
+          {draft.voiceCount === 2 && <p className="mt-2 text-xs text-ink-muted">En el guion, empieza cada intervención con {draft.language === "en" ? "«Voice 1:» o «Voice 2:»" : "«Voz 1:» o «Voz 2:»"}.</p>}
+          {!real && <p className="mt-1 text-xs text-ink-faint" data-testid="audio-voices-profiles">Son perfiles de voz: la voz real de cada perfil se asigna cuando se activa la generación{saved.voiceStatus?.local ? " (ahora suena la voz de prueba local)" : ""}.</p>}
           <div className="mt-3">
             <label htmlFor="audio-model" className="mb-1 block text-xs text-ink-muted">Modelo de voz</label>
             <select id="audio-model" data-testid="audio-model" className={INPUT_CLASS} value={draft.ttsModel} disabled={locked} onChange={(e) => set("ttsModel", e.target.value as TtsModelId)}>
-              {TTS_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+              {TTS_MODELS_BY_PREFERENCE().map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
             </select>
             <p className="mt-1 text-xs text-ink-faint" data-testid="audio-model-note">
               {ttsModel(draft.ttsModel)?.description}{ttsModel(draft.ttsModel)?.verified ? "" : " Se envían solo los ajustes comprobados (estabilidad y similitud)."}

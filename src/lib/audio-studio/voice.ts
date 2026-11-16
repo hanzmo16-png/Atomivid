@@ -13,7 +13,11 @@ import { DEFAULT_TTS_MODEL, ttsModel, VOICE_PRESETS, voicePreset, type TtsModelI
  *    elegido y SOLO los ajustes de voz admitidos por ese modelo. Requiere AUDIO_STUDIO_PAID_TTS=1 y el mapa de voces:
  *    ese interruptor no está activado en ningún entorno; la generación real queda pendiente de autorización.
  */
-export type StudioVoice = { mode: "fixture" | "elevenlabs"; provider(model: TtsModelId): TtsProvider; voiceIdFor(preset: string): string };
+export type StudioVoice = {
+  mode: "fixture" | "elevenlabs"; provider(model: TtsModelId): TtsProvider; voiceIdFor(preset: string): string;
+  /** Perfiles con voz real asignada en el mapa validado (null en la voz de prueba local: todos se pueden probar). */
+  realPresets: string[] | null;
+};
 
 export type VoiceAvailability = { ok: true; voice: StudioVoice } | { ok: false; reason: string };
 
@@ -43,6 +47,7 @@ export function fixtureVoice(opts: { fail?: (text: string, model: TtsModelId) =>
   const log: { voiceId: string; text: string }[] = [];
   return {
     mode: "fixture",
+    realPresets: null,
     voiceIdFor: (preset) => `fixture-${preset}`,
     provider: (model) => ({
       name: "fixture-espeak", label: "mock", model, usdFor: () => 0,
@@ -51,7 +56,8 @@ export function fixtureVoice(opts: { fail?: (text: string, model: TtsModelId) =>
         opts.fail?.(text, model);
         opts.calls?.push({ model, voiceId, text });
         const v = espeakVoice(voiceId, null, log as never, () => fixtureProfile(preset));
-        const r = await v.synthesize(text, "es", 1);
+        // La voz de prueba habla el idioma del perfil (español o inglés): nunca se cambia de idioma en silencio.
+        const r = await v.synthesize(text, voicePreset(preset)?.language ?? "es", 1);
         await writeFile(dest, r.audioBuffer);
         return { actualUsd: 0 };
       },
@@ -96,12 +102,15 @@ export function voiceAvailability(env: Record<string, string | undefined> = proc
   if (env.AUDIO_STUDIO_PAID_TTS === "1") {
     const map = parseVoiceMap(env.AUDIO_STUDIO_ELEVENLABS_VOICES);
     if (!map) return { ok: false, reason: "Falta configurar las voces de ElevenLabs del estudio. No se hizo ningún cargo." };
-    return { ok: true, voice: { mode: "elevenlabs", provider: (model) => elevenLabsProvider(model, rateFor(model)), voiceIdFor: (preset) => map[preset] ?? "" } };
+    return { ok: true, voice: { mode: "elevenlabs", provider: (model) => elevenLabsProvider(model, rateFor(model)), voiceIdFor: (preset) => map[preset] ?? "", realPresets: Object.keys(map) } };
   }
   return { ok: false, reason: PAID_BLOCKED };
 }
 
-/** «perfil=voiceId,perfil=voiceId»; exige una voz válida por cada perfil del catálogo. */
+/**
+ * «perfil=voiceId,perfil=voiceId». Solo cuentan perfiles del catálogo con un voice_id bien formado; los perfiles sin
+ * voz asignada quedan «en preparación» (la interfaz lo dice y no se puede generar con ellos). Sin ninguna, no hay mapa.
+ */
 export function parseVoiceMap(raw: string | undefined): Record<string, string> | null {
   if (!raw) return null;
   const out: Record<string, string> = {};
@@ -109,14 +118,14 @@ export function parseVoiceMap(raw: string | undefined): Record<string, string> |
     const [k, v] = pair.split("=").map((x) => x?.trim());
     if (k && v && voicePreset(k) && /^[A-Za-z0-9]{8,64}$/.test(v)) out[k] = v;
   }
-  return VOICE_PRESETS.every((p) => out[p.id]) ? out : null;
+  return Object.keys(out).length && VOICE_PRESETS.some((p) => out[p.id]) ? out : null;
 }
 
 /**
  * Clave de caché de una intervención: proveedor + modelo + voz + texto + ajustes de síntesis. Cualquier diferencia es
  * otra síntesis (nunca se reutiliza audio de otro modelo o con otros ajustes); igualdad ⇒ nunca se paga dos veces.
  */
-export function segmentKey(provider: string, model: string, voiceId: string, text: string, settings: Record<string, unknown> = {}): string {
+export function segmentKey(provider: string, model: string, voiceId: string, text: string, settings: Record<string, unknown> = {}, language = "es"): string {
   const sorted = Object.fromEntries(Object.entries(settings).sort(([a], [b]) => a.localeCompare(b)));
-  return createHash("sha256").update(JSON.stringify([provider, model, voiceId, text, sorted])).digest("hex");
+  return createHash("sha256").update(JSON.stringify([provider, model, language, voiceId, text, sorted])).digest("hex");
 }

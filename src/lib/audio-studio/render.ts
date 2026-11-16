@@ -71,7 +71,7 @@ export async function renderProject(deps: RenderDeps, ownerId: string, id: strin
     for (const [i, line] of lines.entries()) {
       const voiceId = voice.voiceIdFor(snap.voices[line.voice]);
       if (!voiceId) throw new RenderError("La voz elegida no está configurada en el proveedor. No se hizo ningún cargo.");
-      const key = segmentKey(provider.name, snap.ttsModel, voiceId, line.text, settings);
+      const key = segmentKey(provider.name, snap.ttsModel, voiceId, line.text, settings, snap.language);
       const blob = assertBlobPath(`${dir}/tts/${key}.mp3`, ownerId, id);
       const local = path.join(work, `seg-${String(i).padStart(4, "0")}.mp3`);
       const cached = await store.getBlob(blob);

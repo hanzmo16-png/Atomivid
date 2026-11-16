@@ -55,7 +55,7 @@ async function main() {
   let total = 0;
   for (const m of models) {
     const p = providerFor(m);
-    const key = segmentKey(p.name, m, voiceId, text, settingsFor(m));
+    const key = segmentKey(p.name, m, voiceId, text, settingsFor(m), "es");
     const dest = path.join(outDir, `${mode}-${m}.mp3`);
     const t0 = Date.parse(new Date().toISOString());
     // Un fallo NO cambia de modelo ni reintenta: se informa y se detiene (nunca doble cobro).

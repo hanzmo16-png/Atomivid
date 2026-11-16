@@ -136,6 +136,11 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`), fu
       await p.waitForURL(/\/dashboard\/audio-studio\/[0-9a-f-]{36}$/); await p.getByTestId("audio-editor").waitFor();
       const newUrl = p.url(); if (dev === "samsung-390") ownerProjectId = newUrl.split("/").pop();
       check(`[${dev}] dos voces: dos selectores distintos`, (await p.getByTestId("audio-voice-1").count()) === 1 && (await p.getByTestId("audio-voice-0").inputValue()) !== (await p.getByTestId("audio-voice-1").inputValue()));
+      // Idioma: al pasar a inglés, ambos participantes muestran solo perfiles en inglés (a la vista, con aviso); se vuelve a español.
+      await p.getByTestId("audio-language").selectOption("en");
+      const enOpts = await p.getByTestId("audio-voice-0").locator("option").evaluateAll((os) => os.map((o) => o.value));
+      check(`[${dev}] idioma inglés: voces en inglés por participante y aviso visible`, enOpts.length >= 4 && enOpts.every((v) => v.startsWith("en-")) && (await p.getByTestId("audio-voice-1").inputValue()).startsWith("en-") && (await p.getByTestId("audio-language-note").count()) === 1, enOpts);
+      await p.getByTestId("audio-language").selectOption("es");
       let script = "## Bienvenida\nVoz 1: Hola, bienvenidos a una charla sobre la calma.\nVoz 2: Gracias por estar aquí; hoy hablamos de respirar y aceptar.\n## Cierre\nVoz 1: El futuro empieza con lo que eliges hoy.";
       await p.getByTestId("audio-script").fill(script);
       await p.getByTestId("audio-voice-1").selectOption("es-latam-f-energica");
@@ -166,11 +171,11 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`), fu
         await p.getByTestId("audio-script").fill(script);
         await p.getByTestId("audio-music-inteligente").check();
         await p.getByTestId("audio-budget").fill("5");
-        // El dúo se genera con v4 Turbo; el monólogo con Multilingual v2 (modelo por defecto).
-        check(`[${dev}] modelo por defecto: Multilingual v2`, (await p.getByTestId("audio-model").inputValue()) === "eleven_multilingual_v2");
+        // v4 Turbo es el modelo preferido (por defecto): el monólogo lo usa; el dúo prueba el respaldo Multilingual v2.
+        check(`[${dev}] modelo por defecto: v4 Turbo (recomendado)`, (await p.getByTestId("audio-model").inputValue()) === "eleven_v4_turbo");
         if (duo) {
-          await p.getByTestId("audio-model").selectOption("eleven_v4_turbo");
           check(`[${dev}] v4 Turbo: tarifa conservadora sin descuentos no comprobados`, /conservadora|sin verificar|no comprobad/i.test(await p.getByTestId("audio-rate-note").innerText()), await p.getByTestId("audio-rate-note").innerText());
+          await p.getByTestId("audio-model").selectOption("eleven_multilingual_v2");
         }
         await p.getByTestId("audio-save").click();
         await p.waitForFunction(() => document.querySelector('[data-testid="audio-save-state"]')?.textContent === "Guardado");
@@ -181,7 +186,7 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`), fu
         const proj = await apiProject(p, id);
         check(`[${dev}] ${duo ? "dúo" : "monólogo"}: duración ${proj.audio?.durationSeconds} s, ${proj.audio?.lufs} LUFS, pico ${proj.audio?.truePeak}`, proj.audio && proj.audio.durationSeconds > 180 && Math.abs(proj.audio.lufs + 16) <= 1.5 && proj.audio.truePeak <= -1, proj.audio);
         const dl = await downloadMp3(p, id, path.join(OUT, `${dev}-${duo ? "duo" : "monologo"}.mp3`));
-        check(`[${dev}] el MP3 registra el modelo ${duo ? "v4 Turbo" : "Multilingual v2"}`, proj.audio.model === (duo ? "eleven_v4_turbo" : "eleven_multilingual_v2") && proj.generation.authorization?.model === proj.audio.model, [proj.audio.model, proj.generation.authorization]);
+        check(`[${dev}] el MP3 registra el modelo ${duo ? "Multilingual v2 (respaldo elegido)" : "v4 Turbo"}`, proj.audio.model === (duo ? "eleven_multilingual_v2" : "eleven_v4_turbo") && proj.generation.authorization?.model === proj.audio.model, [proj.audio.model, proj.generation.authorization]);
         check(`[${dev}] descarga MP3 válida`, dl.status === 200 && dl.mp3 && dl.bytes === proj.audio.bytes, dl);
         check(`[${dev}] reproductor presente`, (await p.getByTestId("audio-player").count()) === 1);
         await shot(p, `${dev}-03b-mp3`);

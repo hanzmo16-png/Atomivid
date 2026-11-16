@@ -85,7 +85,18 @@ Su id es estable por cuenta, así que nunca se duplica ni pisa una versión edit
 
 No hace falta desplegar código. No es un secreto.
 
-## Modelo de voz: Multilingual v2 y v4 Turbo
+## Idioma y voces
+
+- Cada episodio es en **español** o en **inglés** (`language`). Las voces son perfiles del idioma del episodio: 4 en español y 4 en inglés (2 masculinas y 2 femeninas cada uno). Los perfiles en inglés no llevan nombres propios.
+- En un diálogo, cada participante elige su voz. Las dos deben ser distintas y del idioma del episodio. El servidor rechaza una voz de otro idioma: nunca la sustituye en silencio. En el editor, cambiar el idioma cambia las voces a la vista y muestra un aviso.
+- En inglés, el guion admite «Voice 1:» y «Voice 2:».
+- La clave de caché incluye el idioma. No se envía `language_code` al proveedor: no hay evidencia de soporte para estos modelos en la cuenta.
+- **Voz real por perfil.** `AUDIO_STUDIO_ELEVENLABS_VOICES` puede mapear solo algunos perfiles. Los demás aparecen «en preparación» y no se puede generar con ellos (validación y 422).
+- **Sin voz activa (producción hoy).** El editor lo dice desde el inicio y no ofrece «Generar MP3».
+
+## Modelo de voz: v4 Turbo (preferido) y Multilingual v2 (respaldo)
+
+> v4 Turbo es el modelo por defecto en episodios nuevos desde que Hans lo eligió tras escuchar el A/B real (run 43956060679). Los proyectos guardados sin modelo se siguen leyendo como Multilingual v2.
 
 Cada proyecto elige su modelo en el editor («Modelo de voz»). Los proyectos anteriores, sin modelo guardado, quedan en Multilingual v2.
 
