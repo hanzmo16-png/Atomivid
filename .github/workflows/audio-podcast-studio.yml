@@ -9,6 +9,9 @@ on:
     paths:
       - ".github/workflows/audio-podcast-studio.yml"
       - "scripts/harness/e2e/audio-studio/**"
+      - "scripts/audio-studio/**"
+      - ".github/workflows/audio-studio-worker.yml"
+      - ".github/workflows/audio-studio-ab-v4-turbo.yml"
       - "src/lib/audio-studio/**"
       - "src/app/dashboard/audio-studio/**"
       - "src/app/api/audio-studio/**"

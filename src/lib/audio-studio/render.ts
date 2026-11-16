@@ -14,7 +14,7 @@ import { AMBIENT_FILES, BUNDLED_TRACKS, ensureBundledMusic, STINGS } from "@/lib
 import type { Mood } from "@/lib/podcast/v3/spec";
 import { musicPlan, scriptLines, type AudioProject, type AudioResult, type Generation, type MusicMood } from "./model";
 import { assertBlobPath, projectDir, type BlobStore, type ProjectStore } from "./store";
-import { segmentKey, type StudioVoice } from "./voice";
+import { segmentKey, settingsFor, type StudioVoice } from "./voice";
 
 /** Ambiente del estudio → pista CC0 de la biblioteca propia. */
 export const MOOD_TRACK: Record<MusicMood, Mood> = { calma: "relajante", reflexiva: "nostalgico", inspiradora: "inspirador", intensa: "tension" };
@@ -59,6 +59,10 @@ export async function renderProject(deps: RenderDeps, ownerId: string, id: strin
     const allowSynth = snap.generation.kind !== "remezclar";
     const auth = snap.generation.authorization;
     if (allowSynth && (!auth || auth.revision !== snap.revision)) throw new RenderError("La autorización de gasto no corresponde a esta versión del guion. Vuelve a autorizar. No se hizo ningún cargo.");
+    // La autorización es para un modelo: nunca se usa con otro (un cambio de modelo exige autorizar de nuevo).
+    if (allowSynth && auth!.model !== snap.ttsModel) throw new RenderError("La autorización de gasto es para otro modelo de voz. Vuelve a autorizar. No se hizo ningún cargo.");
+    const provider = voice.provider(snap.ttsModel);
+    const settings = settingsFor(snap.ttsModel);
     const lines = scriptLines(snap.script, snap.voiceCount);
     if (!lines.length) throw new RenderError("El guion no tiene texto para narrar.");
     const dir = projectDir(ownerId, id);
@@ -67,20 +71,20 @@ export async function renderProject(deps: RenderDeps, ownerId: string, id: strin
     for (const [i, line] of lines.entries()) {
       const voiceId = voice.voiceIdFor(snap.voices[line.voice]);
       if (!voiceId) throw new RenderError("La voz elegida no está configurada en el proveedor. No se hizo ningún cargo.");
-      const key = segmentKey(voice.provider.name, voice.provider.model, voiceId, line.text);
+      const key = segmentKey(provider.name, snap.ttsModel, voiceId, line.text, settings);
       const blob = assertBlobPath(`${dir}/tts/${key}.mp3`, ownerId, id);
       const local = path.join(work, `seg-${String(i).padStart(4, "0")}.mp3`);
       const cached = await store.getBlob(blob);
       if (cached) { await writeFile(local, cached); reused++; }
       else {
         if (!allowSynth) throw new RenderError("La remezcla usa solo voz ya generada y falta una intervención (el guion o las voces cambiaron). Genera de nuevo para incluirla.");
-        const cost = voice.provider.usdFor(line.text.length);
+        const cost = provider.usdFor(line.text.length);
         const before = auth!.spentBefore;
         const current = (await store.get(ownerId, id))?.spentUsd ?? snap.spentUsd;
         if (current - before + cost > auth!.usd + 1e-9) throw new RenderError(`Se alcanzó el gasto autorizado (USD ${auth!.usd.toFixed(2)}). No se hizo el cargo siguiente.`);
         const raw = path.join(work, `raw-${i}.wav`);
         let actual = 0;
-        try { actual = (await voice.provider.synth(line.text, voiceId, raw)).actualUsd; }
+        try { actual = (await provider.synth(line.text, voiceId, raw)).actualUsd; }
         catch (e) { throw new RenderError(`El proveedor de voz falló en la intervención ${i + 1}: ${(e as Error).message.slice(0, 160)} Lo ya generado queda guardado y no se volverá a cobrar.`); }
         await ffmpeg(["-y", "-v", "error", "-i", raw, "-ac", "1", "-ar", "48000", "-c:a", "libmp3lame", "-b:a", "128k", local]);
         // Primero se guarda la voz y luego se suma el gasto: un reintento la encuentra en caché y no paga de nuevo.
@@ -153,7 +157,7 @@ export async function renderProject(deps: RenderDeps, ownerId: string, id: strin
     const audio: AudioResult = {
       path: audioPath, bytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex"), durationSeconds: Math.round(duration * 10) / 10,
       lufs: Math.round(q.lufs * 10) / 10, truePeak: Math.round(q.truePeak * 10) / 10, revision: snap.revision, renderedAt: now(),
-      provider: voice.mode, segments: lines.length, reusedSegments: reused, musicTracks: [...new Set(tracks)],
+      provider: voice.mode, model: snap.ttsModel, segments: lines.length, reusedSegments: reused, musicTracks: [...new Set(tracks)],
     };
     await patch((p) => ({ audio, generation: { ...p.generation, status: "terminada", finishedAt: now(), heartbeatAt: now(), error: null, progress: { done: lines.length, total: lines.length } } }));
     return "terminada";

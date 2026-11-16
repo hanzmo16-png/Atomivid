@@ -85,6 +85,49 @@ Su id es estable por cuenta, así que nunca se duplica ni pisa una versión edit
 
 No hace falta desplegar código. No es un secreto.
 
+## Modelo de voz: Multilingual v2 y v4 Turbo
+
+Cada proyecto elige su modelo en el editor («Modelo de voz»). Los proyectos anteriores, sin modelo guardado, quedan en Multilingual v2.
+
+| Modelo | Rol | Tarifa usada en la estimación | Ajustes que se envían |
+|---|---|---|---|
+| `eleven_multilingual_v2` | Por defecto y **respaldo** | Tarifa efectiva de producción (`PRICING_ELEVENLABS_USD_PER_1K_CHARS`, nunca menos de USD 0,20/1K) | stability, similarity_boost, style, use_speaker_boost |
+| `eleven_v4_turbo` | Seleccionable, **en evaluación** | `AUDIO_STUDIO_RATE_ELEVEN_V4_TURBO` si se comprobó en la cuenta (nunca menos que la de lista, USD 0,04/1K); si no, **la misma de v2** | stability, similarity_boost |
+
+- **Sin descuentos no comprobados.** Mientras la tarifa real de v4 Turbo en la cuenta no esté comprobada, se estima igual que v2. El editor lo indica.
+- **Autorización ligada al modelo.** La autorización de gasto guarda el modelo. El worker se niega a sintetizar con otro.
+- **Sin cambio automático de proveedor ni de modelo.** Si v4 Turbo falla, el episodio queda «Falló» en v4 Turbo. Pasar a v2 es un botón explícito («Cambiar a Multilingual v2 (respaldo)»): borra la autorización vigente y exige una nueva. Así no hay doble cobro.
+- **Caché separada.** Clave = proveedor + modelo + voz + texto + ajustes de síntesis. Cambiar cualquiera vuelve a sintetizar; igualdad nunca se paga dos veces.
+- **Límite por solicitud.** 10.000 caracteres por intervención en ambos modelos. Una línea más larga bloquea «Listo para generar».
+
+Presupuesto del episodio inicial (18 min, 15.182 caracteres):
+
+| | Multilingual v2 | v4 Turbo |
+|---|---|---|
+| Estimación del estudio (tarifa efectiva/conservadora) | USD 3,04 | USD 3,04 |
+| Solo referencia: precio de lista de la API | USD 1,22 | USD 0,61 |
+
+### Comprobaciones (USD 0 y de pago)
+
+- `audio-studio-elevenlabs-capacidades` (workflow, **solo GET**). Verifica en la cuenta real: v4 Turbo disponible, español, límite de caracteres, style y speaker boost, y voces compatibles. No sintetiza ni consume créditos.
+- `scripts/audio-studio/ab-v4-turbo.ts fixture <dir>` (USD 0). Usa el extracto de 90 s (≈1.270 caracteres) de «El día que entiendes que no puedes controlarlo todo». Imprime el tope exacto del A/B real (`TOPE_AB_USD`).
+- `audio-studio-ab-v4-turbo` (workflow manual, **de pago**). Usa la misma voz y el mismo texto, con una solicitud por modelo. Solo corre si `confirmar_usd` coincide exactamente con el tope. Requiere autorización adicional.
+
+## Worker de producción
+
+- `AUDIO_STUDIO_WORKER=inline`: solo local y CI (nunca con `VERCEL` ni `NODE_ENV=production`).
+- `AUDIO_STUDIO_WORKER=github`: la API despacha el evento propio `audio-studio-render`, que lo atiende `.github/workflows/audio-studio-worker.yml` con ffmpeg real.
+  - Reutiliza `GH_WORKER_TOKEN` y `GH_WORKER_REPO` sin modificarlos.
+  - No comparte evento con Reels, Long Form ni Podcast Premium.
+  - El payload lleva solo los dos UUID.
+- El worker (`scripts/audio-studio/worker.ts`) **no genera nada** salvo que se cumplan las tres condiciones:
+  - la variable de repositorio `AUDIO_STUDIO_PAID_TTS` vale `1` (hoy no está definida);
+  - existen `AUDIO_STUDIO_ELEVENLABS_VOICES`;
+  - el proyecto trae una autorización guardada para el mismo modelo y monto.
+
+  La voz fixture nunca se usa en producción.
+- Si el despacho falla, no se cobra: la generación queda en cola y, al vencer, se puede reanudar.
+
 ## Respaldo y recuperación
 
 1. **Antes del despliegue.** No hay datos previos del módulo. Producción solo gana archivos nuevos bajo `videos/audio-studio/v1/`. Nada existente se modifica.

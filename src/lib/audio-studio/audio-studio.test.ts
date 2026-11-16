@@ -262,11 +262,14 @@ test("aislamiento de código: solo reutiliza motores de Podcast en modo lectura;
   roots.forEach(walk);
   assert.ok(files.length >= 10);
   // Motores reutilizados sin modificarlos (audio, ffmpeg, biblioteca CC0, tipos, adaptador de voz real y voz espeak de pruebas).
-  const ALLOWED = new Set(["@/lib/podcast/v3/audio", "@/lib/podcast/v3/ffmpeg", "@/lib/podcast/v3/music-library", "@/lib/podcast/v3/spec", "@/lib/podcast/v3/pipeline", "@/lib/podcast/v3/adapters", "@/lib/podcast/v2/espeak-provider"]);
+  const ALLOWED = new Set(["@/lib/podcast/v3/audio", "@/lib/podcast/v3/ffmpeg", "@/lib/podcast/v3/music-library", "@/lib/podcast/v3/spec", "@/lib/podcast/v3/pipeline", "@/lib/podcast/v2/espeak-provider"]);
+  // Fuera de Podcast, el único motor compartido que se reutiliza es el constructor de la solicitud de ElevenLabs.
+  const SHARED = new Set(["@/lib/ai/voice", "@/lib/supabase/env", "@/lib/supabase/server", "@/lib/billing/internal-production", "@/lib/video/long-form/private-access"]);
   for (const f of files) {
     const src = readFileSync(f, "utf8");
     for (const m of src.matchAll(/from "(@\/[^"]+)"/g)) {
       if (m[1].startsWith("@/lib/podcast")) assert.ok(ALLOWED.has(m[1]), `${f}: ${m[1]}`);
+      else if (m[1].startsWith("@/lib/") && !m[1].startsWith("@/lib/audio-studio")) assert.ok(SHARED.has(m[1]), `${f}: ${m[1]}`);
       assert.doesNotMatch(m[1], /@\/app\/dashboard\/podcast|@\/components\/podcast|paid-calls|ledger|production-intelligence/, f);
     }
     assert.doesNotMatch(src, /elevenlabs\.io|api\.anthropic|openai\.com|podcast_studio_|podcast_episodes|pi_paid/i, f);

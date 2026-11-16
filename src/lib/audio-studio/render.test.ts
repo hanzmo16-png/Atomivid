@@ -34,7 +34,7 @@ function setup(script = DUO, voiceCount: 1 | 2 = 2, music?: Partial<AudioProject
 async function queue(store: ReturnType<typeof memoryStore>, id: string, usd = 1) {
   const p = (await store.get(A, id))!;
   const now = new Date().toISOString();
-  await store.put({ ...p, generation: { ...p.generation, status: "en_cola", kind: "generar", heartbeatAt: now, error: null, authorization: { usd, revision: p.revision, at: now, spentBefore: p.spentUsd } } });
+  await store.put({ ...p, generation: { ...p.generation, status: "en_cola", kind: "generar", heartbeatAt: now, error: null, authorization: { usd, revision: p.revision, at: now, spentBefore: p.spentUsd, model: p.ttsModel } } });
 }
 function decode(buf: Buffer) {
   const dir = mkdtempSync(path.join(tmpdir(), "aps-dec-")), f = path.join(dir, "a.mp3");
@@ -104,7 +104,7 @@ test("error del proveedor: falla con mensaje claro, sin MP3, y reanudar completa
   const { store, id } = setup();
   await queue(store, id);
   let fail = true;
-  const flaky = fixtureVoice({ fail: (t) => { if (fail && t.startsWith("El futuro")) throw new Error("503 servicio no disponible"); } });
+  const flaky = fixtureVoice({ fail: (t: string) => { if (fail && t.startsWith("El futuro")) throw new Error("503 servicio no disponible"); } });
   assert.equal(await renderProject({ store, voice: flaky, musicDir: MUSIC }, A, id), "fallida");
   let p = (await store.get(A, id))!;
   assert.match(p.generation.error!, /El proveedor de voz falló en la intervención 3.*no se volverá a cobrar/);
@@ -156,7 +156,7 @@ test("tope de gasto: con tarifa real simulada, se detiene antes del cargo que ex
   await queue(store, id, 0.025);
   const base = fixtureVoice();
   const price = (chars: number) => Math.ceil((chars / 1000) * 0.2 * 1e4) / 1e4;
-  const priced = { ...base, provider: { ...base.provider, usdFor: price, synth: async (t: string, v: string, d: string) => ({ ...(await base.provider.synth(t, v, d)), actualUsd: price(t.length) }) } };
+  const priced = { ...base, provider: (m: Parameters<typeof base.provider>[0]) => { const pr = base.provider(m); return { ...pr, usdFor: price, synth: async (t: string, v: string, d: string) => ({ ...(await pr.synth(t, v, d)), actualUsd: price(t.length) }) }; } };
   assert.equal(await renderProject({ store, voice: priced, musicDir: MUSIC }, A, id), "fallida");
   const p = (await store.get(A, id))!;
   assert.match(p.generation.error!, /Se alcanzó el gasto autorizado \(USD 0\.03\)|Se alcanzó el gasto autorizado \(USD 0\.02\)/);

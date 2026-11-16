@@ -6,6 +6,7 @@ import { canAccessAudioStudio } from "./access";
 import { AUDIO_STUDIO_BUCKET, storageStore, type BlobStore, type ProjectStore } from "./store";
 import type { Deps } from "./service";
 import { voiceAvailability, type VoiceAvailability } from "./voice";
+import { modelRate } from "./model";
 
 export type StudioUser = { id: string; owner: boolean };
 
@@ -33,5 +34,5 @@ function storageBucket() {
 
 /** El almacén usa la clave de servicio solo en el servidor; la ruta siempre lleva el id de la cuenta autenticada. */
 export function studioDeps(): Deps & { store: ProjectStore & BlobStore; voice: VoiceAvailability } {
-  return { store: storageStore(storageBucket() as never), voice: voiceAvailability() };
+  return { store: storageStore(storageBucket() as never), voice: voiceAvailability(process.env, (m) => modelRate(m).rate) };
 }

@@ -17,6 +17,34 @@ export const MAX_TARGET_MINUTES = 60;
 export const WORDS_PER_MINUTE = 150;
 /** Tarifa de voz por 1 000 caracteres. 0.20 es la tarifa configurada en producción (la más conservadora conocida). */
 export const DEFAULT_VOICE_USD_PER_1K_CHARS = 0.2;
+
+/**
+ * Modelos de voz seleccionables. «verified» indica si las capacidades y la tarifa se comprobaron contra la cuenta real
+ * (GET /v1/models y facturación). Mientras no lo estén, el estudio:
+ *  - estima con la tarifa CONSERVADORA (la de producción para Multilingual v2), nunca con la de lista más barata;
+ *  - envía solo los parámetros comprobados (stability y similarity_boost), sin style/speed/break/previous_text.
+ * Multilingual v2 es el modelo por defecto y el respaldo explícito: un fallo nunca cambia de modelo solo.
+ */
+export type TtsModelId = "eleven_multilingual_v2" | "eleven_v4_turbo";
+export type TtsModel = {
+  id: TtsModelId; label: string; description: string;
+  /** Tarifa de lista API (USD / 1 000 caracteres) según fuentes públicas; solo informativa. */
+  listUsdPer1k: number;
+  /** Máximo de caracteres por solicitud. */
+  maxCharsPerRequest: number;
+  /** Ajustes de voz que se envían al proveedor (los no comprobados no se envían). */
+  voiceSettings: readonly ("stability" | "similarity_boost" | "style" | "use_speaker_boost")[];
+  verified: boolean; fallback: boolean;
+};
+export const TTS_MODELS: readonly TtsModel[] = [
+  { id: "eleven_multilingual_v2", label: "Multilingual v2 (estándar)", description: "Modelo actual de Atomivid. Máxima estabilidad en narraciones largas.",
+    listUsdPer1k: 0.08, maxCharsPerRequest: 10_000, voiceSettings: ["stability", "similarity_boost", "style", "use_speaker_boost"], verified: true, fallback: true },
+  { id: "eleven_v4_turbo", label: "v4 Turbo (rápido, en evaluación)", description: "Más rápido y expresivo; tarifa de lista la mitad que v2. Capacidades y tarifa de la cuenta aún sin verificar.",
+    listUsdPer1k: 0.04, maxCharsPerRequest: 10_000, voiceSettings: ["stability", "similarity_boost"], verified: false, fallback: false },
+];
+export const DEFAULT_TTS_MODEL: TtsModelId = "eleven_multilingual_v2";
+export const FALLBACK_TTS_MODEL: TtsModelId = "eleven_multilingual_v2";
+export const ttsModel = (id: string): TtsModel | null => TTS_MODELS.find((m) => m.id === id) ?? null;
 export const DEFAULT_BUDGET_USD = 6;
 export const MAX_BUDGET_USD = 20;
 
@@ -58,6 +86,8 @@ export type AudioProject = {
   notes: string;
   music: MusicConfig;
   budgetUsd: number;
+  /** Modelo de voz elegido (Multilingual v2 por defecto). */
+  ttsModel: TtsModelId;
   status: ProjectStatus;
   /** Gasto real registrado por el estudio (solo lo escribe el servidor tras una síntesis pagada). */
   spentUsd: number;
@@ -73,13 +103,13 @@ export type AudioProject = {
 
 export type AudioResult = {
   path: string; bytes: number; sha256: string; durationSeconds: number; lufs: number; truePeak: number;
-  revision: number; renderedAt: string; provider: string; segments: number; reusedSegments: number; musicTracks: string[];
+  revision: number; renderedAt: string; provider: string; model: TtsModelId; segments: number; reusedSegments: number; musicTracks: string[];
 };
 export type GenerationStatus = "inactiva" | "en_cola" | "generando" | "terminada" | "fallida";
 export type Generation = {
   status: GenerationStatus;
   /** Autorización expresa: monto confirmado por la persona para la revisión indicada. */
-  authorization: { usd: number; revision: number; at: string; spentBefore: number } | null;
+  authorization: { usd: number; revision: number; at: string; spentBefore: number; model: TtsModelId } | null;
   kind: "generar" | "remezclar" | null;
   startedAt: string | null; heartbeatAt: string | null; finishedAt: string | null;
   progress: { done: number; total: number } | null;
@@ -97,7 +127,7 @@ export function generationActive(g: Generation, now: number): boolean {
 }
 export const GENERATION_LABEL: Record<GenerationStatus, string> = { inactiva: "Sin generar", en_cola: "En cola", generando: "Generando", terminada: "Audio listo", fallida: "Falló" };
 
-export type ProjectInput = Partial<Pick<AudioProject, "title" | "voiceCount" | "voices" | "targetMinutes" | "script" | "notes" | "music" | "budgetUsd">>;
+export type ProjectInput = Partial<Pick<AudioProject, "title" | "voiceCount" | "voices" | "targetMinutes" | "script" | "notes" | "music" | "budgetUsd" | "ttsModel">>;
 
 export class ValidationError extends Error {
   constructor(readonly field: string, message: string) { super(message); this.name = "ValidationError"; }
@@ -161,6 +191,10 @@ export function applyInput(prev: AudioProject, input: ProjectInput, now: string)
   if (input.script !== undefined) next.script = cleanText(input.script, MAX_SCRIPT, "guion");
   if (input.notes !== undefined) next.notes = cleanText(input.notes, MAX_NOTES, "notas");
   if (input.music !== undefined) next.music = cleanMusic(input.music, prev.music);
+  if (input.ttsModel !== undefined) {
+    if (!ttsModel(String(input.ttsModel))) throw new ValidationError("ttsModel", "Modelo de voz desconocido.");
+    next.ttsModel = input.ttsModel;
+  }
   if (input.budgetUsd !== undefined) {
     const b = typeof input.budgetUsd === "number" ? input.budgetUsd : Number(input.budgetUsd);
     if (!Number.isFinite(b) || b <= 0) throw new ValidationError("budgetUsd", "El tope de presupuesto debe ser mayor que cero.");
@@ -174,6 +208,7 @@ export function applyInput(prev: AudioProject, input: ProjectInput, now: string)
 }
 
 const contentChanged = (a: AudioProject, b: AudioProject) =>
+  a.ttsModel !== b.ttsModel ||
   a.title !== b.title || a.script !== b.script || a.voiceCount !== b.voiceCount || a.voices.join() !== b.voices.join() ||
   a.targetMinutes !== b.targetMinutes || JSON.stringify(a.music) !== JSON.stringify(b.music) || a.budgetUsd !== b.budgetUsd;
 
@@ -186,7 +221,7 @@ export function newProject(args: { id: string; ownerId: string; now: string; tit
   if (!isUuid(args.id) || !isUuid(args.ownerId)) throw new ValidationError("id", "Identificador no válido.");
   const base: AudioProject = {
     id: args.id, ownerId: args.ownerId, version: MODULE_VERSION, title: "Episodio sin título", language: "es", voiceCount: 1,
-    voices: [VOICE_PRESETS[0].id], targetMinutes: 10, script: "", notes: "", music: { ...DEFAULT_MUSIC }, budgetUsd: DEFAULT_BUDGET_USD,
+    voices: [VOICE_PRESETS[0].id], targetMinutes: 10, script: "", notes: "", music: { ...DEFAULT_MUSIC }, budgetUsd: DEFAULT_BUDGET_USD, ttsModel: DEFAULT_TTS_MODEL,
     status: "borrador", spentUsd: 0, audio: null, generation: { ...IDLE_GENERATION }, revision: 0, archivedAt: null, createdAt: args.now, updatedAt: args.now,
   };
   const p = applyInput(base, { title: args.title ?? base.title, voiceCount: args.voiceCount ?? 1 }, args.now);
@@ -202,7 +237,7 @@ export function parseStored(raw: unknown, ownerId: string): AudioProject | null 
     const base = newProject({ id: r.id, ownerId, now: typeof r.createdAt === "string" ? r.createdAt : new Date(0).toISOString() });
     const p = applyInput(base, {
       title: r.title as string, voiceCount: r.voiceCount as 1 | 2, voices: r.voices as string[], targetMinutes: r.targetMinutes as number,
-      script: r.script as string, notes: (r.notes as string) ?? "", music: r.music as MusicConfig, budgetUsd: r.budgetUsd as number,
+      script: r.script as string, notes: (r.notes as string) ?? "", music: r.music as MusicConfig, budgetUsd: r.budgetUsd as number, ttsModel: (ttsModel(String(r.ttsModel ?? "")) ? r.ttsModel : DEFAULT_TTS_MODEL) as TtsModelId,
     }, typeof r.updatedAt === "string" ? r.updatedAt : base.updatedAt);
     return {
       ...p,
@@ -229,7 +264,7 @@ function parseAudio(v: unknown): AudioResult | null {
   if (!path || !/^audio-studio\/v1\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/audio\/[\w.-]+\.mp3$/.test(path) || !sha || !/^[0-9a-f]{64}$/.test(sha)) return null;
   return {
     path, sha256: sha, bytes: num(a.bytes) ?? 0, durationSeconds: num(a.durationSeconds) ?? 0, lufs: num(a.lufs) ?? 0, truePeak: num(a.truePeak) ?? 0,
-    revision: num(a.revision) ?? 0, renderedAt: str(a.renderedAt) ?? "", provider: str(a.provider) ?? "", segments: num(a.segments) ?? 0,
+    revision: num(a.revision) ?? 0, renderedAt: str(a.renderedAt) ?? "", provider: str(a.provider) ?? "", model: (ttsModel(String(a.model ?? "")) ? a.model : DEFAULT_TTS_MODEL) as TtsModelId, segments: num(a.segments) ?? 0,
     reusedSegments: num(a.reusedSegments) ?? 0, musicTracks: Array.isArray(a.musicTracks) ? a.musicTracks.filter((x): x is string => typeof x === "string") : [],
   };
 }
@@ -242,7 +277,7 @@ function parseGeneration(v: unknown): Generation {
   const pr = g.progress as Record<string, unknown> | null | undefined;
   return {
     status,
-    authorization: au && num(au.usd) !== null && num(au.revision) !== null && str(au.at) ? { usd: num(au.usd)!, revision: num(au.revision)!, at: str(au.at)!, spentBefore: num(au.spentBefore) ?? 0 } : null,
+    authorization: au && num(au.usd) !== null && num(au.revision) !== null && str(au.at) ? { usd: num(au.usd)!, revision: num(au.revision)!, at: str(au.at)!, spentBefore: num(au.spentBefore) ?? 0, model: (ttsModel(String(au.model ?? "")) ? au.model : DEFAULT_TTS_MODEL) as TtsModelId } : null,
     kind: g.kind === "generar" || g.kind === "remezclar" ? g.kind : null,
     startedAt: str(g.startedAt), heartbeatAt: str(g.heartbeatAt), finishedAt: str(g.finishedAt),
     progress: pr && num(pr.done) !== null && num(pr.total) !== null ? { done: num(pr.done)!, total: num(pr.total)! } : null,
@@ -285,10 +320,28 @@ export type Estimate = {
   withinBudget: boolean; paidCallsEnabled: false;
 };
 
-export function voiceRate(env: Record<string, string | undefined> = process.env): number {
+export function voiceRate(env: Record<string, string | undefined> = process.env, model: TtsModelId = DEFAULT_TTS_MODEL): number {
+  return modelRate(model, env).rate;
+}
+
+export type ModelRate = { model: TtsModelId; rate: number; source: "produccion" | "verificada" | "conservadora"; listUsdPer1k: number; note: string };
+/**
+ * Tarifa usada para estimar y para el tope de cada autorización.
+ *  - Multilingual v2: PRICING_ELEVENLABS_USD_PER_1K_CHARS de producción (mínimo 0.20).
+ *  - v4 Turbo: solo con AUDIO_STUDIO_RATE_ELEVEN_V4_TURBO (tarifa efectiva comprobada en la cuenta) se usa una tarifa
+ *    propia, y nunca menor que la de lista. Sin ella se estima con la tarifa de v2: no se asume un descuento no comprobado.
+ */
+export function modelRate(model: TtsModelId, env: Record<string, string | undefined> = process.env): ModelRate {
   const n = Number(env.PRICING_ELEVENLABS_USD_PER_1K_CHARS);
-  // Nunca por debajo de la tarifa de producción conocida: el estimado no debe quedarse corto.
-  return Number.isFinite(n) && n > 0 ? Math.max(n, DEFAULT_VOICE_USD_PER_1K_CHARS) : DEFAULT_VOICE_USD_PER_1K_CHARS;
+  const v2 = Number.isFinite(n) && n > 0 ? Math.max(n, DEFAULT_VOICE_USD_PER_1K_CHARS) : DEFAULT_VOICE_USD_PER_1K_CHARS;
+  const m = ttsModel(model) ?? ttsModel(DEFAULT_TTS_MODEL)!;
+  if (m.id === "eleven_multilingual_v2") return { model: m.id, rate: v2, source: "produccion", listUsdPer1k: m.listUsdPer1k, note: "Tarifa efectiva configurada en producción." };
+  const verified = Number(env.AUDIO_STUDIO_RATE_ELEVEN_V4_TURBO);
+  if (Number.isFinite(verified) && verified > 0) {
+    return { model: m.id, rate: Math.max(verified, m.listUsdPer1k), source: "verificada", listUsdPer1k: m.listUsdPer1k, note: "Tarifa efectiva comprobada en la cuenta." };
+  }
+  return { model: m.id, rate: v2, source: "conservadora", listUsdPer1k: m.listUsdPer1k,
+    note: `Tarifa de la cuenta sin verificar: se estima igual que Multilingual v2 (USD ${v2.toFixed(2)}/1K). La de lista es USD ${m.listUsdPer1k.toFixed(2)}/1K.` };
 }
 
 export function estimate(p: Pick<AudioProject, "script" | "voiceCount" | "targetMinutes" | "budgetUsd" | "spentUsd">, rate = DEFAULT_VOICE_USD_PER_1K_CHARS): Estimate {
@@ -348,6 +401,8 @@ export function musicPlan(script: string, music: MusicConfig): MusicSection[] {
 /** Qué falta para que el proyecto pueda pasar a «listo para autorizar». Vacío = listo. */
 export function readinessIssues(p: AudioProject, e: Estimate): string[] {
   const issues: string[] = [];
+  const limit = ttsModel(p.ttsModel)?.maxCharsPerRequest ?? 10_000;
+  if (scriptLines(p.script, p.voiceCount).some((l) => l.text.length > limit)) issues.push(`Una intervención supera ${limit.toLocaleString("es")} caracteres (límite por solicitud del modelo): divídela en párrafos.`);
   if (!p.title.trim()) issues.push("Falta el título.");
   if (e.words < 50) issues.push("El guion es demasiado corto (menos de 50 palabras).");
   if (p.voiceCount === 2 && e.perVoiceCharacters[1] === 0) issues.push("Con dos voces, marca las intervenciones de la segunda con «Voz 2:».");

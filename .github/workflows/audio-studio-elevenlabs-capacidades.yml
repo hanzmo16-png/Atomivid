@@ -1,0 +1,22 @@
+# Audio Podcast Studio — capacidades de ElevenLabs para eleven_v4_turbo. SOLO LECTURA (GET /v1/models, /v1/voices,
+# /v1/user/subscription): no sintetiza, no consume créditos, no modifica la cuenta ni secretos. USD 0.
+name: audio-studio-elevenlabs-capacidades
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [claude/audio-studio-v4-turbo]
+    paths: [".github/workflows/audio-studio-elevenlabs-capacidades.yml", "scripts/audio-studio/elevenlabs-capacidades.ts"]
+permissions:
+  contents: read
+jobs:
+  capacidades:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Capacidades (solo GET)
+        run: npx --yes tsx@4 scripts/audio-studio/elevenlabs-capacidades.ts
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
