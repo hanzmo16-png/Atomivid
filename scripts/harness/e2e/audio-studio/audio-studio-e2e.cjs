@@ -127,7 +127,7 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`), fu
       await p.waitForURL(/\/dashboard\/audio-studio\/[0-9a-f-]{36}$/); await p.getByTestId("audio-editor").waitFor();
       const newUrl = p.url(); if (dev === "samsung-390") ownerProjectId = newUrl.split("/").pop();
       check(`[${dev}] dos voces: dos selectores distintos`, (await p.getByTestId("audio-voice-1").count()) === 1 && (await p.getByTestId("audio-voice-0").inputValue()) !== (await p.getByTestId("audio-voice-1").inputValue()));
-      const script = "## Bienvenida\nVoz 1: Hola, bienvenidos a una charla sobre la calma.\nVoz 2: Gracias por estar aquí; hoy hablamos de respirar y aceptar.\n## Cierre\nVoz 1: El futuro empieza con lo que eliges hoy.";
+      let script = "## Bienvenida\nVoz 1: Hola, bienvenidos a una charla sobre la calma.\nVoz 2: Gracias por estar aquí; hoy hablamos de respirar y aceptar.\n## Cierre\nVoz 1: El futuro empieza con lo que eliges hoy.";
       await p.getByTestId("audio-script").fill(script);
       await p.getByTestId("audio-voice-1").selectOption("es-latam-f-energica");
       await p.getByTestId("audio-target").fill("5");
@@ -153,7 +153,8 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`), fu
         // MP3 de 5 min: dúo en 390 px, monólogo en 360 px (el editor de 360 cambia a una voz).
         const duo = dev === "samsung-390";
         if (!duo) { await p.getByTestId("audio-voices-1").check(); }
-        await p.getByTestId("audio-script").fill(fiveMinutes(duo));
+        script = fiveMinutes(duo);
+        await p.getByTestId("audio-script").fill(script);
         await p.getByTestId("audio-music-inteligente").check();
         await p.getByTestId("audio-budget").fill("5");
         await p.getByTestId("audio-save").click();
@@ -175,6 +176,8 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`), fu
           await p.getByTestId("audio-save").click();
           await p.waitForFunction(() => document.querySelector('[data-testid="audio-save-state"]')?.textContent === "Guardado");
           await p.getByTestId("audio-remix").click();
+          // Primero la cola (el estado anterior era «Audio listo»), luego el final.
+          await p.waitForFunction(() => /En cola|Generando/.test(document.querySelector('[data-testid="audio-generation-status"]')?.textContent ?? ""), null, { timeout: 30000 });
           const st2 = await waitGeneration(p, "remezcla");
           const after = await apiProject(p, id);
           check(`[${dev}] remezcla lista sin llamadas nuevas al proveedor (${calls} → ${after.generation.providerCalls})`, st2 === "Audio listo" && after.generation.providerCalls === calls && after.audio.sha256 !== proj.audio.sha256 && after.audio.reusedSegments === after.audio.segments, after.generation);
