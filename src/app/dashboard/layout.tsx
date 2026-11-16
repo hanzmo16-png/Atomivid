@@ -9,6 +9,7 @@ import { NavLink } from "./NavLink";
 import { isCommandCenterAdmin } from "@/lib/command-center/access";
 import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
 import { studioFlagFor } from "@/lib/podcast/v3/studio";
+import { canAccessAudioStudio } from "@/lib/audio-studio/access";
 
 export default async function DashboardLayout({
   children,
@@ -32,6 +33,8 @@ export default async function DashboardLayout({
   // Podcast (estudio audiovisual): mismo gate que la página /dashboard/podcast + interruptor del estudio
   // (PODCAST_V3_ENABLED=1, piloto del dueño, o activado por defecto solo en Vercel Preview). Solo navegación.
   const showPodcast = canAccessLongFormBeta(user) && studioFlagFor(user).enabled;
+  // Audio Podcast Studio 1.0: módulo aparte (solo audio). Solo navegación.
+  const showAudioStudio = canAccessAudioStudio(user);
 
   return (
     <div className="min-h-screen">
@@ -71,6 +74,15 @@ export default async function DashboardLayout({
                 Podcast
               </NavLink>
             )}
+            {showAudioStudio && (
+              <NavLink
+                href="/dashboard/audio-studio"
+                // lg, no sm: entre 640 y 1023 px un enlace más desborda la cabecera y tapa la ayuda (M3-1).
+                className="hidden whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition-colors lg:inline-block"
+              >
+                Audio Podcast
+              </NavLink>
+            )}
             {showCommandCenter && (
               <NavLink
                 href="/dashboard/command-center"
@@ -102,6 +114,7 @@ export default async function DashboardLayout({
             <NavLink href="/dashboard/billing">Facturación</NavLink>
             {/* El acceso al ensayo de Long Form no va en esta franja (< 640 px): es una herramienta interna de escritorio (xl). */}
             {showPodcast && <NavLink href="/dashboard/podcast">Podcast</NavLink>}
+            {showAudioStudio && <NavLink href="/dashboard/audio-studio">Audio Podcast</NavLink>}
             {showCommandCenter && <NavLink href="/dashboard/command-center">Command Center</NavLink>}
           </div>
         </div>

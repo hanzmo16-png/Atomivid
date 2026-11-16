@@ -1,0 +1,131 @@
+# Audio Podcast Studio 1.0
+
+Módulo nuevo y aislado para crear podcasts **solo audio**. Ruta: `/dashboard/audio-studio`.
+
+## Alcance de 1.0
+
+- **Episodios**: monólogo (1 voz) o diálogo (2 voces), con perfiles de voz en español latinoamericano elegidos uno por uno y duración objetivo de 5 a 60 min.
+- **Guion**:
+  - se pega o se escribe en el editor;
+  - «Generar estructura de guion» crea un esqueleto de secciones con pautas (sin IA ni costo);
+  - guardado manual y automático;
+  - control de revisión entre pestañas;
+  - aviso al cerrar con cambios sin guardar.
+- **Música inteligente** (biblioteca propia CC0 de Podcast 3.0, licencia comercial verificada pista por pista):
+  - un ambiente por sección según el texto, con fundidos cruzados de 2 s entre secciones;
+  - entrada y cierre;
+  - atenuación (ducking) bajo la voz;
+  - volumen configurable.
+
+  Si un ambiente no tiene pista con licencia verificada, no se musicaliza y se explica. También existen los modos «un solo ambiente» y «sin música».
+- **Generación del MP3** (worker):
+  - voz por intervención, con pausas (0,5 s con la misma voz, 0,35 s al cambiar de voz, 1,2 s entre secciones);
+  - mezcla con la música y máster a −16 LUFS con pico ≤ −1 dBTP;
+  - exporte MP3 a 192 kbps y verificación con `ffprobe` y `ebur128` antes de publicar.
+
+  Reutiliza sin modificarlos `assembleVoice`, `mixAndMaster` y `exportAudio` (`src/lib/podcast/v3/audio.ts`), `ffmpeg.ts` y `music-library.ts`.
+- **Autorización expresa del gasto**: hay que marcar el monto exacto estimado, que debe caber en el tope del episodio. El servidor rechaza cualquier otro monto.
+- **Sin doble cobro**:
+  - cada intervención se guarda en caché (`tts/<sha256>.mp3`) antes de sumar su costo;
+  - repetir, reanudar o remezclar nunca vuelve a sintetizar lo ya generado;
+  - el gasto se detiene antes del cargo que excedería lo autorizado.
+- **Recuperación**: tras un fallo del proveedor o una interrupción (sin latido durante 10 min), «Reanudar» continúa con la misma autorización.
+- **Remezcla**: cambia la música sin regenerar la voz (costo 0).
+- **Biblioteca de audio**:
+  - solo los proyectos de la cuenta;
+  - reproductor (`preload="none"`) y descarga del MP3 mediante URL firmada de 10 min;
+  - «Archivados» separados;
+  - archivar no borra nada.
+- **Proveedores de voz**:
+  - `AUDIO_STUDIO_VOICE=fixture` usa espeak-ng local. Solo funciona fuera de producción.
+  - El adaptador real de ElevenLabs (`realTts`) solo se activa con `AUDIO_STUDIO_PAID_TTS=1` más el mapa `AUDIO_STUDIO_ELEVENLABS_VOICES` (perfil=voiceId para los 4 perfiles).
+
+  En 1.0 **ningún entorno tiene ese interruptor**: en producción «Generar MP3» responde 409 sin llamada ni cargo hasta una autorización posterior.
+- **Worker**: en 1.0 existe el worker en proceso (`AUDIO_STUDIO_WORKER=inline`), que usan el arnés y el CI. En producción no se activa.
+
+### Primer episodio
+
+El primer episodio se carga como proyecto editable para la cuenta interna del dueño:
+
+- Título: «El día que entiendes que no puedes controlarlo todo».
+- Voz: Mateo, masculina profesional, español latinoamericano.
+- Duración: objetivo 18 min; estimado 17.9 min.
+- Costo estimado: unos USD 3.04, con un tope de USD 6.
+- Guion original sobre estoicismo, en 15 secciones.
+
+Su id es estable por cuenta, así que nunca se duplica ni pisa una versión editada.
+
+## Aislamiento
+
+- **Código**
+  - El módulo vive en:
+    - `src/lib/audio-studio/**`
+    - `src/app/dashboard/audio-studio/**`
+    - `src/app/api/audio-studio/**`
+  - No importa nada de Podcast Studio Premium (`src/lib/podcast/**`, `src/app/dashboard/podcast/**`, `src/components/podcast/**`), ni proveedores, ni ledger. Una prueba lo verifica.
+  - Fuera del módulo solo cambia `src/app/dashboard/layout.tsx`, con el enlace «Audio Podcast»: en la franja móvil (< 640 px) y en la barra desde 1024 px. Entre 640 y 1023 px no se añade a la barra porque la desbordaría y taparía la ayuda (defecto M3-1, prueba `qa-m3-movil`); allí se entra por `/dashboard/audio-studio`.
+- **Datos**
+  - No hay migraciones ni tablas nuevas.
+  - Cada proyecto es un JSON en el bucket privado existente `videos`, bajo `audio-studio/v1/<id de cuenta>/<id de proyecto>.json`.
+  - El estudio nunca lee, escribe ni borra fuera de ese prefijo. Ningún otro módulo lo usa.
+- **Cuentas**
+  - La ruta se construye solo con el id de la sesión autenticada. Los ids se validan como UUID, así que no admite `../`.
+  - Otra cuenta recibe 404 al leer, editar, archivar o generar un proyecto ajeno.
+  - Sin sesión: 401 en la API y redirección a `/login` en la página.
+  - Las acciones POST/PUT exigen `Content-Type: application/json`, lo que frena los envíos cruzados desde otro sitio.
+- **Acceso**: misma lista privada que Podcast y Long Form (beta y cuenta interna del dueño).
+
+## Interruptor
+
+`AUDIO_STUDIO_DISABLED=1` apaga a la vez:
+
+- la ruta (404);
+- la API (403);
+- el enlace del panel.
+
+No hace falta desplegar código. No es un secreto.
+
+## Respaldo y recuperación
+
+1. **Antes del despliegue.** No hay datos previos del módulo. Producción solo gana archivos nuevos bajo `videos/audio-studio/v1/`. Nada existente se modifica.
+2. **Respaldo de proyectos.** Descargar el prefijo `videos/audio-studio/v1/` con la clave de servicio, desde un entorno autorizado. Cada archivo es autocontenido y lleva `version: "audio-studio-1.0"` y `revision`.
+3. **Restaurar un proyecto.** Volver a subir su JSON a la misma ruta. Al leerlo, el estudio lo valida contra el esquema y la cuenta (`parseStored`). Un archivo corrupto o ajeno se ignora y nunca se ejecuta.
+4. **Retirar el módulo sin desplegar.** Poner `AUDIO_STUDIO_DISABLED=1`. Los proyectos guardados quedan intactos.
+5. **Revertir el código.** Usar `git revert` del commit de merge del PR. Sin migraciones, no hay nada que deshacer en la base. Los JSON del prefijo pueden quedarse: ningún otro módulo los lee.
+
+## Pruebas
+
+| Tipo | Archivo | Qué cubre |
+|---|---|---|
+| Unitarias, integración y seguridad | `src/lib/audio-studio/audio-studio.test.ts` | Modelo, servicio, almacén en Storage simulado, aislamiento, costo, bloqueo de pago, aislamiento de código |
+| Render | `src/app/dashboard/audio-studio/audio-studio.render.test.tsx` | Biblioteca y editor |
+| E2E | `scripts/harness/e2e/audio-studio/audio-studio-e2e.cjs` | Ver abajo |
+
+El E2E corre en Samsung 390×844 y en escritorio 1440×900, con un arnés local sin red externa. Cubre:
+
+- enlace en el panel y episodio inicial;
+- creación y guardado de episodios, con conservación tras recargar;
+- guardado automático y conflicto entre pestañas;
+- música y presupuesto;
+- generación bloqueada;
+- archivar y restaurar;
+- aislamiento entre cuentas por interfaz y por API;
+- 401 sin sesión y 415 para envíos que no son JSON;
+- portada, Podcast Premium, Long Form y Facturación siguen respondiendo;
+- ningún archivo previo del Storage local borrado;
+- ninguna salida a proveedores reales.
+
+CI: `.github/workflows/audio-podcast-studio.yml`.
+
+## Verificación en producción
+
+`.github/workflows/audio-studio-produccion.yml` se lanza manualmente después del despliegue. Cuesta USD 0.
+
+- **`publico`**: sin sesión ni secretos, en escritorio y con agente de móvil. Comprueba:
+  - la ruta, que redirige a `/login`;
+  - la API, que responde 401;
+  - el envío que no es JSON, que responde 415;
+  - que los módulos anteriores siguen respondiendo.
+- **`episodio`**: deja cargado el episodio inicial del dueño de forma idempotente y lo relee.
+  - Usa los secretos ya existentes `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` e `INTERNAL_PRODUCTION_OWNER_USER_ID`, sin modificarlos.
+  - Solo escribe bajo `videos/audio-studio/v1/<dueño>/`.

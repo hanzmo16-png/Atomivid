@@ -1,0 +1,33 @@
+# Audio Podcast Studio 1.0 — verificación en producción tras el despliegue. USD 0: ningún proveedor de pago.
+#  - publico: sin sesión ni secretos (ruta, API, 401/415, módulos anteriores; escritorio y móvil).
+#  - episodio: deja cargado (idempotente) el episodio inicial del dueño y lo relee. Usa secretos YA existentes sin
+#    modificarlos; solo escribe bajo videos/audio-studio/v1/<dueño>/ y nunca pisa una versión editada.
+name: audio-studio-produccion
+on:
+  workflow_dispatch:
+    inputs:
+      base_url: { description: "URL de producción", default: "https://atomicvid.app" }
+      cargar_episodio: { description: "1 = cargar/verificar el episodio inicial del dueño", default: "1" }
+permissions:
+  contents: read
+concurrency:
+  group: audio-studio-produccion
+  cancel-in-progress: false
+jobs:
+  verificar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Comprobaciones públicas (sin sesión)
+        run: npx tsx scripts/audio-studio/produccion.ts publico "${{ inputs.base_url }}"
+      - name: Episodio inicial del dueño
+        if: inputs.cargar_episodio == '1'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          INTERNAL_PRODUCTION_OWNER_USER_ID: ${{ secrets.INTERNAL_PRODUCTION_OWNER_USER_ID }}
+        run: npx tsx scripts/audio-studio/produccion.ts episodio
