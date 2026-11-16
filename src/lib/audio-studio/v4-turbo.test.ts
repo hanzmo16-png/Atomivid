@@ -158,7 +158,7 @@ test("fallo con v4 Turbo: no cambia de modelo solo; el respaldo es explícito y 
 test("autorización ligada al modelo: autorizar con v2 y cambiar a Turbo exige autorizar de nuevo; el render rechaza un modelo distinto sin llamar", async () => {
   const store = memoryStore();
   const id = ids(), now = new Date().toISOString();
-  const p = applyInput(newProject({ id, ownerId: A, now, title: "Aut" }), { targetMinutes: 5, script: "palabra ".repeat(760), budgetUsd: 5 }, now);
+  const p = applyInput(newProject({ id, ownerId: A, now, title: "Aut" }), { targetMinutes: 5, script: "palabra ".repeat(760), budgetUsd: 5, ttsModel: "eleven_multilingual_v2" }, now);
   await store.create(p);
   const voice: VoiceAvailability = { ok: true, voice: fixtureVoice() };
   const v = view(p, {});
@@ -252,7 +252,7 @@ test("worker de producción, payload adversarial (USD 0): ajeno, manipulado, dup
   const variant = async (mut: (x: AudioProject) => AudioProject) => { const s = memoryStore(); await s.create(mut(structuredClone(base))); return workerPreflight(s, A, id); };
   assert.equal(await variant((x) => ({ ...x, generation: { ...x.generation, authorization: null } })), "sin autorización de gasto guardada");
   assert.equal(await variant((x) => ({ ...x, revision: x.revision + 1 })), "la autorización es de otra revisión del guion");
-  assert.equal(await variant((x) => ({ ...x, ttsModel: "eleven_v4_turbo" })), "la autorización es para otro modelo de voz");
+  assert.equal(await variant((x) => ({ ...x, ttsModel: x.ttsModel === "eleven_v4_turbo" ? "eleven_multilingual_v2" : "eleven_v4_turbo" })), "la autorización es para otro modelo de voz");
   assert.equal(await variant((x) => ({ ...x, generation: { ...x.generation, authorization: { ...x.generation.authorization!, usd: 999 } } })), "monto autorizado inválido o mayor que el tope del episodio");
   assert.equal(await variant((x) => ({ ...x, generation: { ...x.generation, authorization: { ...x.generation.authorization!, usd: 0 } } })), "monto autorizado inválido o mayor que el tope del episodio");
   // La verificación previa no escribe nada.
