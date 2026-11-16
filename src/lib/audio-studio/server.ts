@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import { createServiceClient } from "@/lib/supabase/service";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { getSupabaseServiceRoleKey, getSupabaseUrl } from "@/lib/supabase/env";
 import { isInternalProductionOwner } from "@/lib/billing/internal-production";
 import { canAccessAudioStudio } from "./access";
 import { AUDIO_STUDIO_BUCKET, storageStore, type BlobStore, type ProjectStore } from "./store";
@@ -17,7 +18,20 @@ export async function audioStudioUser(): Promise<StudioUser | { error: string; s
   return { id: user.id, owner: isInternalProductionOwner(user) };
 }
 
+/**
+ * Cliente de Storage del módulo con la clave de servicio (solo servidor). Cada petición es «no-store» y lleva su propia
+ * señal: Next memoiza los GET idénticos dentro de un mismo render, y sin esto la lectura de un proyecto recién creado
+ * devolvía el 404 anterior (la biblioteca salía vacía). No se toca el cliente compartido de otros módulos.
+ */
+function storageBucket() {
+  const client = createSupabaseClient(getSupabaseUrl(), getSupabaseServiceRoleKey(), {
+    auth: { autoRefreshToken: false, persistSession: false },
+    global: { fetch: (input, init) => fetch(input, { ...init, cache: "no-store", signal: init?.signal ?? new AbortController().signal }) },
+  });
+  return client.storage.from(AUDIO_STUDIO_BUCKET);
+}
+
 /** El almacén usa la clave de servicio solo en el servidor; la ruta siempre lleva el id de la cuenta autenticada. */
 export function studioDeps(): Deps & { store: ProjectStore & BlobStore; voice: VoiceAvailability } {
-  return { store: storageStore(createServiceClient().storage.from(AUDIO_STUDIO_BUCKET) as never), voice: voiceAvailability() };
+  return { store: storageStore(storageBucket() as never), voice: voiceAvailability() };
 }
