@@ -95,3 +95,16 @@ El E2E corre en Samsung 390×844 y en escritorio 1440×900, con un arnés local 
 - ninguna salida a proveedores reales.
 
 CI: `.github/workflows/audio-podcast-studio.yml`.
+
+## Verificación en producción
+
+`.github/workflows/audio-studio-produccion.yml` se lanza manualmente después del despliegue. Cuesta USD 0.
+
+- **`publico`**: sin sesión ni secretos, en escritorio y con agente de móvil. Comprueba:
+  - la ruta, que redirige a `/login`;
+  - la API, que responde 401;
+  - el envío que no es JSON, que responde 415;
+  - que los módulos anteriores siguen respondiendo.
+- **`episodio`**: deja cargado el episodio inicial del dueño de forma idempotente y lo relee.
+  - Usa los secretos ya existentes `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` e `INTERNAL_PRODUCTION_OWNER_USER_ID`, sin modificarlos.
+  - Solo escribe bajo `videos/audio-studio/v1/<dueño>/`.
