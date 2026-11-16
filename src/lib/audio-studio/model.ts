@@ -11,7 +11,7 @@ export const MODULE_VERSION = "audio-studio-1.0";
 export const MAX_TITLE = 200;
 export const MAX_SCRIPT = 60_000;
 export const MAX_NOTES = 2_000;
-export const MIN_TARGET_MINUTES = 1;
+export const MIN_TARGET_MINUTES = 5;
 export const MAX_TARGET_MINUTES = 60;
 /** Ritmo de narración en español usado para estimar la duración (palabras por minuto). */
 export const WORDS_PER_MINUTE = 150;
@@ -59,14 +59,43 @@ export type AudioProject = {
   music: MusicConfig;
   budgetUsd: number;
   status: ProjectStatus;
-  /** Gasto real registrado por el estudio. En 1.0 nunca cambia: no hay llamadas pagadas. */
-  spentUsd: 0;
-  audio: null;
+  /** Gasto real registrado por el estudio (solo lo escribe el servidor tras una síntesis pagada). */
+  spentUsd: number;
+  /** Último MP3 terminado (lo escribe el worker). */
+  audio: AudioResult | null;
+  /** Estado de la generación (lo escribe el servidor). */
+  generation: Generation;
   revision: number;
   archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
+
+export type AudioResult = {
+  path: string; bytes: number; sha256: string; durationSeconds: number; lufs: number; truePeak: number;
+  revision: number; renderedAt: string; provider: string; segments: number; reusedSegments: number; musicTracks: string[];
+};
+export type GenerationStatus = "inactiva" | "en_cola" | "generando" | "terminada" | "fallida";
+export type Generation = {
+  status: GenerationStatus;
+  /** Autorización expresa: monto confirmado por la persona para la revisión indicada. */
+  authorization: { usd: number; revision: number; at: string; spentBefore: number } | null;
+  kind: "generar" | "remezclar" | null;
+  startedAt: string | null; heartbeatAt: string | null; finishedAt: string | null;
+  progress: { done: number; total: number } | null;
+  error: string | null;
+  /** Llamadas al proveedor de voz y caracteres sintetizados en total (la caché evita repetirlas). */
+  providerCalls: number; charsSynthesized: number;
+};
+export const IDLE_GENERATION: Generation = { status: "inactiva", authorization: null, kind: null, startedAt: null, heartbeatAt: null, finishedAt: null, progress: null, error: null, providerCalls: 0, charsSynthesized: 0 };
+/** Sin latido durante este tiempo, una generación «en curso» se considera interrumpida y se puede reanudar. */
+export const STALE_MS = 10 * 60_000;
+export function generationActive(g: Generation, now: number): boolean {
+  if (g.status !== "en_cola" && g.status !== "generando") return false;
+  const beat = Date.parse(g.heartbeatAt ?? g.startedAt ?? "");
+  return Number.isFinite(beat) ? now - beat < STALE_MS : false;
+}
+export const GENERATION_LABEL: Record<GenerationStatus, string> = { inactiva: "Sin generar", en_cola: "En cola", generando: "Generando", terminada: "Audio listo", fallida: "Falló" };
 
 export type ProjectInput = Partial<Pick<AudioProject, "title" | "voiceCount" | "voices" | "targetMinutes" | "script" | "notes" | "music" | "budgetUsd">>;
 
@@ -158,7 +187,7 @@ export function newProject(args: { id: string; ownerId: string; now: string; tit
   const base: AudioProject = {
     id: args.id, ownerId: args.ownerId, version: MODULE_VERSION, title: "Episodio sin título", language: "es", voiceCount: 1,
     voices: [VOICE_PRESETS[0].id], targetMinutes: 10, script: "", notes: "", music: { ...DEFAULT_MUSIC }, budgetUsd: DEFAULT_BUDGET_USD,
-    status: "borrador", spentUsd: 0, audio: null, revision: 0, archivedAt: null, createdAt: args.now, updatedAt: args.now,
+    status: "borrador", spentUsd: 0, audio: null, generation: { ...IDLE_GENERATION }, revision: 0, archivedAt: null, createdAt: args.now, updatedAt: args.now,
   };
   const p = applyInput(base, { title: args.title ?? base.title, voiceCount: args.voiceCount ?? 1 }, args.now);
   return { ...p, revision: 1 };
@@ -181,32 +210,69 @@ export function parseStored(raw: unknown, ownerId: string): AudioProject | null 
       revision: typeof r.revision === "number" && Number.isInteger(r.revision) && r.revision > 0 ? r.revision : 1,
       archivedAt: typeof r.archivedAt === "string" ? r.archivedAt : null,
       createdAt: base.createdAt,
+      spentUsd: typeof r.spentUsd === "number" && Number.isFinite(r.spentUsd) && r.spentUsd >= 0 ? r.spentUsd : 0,
+      audio: parseAudio(r.audio),
+      generation: parseGeneration(r.generation),
     };
   } catch {
     return null;
   }
 }
 
+const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+const str = (v: unknown) => (typeof v === "string" ? v : null);
+
+function parseAudio(v: unknown): AudioResult | null {
+  if (!v || typeof v !== "object") return null;
+  const a = v as Record<string, unknown>;
+  const path = str(a.path), sha = str(a.sha256);
+  if (!path || !/^audio-studio\/v1\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/audio\/[\w.-]+\.mp3$/.test(path) || !sha || !/^[0-9a-f]{64}$/.test(sha)) return null;
+  return {
+    path, sha256: sha, bytes: num(a.bytes) ?? 0, durationSeconds: num(a.durationSeconds) ?? 0, lufs: num(a.lufs) ?? 0, truePeak: num(a.truePeak) ?? 0,
+    revision: num(a.revision) ?? 0, renderedAt: str(a.renderedAt) ?? "", provider: str(a.provider) ?? "", segments: num(a.segments) ?? 0,
+    reusedSegments: num(a.reusedSegments) ?? 0, musicTracks: Array.isArray(a.musicTracks) ? a.musicTracks.filter((x): x is string => typeof x === "string") : [],
+  };
+}
+
+function parseGeneration(v: unknown): Generation {
+  if (!v || typeof v !== "object") return { ...IDLE_GENERATION };
+  const g = v as Record<string, unknown>;
+  const status = (["inactiva", "en_cola", "generando", "terminada", "fallida"] as const).find((x) => x === g.status) ?? "inactiva";
+  const au = g.authorization as Record<string, unknown> | null | undefined;
+  const pr = g.progress as Record<string, unknown> | null | undefined;
+  return {
+    status,
+    authorization: au && num(au.usd) !== null && num(au.revision) !== null && str(au.at) ? { usd: num(au.usd)!, revision: num(au.revision)!, at: str(au.at)!, spentBefore: num(au.spentBefore) ?? 0 } : null,
+    kind: g.kind === "generar" || g.kind === "remezclar" ? g.kind : null,
+    startedAt: str(g.startedAt), heartbeatAt: str(g.heartbeatAt), finishedAt: str(g.finishedAt),
+    progress: pr && num(pr.done) !== null && num(pr.total) !== null ? { done: num(pr.done)!, total: num(pr.total)! } : null,
+    error: str(g.error), providerCalls: num(g.providerCalls) ?? 0, charsSynthesized: num(g.charsSynthesized) ?? 0,
+  };
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Guion, duración y costo
 
-export type ScriptLine = { voice: 0 | 1; text: string };
+export type ScriptLine = { voice: 0 | 1; text: string; section: number };
 const SPEAKER = /^\s*(?:voz\s*([12])|\[([12])\])\s*[:\-—]\s*/i;
 
 /** Divide el guion en intervenciones. Con dos voces, «Voz 1:» / «Voz 2:» (o «[1]:») cambian de voz. */
 export function scriptLines(script: string, voiceCount: 1 | 2): ScriptLine[] {
   const out: ScriptLine[] = [];
   let voice: 0 | 1 = 0;
+  // Índice de sección alineado con sections(): una sección cuenta solo si tiene texto narrable.
+  let section = 0, sectionHasText = false;
   for (const raw of script.split(/\n\s*\n|\n/)) {
     let line = raw.trim();
     if (!line) continue;
+    if (/^#{1,3}\s+/.test(line)) { if (sectionHasText) { section++; sectionHasText = false; } continue; }
     const m = SPEAKER.exec(line);
     if (m) {
       if (voiceCount === 2) voice = (m[1] ?? m[2]) === "2" ? 1 : 0;
       line = line.slice(m[0].length).trim();
     }
-    if (line.startsWith("#")) continue; // títulos de sección: no se narran
-    if (line) out.push({ voice: voiceCount === 2 ? voice : 0, text: line });
+    if (line.startsWith("#")) continue; // títulos sin espacio: tampoco se narran
+    if (line) { out.push({ voice: voiceCount === 2 ? voice : 0, text: line, section }); sectionHasText = true; }
   }
   return out;
 }
@@ -288,4 +354,22 @@ export function readinessIssues(p: AudioProject, e: Estimate): string[] {
   if (!e.withinBudget) issues.push(`El costo estimado (USD ${e.estimatedUsd.toFixed(2)}) supera el tope (USD ${p.budgetUsd.toFixed(2)}).`);
   if (Math.abs(e.durationGapMinutes) > Math.max(2, p.targetMinutes * 0.2)) issues.push(`La duración estimada (${e.estimatedMinutes} min) se aleja del objetivo (${p.targetMinutes} min).`);
   return issues;
+}
+
+/**
+ * Estructura inicial de guion (sin IA ni costo): secciones con pautas que la persona reemplaza por su texto.
+ * Con dos voces alterna «Voz 1:» y «Voz 2:». La cantidad de secciones crece con la duración objetivo.
+ */
+export function draftOutline(title: string, minutes: number, voiceCount: 1 | 2): string {
+  const n = Math.min(12, Math.max(3, Math.round(minutes / 3)));
+  const middle = Array.from({ length: n - 2 }, (_, i) => `Idea ${i + 1}`);
+  const heads = ["Apertura", ...middle, "Cierre"];
+  const wordsPer = Math.round((minutes * WORDS_PER_MINUTE) / heads.length);
+  const v = (k: number) => (voiceCount === 2 ? `Voz ${(k % 2) + 1}: ` : "");
+  return heads.map((h, i) => {
+    const cue = i === 0 ? `Presenta «${title.trim() || "el episodio"}» y cuenta por qué importa hoy.`
+      : i === heads.length - 1 ? "Resume lo esencial y deja una acción concreta para quien escucha."
+      : "Desarrolla esta idea con un ejemplo cotidiano.";
+    return `## ${h}\n\n${v(0)}${cue} (Reemplaza esta pauta por unas ${wordsPer} palabras.)${voiceCount === 2 ? `\n\n${v(1)}Responde, pregunta o añade un matiz.` : ""}`;
+  }).join("\n\n");
 }

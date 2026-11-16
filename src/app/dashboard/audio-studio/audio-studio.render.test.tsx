@@ -37,7 +37,10 @@ test("editor: guion, voces, música inteligente con plan por sección, presupues
   assert.match(html, /data-testid="audio-estimated-usd">USD 3\.\d\d</);
   assert.match(html, /data-testid="audio-spent-usd">USD 0\.00</);
   assert.match(html, /data-testid="audio-readiness-ok"/);
-  assert.match(html, /requiere una autorización de gasto posterior/);
+  assert.match(html, /Autorizo un gasto de hasta <strong[^>]*>USD 3\.\d\d<\/strong>/);
+  assert.match(html, /data-testid="audio-authorize"/);
+  assert.match(html, /Generar MP3/);
+  assert.match(html, /Sin generar/);
   assert.match(html, /Guardado/);
   // Botones táctiles de 44 px como mínimo.
   for (const id of ["audio-save", "audio-ready", "audio-generate", "audio-archive"]) assert.match(html, new RegExp(`class="[^"]*min-h-11[^"]*"[^>]*data-testid="${id}"|data-testid="${id}"[^>]*class="[^"]*min-h-11`), id);

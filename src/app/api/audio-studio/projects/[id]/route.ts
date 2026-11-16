@@ -4,7 +4,8 @@ import { NextResponse } from "next/server";
 const notJson = (r: Request) => !(r.headers.get("content-type") ?? "").toLowerCase().startsWith("application/json");
 const NOT_JSON = () => NextResponse.json({ error: "Se esperaba JSON." }, { status: 415 });
 import { audioStudioUser, studioDeps } from "@/lib/audio-studio/server";
-import { getProject, markReady, requestGeneration, saveProject, setArchived } from "@/lib/audio-studio/service";
+import { getProject, markReady, requestGeneration, requestRemix, resumeGeneration, saveProject, setArchived } from "@/lib/audio-studio/service";
+import { startWorker } from "@/lib/audio-studio/worker";
 
 export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ id: string }> };
@@ -34,19 +35,27 @@ export async function PUT(request: Request, { params }: Ctx) {
   return NextResponse.json(out.body, { status: out.status });
 }
 
-/** Acciones: { action: "archivar" | "restaurar" | "listo" | "generar", revision? }. «generar» está bloqueada en 1.0. */
+/**
+ * Acciones: { action, revision?, confirmUsd? }.
+ *  archivar | restaurar | listo — sin costo.
+ *  generar  — exige confirmUsd = costo estimado exacto; sin proveedor de voz habilitado responde 409 sin cargo.
+ *  remezclar — solo voz en caché (costo 0). reanudar — tras fallo o interrupción, misma autorización.
+ */
 export async function POST(request: Request, { params }: Ctx) {
   if (notJson(request)) return NOT_JSON();
   const user = await audioStudioUser();
   if ("error" in user) return NextResponse.json({ error: user.error }, { status: user.status });
   const { id } = await params;
-  const b = (await body(request)) as { action?: unknown; revision?: unknown } | null;
+  const b = (await body(request)) as { action?: unknown; revision?: unknown; confirmUsd?: unknown } | null;
   const d = studioDeps();
   const out =
     b?.action === "archivar" ? await setArchived(d, user.id, id, true)
     : b?.action === "restaurar" ? await setArchived(d, user.id, id, false)
     : b?.action === "listo" ? await markReady(d, user.id, id, b.revision)
-    : b?.action === "generar" ? await requestGeneration(d, user.id, id)
-    : { status: 400, body: { error: "Acción desconocida." } };
+    : b?.action === "generar" ? await requestGeneration(d, user.id, id, b)
+    : b?.action === "remezclar" ? await requestRemix(d, user.id, id, b)
+    : b?.action === "reanudar" ? await resumeGeneration(d, user.id, id)
+    : { ok: false, status: 400, body: { error: "Acción desconocida." } };
+  if (out.ok && out.status === 202) startWorker(d.store, d.voice, user.id, id);
   return NextResponse.json(out.body, { status: out.status });
 }

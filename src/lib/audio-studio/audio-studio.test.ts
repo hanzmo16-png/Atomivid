@@ -170,12 +170,12 @@ test("listo para autorizar exige guion completo y vuelve a borrador si el conten
   const c = await createProject(d, A, { title: "Ep" });
   const id = (c.body as { id: string }).id;
   assert.equal((await markReady(d, A, id, 1)).status, 422);
-  const s = await saveProject(d, A, id, { revision: 1, targetMinutes: 1, script: "palabra ".repeat(150) });
+  const s = await saveProject(d, A, id, { revision: 1, targetMinutes: 5, script: "palabra ".repeat(750) });
   const rev = (s.body as { revision: number }).revision;
   assert.equal((await markReady(d, A, id, rev - 1)).status, 409);
   const ok = await markReady(d, A, id, rev);
   assert.equal((ok.body as { status: string }).status, "listo_para_autorizar");
-  const ed = await saveProject(d, A, id, { revision: (ok.body as { revision: number }).revision, script: "palabra ".repeat(151) });
+  const ed = await saveProject(d, A, id, { revision: (ok.body as { revision: number }).revision, script: "palabra ".repeat(751) });
   assert.equal((ed.body as { status: string }).status, "borrador");
 });
 
@@ -255,14 +255,22 @@ test("acceso: lista privada existente; interruptor AUDIO_STUDIO_DISABLED; sin se
   } finally { if (prev === undefined) delete process.env.INTERNAL_PRODUCTION_OWNER_USER_ID; else process.env.INTERNAL_PRODUCTION_OWNER_USER_ID = prev; }
 });
 
-test("aislamiento de código: el módulo no importa Podcast Studio Premium ni clientes de proveedores", () => {
+test("aislamiento de código: solo reutiliza motores de Podcast en modo lectura; nada de Premium, ledger ni proveedores directos", () => {
   const roots = ["src/lib/audio-studio", "src/app/dashboard/audio-studio", "src/app/api/audio-studio"];
   const files: string[] = [];
   const walk = (d: string) => { for (const f of readdirSync(d)) { const p = path.join(d, f); if (statSync(p).isDirectory()) walk(p); else if (/\.tsx?$/.test(f) && !/\.test\./.test(f)) files.push(p); } };
   roots.forEach(walk);
-  assert.ok(files.length >= 8);
+  assert.ok(files.length >= 10);
+  // Motores reutilizados sin modificarlos (audio, ffmpeg, biblioteca CC0, tipos, adaptador de voz real y voz espeak de pruebas).
+  const ALLOWED = new Set(["@/lib/podcast/v3/audio", "@/lib/podcast/v3/ffmpeg", "@/lib/podcast/v3/music-library", "@/lib/podcast/v3/spec", "@/lib/podcast/v3/pipeline", "@/lib/podcast/v3/adapters", "@/lib/podcast/v2/espeak-provider"]);
   for (const f of files) {
     const src = readFileSync(f, "utf8");
-    assert.doesNotMatch(src, /@\/lib\/podcast|@\/app\/dashboard\/podcast|@\/components\/podcast|providers\/|elevenlabs\.io|paid-calls|ledger/i, f);
+    for (const m of src.matchAll(/from "(@\/[^"]+)"/g)) {
+      if (m[1].startsWith("@/lib/podcast")) assert.ok(ALLOWED.has(m[1]), `${f}: ${m[1]}`);
+      assert.doesNotMatch(m[1], /@\/app\/dashboard\/podcast|@\/components\/podcast|paid-calls|ledger|production-intelligence/, f);
+    }
+    assert.doesNotMatch(src, /elevenlabs\.io|api\.anthropic|openai\.com|podcast_studio_|podcast_episodes|pi_paid/i, f);
   }
+  const voice = readFileSync("src/lib/audio-studio/voice.ts", "utf8");
+  assert.match(voice, /AUDIO_STUDIO_PAID_TTS === "1"/, "el adaptador real solo con el interruptor explícito");
 });

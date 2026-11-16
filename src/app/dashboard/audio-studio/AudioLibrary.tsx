@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { STATUS_LABEL, voicePreset } from "@/lib/audio-studio/model";
+import { GENERATION_LABEL, STATUS_LABEL, voicePreset } from "@/lib/audio-studio/model";
 import type { ProjectView } from "@/lib/audio-studio/service";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 
 const usd = (n: number) => `USD ${n.toFixed(2)}`;
 
-/** Lista de episodios de audio de la cuenta. Sin medios que precargar: en 1.0 ningún episodio tiene audio generado. */
+/** Lista de episodios de audio de la cuenta. El reproductor no descarga nada hasta pulsar reproducir (preload="none"). */
 export function AudioLibrary({ projects, archived }: { projects: ProjectView[]; archived: boolean }) {
   if (!projects.length) {
     return <Card className="p-5 text-sm text-ink-muted" data-testid="audio-library-empty">{archived ? "No hay episodios archivados." : "Aún no tienes episodios de audio. Crea el primero arriba."}</Card>;
@@ -28,7 +28,18 @@ export function AudioLibrary({ projects, archived }: { projects: ProjectView[]; 
               </div>
               <Badge tone={p.status === "listo_para_autorizar" ? "success" : "neutral"}>{STATUS_LABEL[p.status]}</Badge>
             </div>
-            <p className="mt-2 text-xs text-ink-faint">Audio: sin generar (requiere autorización de gasto).</p>
+            {p.audio ? (
+              <div className="mt-2 space-y-1" data-testid="audio-library-audio">
+                <audio controls preload="none" className="w-full" src={`/api/audio-studio/projects/${p.id}/audio`} />
+                <p className="text-xs text-ink-muted">
+                  MP3 · {Math.floor(p.audio.durationSeconds / 60)} min {Math.round(p.audio.durationSeconds % 60)} s · {p.audio.lufs} LUFS
+                  {p.audio.provider === "fixture" ? " · voz de prueba local" : ""}
+                </p>
+                <a href={`/api/audio-studio/projects/${p.id}/audio?descargar=1`} className="inline-flex min-h-11 items-center text-sm text-accent underline">Descargar MP3</a>
+              </div>
+            ) : (
+              <p className="mt-2 text-xs text-ink-faint">Audio: {GENERATION_LABEL[p.generation.status].toLowerCase()}. Generar requiere tu autorización del gasto.</p>
+            )}
           </Card>
         </li>
       ))}

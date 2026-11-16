@@ -21,21 +21,24 @@ concurrency:
 jobs:
   estudio:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 90
     env:
       CI: "1"
       E2E_HOME: ${{ github.workspace }}/.e2e-local
       E2E_PGPORT: "55532"
     steps:
       - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci --no-audit --no-fund
-      - name: Pruebas unitarias y de render (sin omisiones)
+      - name: Podcast Studio Premium intacto (ningún archivo de Premium en el PR)
+        if: github.event_name == 'pull_request'
         run: |
-          set -o pipefail
-          node --import tsx --test src/lib/audio-studio/*.test.ts src/app/dashboard/audio-studio/*.test.tsx 2>&1 | tee audio-studio-tests.log
-          grep -q '^# skipped 0$' audio-studio-tests.log && grep -q '^# todo 0$' audio-studio-tests.log && grep -q '^# fail 0$' audio-studio-tests.log
+          git fetch -q --depth=200 origin "${{ github.base_ref }}"
+          changed=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -E '^(src/lib/podcast|src/app/dashboard/podcast|src/app/api/podcast|src/components/podcast|supabase)/' || true)
+          if [ -n "$changed" ]; then echo "::error::el PR modifica archivos de Premium o de base de datos:"; echo "$changed"; exit 1; fi
+          echo "::notice title=premium-intacto::0 archivos de Premium o supabase/ en el PR"
       - name: Tipos y lint del módulo
         run: |
           npx next typegen && npm run typecheck
@@ -50,9 +53,18 @@ jobs:
           sudo apt-get install -yq postgresql-17 espeak-ng ffmpeg xz-utils
           sudo systemctl stop postgresql || true
           echo "PG_BIN=/usr/lib/postgresql/17/bin" >> "$GITHUB_ENV"
+      - name: Pruebas unitarias, de render y de generación con ffmpeg real (sin omisiones)
+        run: |
+          set -o pipefail
+          node --import tsx --test --test-concurrency=1 src/lib/audio-studio/*.test.ts src/app/dashboard/audio-studio/*.test.tsx 2>&1 | tee audio-studio-tests.log
+          grep -q '^# skipped 0$' audio-studio-tests.log && grep -q '^# todo 0$' audio-studio-tests.log && grep -q '^# fail 0$' audio-studio-tests.log
       - name: Arnés local
         run: bash scripts/harness/e2e/infra/setup.sh
-      - name: Entorno (Next 3300)
+      - name: Entorno (Next 3300) con voz de prueba local y worker en proceso
+        env:
+          AUDIO_STUDIO_VOICE: fixture
+          AUDIO_STUDIO_WORKER: inline
+          AUDIO_STUDIO_FIXTURE_FAIL_MARK: "[[falla-proveedor]]"
         run: bash scripts/harness/e2e/podcast/start.sh
       - name: Recorrido E2E del estudio (390x844 y 1440x900)
         run: |
@@ -60,7 +72,7 @@ jobs:
           . "$E2E_HOME/paths.env"; mkdir -p "$E2E_HOME/out/audio-studio"
           E2E_OUT="$E2E_HOME/out/audio-studio" E2E_BASE=http://127.0.0.1:3300 E2E_STORAGE_DIR="$E2E_HOME/storage" E2E_EGRESS_LOG="$E2E_HOME/logs/egress.jsonl" \
             E2E_CHROME="$CHROME" PLAYWRIGHT_MODULE="$E2E_HOME/deps/node_modules/playwright" \
-            timeout 2400 node scripts/harness/e2e/audio-studio/audio-studio-e2e.cjs 2>&1 | tee "$E2E_HOME/out/audio-studio.log"
+            timeout 3600 node scripts/harness/e2e/audio-studio/audio-studio-e2e.cjs 2>&1 | tee "$E2E_HOME/out/audio-studio.log"
           grep -q '^RESULTADO OK' "$E2E_HOME/out/audio-studio.log"
           echo "::notice title=audio-podcast-studio::$(grep -E '^RESULTADO' "$E2E_HOME/out/audio-studio.log" | tail -1)"
       - name: Ningún proveedor real contactado

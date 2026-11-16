@@ -4,23 +4,44 @@ Módulo nuevo y aislado para crear podcasts **solo audio**. Ruta: `/dashboard/au
 
 ## Alcance de 1.0
 
-- Crear y guardar episodios con una o dos voces: perfiles de voz en español latinoamericano.
-- Editor de guion:
+- **Episodios**: monólogo (1 voz) o diálogo (2 voces), con perfiles de voz en español latinoamericano elegidos uno por uno y duración objetivo de 5 a 60 min.
+- **Guion**:
+  - se pega o se escribe en el editor;
+  - «Generar estructura de guion» crea un esqueleto de secciones con pautas (sin IA ni costo);
   - guardado manual y automático;
-  - control de revisión para que dos pestañas no se pisen;
-  - aviso antes de cerrar con cambios sin guardar.
-- Música de fondo propia (CC0), en tres modos:
-  - **inteligente**: un ambiente por sección, según el texto;
-  - **un solo ambiente**;
-  - **sin música**.
+  - control de revisión entre pestañas;
+  - aviso al cerrar con cambios sin guardar.
+- **Música inteligente** (biblioteca propia CC0 de Podcast 3.0, licencia comercial verificada pista por pista):
+  - un ambiente por sección según el texto, con fundidos cruzados de 2 s entre secciones;
+  - entrada y cierre;
+  - atenuación (ducking) bajo la voz;
+  - volumen configurable.
 
-  También se configuran el volumen, la atenuación bajo la voz, la entrada y el cierre.
-- Presupuesto visible: costo estimado de voz, tope del episodio y gasto real.
-  - La tarifa nunca es menor que USD 0.20 por 1 000 caracteres (la tarifa de producción).
-  - El gasto real es USD 0.00: 1.0 no hace llamadas de pago.
-- Biblioteca de audio con «Activos» y «Archivados». Archivar no borra nada.
-- Estado «Listo para autorizar»: el contenido está completo y dentro del tope.
-- **La generación real con ElevenLabs está bloqueada.** «Generar audio real…» responde 409 con una explicación y no llama a ningún proveedor. Activarla requiere una autorización de gasto posterior y un cambio de código revisado.
+  Si un ambiente no tiene pista con licencia verificada, no se musicaliza y se explica. También existen los modos «un solo ambiente» y «sin música».
+- **Generación del MP3** (worker):
+  - voz por intervención, con pausas (0,5 s con la misma voz, 0,35 s al cambiar de voz, 1,2 s entre secciones);
+  - mezcla con la música y máster a −16 LUFS con pico ≤ −1 dBTP;
+  - exporte MP3 a 192 kbps y verificación con `ffprobe` y `ebur128` antes de publicar.
+
+  Reutiliza sin modificarlos `assembleVoice`, `mixAndMaster` y `exportAudio` (`src/lib/podcast/v3/audio.ts`), `ffmpeg.ts` y `music-library.ts`.
+- **Autorización expresa del gasto**: hay que marcar el monto exacto estimado, que debe caber en el tope del episodio. El servidor rechaza cualquier otro monto.
+- **Sin doble cobro**:
+  - cada intervención se guarda en caché (`tts/<sha256>.mp3`) antes de sumar su costo;
+  - repetir, reanudar o remezclar nunca vuelve a sintetizar lo ya generado;
+  - el gasto se detiene antes del cargo que excedería lo autorizado.
+- **Recuperación**: tras un fallo del proveedor o una interrupción (sin latido durante 10 min), «Reanudar» continúa con la misma autorización.
+- **Remezcla**: cambia la música sin regenerar la voz (costo 0).
+- **Biblioteca de audio**:
+  - solo los proyectos de la cuenta;
+  - reproductor (`preload="none"`) y descarga del MP3 mediante URL firmada de 10 min;
+  - «Archivados» separados;
+  - archivar no borra nada.
+- **Proveedores de voz**:
+  - `AUDIO_STUDIO_VOICE=fixture` usa espeak-ng local. Solo funciona fuera de producción.
+  - El adaptador real de ElevenLabs (`realTts`) solo se activa con `AUDIO_STUDIO_PAID_TTS=1` más el mapa `AUDIO_STUDIO_ELEVENLABS_VOICES` (perfil=voiceId para los 4 perfiles).
+
+  En 1.0 **ningún entorno tiene ese interruptor**: en producción «Generar MP3» responde 409 sin llamada ni cargo hasta una autorización posterior.
+- **Worker**: en 1.0 existe el worker en proceso (`AUDIO_STUDIO_WORKER=inline`), que usan el arnés y el CI. En producción no se activa.
 
 ### Primer episodio
 

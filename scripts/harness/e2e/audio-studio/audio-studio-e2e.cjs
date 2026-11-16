@@ -20,6 +20,7 @@ const OTHER = { id: "22222222-2222-4222-8222-222222222222", email: "intruso@loca
 const SEED_TITLE = "El día que entiendes que no puedes controlarlo todo";
 const ANDROID_UA = "Mozilla/5.0 (Linux; Android 14; SM-A155M) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36";
 const DEVICES = {
+  "android-360": { viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3, userAgent: ANDROID_UA },
   "samsung-390": { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2.75, userAgent: ANDROID_UA },
   "desktop-1440": { viewport: { width: 1440, height: 900 } },
 };
@@ -27,6 +28,26 @@ let fails = 0, passes = 0;
 const check = (name, ok, detail) => { ok ? passes++ : fails++; console.log(`${ok ? "PASS" : "FAIL"}  ${name}${ok ? "" : "  " + JSON.stringify(detail ?? null).slice(0, 400)}`); return !!ok; };
 const overflow = (p) => p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
 const listFiles = (d) => { if (!d || !fs.existsSync(d)) return []; const out = []; const walk = (x) => { for (const f of fs.readdirSync(x)) { const q = path.join(x, f); fs.statSync(q).isDirectory() ? walk(q) : out.push(path.relative(d, q)); } }; walk(d); return out.sort(); };
+const FAIL_MARK = process.env.E2E_FAIL_MARK ?? "[[falla-proveedor]]";
+const words = (n, seed) => { const base = (seed + " ").repeat(Math.ceil(n / seed.split(" ").length)).split(" ").filter(Boolean).slice(0, n); return base.join(" "); };
+/** Guion de ~5 min (750 palabras): con dos voces alterna «Voz 1:» / «Voz 2:» por párrafo. */
+const fiveMinutes = (duo) => ["## Apertura", ...Array.from({ length: 10 }, (_, i) => `${duo ? `Voz ${(i % 2) + 1}: ` : ""}${words(75, i % 3 ? "Respira y vuelve a lo que depende de ti, con calma y valor cada día" : "El silencio también enseña cuando aceptas lo que no controlas")}.`), "## Cierre", `${duo ? "Voz 1: " : ""}Gracias por escuchar.`].join("\n\n");
+async function waitGeneration(p, label, timeout = 900000) {
+  await p.waitForFunction(() => /Audio listo|Falló|Interrumpida/.test(document.querySelector('[data-testid="audio-generation-status"]')?.textContent ?? ""), null, { timeout, polling: 2000 });
+  return (await p.getByTestId("audio-generation-status").innerText()).trim();
+}
+async function generate(p) {
+  await p.getByTestId("audio-authorize").check();
+  await p.getByTestId("audio-generate").click();
+  await p.waitForFunction(() => /En cola|Generando|Audio listo/.test(document.querySelector('[data-testid="audio-generation-status"]')?.textContent ?? ""), null, { timeout: 30000 });
+}
+const apiProject = (p, id) => p.evaluate(async (x) => (await fetch(`/api/audio-studio/projects/${x}`)).json(), id);
+async function downloadMp3(p, id, file) {
+  const r = await p.request.get(`${BASE}/api/audio-studio/projects/${id}/audio?descargar=1`);
+  const body = await r.body();
+  if (file) fs.writeFileSync(file, body);
+  return { status: r.status(), type: r.headers()["content-type"] ?? "", bytes: body.length, mp3: body.length > 1000 && ((body[0] === 0x49 && body[1] === 0x44 && body[2] === 0x33) || (body[0] === 0xff && (body[1] & 0xe0) === 0xe0)) };
+}
 const egressLines = () => (EGRESS && fs.existsSync(EGRESS) ? fs.readFileSync(EGRESS, "utf8").split("\n").filter(Boolean) : []);
 
 async function login(browser, user, opts) {
@@ -43,7 +64,7 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`), fu
   const filesBefore = listFiles(STORAGE).filter((f) => !f.startsWith("videos/audio-studio/"));
   const egressBefore = egressLines().length;
   const browser = await chromium.launch({ executablePath: process.env.E2E_CHROME || undefined });
-  let ownerProjectId = null;
+  let ownerProjectId = null, ownerAudioId = null;
   try {
     for (const [dev, opts] of Object.entries(DEVICES)) {
       const { ctx, p } = await login(browser, OWNER, opts);
@@ -76,11 +97,26 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`), fu
         const b = await p.getByTestId(id).boundingBox(); check(`[${dev}] botón ${id} ≥ 44 px de alto`, b && b.height >= 44, b);
       }
 
-      // 3. «Generar audio real» está bloqueado: mensaje claro, sin llamadas de pago, gasto sigue en 0.
-      await p.getByTestId("audio-generate").click();
-      await p.getByTestId("audio-message").waitFor();
-      check(`[${dev}] generar real bloqueado con explicación`, /no está habilitada.*autorización de gasto posterior.*no se hizo ninguna llamada ni cargo/s.test(await p.getByTestId("audio-message").innerText()));
-      check(`[${dev}] gastado sigue en USD 0.00`, (await p.getByTestId("audio-spent-usd").innerText()) === "USD 0.00");
+      // 3. Autorización expresa: el botón «Generar MP3» exige marcar el monto exacto estimado.
+      check(`[${dev}] «Generar MP3» deshabilitado hasta autorizar el monto`, await p.getByTestId("audio-generate").isDisabled());
+      check(`[${dev}] el monto a autorizar es el estimado`, (await p.getByTestId("audio-authorize-usd").innerText()) === (await p.getByTestId("audio-estimated-usd").innerText()));
+      if (dev === "desktop-1440") {
+        // Primer episodio: MP3 completo (~16–18 min) con voz de prueba local y música inteligente.
+        const seedId = seedUrl.split("/").pop();
+        await generate(p);
+        check(`[${dev}] episodio inicial en generación (editor bloqueado)`, await p.getByTestId("audio-title").isDisabled());
+        await p.getByTestId("audio-progress").waitFor({ timeout: 60000 }).catch(() => {});
+        await shot(p, `${dev}-02b-generando`);
+        const st = await waitGeneration(p, "inicial", 1500000);
+        check(`[${dev}] episodio inicial: MP3 listo`, st === "Audio listo", [st, await p.getByTestId("audio-generation-error").innerText().catch(() => "")]);
+        const proj = await apiProject(p, seedId);
+        check(`[${dev}] episodio inicial: ${Math.round(proj.audio?.durationSeconds / 60)} min, ${proj.audio?.lufs} LUFS, pico ${proj.audio?.truePeak} dBTP`, proj.audio && proj.audio.durationSeconds > 13 * 60 && Math.abs(proj.audio.lufs + 16) <= 1.5 && proj.audio.truePeak <= -1, proj.audio);
+        check(`[${dev}] episodio inicial: música de varias pistas CC0 por sección`, proj.audio && proj.audio.musicTracks.length >= 2 && proj.audio.musicTracks.every((t) => t.endsWith("CC0 1.0")), proj.audio?.musicTracks);
+        const dl = await downloadMp3(p, seedId, path.join(OUT, "episodio-inicial.mp3"));
+        check(`[${dev}] episodio inicial: descarga MP3 válida (${dl.bytes} bytes)`, dl.status === 200 && dl.mp3 && dl.bytes === proj.audio.bytes, dl);
+        check(`[${dev}] gasto real USD 0.00 (voz de prueba local)`, (await p.getByTestId("audio-spent-usd").innerText()) === "USD 0.00");
+        await shot(p, `${dev}-02c-episodio-inicial-mp3`);
+      }
 
       // 4. Crear un episodio nuevo de dos voces, editarlo y comprobar que se conserva tras recargar.
       await p.goto(`${BASE}/dashboard/audio-studio`);
@@ -113,6 +149,39 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`), fu
       await p.reload(); await p.getByTestId("audio-editor").waitFor();
       check(`[${dev}] guardado automático conserva las notas`, (await p.getByTestId("audio-notes").inputValue()) === "Nota guardada sola");
       await shot(p, `${dev}-03-dos-voces`);
+      if (dev !== "desktop-1440") {
+        // MP3 de 5 min: dúo en 390 px, monólogo en 360 px (el editor de 360 cambia a una voz).
+        const duo = dev === "samsung-390";
+        if (!duo) { await p.getByTestId("audio-voices-1").check(); }
+        await p.getByTestId("audio-script").fill(fiveMinutes(duo));
+        await p.getByTestId("audio-music-inteligente").check();
+        await p.getByTestId("audio-budget").fill("5");
+        await p.getByTestId("audio-save").click();
+        await p.waitForFunction(() => document.querySelector('[data-testid="audio-save-state"]')?.textContent === "Guardado");
+        await generate(p);
+        const st = await waitGeneration(p, dev);
+        check(`[${dev}] ${duo ? "dúo" : "monólogo"} de 5 min: MP3 listo`, st === "Audio listo", [st, await p.getByTestId("audio-generation-error").innerText().catch(() => "")]);
+        const id = newUrl.split("/").pop();
+        const proj = await apiProject(p, id);
+        check(`[${dev}] ${duo ? "dúo" : "monólogo"}: duración ${proj.audio?.durationSeconds} s, ${proj.audio?.lufs} LUFS, pico ${proj.audio?.truePeak}`, proj.audio && proj.audio.durationSeconds > 180 && Math.abs(proj.audio.lufs + 16) <= 1.5 && proj.audio.truePeak <= -1, proj.audio);
+        const dl = await downloadMp3(p, id, path.join(OUT, `${dev}-${duo ? "duo" : "monologo"}.mp3`));
+        check(`[${dev}] descarga MP3 válida`, dl.status === 200 && dl.mp3 && dl.bytes === proj.audio.bytes, dl);
+        check(`[${dev}] reproductor presente`, (await p.getByTestId("audio-player").count()) === 1);
+        await shot(p, `${dev}-03b-mp3`);
+        if (duo) {
+          // Remezcla: otra música sin volver a sintetizar la voz.
+          const calls = proj.generation.providerCalls;
+          await p.getByTestId("audio-music-fija").check(); await p.getByTestId("audio-mood").selectOption("intensa");
+          await p.getByTestId("audio-save").click();
+          await p.waitForFunction(() => document.querySelector('[data-testid="audio-save-state"]')?.textContent === "Guardado");
+          await p.getByTestId("audio-remix").click();
+          const st2 = await waitGeneration(p, "remezcla");
+          const after = await apiProject(p, id);
+          check(`[${dev}] remezcla lista sin llamadas nuevas al proveedor (${calls} → ${after.generation.providerCalls})`, st2 === "Audio listo" && after.generation.providerCalls === calls && after.audio.sha256 !== proj.audio.sha256 && after.audio.reusedSegments === after.audio.segments, after.generation);
+          check(`[${dev}] remezcla con la pista elegida`, after.audio.musicTracks.length === 1 && after.audio.musicTracks[0].startsWith("atomivid-tension.wav"), after.audio.musicTracks);
+          ownerAudioId = id;
+        }
+      }
 
       // 5. Conflicto entre pestañas: la segunda pestaña no pisa la primera.
       const p2 = await ctx.newPage(); await p2.goto(newUrl); await p2.getByTestId("audio-editor").waitFor();
@@ -139,6 +208,24 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`), fu
       // 7. El episodio inicial no cambió por visitar.
       await p.goto(seedUrl); check(`[${dev}] episodio inicial sigue en borrador y editable`, !(await p.getByTestId("audio-title").isDisabled()) && (await p.getByTestId("audio-title").inputValue()) === SEED_TITLE);
 
+      if (dev === "desktop-1440") {
+        // Error del proveedor (simulado solo en el arnés): falla con mensaje claro, sin MP3 y sin gasto.
+        await p.goto(`${BASE}/dashboard/audio-studio`);
+        await p.fill("#audio-new-title", `Falla proveedor ${Date.now()}`);
+        await p.locator('[data-testid="audio-new"] button[type=submit]').click();
+        await p.waitForURL(/\/dashboard\/audio-studio\/[0-9a-f-]{36}$/); await p.getByTestId("audio-editor").waitFor();
+        await p.getByTestId("audio-target").fill("5");
+        await p.getByTestId("audio-script").fill(fiveMinutes(false).replace("Gracias por escuchar.", `Gracias por escuchar ${FAIL_MARK}.`));
+        await p.getByTestId("audio-save").click();
+        await p.waitForFunction(() => document.querySelector('[data-testid="audio-save-state"]')?.textContent === "Guardado");
+        await generate(p);
+        const st = await waitGeneration(p, "falla");
+        const err = await p.getByTestId("audio-generation-error").innerText().catch(() => "");
+        check(`[${dev}] error del proveedor: estado «Falló» con explicación y «Reanudar»`, st === "Falló" && /proveedor de voz falló.*no se volverá a cobrar/.test(err) && (await p.getByTestId("audio-resume").count()) === 1, [st, err]);
+        check(`[${dev}] error del proveedor: sin MP3 publicado`, (await p.getByTestId("audio-result").count()) === 0);
+        await shot(p, `${dev}-06-error-proveedor`);
+      }
+
       // 8. Módulos anteriores siguen respondiendo.
       for (const [label, url, sel] of [["portada", "/dashboard", '[data-testid="crear-inicio"]'], ["Podcast Premium", "/dashboard/podcast", "main"], ["Long Form", "/dashboard/long-form/new", "main"], ["Facturación", "/dashboard/billing", "main"]]) {
         const r = await p.goto(`${BASE}${url}`); check(`[${dev}] ${label} responde ${r?.status()}`, r && r.status() < 400);
@@ -164,6 +251,12 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`), fu
       return [get.status, put.status, act.status, trav.status];
     }, ownerProjectId);
     check("[aislamiento] API: leer, editar y archivar ajeno → 404; ruta con ../ → 404", api.every((s) => s === 404), api);
+    if (ownerAudioId) {
+      const a = await p.request.get(`${BASE}/api/audio-studio/projects/${ownerAudioId}/audio?descargar=1`, { maxRedirects: 0 });
+      check("[aislamiento] el MP3 del dueño no se puede descargar desde otra cuenta (404)", a.status() === 404, a.status());
+      const g = await p.evaluate(async (id) => (await fetch(`/api/audio-studio/projects/${id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "remezclar", revision: 1 }) })).status, ownerAudioId);
+      check("[aislamiento] remezclar/generar proyecto ajeno → 404", g === 404, g);
+    }
     const csrf = await p.evaluate(async () => (await fetch("/api/audio-studio/projects", { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ title: "csrf" }) })).status);
     check("[seguridad] POST que no es JSON (formulario de otro sitio) → 415", csrf === 415, csrf);
     await ctx.close();
