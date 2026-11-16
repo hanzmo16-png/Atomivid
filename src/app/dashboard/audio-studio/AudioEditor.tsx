@@ -288,7 +288,15 @@ export function AudioEditor({ initial }: { initial: ProjectView }) {
             <a href={`/api/audio-studio/projects/${saved.id}/audio?descargar=1`} className="inline-flex min-h-11 items-center text-sm font-medium text-accent underline" data-testid="audio-download">Descargar MP3</a>
           </div>
         )}
-        {!archived && !running && g.status !== "fallida" && (
+        {!saved.voiceStatus?.available && (
+          <p className="rounded-md border border-warning/25 bg-warning-soft p-3 text-sm text-ink" data-testid="audio-voice-disabled" role="status">
+            La generación de voz todavía no está activa. Puedes escribir, editar, guardar y organizar tus episodios; «Generar MP3» se habilitará cuando se active la voz. No se hace ninguna llamada ni cargo.
+          </p>
+        )}
+        {saved.voiceStatus?.available && saved.voiceStatus.local && (
+          <p className="text-xs text-ink-faint" data-testid="audio-voice-local">{saved.voiceStatus.message}</p>
+        )}
+        {!archived && !running && g.status !== "fallida" && saved.voiceStatus?.available && (
           <label className="flex min-h-11 items-start gap-2 text-sm text-ink">
             <input type="checkbox" className="mt-1" data-testid="audio-authorize" checked={authorized} disabled={issues.length > 0 || !!busy} onChange={(e) => setAuthorized(e.target.checked)} />
             <span>Autorizo un gasto de hasta <strong data-testid="audio-authorize-usd">USD {live.estimatedUsd.toFixed(2)}</strong> en voz para generar este episodio (tope del episodio USD {draft.budgetUsd.toFixed(2)}).</span>
@@ -298,7 +306,7 @@ export function AudioEditor({ initial }: { initial: ProjectView }) {
           {!locked && saved.status !== "listo_para_autorizar" && (
             <Button variant="secondary" className="min-h-11" data-testid="audio-ready" disabled={issues.length > 0 || !!busy} loading={busy === "listo"} onClick={() => void action("listo")}>Marcar listo para autorizar</Button>
           )}
-          {!archived && !running && g.status !== "fallida" && (
+          {!archived && !running && g.status !== "fallida" && saved.voiceStatus?.available && (
             <Button className="min-h-11" data-testid="audio-generate" disabled={!authorized || issues.length > 0 || !!busy} loading={busy === "generar"} onClick={() => void action("generar")}>Generar MP3</Button>
           )}
           {!archived && !running && (g.status === "fallida" || g.status === "generando" || g.status === "en_cola") && (

@@ -6,12 +6,14 @@ import { AudioEditor } from "./AudioEditor";
 import { applyInput, newProject } from "@/lib/audio-studio/model";
 import { view } from "@/lib/audio-studio/service";
 import { SEED_EPISODE } from "@/lib/audio-studio/seed";
+import { fixtureVoice, type VoiceAvailability } from "@/lib/audio-studio/voice";
 
 const A = "11111111-1111-4111-8111-111111111111";
 const NOW = "2026-11-16T12:00:00.000Z";
-const seed = () => view(applyInput(newProject({ id: "aaaaaaaa-aaaa-4aaa-8aaa-000000000001", ownerId: A, now: NOW, title: SEED_EPISODE.title }), {
+const LOCAL_VOICE: VoiceAvailability = { ok: true, voice: fixtureVoice() };
+const seed = (voice?: VoiceAvailability) => view(applyInput(newProject({ id: "aaaaaaaa-aaaa-4aaa-8aaa-000000000001", ownerId: A, now: NOW, title: SEED_EPISODE.title }), {
   voices: [SEED_EPISODE.voice], targetMinutes: 18, script: SEED_EPISODE.script, notes: SEED_EPISODE.notes, music: SEED_EPISODE.music, budgetUsd: SEED_EPISODE.budgetUsd,
-}, NOW), {});
+}, NOW), {}, voice);
 
 test("biblioteca de audio: título, voces, duración, costo estimado, tope, gastado USD 0.00 y estado", () => {
   const html = renderToStaticMarkup(<AudioLibrary projects={[seed()]} archived={false} />);
@@ -29,7 +31,7 @@ test("biblioteca vacía y archivados vacíos tienen su mensaje", () => {
 });
 
 test("editor: guion, voces, música inteligente con plan por sección, presupuesto y generación real explicada", () => {
-  const html = renderToStaticMarkup(<AudioEditor initial={seed()} />);
+  const html = renderToStaticMarkup(<AudioEditor initial={seed(LOCAL_VOICE)} />);
   assert.match(html, /data-testid="audio-script"/);
   assert.match(html, /Mateo — masculina profesional/);
   assert.match(html, /Español latinoamericano/);
@@ -52,4 +54,19 @@ test("editor con dos voces muestra los dos selectores y la ayuda «Voz 1: / Voz 
   assert.match(html, /data-testid="audio-voice-0"/);
   assert.match(html, /data-testid="audio-voice-1"/);
   assert.match(html, /«Voz 1:» o «Voz 2:»/);
+});
+
+test("voz desactivada (producción sin proveedor): el editor lo dice desde el inicio y no ofrece autorizar ni «Generar MP3»", () => {
+  const html = renderToStaticMarkup(<AudioEditor initial={seed()} />);
+  assert.match(html, /data-testid="audio-voice-disabled"/);
+  assert.match(html, /La generación de voz todavía no está activa/);
+  assert.doesNotMatch(html, /data-testid="audio-generate"/);
+  assert.doesNotMatch(html, /data-testid="audio-authorize"/);
+  assert.match(html, /data-testid="audio-save"/);
+  assert.match(html, /data-testid="audio-script"/);
+  // Con la voz de prueba local: se avisa que no es la voz final.
+  const local = renderToStaticMarkup(<AudioEditor initial={seed(LOCAL_VOICE)} />);
+  assert.match(local, /data-testid="audio-voice-local"/);
+  assert.match(local, /no es la voz final/);
+  assert.doesNotMatch(local, /data-testid="audio-voice-disabled"/);
 });

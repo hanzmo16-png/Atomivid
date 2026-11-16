@@ -282,3 +282,17 @@ test("worker CLI: identificadores manipulados salen con error sin tocar Storage;
   const wf = readFileSync(path.join(process.cwd(), ".github/workflows/audio-studio-ab-v4-turbo.yml"), "utf8");
   assert.match(wf, /^on:\n  workflow_dispatch:/m); assert.doesNotMatch(wf, /^\s+(push|pull_request|schedule|repository_dispatch):/m);
 });
+
+test("estado de voz en la vista: sin proveedor → no disponible con el motivo; fixture → local; la API lo expone en cada respuesta", async () => {
+  const { voiceStatus } = await import("./service");
+  assert.deepEqual(voiceStatus(undefined).available, false);
+  assert.match(voiceStatus({ ok: false, reason: "motivo" }).message!, /motivo/);
+  assert.deepEqual({ ...voiceStatus({ ok: true, voice: fixtureVoice() }), message: undefined }, { available: true, local: true, message: undefined });
+  const store = memoryStore(); const id = ids(), now = new Date().toISOString();
+  await store.create(newProject({ id, ownerId: A, now, title: "Estado" }));
+  const { getProject } = await import("./service");
+  const off = await getProject({ store }, A, id);
+  assert.equal((off.body as ReturnType<typeof view>).voiceStatus.available, false);
+  const on = await getProject({ store, voice: { ok: true, voice: fixtureVoice() } }, A, id);
+  assert.equal((on.body as ReturnType<typeof view>).voiceStatus.local, true);
+});

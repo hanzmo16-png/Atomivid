@@ -39,7 +39,7 @@ export type TtsModel = {
 export const TTS_MODELS: readonly TtsModel[] = [
   { id: "eleven_multilingual_v2", label: "Multilingual v2 (estándar)", description: "Modelo actual de Atomivid. Máxima estabilidad en narraciones largas.",
     listUsdPer1k: 0.08, maxCharsPerRequest: 10_000, voiceSettings: ["stability", "similarity_boost", "style", "use_speaker_boost"], verified: true, fallback: true },
-  { id: "eleven_v4_turbo", label: "v4 Turbo (rápido, en evaluación)", description: "Más rápido y expresivo; tarifa de lista la mitad que v2. Capacidades y tarifa de la cuenta aún sin verificar.",
+  { id: "eleven_v4_turbo", label: "v4 Turbo (rápido, en evaluación)", description: "Modelo más reciente de ElevenLabs; admite solo estabilidad y similitud. Su tarifa de lista es la mitad que v2, pero el costo real en la cuenta aún no se comprobó con una muestra.",
     listUsdPer1k: 0.04, maxCharsPerRequest: 10_000, voiceSettings: ["stability", "similarity_boost"], verified: false, fallback: false },
 ];
 export const DEFAULT_TTS_MODEL: TtsModelId = "eleven_multilingual_v2";

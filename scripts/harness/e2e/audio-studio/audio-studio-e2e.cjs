@@ -56,6 +56,11 @@ async function login(browser, user, opts) {
   const ctx = await browser.newContext({ ...opts, locale: "es-MX" });
   await ctx.addInitScript(() => { try { localStorage.setItem("atomivid_onboarding_completed_v1", "1"); } catch {} });
   const p = await ctx.newPage(); p.setDefaultTimeout(90000);
+  if (process.env.E2E_TRACE) {
+    p.on("console", (m) => { const t = m.text(); if (/fast refresh|reload|hmr|error|hydrat/i.test(t)) console.log("CONSOLA", m.type(), t.slice(0, 200)); });
+    p.on("framenavigated", (f) => { if (f === p.mainFrame()) console.log("NAVEGA", f.url()); });
+    p.on("pageerror", (e) => console.log("PAGEERROR", String(e).slice(0, 200)));
+  }
   await p.goto(`${BASE}/login`); await p.fill("input[name=email]", user.email); await p.fill("input[name=password]", user.password);
   await p.locator("form button[type=submit]").last().click(); await p.waitForURL(/\/dashboard/);
   return { ctx, p };
@@ -102,6 +107,7 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`), fu
 
       // 3. Autorización expresa: el botón «Generar MP3» exige marcar el monto exacto estimado.
       check(`[${dev}] «Generar MP3» deshabilitado hasta autorizar el monto`, await p.getByTestId("audio-generate").isDisabled());
+      check(`[${dev}] voz de prueba local avisada (no es la voz final) y sin aviso de voz desactivada`, (await p.getByTestId("audio-voice-local").count()) === 1 && (await p.getByTestId("audio-voice-disabled").count()) === 0);
       check(`[${dev}] el monto a autorizar es el estimado`, (await p.getByTestId("audio-authorize-usd").innerText()) === (await p.getByTestId("audio-estimated-usd").innerText()));
       if (dev === "desktop-1440") {
         // Primer episodio: MP3 completo (~16–18 min) con voz de prueba local y música inteligente.
@@ -198,10 +204,24 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`), fu
 
       // 5. Conflicto entre pestañas: la segunda pestaña no pisa la primera.
       const p2 = await ctx.newPage(); await p2.goto(newUrl); await p2.getByTestId("audio-editor").waitFor();
+      const pre = { input: await p.getByTestId("audio-title").inputValue(), estado: await p.getByTestId("audio-save-state").innerText(), gen: await p.getByTestId("audio-generation-status").innerText() };
       await p.getByTestId("audio-title").fill(`${title} (pestaña 1)`);
+      await p.waitForTimeout(400);
+      if (process.env.E2E_TRACE) console.log("TRAZA pestaña 1:", JSON.stringify({ pre, post: await p.getByTestId("audio-save-state").innerText() }));
       // Guardar a mano o por el guardado automático (2,5 s): en una máquina lenta el automático puede ganar y dejar «Guardar»
       // deshabilitado; ambos caminos guardan la pestaña 1 antes que la 2.
-      if (await p.getByTestId("audio-save").isEnabled().catch(() => false)) await p.getByTestId("audio-save").click().catch(() => {});
+      // La espera termina cuando el servidor ya tiene el título de la pestaña 1 (no basta con ver «Guardado», que puede ser
+      // el estado anterior si React aún no marcó el cambio).
+      const tab1Id = newUrl.split("/").pop();
+      // En `next dev` recién arrancado, abrir la segunda pestaña puede provocar una recarga completa de la primera (HMR):
+      // lo escrito antes de hidratar se pierde. Si el editor no registró el cambio, se vuelve a escribir (no ocurre en build).
+      for (let i = 0; i < 60 && (await apiProject(p, tab1Id)).title !== `${title} (pestaña 1)`; i++) {
+        const st = await p.getByTestId("audio-save-state").innerText().catch(() => "");
+        if (st === "Guardado" && i > 0 && i % 4 === 0) await p.getByTestId("audio-title").fill(`${title} (pestaña 1) `).then(() => p.getByTestId("audio-title").fill(`${title} (pestaña 1)`)).catch(() => {});
+        if (await p.getByTestId("audio-save").isEnabled().catch(() => false)) await p.getByTestId("audio-save").click().catch(() => {});
+        await p.waitForTimeout(500);
+      }
+      if ((await apiProject(p, tab1Id)).title !== `${title} (pestaña 1)`) console.log("DIAGNÓSTICO pestaña 1:", JSON.stringify({ input: await p.getByTestId("audio-title").inputValue(), disabled: await p.getByTestId("audio-title").isDisabled(), estado: await p.getByTestId("audio-save-state").innerText(), guardar: await p.getByTestId("audio-save").isEnabled(), gen: await p.getByTestId("audio-generation-status").innerText(), msg: await p.getByTestId("audio-message").innerText().catch(() => "-"), url: p.url() }));
       await p.waitForFunction(() => document.querySelector('[data-testid="audio-save-state"]')?.textContent === "Guardado");
       await p2.getByTestId("audio-title").fill(`${title} (pestaña 2)`); await p2.getByTestId("audio-save").click();
       await p2.getByTestId("audio-message").waitFor();
