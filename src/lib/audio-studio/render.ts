@@ -5,7 +5,7 @@
  * (music-library.ts). Nunca toca tablas ni archivos de Premium: lee y escribe solo bajo audio-studio/v1/<dueño>/<proyecto>/.
  */
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { assembleVoice, exportAudio, MASTER, mixAndMaster, type TurnAudio } from "@/lib/podcast/v3/audio";
@@ -98,6 +98,8 @@ export async function renderProject(deps: RenderDeps, ownerId: string, id: strin
 
     const music = snap.music.mode !== "sin_musica";
     const voiceMix = await assembleVoice(work, turns, music && snap.music.intro ? 3 : 0.5, music && snap.music.outro ? 4 : 0.8);
+    // La voz ya está unida: las piezas por intervención (mp3 de caché y wav normalizados) se borran del temporal.
+    for (const f of await readdir(work)) if (/^(seg-\d+\.mp3|raw-\d+\.wav|turn-\d+\.wav|pause-\d+\.wav)$/.test(f)) await rm(path.join(work, f), { force: true });
     const tracks: string[] = [];
     let masterOut: { master: string; lufs: number; truePeak: number; clipped: number };
     if (music) {
@@ -119,10 +121,14 @@ export async function renderProject(deps: RenderDeps, ownerId: string, id: strin
         parts.push(out);
       }
       // Cama continua: cada sección entra con un fundido cruzado de 2 s sobre la anterior.
+      // Cada paso borra lo que ya no sirve: sin esto, un episodio de 18 min con 15 secciones acumulaba ~1,5 GB de camas
+      // intermedias (en un disco pequeño el render fallaba por espacio).
       let bed = parts[0];
       for (let k = 1; k < parts.length; k++) {
         const out = path.join(bedDir, `chain-${k}.wav`);
         await ffmpeg(["-y", "-v", "error", "-i", bed, "-i", parts[k], "-filter_complex", `[0:a][1:a]acrossfade=d=${CROSSFADE_SECONDS}:c1=tri:c2=tri[a]`, "-map", "[a]", "-c:a", "pcm_s16le", out]);
+        await rm(bed, { force: true });
+        await rm(parts[k], { force: true });
         bed = out;
       }
       // mixAndMaster (Podcast 3.0) lee la cama como «pista documental» de su carpeta: se le da esta cama y las cortinas CC0.
