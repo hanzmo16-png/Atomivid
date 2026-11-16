@@ -42,7 +42,7 @@ Su id es estable por cuenta, así que nunca se duplica ni pisa una versión edit
     - `src/app/dashboard/audio-studio/**`
     - `src/app/api/audio-studio/**`
   - No importa nada de Podcast Studio Premium (`src/lib/podcast/**`, `src/app/dashboard/podcast/**`, `src/components/podcast/**`), ni proveedores, ni ledger. Una prueba lo verifica.
-  - Fuera del módulo solo cambia `src/app/dashboard/layout.tsx`, con el enlace «Audio Podcast».
+  - Fuera del módulo solo cambia `src/app/dashboard/layout.tsx`, con el enlace «Audio Podcast»: en la franja móvil (< 640 px) y en la barra desde 1024 px. Entre 640 y 1023 px no se añade a la barra porque la desbordaría y taparía la ayuda (defecto M3-1, prueba `qa-m3-movil`); allí se entra por `/dashboard/audio-studio`.
 - **Datos**
   - No hay migraciones ni tablas nuevas.
   - Cada proyecto es un JSON en el bucket privado existente `videos`, bajo `audio-studio/v1/<id de cuenta>/<id de proyecto>.json`.

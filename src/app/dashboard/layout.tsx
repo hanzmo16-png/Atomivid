@@ -77,7 +77,8 @@ export default async function DashboardLayout({
             {showAudioStudio && (
               <NavLink
                 href="/dashboard/audio-studio"
-                className="hidden whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition-colors sm:inline-block"
+                // lg, no sm: entre 640 y 1023 px un enlace más desborda la cabecera y tapa la ayuda (M3-1).
+                className="hidden whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition-colors lg:inline-block"
               >
                 Audio Podcast
               </NavLink>
