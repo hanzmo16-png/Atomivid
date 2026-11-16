@@ -58,3 +58,28 @@ export async function startWorker(
     return "apagado";
   }
 }
+
+/**
+ * Verificación previa del worker de producción (corre con la clave de servicio): el payload solo trae identificadores y
+ * no se confía en él. Antes de leer voz en caché, sintetizar o escribir nada se exige:
+ *  - UUID válidos;
+ *  - que el proyecto exista en la ruta del dueño indicado y que su JSON declare ese mismo dueño (otro dueño → no existe);
+ *  - generación en cola o interrumpida (una terminada, inactiva o fallida no se vuelve a procesar: despacho duplicado);
+ *  - para «generar»: autorización guardada para la revisión actual, con el mismo modelo, monto > 0 y dentro del tope.
+ * Devuelve el motivo del rechazo, o null si puede continuar.
+ */
+export async function workerPreflight(store: ProjectStore, ownerId: string, id: string): Promise<string | null> {
+  if (!isUuid(ownerId) || !isUuid(id)) return "identificadores inválidos";
+  const p = await store.get(ownerId, id);
+  if (!p || p.ownerId !== ownerId || p.id !== id) return "proyecto inexistente para ese dueño";
+  const g = p.generation;
+  if (g.status !== "en_cola" && g.status !== "generando") return `generación en estado «${g.status}»: nada que hacer`;
+  if (g.kind !== "generar" && g.kind !== "remezclar") return "tipo de generación desconocido";
+  if (g.kind === "remezclar") return null;
+  const a = g.authorization;
+  if (!a) return "sin autorización de gasto guardada";
+  if (a.revision !== p.revision) return "la autorización es de otra revisión del guion";
+  if (a.model !== p.ttsModel) return "la autorización es para otro modelo de voz";
+  if (!(a.usd > 0) || a.usd > p.budgetUsd + 1e-9) return "monto autorizado inválido o mayor que el tope del episodio";
+  return null;
+}

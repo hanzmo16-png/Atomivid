@@ -222,3 +222,63 @@ test("A/B de 90 s: extracto del episodio inicial en párrafos completos, ~1.300 
   assert.ok(!t.includes("##"));
   for (const m of TTS_MODELS) assert.ok(t.length <= m.maxCharsPerRequest);
 });
+
+test("worker de producción, payload adversarial (USD 0): ajeno, manipulado, duplicado, sin autorización, otro modelo y monto inválido se rechazan sin escribir", async () => {
+  const { workerPreflight } = await import("./worker");
+  const B = "22222222-2222-4222-8222-222222222222";
+  const store = memoryStore();
+  const id = ids(), now = new Date().toISOString();
+  const p = applyInput(newProject({ id, ownerId: A, now, title: "Worker" }), { targetMinutes: 5, script: "palabra ".repeat(760), budgetUsd: 5 }, now);
+  await store.create(p);
+  const voice: VoiceAvailability = { ok: true, voice: fixtureVoice() };
+  const snapshot = () => JSON.stringify(store.paths().map((k) => [k, k]).concat([...store.blobs.keys()].map((k) => [k, String(store.blobs.get(k)!.length)])));
+  // Sin cola: nada que hacer.
+  assert.match((await workerPreflight(store, A, id))!, /estado «inactiva»/);
+  // Manipulado: identificadores no UUID / inyección.
+  assert.equal(await workerPreflight(store, "../../otro", id), "identificadores inválidos");
+  assert.equal(await workerPreflight(store, A, "x; rm -rf /"), "identificadores inválidos");
+  // En cola con autorización válida → pasa.
+  const ok = await requestGeneration({ store, env: {}, voice }, A, id, { revision: p.revision, confirmUsd: view(p, {}).estimate.estimatedUsd });
+  assert.equal(ok.status, 202);
+  assert.equal(await workerPreflight(store, A, id), null);
+  // Ajeno: el proyecto de A pedido con el dueño B no existe para B (la ruta y el dueño del JSON deben coincidir).
+  assert.equal(await workerPreflight(store, B, id), "proyecto inexistente para ese dueño");
+  // Archivo plantado en la ruta de B con ownerId de A: parseStored lo descarta.
+  await store.put({ ...(await store.get(A, id))!, ownerId: B });
+  const planted = await store.get(B, id);
+  assert.ok(!planted || planted.ownerId === B);
+  // Manipulaciones de la autorización guardada (cada una se prueba sobre una copia; ninguna escribe).
+  const base = (await store.get(A, id))!;
+  const variant = async (mut: (x: AudioProject) => AudioProject) => { const s = memoryStore(); await s.create(mut(structuredClone(base))); return workerPreflight(s, A, id); };
+  assert.equal(await variant((x) => ({ ...x, generation: { ...x.generation, authorization: null } })), "sin autorización de gasto guardada");
+  assert.equal(await variant((x) => ({ ...x, revision: x.revision + 1 })), "la autorización es de otra revisión del guion");
+  assert.equal(await variant((x) => ({ ...x, ttsModel: "eleven_v4_turbo" })), "la autorización es para otro modelo de voz");
+  assert.equal(await variant((x) => ({ ...x, generation: { ...x.generation, authorization: { ...x.generation.authorization!, usd: 999 } } })), "monto autorizado inválido o mayor que el tope del episodio");
+  assert.equal(await variant((x) => ({ ...x, generation: { ...x.generation, authorization: { ...x.generation.authorization!, usd: 0 } } })), "monto autorizado inválido o mayor que el tope del episodio");
+  // La verificación previa no escribe nada.
+  const before = snapshot();
+  await workerPreflight(store, B, id); await workerPreflight(store, A, "x"); await workerPreflight(store, A, id);
+  assert.equal(snapshot(), before);
+  // Render completo y despacho duplicado: el segundo se rechaza antes de tocar nada y no hay llamadas nuevas.
+  const calls: { model: TtsModelId; voiceId: string; text: string }[] = [];
+  assert.equal(await renderProject({ store, voice: fixtureVoice({ calls }), musicDir: MUSIC }, A, id), "terminada");
+  const n = calls.length, spent = (await store.get(A, id))!.spentUsd;
+  assert.match((await workerPreflight(store, A, id))!, /estado «terminada»/);
+  assert.equal(await renderProject({ store, voice: fixtureVoice({ calls }), musicDir: MUSIC }, A, id), "omitida");
+  assert.equal(calls.length, n);
+  assert.equal((await store.get(A, id))!.spentUsd, spent);
+});
+
+test("worker CLI: identificadores manipulados salen con error sin tocar Storage; sin voz de pago no genera (USD 0)", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const run = (args: string[], env: Record<string, string> = {}) => spawnSync(process.execPath, ["--import", "tsx", "scripts/audio-studio/worker.ts", ...args], { encoding: "utf8", env: { NODE_ENV: "test", PATH: process.env.PATH ?? "", ...env } });
+  const bad = run(["no-uuid", "x"]);
+  assert.equal(bad.status, 2); assert.match(bad.stdout, /RESULTADO ERROR identificadores inválidos/);
+  const noVoice = run([A, ids()]);
+  assert.equal(noVoice.status, 0); assert.match(noVoice.stdout, /RESULTADO SIN_VOZ .*USD 0/);
+  // El workflow A/B de pago no corre sin el monto exacto (lo verifica el script antes de llamar a la API).
+  const ab = spawnSync(process.execPath, ["--import", "tsx", "scripts/audio-studio/ab-v4-turbo.ts", "real", path.join(tmpdir(), "ab-sin-confirmar")], { encoding: "utf8", env: { NODE_ENV: "test", PATH: process.env.PATH ?? "", AB_VOZ_ID: "TbvhqFC7AApJv7hnNvmY", AB_CONFIRMAR_USD: "0.50" } });
+  assert.equal(ab.status, 2); assert.match(ab.stdout, /RESULTADO BLOQUEADO AB_CONFIRMAR_USD debe ser exactamente/);
+  const wf = readFileSync(path.join(process.cwd(), ".github/workflows/audio-studio-ab-v4-turbo.yml"), "utf8");
+  assert.match(wf, /^on:\n  workflow_dispatch:/m); assert.doesNotMatch(wf, /^\s+(push|pull_request|schedule|repository_dispatch):/m);
+});
