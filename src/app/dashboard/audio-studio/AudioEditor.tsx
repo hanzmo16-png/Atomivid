@@ -63,12 +63,19 @@ export function AudioEditor({ initial }: { initial: ProjectView }) {
   // Mientras se genera: consulta el estado cada 3 s (el editor queda bloqueado hasta que termine).
   useEffect(() => {
     if (g.status !== "en_cola" && g.status !== "generando") return;
+    // «alive»: una respuesta que llega después de terminar la consulta se descarta; si no, podía pisar lo que la
+    // persona empezó a escribir al terminar la generación (el editor perdía el cambio y «Guardar» quedaba inactivo).
+    let alive = true;
     const t = setInterval(async () => {
       setClock(Date.now());
       const res = await fetch(`/api/audio-studio/projects/${saved.id}`, { cache: "no-store" }).catch(() => null);
-      if (res?.ok) { const body = await res.json(); setSaved(body); if (body.generation.status !== "en_cola" && body.generation.status !== "generando") setDraft(draftOf(body)); }
+      if (!alive || !res?.ok) return;
+      const body = await res.json().catch(() => null);
+      if (!alive || !body) return;
+      setSaved(body);
+      if (body.generation.status !== "en_cola" && body.generation.status !== "generando") setDraft(draftOf(body));
     }, 3000);
-    return () => clearInterval(t);
+    return () => { alive = false; clearInterval(t); };
   }, [g.status, saved.id]);
 
   // Aviso del navegador si se cierra con cambios sin guardar.

@@ -66,7 +66,8 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`), fu
   const browser = await chromium.launch({ executablePath: process.env.E2E_CHROME || undefined });
   let ownerProjectId = null, ownerAudioId = null;
   try {
-    for (const [dev, opts] of Object.entries(DEVICES)) {
+    const only = (process.env.E2E_DEVICES ?? "").split(",").filter(Boolean);
+    for (const [dev, opts] of Object.entries(DEVICES).filter(([d]) => !only.length || only.includes(d))) {
       const { ctx, p } = await login(browser, OWNER, opts);
       const paid = []; p.on("request", (r) => { if (/elevenlabs|heygen|openai|anthropic|recraft|fal\.|pexels/i.test(r.url())) paid.push(r.url()); });
 
@@ -188,7 +189,10 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`), fu
 
       // 5. Conflicto entre pestañas: la segunda pestaña no pisa la primera.
       const p2 = await ctx.newPage(); await p2.goto(newUrl); await p2.getByTestId("audio-editor").waitFor();
-      await p.getByTestId("audio-title").fill(`${title} (pestaña 1)`); await p.getByTestId("audio-save").click();
+      await p.getByTestId("audio-title").fill(`${title} (pestaña 1)`);
+      const enabled = await p.getByTestId("audio-save").isEnabled({ timeout: 1000 }).catch(() => false);
+      if (!enabled) console.log("DIAGNÓSTICO guardar:", JSON.stringify({ estado: await p.getByTestId("audio-save-state").innerText(), msg: await p.getByTestId("audio-message").innerText().catch(() => "-"), gen: await p.getByTestId("audio-generation-status").innerText(), titulo: await p.getByTestId("audio-title").inputValue() }));
+      await p.getByTestId("audio-save").click();
       await p.waitForFunction(() => document.querySelector('[data-testid="audio-save-state"]')?.textContent === "Guardado");
       await p2.getByTestId("audio-title").fill(`${title} (pestaña 2)`); await p2.getByTestId("audio-save").click();
       await p2.getByTestId("audio-message").waitFor();
@@ -274,7 +278,8 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`), fu
   const filesAfter = listFiles(STORAGE).filter((f) => !f.startsWith("videos/audio-studio/"));
   if (STORAGE) check("[datos] ningún archivo previo del Storage local borrado (fuera de audio-studio)", filesBefore.every((f) => filesAfter.includes(f)), filesBefore.filter((f) => !filesAfter.includes(f)).slice(0, 5));
   const studioFiles = listFiles(STORAGE).filter((f) => f.startsWith("videos/audio-studio/v1/"));
-  if (STORAGE) check("[datos] proyectos guardados solo bajo videos/audio-studio/v1/<cuenta>/", studioFiles.length >= 3 && studioFiles.every((f) => /^videos\/audio-studio\/v1\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.json$/.test(f)), studioFiles);
+  const okPath = (f) => /^videos\/audio-studio\/v1\/[0-9a-f-]{36}\/[0-9a-f-]{36}(\.json|\/tts\/[0-9a-f]{64}\.mp3|\/audio\/[\w.-]+\.mp3)$/.test(f);
+  if (STORAGE) check("[datos] proyectos, voz en caché y MP3 solo bajo videos/audio-studio/v1/<cuenta>/<proyecto>", studioFiles.length >= 3 && studioFiles.every(okPath), studioFiles.filter((f) => !okPath(f)).slice(0, 5));
   const newEgress = egressLines().slice(egressBefore);
   check("[costo] ninguna salida a proveedores reales durante el recorrido", !newEgress.some((l) => /elevenlabs|heygen|openai|anthropic|recraft|fal\.|pexels|supabase\.co|stripe/i.test(l)), newEgress.slice(0, 5));
   console.log(`RESULTADO ${fails === 0 ? "OK" : "FALLA"}  ${passes} PASS · ${fails} FAIL`);
