@@ -60,7 +60,8 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`), fu
       // 2. Episodio inicial cargado como proyecto editable (una sola vez, aunque se visite en dos dispositivos).
       const items = p.getByTestId("audio-library-item");
       const titles = await items.allInnerTexts();
-      check(`[${dev}] episodio inicial en la biblioteca, sin duplicados`, titles.filter((t) => t === SEED_TITLE).length === 1, titles);
+      if (!check(`[${dev}] episodio inicial en la biblioteca, sin duplicados`, titles.filter((t) => t === SEED_TITLE).length === 1, titles))
+        console.log("DIAGNÓSTICO página:", (await p.locator("main").innerText()).replace(/\s+/g, " ").slice(0, 600));
       await items.filter({ hasText: SEED_TITLE }).click(); await p.getByTestId("audio-editor").waitFor();
       const seedUrl = p.url();
       check(`[${dev}] guion inicial cargado (~18 min)`, /≈ 1[78](\.\d)? min/.test(await p.getByTestId("audio-script-stats").innerText()), await p.getByTestId("audio-script-stats").innerText());

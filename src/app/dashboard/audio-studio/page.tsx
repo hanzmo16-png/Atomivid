@@ -19,7 +19,12 @@ export default async function AudioStudioPage({ searchParams }: { searchParams: 
   const { archivados } = await searchParams;
   const deps = studioDeps();
   // El primer episodio del dueño queda cargado como proyecto editable (id estable: nunca se duplica).
-  const seedError = user.owner ? await ensureSeed(deps, user.id).then(() => null, () => "No se pudo cargar el episodio inicial.") : null;
+  const seedError = user.owner
+    ? await ensureSeed(deps, user.id).then(() => null, (e: unknown) => {
+        console.error("[audio-studio] episodio inicial no cargado", e instanceof Error ? e.message.slice(0, 200) : "error");
+        return "No se pudo cargar el episodio inicial.";
+      })
+    : null;
   const out = await listProjects(deps, user.id);
   const all = out.ok ? out.body.projects : [];
   const showArchived = archivados === "1";

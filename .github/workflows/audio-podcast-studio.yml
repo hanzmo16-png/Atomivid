@@ -79,3 +79,5 @@ jobs:
             audio-studio-tests.log
             .e2e-local/out/audio-studio
             .e2e-local/out/audio-studio.log
+            .e2e-local/logs/next.log
+            .e2e-local/logs/gateway.jsonl

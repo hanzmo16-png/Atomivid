@@ -39,7 +39,11 @@ const conflict = (e: { message?: string; statusCode?: string | number } | null) 
 export function storageStore(bucket: StorageApi): ProjectStore {
   const read = async (ownerId: string, id: string) => {
     const { data, error } = await bucket.download(projectPath(ownerId, id));
-    if (error) { if (notFound(error)) return null; throw new StoreError("No se pudo leer el proyecto."); }
+    if (error) {
+      if (notFound(error)) return null;
+      console.error("[audio-studio] lectura de Storage falló", { status: error.statusCode ?? null, message: error.message?.slice(0, 200) });
+      throw new StoreError("No se pudo leer el proyecto.");
+    }
     if (!data) return null;
     let raw: unknown = null;
     try { raw = JSON.parse(await data.text()); } catch { return null; }
@@ -54,13 +58,14 @@ export function storageStore(bucket: StorageApi): ProjectStore {
       if (error) throw new StoreError("No se pudo leer la biblioteca de audio.");
       const ids = (data ?? []).map((o) => o.name.replace(/\.json$/, "")).filter(isUuid);
       const items = await Promise.all(ids.map((id) => read(ownerId, id).catch(() => null)));
+      if (items.some((p) => !p)) console.error("[audio-studio] proyectos no legibles en la biblioteca", { listados: ids.length, legibles: items.filter(Boolean).length });
       return items.filter((p): p is AudioProject => !!p).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     },
     get: (ownerId, id) => (isUuid(ownerId) && isUuid(id) ? read(ownerId, id) : Promise.resolve(null)),
     async create(p) {
       const { error } = await bucket.upload(projectPath(p.ownerId, p.id), body(p), { contentType: "application/json", upsert: false, cacheControl: "0" });
       if (conflict(error)) return false;
-      if (error) throw new StoreError("No se pudo guardar el proyecto.");
+      if (error) { console.error("[audio-studio] creación en Storage falló", { status: error.statusCode ?? null, message: error.message?.slice(0, 200) }); throw new StoreError("No se pudo guardar el proyecto."); }
       return true;
     },
     async put(p) {
