@@ -5,13 +5,14 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { INPUT_CLASS } from "@/components/ui/Field";
 import {
-  defaultSecondVoice, draftOutline, estimate, GENERATION_LABEL, generationActive, MAX_BUDGET_USD, MAX_SCRIPT, MAX_TARGET_MINUTES, MAX_TITLE, MIN_TARGET_MINUTES, MOOD_LABEL, MUSIC_MOODS,
-  FALLBACK_TTS_MODEL, musicPlan, readinessIssues, STATUS_LABEL, TTS_MODELS, ttsModel, VOICE_PRESETS, voicePreset, type AudioProject, type MusicConfig, type MusicMood, type TtsModelId,
+  LANGUAGES, defaultSecondVoice, draftOutline, estimate, GENERATION_LABEL, generationActive, MAX_BUDGET_USD, MAX_SCRIPT, MAX_TARGET_MINUTES, MAX_TITLE, MIN_TARGET_MINUTES, MOOD_LABEL, MUSIC_MOODS,
+  FALLBACK_TTS_MODEL, musicPlan, readinessIssues, STATUS_LABEL, TTS_MODELS, ttsModel, VOICE_PRESETS, voicePreset, type StudioLanguage, type AudioProject, type MusicConfig, type MusicMood, type TtsModelId,
 } from "@/lib/audio-studio/model";
+import type { StudioCatalogVoice } from "@/lib/audio-studio/catalog";
 import type { ProjectView } from "@/lib/audio-studio/service";
 
-type Draft = Pick<AudioProject, "title" | "voiceCount" | "voices" | "targetMinutes" | "script" | "notes" | "music" | "budgetUsd" | "ttsModel">;
-const draftOf = (p: AudioProject): Draft => ({ title: p.title, voiceCount: p.voiceCount, voices: [...p.voices], targetMinutes: p.targetMinutes, script: p.script, notes: p.notes, music: { ...p.music }, budgetUsd: p.budgetUsd, ttsModel: p.ttsModel });
+type Draft = Pick<AudioProject, "title" | "language" | "voiceCount" | "voices" | "targetMinutes" | "script" | "notes" | "music" | "budgetUsd" | "ttsModel">;
+const draftOf = (p: AudioProject): Draft => ({ title: p.title, language: p.language, voiceCount: p.voiceCount, voices: [...p.voices], targetMinutes: p.targetMinutes, script: p.script, notes: p.notes, music: { ...p.music }, budgetUsd: p.budgetUsd, ttsModel: p.ttsModel });
 const same = (a: Draft, b: Draft) => JSON.stringify(a) === JSON.stringify(b);
 const usd = (n: number) => `USD ${n.toFixed(2)}`;
 const AUTOSAVE_MS = 2500;
@@ -22,6 +23,18 @@ export function AudioEditor({ initial }: { initial: ProjectView }) {
   const [state, setState] = useState<"idle" | "saving" | "error" | "conflict">("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState<null | "listo" | "generar" | "archivar" | "restaurar" | "remezclar" | "reanudar" | "respaldo">(null);
+  const [catalog, setCatalog] = useState<StudioCatalogVoice[] | null>(null);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [catalogReload, setCatalogReload] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/audio-studio/voices", { cache: "no-store" }).then(async res => {
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "No se pudieron cargar las voces.");
+      if (alive) { setCatalog(body.voices); setCatalogError(null); }
+    }).catch(err => { if (alive) setCatalogError(err.message); });
+    return () => { alive = false; };
+  }, [catalogReload]);
   const [authorized, setAuthorized] = useState(false);
   const [clock, setClock] = useState(() => Date.now());
   const dirty = !same(draft, draftOf(saved));
@@ -112,8 +125,15 @@ export function AudioEditor({ initial }: { initial: ProjectView }) {
 
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setDraft((d) => ({ ...d, [k]: v }));
   const setMusic = <K extends keyof MusicConfig>(k: K, v: MusicConfig[K]) => setDraft((d) => ({ ...d, music: { ...d.music, [k]: v } }));
-  const setVoiceCount = (n: 1 | 2) => setDraft((d) => ({ ...d, voiceCount: n, voices: n === 1 ? [d.voices[0]] : [d.voices[0], d.voices[1] ?? defaultSecondVoice(d.voices[0])] }));
+  const setVoiceCount = (n: 1 | 2) => setDraft((d) => ({ ...d, voiceCount: n, voices: n === 1 ? [d.voices[0]] : [d.voices[0], d.voices[1] ?? defaultSecondVoice(d.voices[0], d.language)] }));
   const setVoice = (i: number, id: string) => setDraft((d) => { const v = [...d.voices]; v[i] = id; return { ...d, voices: v }; });
+
+  const setLanguage = (language: StudioLanguage) => setDraft(d => {
+    const voices = VOICE_PRESETS.filter(v => v.language === language);
+    return { ...d, language, voices: d.language === language ? d.voices : [voices[0].id, defaultSecondVoice(voices[0].id, language)].slice(0, d.voiceCount) };
+  });
+  const available = (id: string) => catalog?.find(v => v.id === id)?.models.includes(draft.ttsModel) ?? false;
+  const catalogReady = catalog !== null && draft.voices.every(available);
 
   const saveLabel = state === "saving" ? "Guardando…" : state === "conflict" ? "Conflicto de versiones" : state === "error" ? "No guardado" : dirty ? "Cambios sin guardar" : "Guardado";
 
@@ -138,6 +158,13 @@ export function AudioEditor({ initial }: { initial: ProjectView }) {
           <label htmlFor="audio-title" className="mb-1.5 block text-sm font-medium text-ink">Título</label>
           <input id="audio-title" data-testid="audio-title" className={INPUT_CLASS} value={draft.title} maxLength={MAX_TITLE} disabled={locked} onChange={(e) => set("title", e.target.value)} />
         </div>
+        <div>
+          <label htmlFor="audio-language" className="mb-1.5 block text-sm font-medium text-ink">Idioma del episodio</label>
+          <select id="audio-language" data-testid="audio-language" className={INPUT_CLASS} value={draft.language} disabled={locked} onChange={e => setLanguage(e.target.value as StudioLanguage)}>
+            {LANGUAGES.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
+          </select>
+          <p className="mt-1 text-xs text-ink-muted">Escribe o pega el guion en el idioma elegido. Cambiar el idioma no traduce el texto.</p>
+        </div>
         <fieldset>
           <legend className="mb-1.5 text-sm font-medium text-ink">Voces</legend>
           <div className="flex flex-wrap gap-2">
@@ -153,13 +180,17 @@ export function AudioEditor({ initial }: { initial: ProjectView }) {
               <div key={i}>
                 <label htmlFor={`audio-voice-${i}`} className="mb-1 block text-xs text-ink-muted">{draft.voiceCount === 1 ? "Voz" : `Voz ${i + 1}`}</label>
                 <select id={`audio-voice-${i}`} data-testid={`audio-voice-${i}`} className={INPUT_CLASS} value={v} disabled={locked} onChange={(e) => setVoice(i, e.target.value)}>
-                  {VOICE_PRESETS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+                  {VOICE_PRESETS.filter(p => p.language === draft.language).map((p) => <option key={p.id} value={p.id} disabled={catalog !== null && !available(p.id)}>{p.label} — {p.gender}{catalog !== null && !available(p.id) ? " (no disponible con este modelo)" : ""}</option>)}
                 </select>
                 <p className="mt-1 text-xs text-ink-faint">{voicePreset(v)?.accent} · {voicePreset(v)?.style}</p>
+                {catalog?.find(c => c.id === v)?.previewUrl && <div className="mt-2"><span className="text-xs text-ink-muted">Muestra de la voz (catálogo de ElevenLabs)</span><audio aria-label={`Muestra de ${voicePreset(v)?.label}`} controls preload="none" className="mt-1 w-full" src={catalog.find(c => c.id === v)!.previewUrl!} /></div>}
               </div>
             ))}
           </div>
-          {draft.voiceCount === 2 && <p className="mt-2 text-xs text-ink-muted">En el guion, empieza cada intervención con «Voz 1:» o «Voz 2:».</p>}
+          {catalogError && <p role="alert" className="mt-2 text-sm text-danger">{catalogError} <button type="button" className="underline" onClick={() => setCatalogReload(n => n + 1)}>Reintentar</button></p>}
+          {!catalog && !catalogError && <p className="mt-2 text-xs text-ink-muted">Comprobando voces disponibles…</p>}
+          {catalog && !catalogReady && <p className="mt-2 text-sm text-danger">Elige voces disponibles para este modelo antes de generar.</p>}
+          {draft.voiceCount === 2 && <p className="mt-2 text-xs text-ink-muted">En el guion, empieza cada intervención con «Voz 1:» o «Voz 2:» (en inglés también «Voice 1:» / «Voice 2:»).</p>}
           <div className="mt-3">
             <label htmlFor="audio-model" className="mb-1 block text-xs text-ink-muted">Modelo de voz</label>
             <select id="audio-model" data-testid="audio-model" className={INPUT_CLASS} value={draft.ttsModel} disabled={locked} onChange={(e) => set("ttsModel", e.target.value as TtsModelId)}>
@@ -191,7 +222,7 @@ export function AudioEditor({ initial }: { initial: ProjectView }) {
         </div>
         <p className="text-xs text-ink-faint">Las líneas que empiezan con «## » son títulos de sección: organizan la música y no se narran.</p>
         {!draft.script.trim() && !locked && (
-          <Button type="button" variant="secondary" className="min-h-11" data-testid="audio-outline" onClick={() => set("script", draftOutline(draft.title, draft.targetMinutes, draft.voiceCount))}>
+          <Button type="button" variant="secondary" className="min-h-11" data-testid="audio-outline" onClick={() => set("script", draftOutline(draft.title, draft.targetMinutes, draft.voiceCount, draft.language))}>
             Generar estructura de guion
           </Button>
         )}
@@ -299,7 +330,7 @@ export function AudioEditor({ initial }: { initial: ProjectView }) {
             <Button variant="secondary" className="min-h-11" data-testid="audio-ready" disabled={issues.length > 0 || !!busy} loading={busy === "listo"} onClick={() => void action("listo")}>Marcar listo para autorizar</Button>
           )}
           {!archived && !running && g.status !== "fallida" && (
-            <Button className="min-h-11" data-testid="audio-generate" disabled={!authorized || issues.length > 0 || !!busy} loading={busy === "generar"} onClick={() => void action("generar")}>Generar MP3</Button>
+            <Button className="min-h-11" data-testid="audio-generate" disabled={!authorized || !catalogReady || issues.length > 0 || !!busy} loading={busy === "generar"} onClick={() => void action("generar")}>Generar MP3</Button>
           )}
           {!archived && !running && (g.status === "fallida" || g.status === "generando" || g.status === "en_cola") && (
             <Button className="min-h-11" data-testid="audio-resume" disabled={!!busy} loading={busy === "reanudar"} onClick={() => void action("reanudar")}>Reanudar</Button>

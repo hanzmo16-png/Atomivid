@@ -1,9 +1,10 @@
+import { validateStudioVoices } from "./catalog";
 import { createHash } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import type { TtsProvider } from "@/lib/podcast/v3/pipeline";
 import { buildTtsRequest } from "@/lib/ai/voice";
 import { espeakVoice } from "@/lib/podcast/v2/espeak-provider";
-import { DEFAULT_TTS_MODEL, ttsModel, VOICE_PRESETS, voicePreset, type TtsModelId } from "./model";
+import { DEFAULT_TTS_MODEL, ttsModel, VOICE_PRESETS, voicePreset, type TtsModelId, type AudioProject } from "./model";
 
 /**
  * Proveedor de voz de Audio Podcast Studio, por modelo.
@@ -13,7 +14,7 @@ import { DEFAULT_TTS_MODEL, ttsModel, VOICE_PRESETS, voicePreset, type TtsModelI
  *    elegido y SOLO los ajustes de voz admitidos por ese modelo. Requiere AUDIO_STUDIO_PAID_TTS=1 y el mapa de voces:
  *    ese interruptor no está activado en ningún entorno; la generación real queda pendiente de autorización.
  */
-export type StudioVoice = { mode: "fixture" | "elevenlabs"; provider(model: TtsModelId): TtsProvider; voiceIdFor(preset: string): string };
+export type StudioVoice = { validate?(project: AudioProject): Promise<void>; mode: "fixture" | "elevenlabs"; provider(model: TtsModelId): TtsProvider; voiceIdFor(preset: string): string };
 
 export type VoiceAvailability = { ok: true; voice: StudioVoice } | { ok: false; reason: string };
 
@@ -51,7 +52,7 @@ export function fixtureVoice(opts: { fail?: (text: string, model: TtsModelId) =>
         opts.fail?.(text, model);
         opts.calls?.push({ model, voiceId, text });
         const v = espeakVoice(voiceId, null, log as never, () => fixtureProfile(preset));
-        const r = await v.synthesize(text, "es", 1);
+        const r = await v.synthesize(text, voicePreset(preset)?.language ?? "es", 1);
         await writeFile(dest, r.audioBuffer);
         return { actualUsd: 0 };
       },
@@ -96,7 +97,7 @@ export function voiceAvailability(env: Record<string, string | undefined> = proc
   if (env.AUDIO_STUDIO_PAID_TTS === "1") {
     const map = parseVoiceMap(env.AUDIO_STUDIO_ELEVENLABS_VOICES);
     if (!map) return { ok: false, reason: "Falta configurar las voces de ElevenLabs del estudio. No se hizo ningún cargo." };
-    return { ok: true, voice: { mode: "elevenlabs", provider: (model) => elevenLabsProvider(model, rateFor(model)), voiceIdFor: (preset) => map[preset] ?? "" } };
+    return { ok: true, voice: { mode: "elevenlabs", validate: (project) => validateStudioVoices(project, map, env), provider: (model) => elevenLabsProvider(model, rateFor(model)), voiceIdFor: (preset) => map[preset] ?? "" } };
   }
   return { ok: false, reason: PAID_BLOCKED };
 }
@@ -109,7 +110,7 @@ export function parseVoiceMap(raw: string | undefined): Record<string, string> |
     const [k, v] = pair.split("=").map((x) => x?.trim());
     if (k && v && voicePreset(k) && /^[A-Za-z0-9]{8,64}$/.test(v)) out[k] = v;
   }
-  return VOICE_PRESETS.every((p) => out[p.id]) ? out : null;
+  return VOICE_PRESETS.filter(p => p.language === "es").every((p) => out[p.id]) ? out : null;
 }
 
 /**

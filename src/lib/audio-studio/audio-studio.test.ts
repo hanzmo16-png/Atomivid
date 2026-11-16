@@ -97,8 +97,8 @@ test("primer episodio: título exacto, voz masculina profesional latina, 18 min,
   assert.equal(SEED_EPISODE.title, "El día que entiendes que no puedes controlarlo todo");
   const v = voicePreset(SEED_EPISODE.voice)!;
   assert.equal(v.gender, "masculina");
-  assert.match(v.accent, /latinoamericano/);
-  assert.match(v.label, /profesional/);
+  assert.match(v.accent, /latinoamericano/i);
+  assert.match(v.style, /profesional/i);
   assert.equal(SEED_EPISODE.targetMinutes, 18);
   assert.equal(SEED_EPISODE.music.mode, "inteligente");
   const p = applyInput(newProject({ id: ids(), ownerId: A, now: NOW, title: SEED_EPISODE.title }), { voices: [SEED_EPISODE.voice], targetMinutes: 18, script: SEED_EPISODE.script, music: SEED_EPISODE.music, budgetUsd: SEED_EPISODE.budgetUsd }, NOW);
@@ -272,7 +272,8 @@ test("aislamiento de código: solo reutiliza motores de Podcast en modo lectura;
       else if (m[1].startsWith("@/lib/") && !m[1].startsWith("@/lib/audio-studio")) assert.ok(SHARED.has(m[1]), `${f}: ${m[1]}`);
       assert.doesNotMatch(m[1], /@\/app\/dashboard\/podcast|@\/components\/podcast|paid-calls|ledger|production-intelligence/, f);
     }
-    assert.doesNotMatch(src, /elevenlabs\.io|api\.anthropic|openai\.com|podcast_studio_|podcast_episodes|pi_paid/i, f);
+    assert.doesNotMatch(src, /api\.anthropic|openai\.com|podcast_studio_|podcast_episodes|pi_paid/i, f);
+    if (!f.endsWith("/catalog.ts")) assert.doesNotMatch(src, /elevenlabs\.io/i, f);
   }
   const voice = readFileSync("src/lib/audio-studio/voice.ts", "utf8");
   assert.match(voice, /AUDIO_STUDIO_PAID_TTS === "1"/, "el adaptador real solo con el interruptor explícito");

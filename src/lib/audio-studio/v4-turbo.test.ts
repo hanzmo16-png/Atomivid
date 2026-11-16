@@ -21,10 +21,10 @@ let n = 500;
 const ids = () => `cccccccc-cccc-4ccc-8ccc-${String(++n).padStart(12, "0")}`;
 const MUSIC = path.join(tmpdir(), "audio-studio-test-music");
 
-test("catálogo: Multilingual v2 por defecto y respaldo; v4 Turbo seleccionable, sin verificar y con solo stability/similarity", () => {
+test("catálogo: v4 Turbo por defecto y v2 de respaldo; v4 Turbo seleccionable, sin verificar y con solo stability/similarity", () => {
   assert.deepEqual(TTS_MODELS.map((m) => m.id), ["eleven_multilingual_v2", "eleven_v4_turbo"]);
   const p = newProject({ id: ids(), ownerId: A, now: NOW });
-  assert.equal(p.ttsModel, "eleven_multilingual_v2");
+  assert.equal(p.ttsModel, "eleven_v4_turbo");
   assert.equal(ttsModel("eleven_multilingual_v2")!.fallback, true);
   assert.equal(ttsModel("eleven_v4_turbo")!.verified, false);
   assert.deepEqual(Object.keys(settingsFor("eleven_v4_turbo")).sort(), ["similarity_boost", "stability"]);

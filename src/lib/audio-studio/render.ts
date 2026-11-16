@@ -61,8 +61,9 @@ export async function renderProject(deps: RenderDeps, ownerId: string, id: strin
     if (allowSynth && (!auth || auth.revision !== snap.revision)) throw new RenderError("La autorización de gasto no corresponde a esta versión del guion. Vuelve a autorizar. No se hizo ningún cargo.");
     // La autorización es para un modelo: nunca se usa con otro (un cambio de modelo exige autorizar de nuevo).
     if (allowSynth && auth!.model !== snap.ttsModel) throw new RenderError("La autorización de gasto es para otro modelo de voz. Vuelve a autorizar. No se hizo ningún cargo.");
+    await voice.validate?.(snap);
     const provider = voice.provider(snap.ttsModel);
-    const settings = settingsFor(snap.ttsModel);
+    const settings = { ...settingsFor(snap.ttsModel), ...(snap.language === "en" ? { language: "en" } : {}) };
     const lines = scriptLines(snap.script, snap.voiceCount);
     if (!lines.length) throw new RenderError("El guion no tiene texto para narrar.");
     const dir = projectDir(ownerId, id);
