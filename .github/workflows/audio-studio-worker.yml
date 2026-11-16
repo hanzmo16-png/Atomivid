@@ -1,0 +1,37 @@
+# Audio Podcast Studio — worker de producción (ffmpeg real). Lo despacha la API con el evento «audio-studio-render»
+# (AUDIO_STUDIO_WORKER=github). No comparte evento ni código de render con Reels, Long Form ni Podcast Premium.
+# Gasto: solo hay voz de pago si la variable de repositorio AUDIO_STUDIO_PAID_TTS vale "1" (NO está definida: USD 0) y
+# el proyecto trae una autorización guardada para el mismo modelo y monto. Usa secretos YA existentes sin modificarlos.
+name: audio-studio-worker
+on:
+  repository_dispatch:
+    types: [audio-studio-render]
+permissions:
+  contents: read
+concurrency:
+  group: audio-studio-worker-${{ github.event.client_payload.projectId }}
+  cancel-in-progress: false
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - name: ffmpeg
+        run: sudo apt-get -o Acquire::Retries=3 update -q && sudo apt-get install -yq ffmpeg
+      - run: npm ci --no-audit --no-fund
+      - name: Render del episodio
+        env:
+          # Identificadores por variable de entorno (nunca interpolados en el script); el CLI exige UUID.
+          OWNER_ID: ${{ github.event.client_payload.ownerId }}
+          PROJECT_ID: ${{ github.event.client_payload.projectId }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          AUDIO_STUDIO_PAID_TTS: ${{ vars.AUDIO_STUDIO_PAID_TTS }}
+          AUDIO_STUDIO_ELEVENLABS_VOICES: ${{ vars.AUDIO_STUDIO_ELEVENLABS_VOICES }}
+          AUDIO_STUDIO_RATE_ELEVEN_V4_TURBO: ${{ vars.AUDIO_STUDIO_RATE_ELEVEN_V4_TURBO }}
+          PRICING_ELEVENLABS_USD_PER_1K_CHARS: ${{ vars.PRICING_ELEVENLABS_USD_PER_1K_CHARS }}
+        run: npx tsx scripts/audio-studio/worker.ts "$OWNER_ID" "$PROJECT_ID"

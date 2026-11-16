@@ -37,9 +37,11 @@ async function waitGeneration(p, label, timeout = 900000) {
   return (await p.getByTestId("audio-generation-status").innerText()).trim();
 }
 async function generate(p) {
+  // Si el proyecto ya tenía un MP3 (Storage local reutilizado), «Audio listo» previo no cuenta: se espera la cola.
+  const before = (await p.getByTestId("audio-generation-status").innerText().catch(() => "")).trim();
   await p.getByTestId("audio-authorize").check();
   await p.getByTestId("audio-generate").click();
-  await p.waitForFunction(() => /En cola|Generando|Audio listo/.test(document.querySelector('[data-testid="audio-generation-status"]')?.textContent ?? ""), null, { timeout: 30000 });
+  await p.waitForFunction((prev) => { const t = document.querySelector('[data-testid="audio-generation-status"]')?.textContent ?? ""; return /En cola|Generando/.test(t) || (/Audio listo/.test(t) && !/Audio listo/.test(prev)); }, before, { timeout: 30000 });
 }
 const apiProject = (p, id) => p.evaluate(async (x) => (await fetch(`/api/audio-studio/projects/${x}`)).json(), id);
 async function downloadMp3(p, id, file) {
@@ -158,6 +160,12 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`), fu
         await p.getByTestId("audio-script").fill(script);
         await p.getByTestId("audio-music-inteligente").check();
         await p.getByTestId("audio-budget").fill("5");
+        // El dúo se genera con v4 Turbo; el monólogo con Multilingual v2 (modelo por defecto).
+        check(`[${dev}] modelo por defecto: Multilingual v2`, (await p.getByTestId("audio-model").inputValue()) === "eleven_multilingual_v2");
+        if (duo) {
+          await p.getByTestId("audio-model").selectOption("eleven_v4_turbo");
+          check(`[${dev}] v4 Turbo: tarifa conservadora sin descuentos no comprobados`, /conservadora|sin verificar|no comprobad/i.test(await p.getByTestId("audio-rate-note").innerText()), await p.getByTestId("audio-rate-note").innerText());
+        }
         await p.getByTestId("audio-save").click();
         await p.waitForFunction(() => document.querySelector('[data-testid="audio-save-state"]')?.textContent === "Guardado");
         await generate(p);
@@ -167,6 +175,7 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`), fu
         const proj = await apiProject(p, id);
         check(`[${dev}] ${duo ? "dúo" : "monólogo"}: duración ${proj.audio?.durationSeconds} s, ${proj.audio?.lufs} LUFS, pico ${proj.audio?.truePeak}`, proj.audio && proj.audio.durationSeconds > 180 && Math.abs(proj.audio.lufs + 16) <= 1.5 && proj.audio.truePeak <= -1, proj.audio);
         const dl = await downloadMp3(p, id, path.join(OUT, `${dev}-${duo ? "duo" : "monologo"}.mp3`));
+        check(`[${dev}] el MP3 registra el modelo ${duo ? "v4 Turbo" : "Multilingual v2"}`, proj.audio.model === (duo ? "eleven_v4_turbo" : "eleven_multilingual_v2") && proj.generation.authorization?.model === proj.audio.model, [proj.audio.model, proj.generation.authorization]);
         check(`[${dev}] descarga MP3 válida`, dl.status === 200 && dl.mp3 && dl.bytes === proj.audio.bytes, dl);
         check(`[${dev}] reproductor presente`, (await p.getByTestId("audio-player").count()) === 1);
         await shot(p, `${dev}-03b-mp3`);
@@ -190,9 +199,9 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`), fu
       // 5. Conflicto entre pestañas: la segunda pestaña no pisa la primera.
       const p2 = await ctx.newPage(); await p2.goto(newUrl); await p2.getByTestId("audio-editor").waitFor();
       await p.getByTestId("audio-title").fill(`${title} (pestaña 1)`);
-      const enabled = await p.getByTestId("audio-save").isEnabled({ timeout: 1000 }).catch(() => false);
-      if (!enabled) console.log("DIAGNÓSTICO guardar:", JSON.stringify({ estado: await p.getByTestId("audio-save-state").innerText(), msg: await p.getByTestId("audio-message").innerText().catch(() => "-"), gen: await p.getByTestId("audio-generation-status").innerText(), titulo: await p.getByTestId("audio-title").inputValue() }));
-      await p.getByTestId("audio-save").click();
+      // Guardar a mano o por el guardado automático (2,5 s): en una máquina lenta el automático puede ganar y dejar «Guardar»
+      // deshabilitado; ambos caminos guardan la pestaña 1 antes que la 2.
+      if (await p.getByTestId("audio-save").isEnabled().catch(() => false)) await p.getByTestId("audio-save").click().catch(() => {});
       await p.waitForFunction(() => document.querySelector('[data-testid="audio-save-state"]')?.textContent === "Guardado");
       await p2.getByTestId("audio-title").fill(`${title} (pestaña 2)`); await p2.getByTestId("audio-save").click();
       await p2.getByTestId("audio-message").waitFor();
@@ -223,6 +232,7 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`), fu
         await p.waitForURL(/\/dashboard\/audio-studio\/[0-9a-f-]{36}$/); await p.getByTestId("audio-editor").waitFor();
         await p.getByTestId("audio-target").fill("5");
         await p.getByTestId("audio-script").fill(fiveMinutes(false).replace("Gracias por escuchar.", `Gracias por escuchar ${FAIL_MARK}.`));
+        await p.getByTestId("audio-model").selectOption("eleven_v4_turbo");
         await p.getByTestId("audio-save").click();
         await p.waitForFunction(() => document.querySelector('[data-testid="audio-save-state"]')?.textContent === "Guardado");
         await generate(p);
@@ -230,6 +240,16 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`), fu
         const err = await p.getByTestId("audio-generation-error").innerText().catch(() => "");
         check(`[${dev}] error del proveedor: estado «Falló» con explicación y «Reanudar»`, st === "Falló" && /proveedor de voz falló.*no se volverá a cobrar/.test(err) && (await p.getByTestId("audio-resume").count()) === 1, [st, err]);
         check(`[${dev}] error del proveedor: sin MP3 publicado`, (await p.getByTestId("audio-result").count()) === 0);
+        // Sin cambio automático de modelo (podría cobrar dos veces): sigue en v4 Turbo y el respaldo es una acción explícita.
+        const failedId = p.url().split("/").pop();
+        const failed = await apiProject(p, failedId);
+        check(`[${dev}] tras el fallo sigue en v4 Turbo (sin cambio automático)`, failed.ttsModel === "eleven_v4_turbo" && (await p.getByTestId("audio-model").inputValue()) === "eleven_v4_turbo", failed.ttsModel);
+        check(`[${dev}] botón explícito de respaldo a Multilingual v2`, (await p.getByTestId("audio-fallback").count()) === 1);
+        await p.getByTestId("audio-fallback").click();
+        await p.waitForFunction(() => document.querySelector('[data-testid="audio-model"]')?.value === "eleven_multilingual_v2", null, { timeout: 30000 }).catch(() => {});
+        const fb = await apiProject(p, failedId);
+        check(`[${dev}] respaldo explícito: Multilingual v2, sin autorización vigente ni cargo nuevo`, fb.ttsModel === "eleven_multilingual_v2" && fb.generation.authorization === null && fb.generation.status !== "fallida" && fb.spentUsd === failed.spentUsd, [fb.ttsModel, fb.generation.status, fb.spentUsd]);
+        await shot(p, `${dev}-06b-respaldo`);
         await shot(p, `${dev}-06-error-proveedor`);
       }
 

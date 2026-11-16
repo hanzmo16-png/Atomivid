@@ -1,18 +1,19 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
-  applyInput, estimate, generationActive, isUuid, musicPlan, newProject, readinessIssues, ValidationError, voiceRate,
-  type AudioProject, type Estimate, type MusicSection, type ProjectInput,
+  applyInput, estimate, FALLBACK_TTS_MODEL, TTS_MODELS, generationActive, isUuid, modelRate, musicPlan, newProject, readinessIssues, ttsModel, ValidationError,
+  type AudioProject, type Estimate, type ModelRate, type MusicSection, type ProjectInput,
 } from "./model";
 import { PAID_BLOCKED, type VoiceAvailability } from "./voice";
 import type { ProjectStore } from "./store";
 import { SEED_EPISODE } from "./seed";
 
 export type Result<T> = { ok: true; status: number; body: T } | { ok: false; status: number; body: { error: string; field?: string; current?: ProjectView } };
-export type ProjectView = AudioProject & { estimate: Estimate; musicPlan: MusicSection[]; readiness: string[] };
+export type ProjectView = AudioProject & { estimate: Estimate; musicPlan: MusicSection[]; readiness: string[]; rate: ModelRate; rates: ModelRate[] };
 
 export function view(p: AudioProject, env: Record<string, string | undefined> = process.env): ProjectView {
-  const e = estimate(p, voiceRate(env));
-  return { ...p, estimate: e, musicPlan: musicPlan(p.script, p.music), readiness: readinessIssues(p, e) };
+  const rate = modelRate(p.ttsModel, env);
+  const e = estimate(p, rate.rate);
+  return { ...p, estimate: e, musicPlan: musicPlan(p.script, p.music), readiness: readinessIssues(p, e), rate, rates: TTS_MODELS.map((m) => modelRate(m.id, env)) };
 }
 
 const fail = (status: number, error: string, extra: { field?: string; current?: ProjectView } = {}) => ({ ok: false as const, status, body: { error, ...extra } });
@@ -56,8 +57,8 @@ export const saveProject = (d: Deps, ownerId: string, id: string, body: unknown)
   if (cur.archivedAt) return fail(409, "El proyecto está archivado. Restáuralo para editarlo.", { current: view(cur, d.env) });
   if (generationActive(cur.generation, Date.parse(nowOf(d)))) return fail(409, "Se está generando el audio: espera a que termine para editar.", { current: view(cur, d.env) });
   if (b.revision !== cur.revision) return fail(409, "El proyecto cambió en otra pestaña o dispositivo. Recarga para ver la última versión.", { current: view(cur, d.env) });
-  const { title, voiceCount, voices, targetMinutes, script, notes, music, budgetUsd } = b;
-  const next = applyInput(cur, { title, voiceCount, voices, targetMinutes, script, notes, music, budgetUsd }, nowOf(d));
+  const { title, voiceCount, voices, targetMinutes, script, notes, music, budgetUsd, ttsModel: model } = b;
+  const next = applyInput(cur, { title, voiceCount, voices, targetMinutes, script, notes, music, budgetUsd, ttsModel: model }, nowOf(d));
   await d.store.put(next);
   return { ok: true, status: 200, body: view(next, d.env) };
 });
@@ -111,7 +112,7 @@ export const requestGeneration = (d: Deps & { voice?: VoiceAvailability }, owner
   if (!(Math.abs(confirm - v.estimate.estimatedUsd) < 0.005)) return fail(400, `Confirma el gasto estimado exacto (USD ${v.estimate.estimatedUsd.toFixed(2)}) para generar. No se hizo ningún cargo.`, { field: "confirmUsd", current: v });
   if (cur.spentUsd + confirm > cur.budgetUsd + 1e-9) return fail(422, `El gasto autorizado más lo ya gastado supera el tope del episodio (USD ${cur.budgetUsd.toFixed(2)}).`, { current: v });
   const next: AudioProject = { ...cur, generation: { ...cur.generation, status: "en_cola", kind: "generar", error: null, progress: null, startedAt: null, finishedAt: null, heartbeatAt: now,
-    authorization: { usd: confirm, revision: cur.revision, at: now, spentBefore: cur.spentUsd } } };
+    authorization: { usd: confirm, revision: cur.revision, at: now, spentBefore: cur.spentUsd, model: cur.ttsModel } } };
   await d.store.put(next);
   return { ok: true, status: 202, body: view(next, d.env) };
 });
@@ -145,6 +146,24 @@ export const resumeGeneration = (d: Deps & { voice?: VoiceAvailability }, ownerI
   const next: AudioProject = { ...cur, generation: { ...g, status: "en_cola", error: null, heartbeatAt: now, finishedAt: null } };
   await d.store.put(next);
   return { ok: true, status: 202, body: view(next, d.env) };
+});
+
+/**
+ * Respaldo EXPLÍCITO: cambia el modelo a Multilingual v2 como una edición normal (nueva revisión, vuelve a borrador).
+ * No genera nada ni reutiliza la autorización anterior: la persona debe volver a autorizar el monto. Así un fallo de un
+ * modelo nunca se convierte en un segundo cargo automático con otro modelo.
+ */
+export const switchToFallbackModel = (d: Deps, ownerId: string, id: string, revision: unknown) => guard(async () => {
+  const cur = isUuid(id) ? await d.store.get(ownerId, id) : null;
+  if (!cur) return NOT_FOUND();
+  if (cur.ttsModel === FALLBACK_TTS_MODEL) return fail(409, `El episodio ya usa ${ttsModel(FALLBACK_TTS_MODEL)!.label}.`, { current: view(cur, d.env) });
+  if (generationActive(cur.generation, Date.parse(nowOf(d)))) return fail(409, "Se está generando el audio: espera a que termine.", { current: view(cur, d.env) });
+  if (revision !== cur.revision) return fail(409, "Guarda los cambios antes de cambiar de modelo.", { current: view(cur, d.env) });
+  const next = applyInput(cur, { ttsModel: FALLBACK_TTS_MODEL }, nowOf(d));
+  // La autorización previa era para otro modelo y otra revisión: se descarta (no se puede reanudar con ella).
+  const out: AudioProject = { ...next, generation: { ...next.generation, authorization: null, status: next.generation.status === "fallida" ? "inactiva" : next.generation.status, error: null } };
+  await d.store.put(out);
+  return { ok: true, status: 200, body: view(out, d.env) };
 });
 
 /** Id estable del episodio inicial de una cuenta: cargarlo dos veces nunca crea un duplicado. */

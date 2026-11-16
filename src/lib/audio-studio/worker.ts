@@ -1,14 +1,60 @@
 import { renderProject } from "./render";
 import type { BlobStore, ProjectStore } from "./store";
+import { isUuid } from "./model";
 import type { VoiceAvailability } from "./voice";
 
+/** Evento propio del estudio: no reutiliza «render-video» para no activar el workflow de Reels/Long Form. */
+export const AUDIO_STUDIO_DISPATCH_EVENT = "audio-studio-render";
+const OWNER_REPO = /^[^\s/]+\/[^\s/]+$/;
+
+export type WorkerMode = "inline" | "github" | "apagado";
+
 /**
- * Arranque del worker. En 1.0 solo existe el worker local en proceso (`AUDIO_STUDIO_WORKER=inline`), que el arnés y el CI
- * usan con la voz fixture. En producción no se activa (VERCEL/NODE_ENV) y, sin autorización de gasto, ninguna
- * generación llega a la cola. Devuelve si arrancó.
+ * Qué worker atiende la cola:
+ *  - inline: render en el propio proceso; solo fuera de producción (arnés y CI con la voz fixture).
+ *  - github: despacha `.github/workflows/audio-studio-worker.yml` (ffmpeg real en un runner). Es el modo de producción;
+ *    requiere GH_WORKER_TOKEN y GH_WORKER_REPO, que ya existen para el worker de video (no se modifican).
+ *  - apagado: cualquier otro valor. La generación queda en cola sin gastar nada.
  */
-export function startWorker(store: ProjectStore & BlobStore, voice: VoiceAvailability, ownerId: string, id: string, env: Record<string, string | undefined> = process.env): boolean {
-  if (env.AUDIO_STUDIO_WORKER !== "inline" || env.VERCEL || env.NODE_ENV === "production" || !voice.ok) return false;
-  setTimeout(() => { renderProject({ store, voice: voice.voice, musicDir: env.AUDIO_STUDIO_MUSIC_DIR || undefined }, ownerId, id).catch((e) => console.error("[audio-studio] worker", (e as Error).message)); }, 0);
-  return true;
+export function workerMode(env: Record<string, string | undefined> = process.env): WorkerMode {
+  if (env.AUDIO_STUDIO_WORKER === "inline" && !env.VERCEL && env.NODE_ENV !== "production") return "inline";
+  if (env.AUDIO_STUDIO_WORKER === "github") return "github";
+  return "apagado";
+}
+
+/** Payload mínimo del despacho: solo identificadores (el worker relee el proyecto y su autorización desde Storage). */
+export function dispatchPayload(ownerId: string, id: string): { event_type: string; client_payload: { ownerId: string; projectId: string } } {
+  if (!isUuid(ownerId) || !isUuid(id)) throw new Error("Identificadores inválidos para el worker.");
+  return { event_type: AUDIO_STUDIO_DISPATCH_EVENT, client_payload: { ownerId, projectId: id } };
+}
+
+/**
+ * Arranca el worker para un proyecto ya encolado (con su autorización de gasto guardada). Devuelve el modo usado o
+ * «apagado». Un fallo del despacho no cobra nada: la generación queda en cola y, al vencer, se puede reanudar.
+ */
+export async function startWorker(
+  store: ProjectStore & BlobStore, voice: VoiceAvailability, ownerId: string, id: string,
+  env: Record<string, string | undefined> = process.env, fetchImpl: typeof fetch = fetch,
+): Promise<WorkerMode> {
+  const mode = workerMode(env);
+  if (!voice.ok || mode === "apagado") return "apagado";
+  if (mode === "inline") {
+    setTimeout(() => { renderProject({ store, voice: voice.voice, musicDir: env.AUDIO_STUDIO_MUSIC_DIR || undefined }, ownerId, id).catch((e) => console.error("[audio-studio] worker", (e as Error).message)); }, 0);
+    return "inline";
+  }
+  const token = env.GH_WORKER_TOKEN, repo = env.GH_WORKER_REPO;
+  if (!token || !repo || !OWNER_REPO.test(repo)) { console.error("[audio-studio] worker github sin GH_WORKER_TOKEN/GH_WORKER_REPO válidos"); return "apagado"; }
+  try {
+    const res = await fetchImpl(`https://api.github.com/repos/${repo}/dispatches`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+      body: JSON.stringify(dispatchPayload(ownerId, id)),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) { console.error("[audio-studio] despacho del worker HTTP", res.status); return "apagado"; }
+    return "github";
+  } catch (e) {
+    console.error("[audio-studio] despacho del worker", e instanceof Error ? e.message : String(e));
+    return "apagado";
+  }
 }

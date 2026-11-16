@@ -6,12 +6,12 @@ import { Badge } from "@/components/ui/Badge";
 import { INPUT_CLASS } from "@/components/ui/Field";
 import {
   defaultSecondVoice, draftOutline, estimate, GENERATION_LABEL, generationActive, MAX_BUDGET_USD, MAX_SCRIPT, MAX_TARGET_MINUTES, MAX_TITLE, MIN_TARGET_MINUTES, MOOD_LABEL, MUSIC_MOODS,
-  musicPlan, readinessIssues, STATUS_LABEL, VOICE_PRESETS, voicePreset, type AudioProject, type MusicConfig, type MusicMood,
+  FALLBACK_TTS_MODEL, musicPlan, readinessIssues, STATUS_LABEL, TTS_MODELS, ttsModel, VOICE_PRESETS, voicePreset, type AudioProject, type MusicConfig, type MusicMood, type TtsModelId,
 } from "@/lib/audio-studio/model";
 import type { ProjectView } from "@/lib/audio-studio/service";
 
-type Draft = Pick<AudioProject, "title" | "voiceCount" | "voices" | "targetMinutes" | "script" | "notes" | "music" | "budgetUsd">;
-const draftOf = (p: AudioProject): Draft => ({ title: p.title, voiceCount: p.voiceCount, voices: [...p.voices], targetMinutes: p.targetMinutes, script: p.script, notes: p.notes, music: { ...p.music }, budgetUsd: p.budgetUsd });
+type Draft = Pick<AudioProject, "title" | "voiceCount" | "voices" | "targetMinutes" | "script" | "notes" | "music" | "budgetUsd" | "ttsModel">;
+const draftOf = (p: AudioProject): Draft => ({ title: p.title, voiceCount: p.voiceCount, voices: [...p.voices], targetMinutes: p.targetMinutes, script: p.script, notes: p.notes, music: { ...p.music }, budgetUsd: p.budgetUsd, ttsModel: p.ttsModel });
 const same = (a: Draft, b: Draft) => JSON.stringify(a) === JSON.stringify(b);
 const usd = (n: number) => `USD ${n.toFixed(2)}`;
 const AUTOSAVE_MS = 2500;
@@ -21,7 +21,7 @@ export function AudioEditor({ initial }: { initial: ProjectView }) {
   const [draft, setDraft] = useState<Draft>(() => draftOf(initial));
   const [state, setState] = useState<"idle" | "saving" | "error" | "conflict">("idle");
   const [message, setMessage] = useState<string | null>(null);
-  const [busy, setBusy] = useState<null | "listo" | "generar" | "archivar" | "restaurar" | "remezclar" | "reanudar">(null);
+  const [busy, setBusy] = useState<null | "listo" | "generar" | "archivar" | "restaurar" | "remezclar" | "reanudar" | "respaldo">(null);
   const [authorized, setAuthorized] = useState(false);
   const [clock, setClock] = useState(() => Date.now());
   const dirty = !same(draft, draftOf(saved));
@@ -31,7 +31,9 @@ export function AudioEditor({ initial }: { initial: ProjectView }) {
   const locked = archived || running;
   const savingRef = useRef(false);
 
-  const rate = saved.estimate.voiceUsdPer1kChars;
+  // Tarifa del modelo elegido en el borrador (el servidor manda la de cada modelo; nunca se asume un descuento).
+  const modelRateInfo = saved.rates?.find((r) => r.model === draft.ttsModel) ?? saved.rate;
+  const rate = modelRateInfo?.rate ?? saved.estimate.voiceUsdPer1kChars;
   const live = useMemo(() => estimate({ ...draft, spentUsd: saved.spentUsd }, rate), [draft, saved.spentUsd, rate]);
   const plan = useMemo(() => musicPlan(draft.script, draft.music), [draft.script, draft.music]);
   const issues = useMemo(() => readinessIssues({ ...saved, ...draft }, live), [saved, draft, live]);
@@ -86,7 +88,7 @@ export function AudioEditor({ initial }: { initial: ProjectView }) {
     return () => window.removeEventListener("beforeunload", h);
   }, [dirty]);
 
-  async function action(a: "listo" | "generar" | "archivar" | "restaurar" | "remezclar" | "reanudar") {
+  async function action(a: "listo" | "generar" | "archivar" | "restaurar" | "remezclar" | "reanudar" | "respaldo") {
     setBusy(a); setMessage(null);
     try {
       let current = saved;
@@ -158,6 +160,15 @@ export function AudioEditor({ initial }: { initial: ProjectView }) {
             ))}
           </div>
           {draft.voiceCount === 2 && <p className="mt-2 text-xs text-ink-muted">En el guion, empieza cada intervención con «Voz 1:» o «Voz 2:».</p>}
+          <div className="mt-3">
+            <label htmlFor="audio-model" className="mb-1 block text-xs text-ink-muted">Modelo de voz</label>
+            <select id="audio-model" data-testid="audio-model" className={INPUT_CLASS} value={draft.ttsModel} disabled={locked} onChange={(e) => set("ttsModel", e.target.value as TtsModelId)}>
+              {TTS_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+            </select>
+            <p className="mt-1 text-xs text-ink-faint" data-testid="audio-model-note">
+              {ttsModel(draft.ttsModel)?.description}{ttsModel(draft.ttsModel)?.verified ? "" : " Se envían solo los ajustes comprobados (estabilidad y similitud)."}
+            </p>
+          </div>
         </fieldset>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
@@ -239,8 +250,9 @@ export function AudioEditor({ initial }: { initial: ProjectView }) {
           <dt className="text-ink-muted">Costo estimado de voz</dt><dd className="text-right text-ink" data-testid="audio-estimated-usd">{usd(live.estimatedUsd)}</dd>
           <dt className="text-ink-muted">Tope del episodio</dt><dd className="text-right text-ink">{usd(draft.budgetUsd)}</dd>
           <dt className="text-ink-muted">Gastado</dt><dd className="text-right text-ink" data-testid="audio-spent-usd">{usd(saved.spentUsd)}</dd>
-          <dt className="text-ink-muted">Tarifa usada</dt><dd className="text-right text-ink-muted">USD {rate.toFixed(2)} / 1 000 caracteres</dd>
+          <dt className="text-ink-muted">Tarifa usada</dt><dd className="text-right text-ink-muted" data-testid="audio-rate">USD {rate.toFixed(2)} / 1 000 caracteres</dd>
         </dl>
+        {modelRateInfo && <p className="text-xs text-ink-muted" data-testid="audio-rate-note">{modelRateInfo.note}</p>}
         {!live.withinBudget && <p className="text-sm text-danger">El costo estimado supera el tope.</p>}
         <p className="text-xs text-ink-faint">Mientras editas no se hace ninguna llamada de pago. La música es propia y gratuita.</p>
       </Card>
@@ -291,6 +303,11 @@ export function AudioEditor({ initial }: { initial: ProjectView }) {
           )}
           {!archived && !running && (g.status === "fallida" || g.status === "generando" || g.status === "en_cola") && (
             <Button className="min-h-11" data-testid="audio-resume" disabled={!!busy} loading={busy === "reanudar"} onClick={() => void action("reanudar")}>Reanudar</Button>
+          )}
+          {!archived && !running && g.status === "fallida" && saved.ttsModel !== FALLBACK_TTS_MODEL && (
+            <Button variant="secondary" className="min-h-11" data-testid="audio-fallback" disabled={!!busy} loading={busy === "respaldo"} onClick={() => void action("respaldo")}>
+              Cambiar a {ttsModel(FALLBACK_TTS_MODEL)!.label.split(" (")[0]} (respaldo)
+            </Button>
           )}
           {!archived && !running && saved.audio && (
             <Button variant="secondary" className="min-h-11" data-testid="audio-remix" disabled={!!busy} loading={busy === "remezclar"} onClick={() => void action("remezclar")}>Remezclar música (sin costo)</Button>
