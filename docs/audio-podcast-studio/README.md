@@ -39,6 +39,7 @@ Módulo nuevo y aislado para crear podcasts **solo audio**. Ruta: `/dashboard/au
 - **Proveedores de voz**:
   - `AUDIO_STUDIO_VOICE=fixture` usa espeak-ng local («voz de prueba local»). Solo funciona fuera de producción (nunca con `VERCEL` ni `NODE_ENV=production`).
   - El adaptador real de ElevenLabs solo se activa con `AUDIO_STUDIO_PAID_TTS=1` **y** el mapa `AUDIO_STUDIO_ELEVENLABS_VOICES` (ver «Idioma y voces»).
+  - `AUDIO_STUDIO_VOICE=demo`: voz de demostración espeak-ng, USD 0, **solo para la cuenta dueña** (ver «Voz de demostración (solo la cuenta dueña)»).
 
   Sin esas dos condiciones la síntesis está **inactiva**: el editor lo avisa desde el inicio, no muestra la autorización de gasto, «Generar MP3» ni «Reanudar», y el servidor rechaza cualquier generación sin llamada ni cargo. Este documento **no afirma** si producción tiene hoy la síntesis activa: depende de configuración externa al código, que se comprueba en el entorno, no aquí.
 - **Worker**: el worker en proceso (`AUDIO_STUDIO_WORKER=inline`) lo usan el arnés y el CI. En producción el modo es `github` (ver «Worker de producción»), y solo sintetiza si la síntesis real está activa.
@@ -91,7 +92,7 @@ No hace falta desplegar código. No es un secreto.
 - **Catálogo curado** (`VOICE_PRESETS`): 4 perfiles en español (Víctor, Mateo, Ximena, Tiara Gogh) y 4 en inglés (Roger, Sarah, Callie, Matilda). En un diálogo cada participante elige su voz del idioma del episodio; una voz de otro idioma bloquea «Listo para generar».
 - **Mapa `AUDIO_STUDIO_ELEVENLABS_VOICES`** (`perfil=voiceId`, separados por comas): los **4 perfiles en español son obligatorios**; los de inglés son **opcionales** (un perfil sin voz mapeada no está disponible).
 - **Validación contra la cuenta real**: con la síntesis real activa, `GET /api/audio-studio/voices` (exige sesión) consulta `GET /v1/voices` de ElevenLabs (sin síntesis ni costo) y devuelve solo las voces configuradas, públicas y compatibles con cada modelo; nunca expone clones privados. El servidor vuelve a validar idioma y compatibilidad **antes de encolar y antes de sintetizar**: una voz no disponible se rechaza sin cargo, nunca se sustituye en silencio.
-- **Estado de la síntesis**: la misma ruta responde `synthesis` = `real`, `local` o `inactiva`, calculado con la misma función que usa el servidor para generar (`voiceAvailability`). No devuelve valores de variables ni el motivo interno. Con `inactiva` no consulta al proveedor (0 llamadas salientes).
+- **Estado de la síntesis**: la misma ruta responde `synthesis` = `real`, `local`, `demo` o `inactiva`, calculado con la misma función que usa el servidor para generar (`studioVoiceFor(user)` → `voiceAvailability`, con la cuenta autenticada). No devuelve valores de variables ni el motivo interno. Con `inactiva` no consulta al proveedor (0 llamadas salientes).
 - **Guion en inglés**: además de «Voz 1:» / «Voz 2:», se admite «Voice 1:» / «Voice 2:».
 
 ## Modelo de voz: V4 Turbo y Multilingual v2
@@ -134,8 +135,26 @@ Presupuesto del episodio inicial (18 min, 15.182 caracteres):
   - existen `AUDIO_STUDIO_ELEVENLABS_VOICES`;
   - el proyecto trae una autorización guardada para el mismo modelo y monto.
 
-  La voz fixture nunca se usa en producción.
+  La voz fixture nunca se usa en producción. Única excepción sin pago: la voz de demostración (sección siguiente).
 - Si el despacho falla, no se cobra: la generación queda en cola y, al vencer, se puede reanudar.
+
+## Voz de demostración (solo la cuenta dueña)
+
+Permite al dueño generar, escuchar y descargar un MP3 completo en producción **sin ElevenLabs y a USD 0**, con una voz sintética espeak-ng. No es la voz final y se rotula así en todas partes: «Voz de demostración — no es la voz final; USD 0».
+
+- **Quién la ve**: solo la cuenta `INTERNAL_PRODUCTION_OWNER_USER_ID` (correo confirmado). Cualquier otra cuenta sigue exactamente igual que hoy: síntesis «inactiva», sin autorización ni «Generar MP3».
+- **Precedencia**: si `AUDIO_STUDIO_PAID_TTS=1`, manda ElevenLabs (o su error de configuración); la demo nunca reemplaza en silencio la voz de pago. La voz fixture sigue prohibida en producción.
+- **Qué cambia en el editor**: `synthesis: "demo"`, aviso visible con el rótulo, costo estimado y tarifa USD 0.00, confirmación «por USD 0.00» y botón «Generar MP3 de demostración». El audio producido guarda `provider: "demo"` y la biblioteca y el editor lo marcan con el rótulo.
+- **Por qué funciona en producción sin abrir la voz fixture**: `demoVoice` (en `src/lib/audio-studio/voice.ts`) llama a `espeak-ng` de forma explícita; no usa `espeakVoice` de Podcast ni `fixtureVoice`, que siguen negándose con `VERCEL`/`NODE_ENV=production`. Su proveedor se llama `demo-espeak` (la caché nunca se mezcla con ElevenLabs).
+- **Gasto**: la autorización se guarda con USD 0. El worker solo acepta un monto 0 con la voz demo; con voz de pago un monto 0 se sigue rechazando.
+- **Worker**: el runner instala `espeak-ng` y solo usa la demo si el dueño del proyecto es `INTERNAL_PRODUCTION_OWNER_USER_ID`; en otro caso imprime `RESULTADO SIN_VOZ`.
+
+**Activar** (sin desplegar código nuevo, después del merge):
+
+1. Vercel (producción): `AUDIO_STUDIO_VOICE=demo` (y que ya existan `INTERNAL_PRODUCTION_OWNER_USER_ID` y `AUDIO_STUDIO_WORKER=github` con `GH_WORKER_TOKEN`/`GH_WORKER_REPO`). Volver a desplegar para que la variable se lea.
+2. GitHub → Settings → Variables (repositorio): `AUDIO_STUDIO_VOICE` = `demo` e `INTERNAL_PRODUCTION_OWNER_USER_ID` = el UUID del dueño.
+
+**Desactivar / revertir**: borrar `AUDIO_STUDIO_VOICE` en Vercel (y redesplegar) y la variable de repositorio `AUDIO_STUDIO_VOICE`. El estudio vuelve a «inactiva» para todos. Los MP3 de demostración ya generados quedan en la biblioteca marcados como demo; un episodio en cola con autorización USD 0 no se procesa con voz de pago (el worker lo rechaza). Para quitar el código: `git revert` del commit.
 
 ## Respaldo y recuperación
 
@@ -154,6 +173,7 @@ Presupuesto del episodio inicial (18 min, 15.182 caracteres):
 | Idiomas | `src/lib/audio-studio/languages.test.ts` | Español/inglés, voces por idioma, catálogo |
 | Render | `src/app/dashboard/audio-studio/audio-studio.render.test.tsx` | Biblioteca y editor |
 | Síntesis inactiva | `src/app/dashboard/audio-studio/sintesis-inactiva.render.test.tsx` | Aviso y ocultación del gasto con síntesis inactiva; flujo intacto con síntesis real/local; matriz de disponibilidad; contrato de la ruta de voces |
+| Voz de demostración | `src/lib/audio-studio/voz-demo.test.ts`, `src/app/dashboard/audio-studio/voz-demo.render.test.tsx` | Matriz dueño/cliente/producción/precedencia, USD 0 de punta a punta, preflight, CLI y workflow, render real en modo demo con `NODE_ENV=production`, rótulos en editor y biblioteca |
 | E2E | `scripts/harness/e2e/audio-studio/audio-studio-e2e.cjs` | Ver abajo |
 
 El E2E corre en Samsung 390×844 y en escritorio 1440×900, con un arnés local sin red externa. Cubre:
