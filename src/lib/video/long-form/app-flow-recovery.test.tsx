@@ -107,3 +107,16 @@ test("YouTube colgado cerrado al leer el Historial: la tarjeta ofrece «Reintent
   assert.doesNotMatch(card, /Requiere soporte/);
   assert.match(wrap(<ResultView request={closed} nowMs={NOW} />), /Reintentar/);
 });
+
+test("YouTube completado: Historial y detalle descargan el MISMO final.mp4 firmado que reproducen, con nombre de archivo", () => {
+  const signed = "https://x.supabase.co/storage/v1/object/sign/videos/11111111-1111-4111-8111-111111111111/output/final.mp4?token=t%2Bk";
+  const done = { ...base, status: "completed" as const, progress_stage: null, video_path: "11111111-1111-4111-8111-111111111111/output/final.mp4" };
+  for (const html of [wrap(<RequestCard request={done} videoUrl={signed} nowMs={NOW} />), wrap(<ResultView request={done} videoUrl={signed} nowMs={NOW} />)]) {
+    const hrefs = [...html.matchAll(/href="([^"]*download=[^"]*)"/g)].map((m) => new URL(m[1].replace(/&amp;/g, "&")));
+    const video = hrefs.find((u) => u.searchParams.get("download") === "atomicvid-video.mp4");
+    assert.ok(video, "enlace «Descargar video» con Content-Disposition");
+    assert.equal(video.pathname, new URL(signed).pathname, "descarga = el objeto canónico que se reproduce");
+    assert.equal(video.searchParams.get("token"), "t+k", "conserva la firma");
+    assert.match(html, /Descargar video/);
+  }
+});

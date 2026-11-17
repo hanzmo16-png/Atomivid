@@ -546,3 +546,28 @@ test("duración: un MP4 real que no dura lo compuesto NO se sube ni se marca com
     if (prev.ffprobe === undefined) delete process.env.FFPROBE_BIN; else process.env.FFPROBE_BIN = prev.ffprobe;
   }
 });
+
+test("progreso real sin eventos de fotogramas: masterización/subida laten dentro de «rendering» (72–97 %), nunca 100 ni retroceso", async () => {
+  const c = counters();
+  const env = freshEnv();
+  const events: { stage: ProgressStageKey; completed?: number; total?: number }[] = [];
+  const script = documentary180sFixture();
+  const result = await generateLongFormVideoFromScript({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    supabase: env.supabase as any, requestId: "req-progress", topic: script.topic, beats: script.beats, language: "es",
+    plan: planFor("economical"), providers: providers(c),
+    runtime: { paidCalls: env.paidCalls, store: env.mem.store, budgetStore: env.budgetStore, observedUnitMax: {}, videoProvider: null, aiVideoEnabled: false,
+      recordCosts: false, resumeBackoffMs: 0, output: env.out.deps, uploadArtifact: async (p) => ({ path: p, url: `memory://${p}` }),
+      identify: async (buffer) => ({ sha256: createHash("sha256").update(buffer).digest("hex"), dhashUnavailable: "test" }),
+      saveVisualReport: async () => {},
+      render: async () => { const out = path.join(os.tmpdir(), `lf-progress-${Date.now()}.mp4`); fs.writeFileSync(out, "fake-mp4"); return out; } },
+    onProgress: (stage, units) => { events.push({ stage, completed: units?.completed, total: units?.total }); },
+  });
+  assert.equal(result.videoPath, "req-progress/output/final.mp4");
+  const values = events.map((e) => computeProductionProgress({ stage: e.stage, unitsCompleted: e.completed ?? 0, unitsTotal: e.total ?? 0 }));
+  for (let i = 1; i < values.length; i++) assert.ok(values[i] >= values[i - 1], `retroceso ${values[i - 1]} -> ${values[i]}`);
+  assert.ok(Math.max(...values) < 100, "100 % solo cuando la fila pasa a completed");
+  const rendering = values.filter((_, i) => events[i].stage === "rendering");
+  assert.ok(rendering.length > 0 && rendering.every((v) => v >= 72 && v <= 97), `rendering=${rendering.join(",")}`);
+  assert.ok(values.filter((v) => v > 4 && v < 72).length >= 3, "avance intermedio real (narraciones/escenas), no un salto 0→100");
+});
