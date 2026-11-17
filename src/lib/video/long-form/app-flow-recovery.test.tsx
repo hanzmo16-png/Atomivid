@@ -5,6 +5,7 @@ import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared
 import { ResultView } from "@/components/video/ResultView";
 import { RequestCard } from "@/components/video/RequestCard";
 import type { VideoRequestSummary } from "@/lib/video/request-view";
+import { STALE_LONG_FORM_ATTEMPT_CLOSED } from "@/lib/video/start-outcome";
 
 const router = { push() {}, replace() {}, refresh() {}, back() {}, forward() {}, prefetch() {} } as never;
 const wrap = (el: React.ReactElement) => renderToStaticMarkup(<AppRouterContext.Provider value={router}>{el}</AppRouterContext.Provider>);
@@ -97,4 +98,12 @@ test("Completado sin archivo reproducible: nunca muestra reproductor ni descarga
   const page = wrap(<ResultView request={{ ...base, status: "completed", progress_stage: null, video_path: "x/output/final.mp4" }} videoUrl={null} nowMs={NOW} />);
   assert.doesNotMatch(page, /<video|Descargar video/);
   assert.match(page, /No se pudo generar el enlace de descarga/);
+});
+
+test("YouTube colgado cerrado al leer el Historial: la tarjeta ofrece «Reintentar» sin abrir el detalle", () => {
+  const closed = { ...base, status: "failed", progress_stage: null, error_message: STALE_LONG_FORM_ATTEMPT_CLOSED };
+  const card = wrap(<RequestCard request={closed} nowMs={NOW} />);
+  assert.match(card, /Reintentar/);
+  assert.doesNotMatch(card, /Requiere soporte/);
+  assert.match(wrap(<ResultView request={closed} nowMs={NOW} />), /Reintentar/);
 });
