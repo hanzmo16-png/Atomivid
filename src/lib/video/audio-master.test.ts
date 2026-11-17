@@ -127,3 +127,28 @@ test(
     }
   },
 );
+
+test(
+  "Reel: sampleRate 48000 deja el AAC a 48 kHz con la sonoridad y el pico real dentro del objetivo",
+  { skip: !hasFfmpeg && "ffmpeg no está disponible en este entorno" },
+  async () => {
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const fs = await import("node:fs/promises");
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "atomivid-48k-test-"));
+    const input = path.join(dir, "in.mp4"), output = path.join(dir, "out.mp4");
+    try {
+      const gen = spawnSync("ffmpeg", ["-y", "-f", "lavfi", "-i", "color=c=black:s=160x90:d=4:r=10",
+        "-f", "lavfi", "-i", "anoisesrc=seed=7:color=pink:amplitude=0.05:d=4,aformat=sample_rates=44100:channel_layouts=stereo",
+        "-c:v", "libx264", "-c:a", "aac", "-shortest", input]);
+      assert.equal(gen.status, 0, String(gen.stderr));
+      const result = await masterAudioLoudness(input, output, { faststart: true, sampleRate: 48000 });
+      const probe = spawnSync("ffprobe", ["-v", "error", "-select_streams", "a:0", "-show_entries", "stream=sample_rate,codec_name", "-of", "csv=p=0", output]);
+      assert.equal(probe.stdout.toString().trim(), "aac,48000");
+      assert.ok(Math.abs(result.after.integratedLufs - LOUDNESS_TARGET.INTEGRATED_LUFS) < 1, `sonoridad ${result.after.integratedLufs} LUFS`);
+      assert.ok(result.after.truePeakDbtp <= LOUDNESS_TARGET.TRUE_PEAK_DBTP + 0.5, `pico real ${result.after.truePeakDbtp} dBTP`);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  },
+);

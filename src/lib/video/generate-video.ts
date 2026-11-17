@@ -741,7 +741,8 @@ export async function generateVideoFromScript({
   try {
     const masteredPath = rawOutputPath.replace(/\.mp4$/, ".mastered.mp4");
     // F3 (T-20261019-1602): el MP4 corto también lleva moov al inicio — se reproduce y descarga de forma progresiva sin bajar el archivo entero.
-    const mastering = await masterAudioLoudness(rawOutputPath, masteredPath, { faststart: true });
+    // END GAME C: AAC a 48 kHz (estándar de Shorts/Reels); sin la opción quedaba a 96 kHz tras loudnorm.
+    const mastering = await masterAudioLoudness(rawOutputPath, masteredPath, { faststart: true, sampleRate: 48000 });
     outputPath = masteredPath;
     console.log(
       "[atomivid:audio] masterización de loudness",
