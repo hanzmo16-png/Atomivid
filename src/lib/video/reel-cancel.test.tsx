@@ -122,3 +122,13 @@ test("UI: progreso real por etapa con «Cancelar producción»; nunca en Avatar 
   assert.match(cancelled, /href="\/dashboard\/review\/33333333-3333-4333-8333-333333333333"/);
   assert.match(render({ status: "failed", progress_stage: null, error_message: "x (Código: 0a1b2c3d)" }), /No se pudo generar este video\./);
 });
+
+test("Reel fallido recuperable: la página del video dice «Revisar y reintentar» y la revisión ofrece «Reintentar»", () => {
+  const failed = render({ status: "failed", progress_stage: null, render_attempts: 1, created_at: new Date(50_000).toISOString(),
+    render_started_at: new Date(50_000).toISOString(), error_message: `${REEL_CANCELLED_MESSAGE} (Código: 0a1b2c3d)` });
+  assert.match(failed, /Revisar y reintentar/);
+  const exhausted = render({ status: "failed", progress_stage: null, render_attempts: 3, error_message: "x (Código: 0a1b2c3d)" });
+  assert.doesNotMatch(exhausted, /Revisar y reintentar/, "sin intentos: solo revisar");
+  const review = fs.readFileSync("src/app/dashboard/review/[id]/ScriptReview.tsx", "utf8");
+  assert.match(review, /reelRetryEligible \? "Reintentar" : "Generar video final"/);
+});

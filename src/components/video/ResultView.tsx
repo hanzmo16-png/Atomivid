@@ -13,6 +13,7 @@ import { LongFormResult } from "./LongFormResult";
 import { ProductionProgressCard } from "./ProductionProgressCard";
 import { CancelReelButton } from "./CancelReelButton";
 import { canCancelReel, isCancelledFailure } from "@/lib/video/reel-cancel";
+import { canReviewReelRetry } from "@/lib/video/reel-retry";
 import { RENDER_STAGE_LABEL, approximateRenderProgress, type RenderStage } from "@/lib/video/stages";
 import { LONG_FORM_STAGE_LABEL, type LongFormStage } from "@/lib/video/long-form/stages";
 import { isRenderStale } from "@/lib/video/render-guard";
@@ -214,7 +215,9 @@ export function ResultView({
             opening the review generates nothing and calls no provider. */}
         {request.status === "failed" && Boolean(request.script_json) && !isLongForm && (
           <div className="mt-4 flex justify-center">
-            <LinkButton href={`/dashboard/review/${request.id}`}>{request.recorded_audio_path ? "Revisar grabación" : "Revisar guion"}</LinkButton>
+            {/* A recoverable Reel says what the review offers (the same «Reintentar» the history card links to). */}
+            <LinkButton href={`/dashboard/review/${request.id}`}>{request.recorded_audio_path ? "Revisar grabación"
+              : canReviewReelRetry(request, nowMs) ? "Revisar y reintentar" : "Revisar guion"}</LinkButton>
           </div>
         )}
         {longFormRetry && (needsSupport ? (
