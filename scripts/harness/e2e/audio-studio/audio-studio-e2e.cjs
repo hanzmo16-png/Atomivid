@@ -95,6 +95,11 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`), fu
       check(`[${dev}] presupuesto visible: estimado, tope y gastado USD 0.00`, /USD \d+\.\d\d/.test(await p.getByTestId("audio-estimated-usd").innerText()) && (await p.getByTestId("audio-spent-usd").innerText()) === "USD 0.00");
       await shot(p, `${dev}-02-episodio-inicial`);
       const ov2 = await overflow(p); check(`[${dev}] editor sin desplazamiento horizontal`, ov2 <= 1, `${ov2}px`);
+      // Estado de la síntesis (T-2013): el servidor informa «local» sin exponer configuración; la UI lo indica y ofrece el gasto.
+      await p.getByTestId("audio-authorize").waitFor({ timeout: 30000 });
+      const vs = await p.evaluate(async () => { const r = await fetch("/api/audio-studio/voices", { cache: "no-store" }); return { status: r.status, body: await r.json() }; });
+      check(`[${dev}] ruta de voces: síntesis «local» y solo campos públicos`, vs.status === 200 && vs.body.synthesis === "local" && Object.keys(vs.body).sort().join() === "synthesis,voices", vs);
+      check(`[${dev}] nota de voz de prueba local visible y sin aviso de síntesis inactiva`, (await p.getByTestId("audio-voice-local").count()) === 1 && (await p.getByTestId("audio-voice-disabled").count()) === 0);
       // Botones táctiles: 44 px o más.
       for (const id of ["audio-save", "audio-generate", "audio-archive"]) {
         const b = await p.getByTestId(id).boundingBox(); check(`[${dev}] botón ${id} ≥ 44 px de alto`, b && b.height >= 44, b);

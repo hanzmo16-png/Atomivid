@@ -29,7 +29,7 @@ test("biblioteca vacía y archivados vacíos tienen su mensaje", () => {
 });
 
 test("editor: guion, voces, música inteligente con plan por sección, presupuesto y generación real explicada", () => {
-  const html = renderToStaticMarkup(<AudioEditor initial={seed()} />);
+  const html = renderToStaticMarkup(<AudioEditor initial={seed()} synthesis="real" />);
   assert.match(html, /data-testid="audio-script"/);
   assert.match(html, /Víctor — masculina/);
   assert.match(html, /Latinoamericano/);
