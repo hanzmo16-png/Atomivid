@@ -28,6 +28,12 @@ test("scenes without direction keep the historic timing, crossfades and Ken Burn
   }
   const hook = sceneTransform(undefined, true, 0.2);
   assert.ok(Math.abs(hook.scale - 1.11) < 1e-9 && hook.translateX === 0, "historic hook zoom on the first scene");
+  // After the punch-in the opening keeps moving (it used to hold a still frame for 60 % of the first scene).
+  const at = (p: number) => sceneTransform(undefined, true, p);
+  assert.ok(Math.abs(at(0.4).scale - 1.22) < 1e-9 && at(0.4).translateX === 0, "continuous at the end of the punch-in");
+  assert.ok(at(0.7).scale > at(0.4).scale && at(1).scale > at(0.7).scale, "opening keeps zooming after the punch-in");
+  assert.ok(at(1).translateX < at(0.7).translateX, "opening keeps drifting after the punch-in");
+  assert.ok(at(1).scale <= 1.3 + 1e-9);
   const kb = sceneTransform(undefined, false, 0.5);
   assert.ok(Math.abs(kb.scale - 1.06) < 1e-9 && Math.abs(kb.translateX + 9) < 1e-9);
 });

@@ -74,7 +74,8 @@ export function sceneOpacity(t: SceneTiming, f: number): number {
 export function sceneTransform(direction: SceneDirection | undefined, isFirst: boolean, p: number): { scale: number; translateX: number } {
   const motion: SceneMotion = direction ? direction.motion : isFirst ? "hook" : "legacy" as SceneMotion;
   switch (motion) {
-    case "hook": return { scale: lerp(1, 1.22, p / 0.4), translateX: 0 };
+    // Punch-in over the first 40 %, then a slow drift (never a still frame in the opening seconds).
+    case "hook": return p <= 0.4 ? { scale: lerp(1, 1.22, p / 0.4), translateX: 0 } : { scale: lerp(1.22, 1.3, (p - 0.4) / 0.6), translateX: lerp(0, -18, (p - 0.4) / 0.6) };
     case "static": case "real": return { scale: 1, translateX: 0 };
     case "push_in": return { scale: lerp(1, 1.15, p), translateX: 0 };
     case "pan": return { scale: 1.12, translateX: lerp(40, -40, p) };
