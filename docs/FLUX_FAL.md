@@ -56,9 +56,11 @@ proveedor, y ningún otro proveedor lo sustituye a él.
 
 ## Quién puede elegir FLUX
 `fluxAllowedFor` (`src/lib/video/flux-images.ts`):
-- **todos**, solo si `FLUX_IMAGES_ENABLED=true`. Es independiente de `RECRAFT_REEL_ENABLED`;
-- **si no, solo la cuenta interna dueña**: el mismo criterio del piloto de Recraft (`INTERNAL_PRODUCTION_OWNER_USER_ID` /
-  `RECRAFT_PILOT_OWNER_USER_ID`).
+- **nadie** mientras `FLUX_IMAGES_ENABLED` no esté definida (apagado por defecto): sin la migración, la base rechaza
+  `reel_image_source = 'flux'`, así que ni la cuenta dueña ve la opción;
+- **solo la cuenta interna dueña** con `FLUX_IMAGES_ENABLED=owner`: el mismo criterio del piloto de Recraft
+  (`INTERNAL_PRODUCTION_OWNER_USER_ID` / `RECRAFT_PILOT_OWNER_USER_ID`);
+- **todos** con `FLUX_IMAGES_ENABLED=true`. Es independiente de `RECRAFT_REEL_ENABLED`.
 
 ## Prueba real controlada (una imagen) — `scripts/fal/flux-real-test.ts` y `.github/workflows/flux-real-test.yml`
 - **Preflight (USD 0):**
@@ -91,7 +93,8 @@ proveedor, y ningún otro proveedor lo sustituye a él.
    - La web solo usa `FAL_ADMIN_KEY`, para comprobar el saldo al configurar.
 4. Habilitar la política `flux` en `pi_supply_policies` con topes financiados y aprobados por Hans. Hasta entonces, toda
    producción con FLUX espera «disponibilidad» sin gastar.
-5. Piloto con la cuenta dueña. Después, opcionalmente, `FLUX_IMAGES_ENABLED=true` en Vercel y redeploy.
+5. Piloto con la cuenta dueña: `FLUX_IMAGES_ENABLED=owner` en Vercel y en la variable del repositorio que lee
+   `render.yml`. Después, opcionalmente, `FLUX_IMAGES_ENABLED=true` y redeploy.
 
 ## Reversión
 - `enabled=false` en la política `flux`: las producciones FLUX quedan en espera y no se cobra nada.

@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { fluxAllowedFor, fluxAllowedForWorker, fluxReelDemandUsd, parseImageSource, FluxAccessError, FLUX_USD_PER_IMAGE } from "./flux-images";
+import { fluxAllowedFor, fluxAllowedForWorker, fluxSwitch, fluxReelDemandUsd, parseImageSource, FluxAccessError, FLUX_USD_PER_IMAGE } from "./flux-images";
 import { jobSupplyDemands } from "@/lib/supply/job";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { memoryLedgerStore } from "@/lib/production-intelligence/ledger";
@@ -27,8 +27,21 @@ test("fuente de imágenes: default/recraft/flux aceptadas; desconocida rechazada
   assert.deepEqual(parseImageSource("openai"), { error: "Fuente de imágenes no válida." });
 });
 
-test("acceso: FLUX solo para la cuenta dueña salvo FLUX_IMAGES_ENABLED=true; nunca desde el navegador", async () => {
+test("interruptor FLUX: apagado por defecto (requiere la migración); nadie lo ve, ni la cuenta dueña", async () => {
   const env = { INTERNAL_PRODUCTION_OWNER_USER_ID: OWNER.id };
+  assert.equal(fluxSwitch({}), "off");
+  assert.equal(fluxSwitch({ FLUX_IMAGES_ENABLED: "false" }), "off");
+  assert.equal(fluxSwitch({ FLUX_IMAGES_ENABLED: " Owner " }), "owner");
+  assert.equal(fluxSwitch({ FLUX_IMAGES_ENABLED: "true" }), "all");
+  assert.equal(fluxAllowedFor(OWNER as never, env), false);
+  assert.equal(fluxAllowedFor(OTHER as never, env), false);
+  let asked = 0;
+  assert.equal(await fluxAllowedForWorker(OWNER as never, {}, async () => { asked++; return true; }), false);
+  assert.equal(asked, 0);
+});
+
+test("acceso: con FLUX_IMAGES_ENABLED=owner solo la cuenta dueña; =true todos; nunca desde el navegador", async () => {
+  const env = { INTERNAL_PRODUCTION_OWNER_USER_ID: OWNER.id, FLUX_IMAGES_ENABLED: "owner" };
   assert.equal(fluxAllowedFor(OWNER as never, env), true);
   assert.equal(fluxAllowedFor(OTHER as never, env), false);
   assert.equal(fluxAllowedFor(OTHER as never, { ...env, FLUX_IMAGES_ENABLED: "true" }), true);
@@ -36,11 +49,11 @@ test("acceso: FLUX solo para la cuenta dueña salvo FLUX_IMAGES_ENABLED=true; nu
   assert.equal(fluxAllowedFor(OTHER as never, { ...env, RECRAFT_REEL_ENABLED: "true" }), false);
   // Worker: an owner id configured but different → refused without asking the app.
   let asked = 0;
-  assert.equal(await fluxAllowedForWorker(OTHER as never, { RECRAFT_PILOT_OWNER_USER_ID: OWNER.id }, async () => { asked++; return true; }), false);
+  assert.equal(await fluxAllowedForWorker(OTHER as never, { RECRAFT_PILOT_OWNER_USER_ID: OWNER.id, FLUX_IMAGES_ENABLED: "owner" }, async () => { asked++; return true; }), false);
   assert.equal(asked, 0);
   // Worker without an owner id: asks the app (yes/no), failures refuse.
-  assert.equal(await fluxAllowedForWorker(OWNER as never, {}, async () => true), true);
-  assert.equal(await fluxAllowedForWorker(OWNER as never, {}, async () => { throw new Error("down"); }), false);
+  assert.equal(await fluxAllowedForWorker(OWNER as never, { FLUX_IMAGES_ENABLED: "owner" }, async () => true), true);
+  assert.equal(await fluxAllowedForWorker(OWNER as never, { FLUX_IMAGES_ENABLED: "owner" }, async () => { throw new Error("down"); }), false);
   assert.match(new FluxAccessError().customerMessage, /No se inició la producción ni se cobró nada/);
 });
 
@@ -149,8 +162,8 @@ test("cableado (fuente): selector, servidor del Reel, clave de intención, worke
   const picker = read("src/app/dashboard/new/ReelImageSourcePicker.tsx");
   assert.match(picker, /value="flux"/);
   assert.match(picker, /Imágenes IA con FLUX/);
-  // Recraft remains the default when available.
-  assert.match(picker, /defaultSource \?\? \(recraftAvailable \? "recraft" : "default"\)/);
+  // Reel opens on Material de archivo (PR #280); Long Form keeps Recraft first when available.
+  assert.match(picker, /defaultSource \?\? \(format === "long_form" && recraftAvailable \? "recraft" : "default"\)/);
   const actions = read("src/app/dashboard/new/actions.ts");
   assert.match(actions, /fluxChosen && !fluxAllowedFor\(user\)/);
   assert.match(actions, /reel_image_source: "flux"/);

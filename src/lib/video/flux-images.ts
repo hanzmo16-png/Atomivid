@@ -22,14 +22,29 @@ export function parseImageSource(raw: unknown): VideoImageSource | { error: stri
 }
 
 /**
+ * FLUX switch, OFF by default. FLUX needs migration 20261113150000_flux_image_source.sql (the CHECK constraint that
+ * accepts reel_image_source = 'flux' and the `flux` supply policy). Until the owner has applied it and sets this
+ * variable, nobody — not even the owner — is offered FLUX: otherwise the insert would fail at the database.
+ * "owner" = owner pilot only; "true"/"1"/"yes" = everyone; anything else (unset included) = off.
+ */
+export function fluxSwitch(env: Record<string, string | undefined> = process.env): "off" | "owner" | "all" {
+  const raw = env.FLUX_IMAGES_ENABLED?.trim().toLowerCase();
+  if (raw === "1" || raw === "true" || raw === "yes") return "all";
+  if (raw === "owner") return "owner";
+  return "off";
+}
+
+/**
  * Who may choose FLUX (Reel and Long Form). Server-only, from the authenticated user (never the browser):
- * - everyone, only when FLUX_IMAGES_ENABLED=true (general release; off by default);
- * - otherwise only the confirmed internal owner account (the same pilot criterion as Recraft).
+ * - nobody while the switch is off (default, see fluxSwitch);
+ * - everyone, when FLUX_IMAGES_ENABLED=true (general release);
+ * - with FLUX_IMAGES_ENABLED=owner, only the confirmed internal owner account (the same pilot criterion as Recraft).
  * Choosing FLUX never funds it: the `flux` supply policy, balance, per-request budget and spend caps still apply.
  */
 export function fluxAllowedFor(user: InternalProductionUser, env: Record<string, string | undefined> = process.env): boolean {
-  const raw = env.FLUX_IMAGES_ENABLED?.trim().toLowerCase();
-  if (raw === "1" || raw === "true" || raw === "yes") return true;
+  const sw = fluxSwitch(env);
+  if (sw === "off") return false;
+  if (sw === "all") return true;
   const owner = env.RECRAFT_PILOT_OWNER_USER_ID?.trim() || env.INTERNAL_PRODUCTION_OWNER_USER_ID;
   return isInternalProductionOwner(user, { INTERNAL_PRODUCTION_OWNER_USER_ID: owner });
 }
@@ -37,6 +52,7 @@ export function fluxAllowedFor(user: InternalProductionUser, env: Record<string,
 /** Worker-side decision, same fallback as Recraft: with no owner id configured in the worker, ask the app (yes/no). */
 export async function fluxAllowedForWorker(user: InternalProductionUser, env: Record<string, string | undefined> = process.env,
   askApp?: (userId: string) => Promise<boolean>): Promise<boolean> {
+  if (fluxSwitch(env) === "off") return false;
   if (fluxAllowedFor(user, env)) return true;
   if (env.RECRAFT_PILOT_OWNER_USER_ID?.trim() || env.INTERNAL_PRODUCTION_OWNER_USER_ID?.trim()) return false;
   if (!user?.id || !user.email_confirmed_at) return false;
