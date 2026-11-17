@@ -1,4 +1,5 @@
 import { supplyGuardRequired } from "@/lib/supply/server";
+import { AttemptNoLongerActiveError } from "@/lib/paid-calls/active-attempt";
 import { classifyPaidFailure, isRenderEngineFailure, RENDER_ENGINE_CUSTOMER_MESSAGE } from "./render-engine-error";
 import { isInternalProductionOwner } from "@/lib/billing/internal-production";
 import { MAX_DIRECTOR_MATERIAL_USD } from "@/lib/video/director/material-fill";
@@ -118,13 +119,15 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
     return;
   }
   if (expectedAttempt !== undefined && row.render_attempts !== expectedAttempt) return;
-  const { claim, update } = attemptState(service, {requestId, userId: row.user_id, attempt: row.render_attempts});
+  const { claim, update, assertActive } = attemptState(service, {requestId, userId: row.user_id, attempt: row.render_attempts});
   if (!await claim(row.progress_stage)) return;
 
   const mode = row.mode ?? "visual";
   const onProgress = async (stage: RenderStage) => {
     const result = await update({ progress_stage: stage }).select("id").maybeSingle();
-    if (result.error || !result.data) throw new Error("El trabajo ya no tiene una reserva activa. No se repetirá automáticamente.");
+    if (result.error) throw new Error("El trabajo ya no tiene una reserva activa. No se repetirá automáticamente.");
+    // Same text as before; typed so a cancelled Reel ends quietly below instead of reporting a save failure.
+    if (!result.data) throw new AttemptNoLongerActiveError();
   };
   // Long Form tiene su propio vocabulario de etapas (columna long_form_stage,
   // migración 0016) — nunca se reutiliza progress_stage para esto, ver el
@@ -286,6 +289,8 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
               ...(flux ? { flux: {} } : {}),
               targetDurationSeconds: row.duration_seconds ?? undefined,
               onProgress,
+              // END GAME C: a cancelled (or replaced) attempt sends no new paid call, even inside one stage.
+              beforeNewPaidCall: assertActive,
               directorRender,
               // Anexo C1: the approved ceiling exists only in THIS attempt's image envelope (reserved by the server).
               ...(ownerTest ? { directorMaterialBudgetUsd: () => directorMaterialBudgetUsd(service, requestId, row.render_attempts) } : {}),
@@ -376,6 +381,8 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
     // T42: a Director preflight block happened before narration: reopen the script with the explanation (no spend).
     const editNarration = needsNarrationEdit(error, mode) || avatarNarrationTooLong || (mode === "visual" && error instanceof DirectorPreflightBlockedError);
     const failed = await update({ status: editNarration ? "script_ready" : "failed", error_message: encodeStoredFailure(message, action), progress_stage: null, long_form_stage: null, long_form_progress: null }).select("id").maybeSingle();
+    // END GAME C: the owner cancelled (or the attempt was replaced): its row already says so; nothing else to save.
+    if (!failed.error && !failed.data && error instanceof AttemptNoLongerActiveError) return;
     if (failed.error || !failed.data) throw new Error("No se pudo guardar el resultado del intento.");
     if (editNarration) return;
 

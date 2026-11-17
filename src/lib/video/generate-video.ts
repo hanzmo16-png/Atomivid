@@ -29,6 +29,7 @@ import { checkDuration, assertNarrationDuration } from "@/lib/video/duration-che
 import { LOUDNESS_TARGET, masterAudioLoudness } from "@/lib/video/audio-master";
 import { buildEmphasisSet } from "@/lib/video/caption-emphasis";
 import { getAccentColor, reelEndCardText, shouldShowLogo } from "@/lib/video/brand";
+import { guardNewPaidCalls } from "@/lib/paid-calls/active-attempt";
 import { evaluateQualityGate, QUALITY_GATE_MIN_SCORE } from "@/lib/video/quality-gate";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { buildStoryboard } from "@/lib/video/storyboard";
@@ -84,7 +85,10 @@ export async function generateVideoFromScript({
   recraft,
   flux,
   endCardText = reelEndCardText(),
+  beforeNewPaidCall,
 }: {
+  /** Worker only: proves the attempt is still active right before each NEW paid submission (see active-attempt.ts). */
+  beforeNewPaidCall?: () => Promise<void>;
   supabase: SupabaseClient;
   /** CTA opcional de cierre (últimos 1,5 s). Por defecto REEL_END_CARD_TEXT (apagado si está vacío). */
   endCardText?: string | null;
@@ -160,7 +164,8 @@ export async function generateVideoFromScript({
       : { referenceImageUrls: recraft.referenceImageUrls, ...(recraft.match ? { match: recraft.match } : {}) })
     : undefined;
   const gate: PaidCallDeps = {
-    ledger: paidCalls?.ledger ?? supabaseLedgerStore(supabase),
+    ledger: beforeNewPaidCall ? guardNewPaidCalls(paidCalls?.ledger ?? supabaseLedgerStore(supabase), beforeNewPaidCall)
+      : paidCalls?.ledger ?? supabaseLedgerStore(supabase),
     results: paidCalls?.results ?? supabaseResultStore(supabase, STORAGE_BUCKET), requestId,
   };
   const synthesizeGated = (text: string, speed?: number) => gatedVoiceSynthesize({ ...gate, voiceProvider,

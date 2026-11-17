@@ -11,6 +11,8 @@ import type { AvatarRecovery } from "@/lib/video/avatar/recovery";
 import { ModeBadge } from "./ModeBadge";
 import { LongFormResult } from "./LongFormResult";
 import { ProductionProgressCard } from "./ProductionProgressCard";
+import { CancelReelButton } from "./CancelReelButton";
+import { canCancelReel, isCancelledFailure } from "@/lib/video/reel-cancel";
 import { RENDER_STAGE_LABEL, approximateRenderProgress, type RenderStage } from "@/lib/video/stages";
 import { LONG_FORM_STAGE_LABEL, type LongFormStage } from "@/lib/video/long-form/stages";
 import { isRenderStale } from "@/lib/video/render-guard";
@@ -137,6 +139,7 @@ export function ResultView({
               lo que falte se genera dentro del plan confirmado.
             </p>
             <GenerateButton endpoint={`/api/generate/${request.id}/resume`} label="Reanudar ahora" />
+            {canCancelReel(request) && <CancelReelButton requestId={request.id} />}
           </Card>
         )}
 
@@ -184,6 +187,9 @@ export function ResultView({
                 guarda y lo verás reflejado aquí al volver.
               </p>
             </div>
+            {canCancelReel(request) && (
+              <div className="mt-4 flex justify-center"><CancelReelButton requestId={request.id} /></div>
+            )}
           </Card>
         )}
 
@@ -200,7 +206,7 @@ export function ResultView({
 
         {request.status === "failed" && (
           <Alert tone="danger" role="alert">
-            <p className="font-medium">No se pudo generar este video.</p>
+            <p className="font-medium">{isCancelledFailure(request.error_message) ? "Producción cancelada." : "No se pudo generar este video."}</p>
             {request.error_message && <p className="mt-1">{renderFailureMessage(request.error_message)}</p>}
           </Alert>
         )}
