@@ -10,6 +10,7 @@ import {
   type VisualStrategy,
 } from "@/lib/video/long-form/production-plan";
 import { ConfigureProduction } from "./ConfigureProduction";
+import { DurationNotice } from "./DurationNotice";
 import { defaultPackaging, isOwnChannelAccount } from "@/lib/video/long-form/packaging";
 import { PRODUCT_DEFAULT_PLAN_VERSION, usesAnchoredVisuals } from "@/lib/video/long-form/production-plan-types";
 import { configurePlansWithMaterial, createMaterialSearchCache, materialCheckProviderWithDeadline, type MaterialPlanCheck } from "@/lib/video/long-form/material-plan";
@@ -89,6 +90,9 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
     recraftPlans && recraftWithMaterial ? check(recraftPlans, recraftWithMaterial.material) : Promise.resolve(undefined)]);
   const visual = await visualCheck(service, { requestId: id, plan: plans.balanced, beats: beats as ProductionPlanBeatInput[], topic: script.topic || data.topic })
     .catch((): VisualCheck => ({ applies: true, ready: false, codes: ["VISUAL_CHECK_UNAVAILABLE"], missingHeroIdentities: 0, missingHeroEvidence: 0, textCardRatio: null, maxTextCardRatio: 0.25, verifiedAssets: 0 }));
+  // Datos originales del formulario (lectura del propio dueño, RLS) para «Cambiar duración»; sin ellos, solo el tema.
+  const { data: sourceJob } = await supabase.from("documentary_script_jobs").select("input").eq("request_id", id).eq("user_id", user.id).maybeSingle();
+  const formFields = (sourceJob?.input as { fields?: Record<string, unknown> } | null)?.fields ?? null;
   const summary = {
     modality: "Documental largo (Long Form, 16:9)",
     engine: engine.engine === "cinematic-v6" ? "Cinematic V6 (plan v6)" : `Plan estándar (v${plans.balanced.version})`,
@@ -101,6 +105,7 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
     <div className="mx-auto w-full max-w-2xl">
       <h1 className="text-2xl font-bold text-ink">Configurar producción</h1>
       <p className="mt-1 break-words text-sm text-ink-muted">{data.topic}</p>
+      <DurationNotice requestedSeconds={data.duration_seconds ?? null} estimatedSeconds={plans.balanced.durationSeconds} fields={formFields} topic={data.topic} />
       {script.editorial && <section aria-label="Revisión del guion" className="mt-4 rounded-lg border border-border p-4 text-sm">
         <p className="font-medium">Revisión editorial completada{script.editorial.corrected ? " después de una corrección" : ""}</p>
         <p className="mt-2 text-ink-muted">Se revisaron la progresión, las repeticiones y la resolución de la promesa. Es una revisión automática; no garantiza la retención de audiencia ni sustituye la verificación de fuentes.</p>

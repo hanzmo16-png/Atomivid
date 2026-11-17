@@ -30,7 +30,7 @@ const TOPIC = `${fx.topic} — cierre ${Date.now().toString(36)}`;
 
 async function browserCtx(kind) {
   const b = await chromium.launch({ executablePath: PATHS.CHROME });
-  const DEV = { android: "Pixel 7", samsung: "Galaxy S9+" };
+  const DEV = { android: "Pixel 7", samsung: "Galaxy S9+", iphone: "iPhone 13" };
   const opts = DEV[kind] ? { ...devices[DEV[kind]], acceptDownloads: true } : { viewport: { width: 1440, height: 900 }, acceptDownloads: true };
   const ctx = await b.newContext(opts); const p = await ctx.newPage(); p.setDefaultTimeout(120000);
   return { b, ctx, p };
@@ -64,12 +64,20 @@ function reviewScript(script) {
   const q = async (sql, args = []) => (await c.query(sql, args)).rows;
   fs.writeFileSync(FAULTS, "{}");
   // ── A. Formulario (UI, escritorio) ─────────────────────────────────────────────────────────────────────────────
-  let { b, p } = await browserCtx("desktop"); await login(p);
+  // LF_UI_DEVICE=iphone recorre crear y configurar a 390 px (móvil); por defecto, escritorio.
+  const UI = process.env.LF_UI_DEVICE || "desktop", UIL = UI === "desktop" ? "escritorio" : UI;
+  let { b, p } = await browserCtx(UI); await login(p);
   await p.goto(`${BASE}/dashboard/long-form/new`); await skipTour(p);
-  let o = await overflow(p); check("[escritorio] formulario Long Form sin scroll horizontal", o.sw <= o.iw + 1, o);
+  let o = await overflow(p); check(`[${UIL}] formulario Long Form sin scroll horizontal`, o.sw <= o.iw + 1, o);
+  // Incidente Anunnaki (2026-11-07): un «7» escrito por defecto se enviaba sin elegirlo. La duración llega vacía y es obligatoria.
+  const dur0 = await p.$eval("input[name=duration_minutes]", (e) => ({ value: e.value, missing: e.validity.valueMissing }));
+  check(`[${UIL}] formulario: la duración llega vacía y es obligatoria (nada escrito por defecto)`, dur0.value === "" && dur0.missing === true, dur0);
   await p.fill("input[name=topic]", TOPIC); await p.selectOption("select[name=language]", "es"); await p.fill("input[name=duration_minutes]", "3");
   await shot(p, "A01-formulario");
   await p.getByRole("button", { name: "Crear y revisar guion" }).click(); await p.waitForURL((u) => !String(u).includes("/long-form/new"));
+  await sleep(1500);
+  const cardTxt = await p.locator("main").innerText().catch(() => "");
+  check(`[${UIL}] tarjeta del guion: muestra los minutos pedidos («3 min») antes de pagar el guion`, /\b3 min\b/.test(cardTxt), cardTxt.slice(0, 300));
   const job = (await q("select id,request_id,status from documentary_script_jobs where user_id=$1 and input->'fields'->>'topic'=$2 order by created_at desc limit 1", [OWNER.id, TOPIC]))[0];
   check("formulario: crea la solicitud y su trabajo de guion durable", !!job?.request_id, job);
   const R = job.request_id; const IDS = path.join(OUT, "ids.json"); fs.writeFileSync(IDS, JSON.stringify({ jobId: job.id, requestId: R }));
@@ -85,8 +93,26 @@ function reviewScript(script) {
   // ── C. Revisar y configurar (UI) ─────────────────────────────────────────────────────────────────────────────
   await p.goto(`${BASE}/dashboard/long-form/configure/${R}`); await skipTour(p);
   const main = () => p.locator("main").innerText();
+  // Antes de abrir ningún desplegable: duración pedida/estimada, salida «Cambiar duración» y techo, a la vista.
+  const notice = await p.locator("[data-testid=duration-notice]").innerText().catch(() => "");
+  check(`[${UIL}] configurar: la duración pedida y la estimada se ven sin abrir nada`, /Duración pedida: 3 min/.test(notice) && /Este guion dura ~\d+:\d\d/.test(notice), notice);
+  const chHref = await p.locator("[data-testid=duration-notice] a", { hasText: "Cambiar duración" }).getAttribute("href").catch(() => null);
+  const chQ = new URL(chHref || "/", BASE).searchParams;
+  check(`[${UIL}] configurar: «Cambiar duración» abre el formulario con el mismo tema y la duración vacía`, !!chHref && chHref.startsWith("/dashboard/long-form/new?") && chQ.get("topic") === TOPIC && chQ.get("duration_minutes") === null, chHref);
+  const clarity = await p.locator("[data-testid=pre-produce-clarity]").innerText().catch(() => "");
+  check(`[${UIL}] configurar: el techo que se autorizaría se ve con el desglose cerrado (hallazgo Grok)`, /Techo que se autorizaría/.test(clarity), clarity.slice(0, 300));
+  if (chHref) {
+    await p.goto(`${BASE}${chHref}`); await skipTour(p);
+    const back = await p.$eval("input[name=topic]", (e) => e.value).catch(() => null);
+    const backDur = await p.$eval("input[name=duration_minutes]", (e) => e.value).catch(() => null);
+    const nJobs = (await q("select count(*)::int n from documentary_script_jobs where user_id=$1 and input->'fields'->>'topic'=$2", [OWNER.id, TOPIC]))[0].n;
+    check(`[${UIL}] «Cambiar duración»: formulario con el tema y sin duración; no crea ni cobra nada al abrirlo`, back === TOPIC && backDur === "" && nJobs === 1, { back, backDur, nJobs });
+    await p.goto(`${BASE}/dashboard/long-form/configure/${R}`); await skipTour(p);
+  }
   for (const t of ["Ver estructura narrativa", "Ver referencias recuperadas"]) await p.getByText(t).first().click().catch(() => log("sin desplegable", t));
   await p.getByText(/Revisar el guion \(/).first().click().catch(() => {});
+  // Interfaz sencilla (T-LF100): el plan y la comprobación previa viven en un desplegable; se abren todos sin alternar.
+  await p.evaluate(() => document.querySelectorAll("details").forEach((d) => { d.open = true; })); await sleep(300);
   let txt = await main(); fs.writeFileSync(path.join(OUT, "C01-configurar.txt"), txt); await shot(p, "C01-configurar");
   check("revisión: la UI muestra la revisión editorial completada y la pregunta central", /Revisión editorial completada/.test(txt) && txt.includes(fx.storyPlan.centralQuestion), txt.slice(0, 200));
   check("revisión: la UI lista las fuentes del guion", fx.sources.every((s) => txt.includes(s.title)), fx.sources.map((s) => s.title));
@@ -101,7 +127,7 @@ function reviewScript(script) {
   const uiLimit = Number(((txt.match(/Límite autorizado por producción\s*USD\s*([0-9]+[.,][0-9]+)/) || [])[1] || "NaN").replace(",", "."));
   const usd = [...txt.matchAll(/USD\s?([0-9]+[.,][0-9]+)/g)].map((m) => Number(m[1].replace(",", ".")));
   log("importes en la pantalla de configuración:", usd);
-  o = await overflow(p); check("[escritorio] configurar sin scroll horizontal", o.sw <= o.iw + 1, o);
+  o = await overflow(p); check(`[${UIL}] configurar sin scroll horizontal`, o.sw <= o.iw + 1, o);
   // Fallo de proveedor inyectado ANTES de confirmar: las búsquedas de Pexels devuelven 503 (suficientes para agotar los reintentos).
   fs.writeFileSync(FAULTS, JSON.stringify({ pexels: { mode: "503", remaining: Number(process.env.PEXELS_FAULTS || 400) } }));
   const tts0 = mockEvents().filter((e) => e.kind === "tts" && !e.fault).length;
@@ -130,6 +156,7 @@ function reviewScript(script) {
     await p.goto(`${BASE}/dashboard/videos/${R}`); await skipTour(p); await sleep(2000); const t = await main(); fs.writeFileSync(path.join(OUT, `D0${n}-antes-reintento.txt`), t); await shot(p, `D0${n}-antes-reintento`);
     const btn = p.getByRole("button", { name: "Reintentar" });
     check(`intento ${n}: la UI muestra el fallo y ofrece «Reintentar»`, (await btn.count()) > 0, t.slice(0, 300));
+    check(`intento ${n}: el fallo visible no expone proveedores internos ni respuestas HTTP (Issue #279)`, !/pexels|elevenlabs|openai|recraft|anthropic|\bHTTP\b|respondió \d{3}/i.test(t), (t.match(/.{0,80}(pexels|elevenlabs|openai|recraft|anthropic|HTTP|respondió \d{3}).{0,80}/i) || [""])[0]);
     await btn.first().click(); await sleep(6000);
   };
   // Intento 1 — fallo de proveedor de stock (503 en todas las búsquedas) ANTES de cualquier gasto.
@@ -191,7 +218,7 @@ function reviewScript(script) {
   // ── F. Resultado: reproducción y descarga en escritorio y Android ────────────────────────────────────────────
   const files = {};
   for (const kind of ["desktop", "android", "samsung"]) {
-    const ctx2 = kind === "desktop" ? { b, p } : await browserCtx(kind); if (kind !== "desktop") await login(ctx2.p);
+    const ctx2 = kind === UI ? { b, p } : await browserCtx(kind); if (kind !== UI) await login(ctx2.p);
     const pg2 = ctx2.p; const tag = { desktop: "escritorio", android: "Android Pixel 7", samsung: "Android Samsung Galaxy S9+" }[kind];
     await pg2.goto(`${BASE}/dashboard/videos/${R}`); await skipTour(pg2); await sleep(3000); await shot(pg2, `F-${kind}-resultado`);
     o = await overflow(pg2); check(`[${tag}] resultado sin scroll horizontal`, o.sw <= o.iw + 1, o);
@@ -227,6 +254,16 @@ function reviewScript(script) {
     const cp = spawnSync("python3", [path.join(__dirname, "captions-probe.py"), files.desktop], { encoding: "utf8" });
     const cap = JSON.parse(cp.stdout || "{}"); fs.writeFileSync(path.join(OUT, "captions-probe.json"), JSON.stringify(cap));
     check("subtítulos quemados presentes en ≥ 80 % de los fotogramas muestreados (heurística de píxeles, sin OCR)", cap.ratio >= 0.8, cap);
+  }
+  // ── H. Incidente Anunnaki: un pedido de 30 min se guarda con 30 (antes el trabajo durable cortaba en 15 y fallaba) ──
+  {
+    const T30 = `${TOPIC} — 30 min`;
+    await p.goto(`${BASE}/dashboard/long-form/new`); await skipTour(p);
+    await p.fill("input[name=topic]", T30); await p.selectOption("select[name=language]", "es"); await p.fill("input[name=duration_minutes]", "30");
+    await p.getByRole("button", { name: "Crear y revisar guion" }).click(); await p.waitForURL((u) => !String(u).includes("/long-form/new"), { timeout: 60000 }).catch(() => {});
+    const url30 = p.url(); await sleep(1000);
+    const j30 = (await q("select input->'fields'->>'durationMinutes' d from documentary_script_jobs where user_id=$1 and input->'fields'->>'topic'=$2", [OWNER.id, T30]));
+    check(`[${UIL}] 30 min: el formulario guarda la preparación con 30 minutos (sin error de guardado)`, j30.length === 1 && j30[0].d === "30" && !/error=/.test(url30), { url: url30.replace(BASE, ""), rows: j30 });
   }
   const egress = fs.existsSync(path.join(E, "logs/egress.jsonl")) ? fs.readFileSync(path.join(E, "logs/egress.jsonl"), "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)) : [];
   const bad = egress.filter((e) => /elevenlabs|pexels|fal\.|openai|anthropic|recraft|heygen|supabase\.co|stripe|wikimedia/i.test(e.host || ""));
