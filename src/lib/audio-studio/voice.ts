@@ -1,10 +1,14 @@
 import { validateStudioVoices } from "./catalog";
 import { createHash } from "node:crypto";
-import { writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { promisify } from "node:util";
 import type { TtsProvider } from "@/lib/podcast/v3/pipeline";
 import { buildTtsRequest } from "@/lib/ai/voice";
 import { espeakVoice } from "@/lib/podcast/v2/espeak-provider";
-import { DEFAULT_TTS_MODEL, ttsModel, VOICE_PRESETS, voicePreset, type TtsModelId, type AudioProject } from "./model";
+import { DEFAULT_TTS_MODEL, DEMO_VOICE_LABEL, ttsModel, VOICE_PRESETS, voicePreset, type TtsModelId, type AudioProject } from "./model";
 
 /**
  * Proveedor de voz de Audio Podcast Studio, por modelo.
@@ -13,8 +17,11 @@ import { DEFAULT_TTS_MODEL, ttsModel, VOICE_PRESETS, voicePreset, type TtsModelI
  *  - «elevenlabs»: adaptador aislado del estudio que reutiliza `buildTtsRequest` (sin modificarlo) con el model_id
  *    elegido y SOLO los ajustes de voz admitidos por ese modelo. Requiere AUDIO_STUDIO_PAID_TTS=1 y el mapa de voces:
  *    ese interruptor no está activado en ningún entorno; la generación real queda pendiente de autorización.
+ *  - «demo»: voz de demostración SOLO para la cuenta dueña (AUDIO_STUDIO_VOICE=demo). espeak-ng llamado de forma
+ *    explícita por `demoVoice` (no usa `espeakVoice`, que sigue negándose en producción, ni la voz fixture). USD 0.
  */
-export type StudioVoice = { validate?(project: AudioProject): Promise<void>; mode: "fixture" | "elevenlabs"; provider(model: TtsModelId): TtsProvider; voiceIdFor(preset: string): string };
+export type StudioVoiceMode = "fixture" | "elevenlabs" | "demo";
+export type StudioVoice = { validate?(project: AudioProject): Promise<void>; mode: StudioVoiceMode; provider(model: TtsModelId): TtsProvider; voiceIdFor(preset: string): string };
 
 export type VoiceAvailability = { ok: true; voice: StudioVoice } | { ok: false; reason: string };
 
@@ -60,6 +67,43 @@ export function fixtureVoice(opts: { fail?: (text: string, model: TtsModelId) =>
   };
 }
 
+export { DEMO_VOICE_LABEL };
+/** Nombre del proveedor en la clave de caché: distinto de «elevenlabs» y de «fixture-espeak» (nunca se mezclan). */
+export const DEMO_PROVIDER_NAME = "demo-espeak";
+const DEMO_PROFILES = [["-v", "es-419", "-p", "28"], ["-v", "es+f3", "-p", "65"], ["-v", "es", "-p", "45"]];
+const DEMO_PROFILES_EN = [["-v", "en-us", "-p", "30"], ["-v", "en-us+f3", "-p", "62"], ["-v", "en-gb", "-p", "45"]];
+const run = promisify(execFile);
+
+/**
+ * Voz de demostración (gratis, sin red): espeak-ng → WAV 48 kHz mono. Se llama de forma EXPLÍCITA (no pasa por
+ * `espeakVoice`): por eso funciona en el runner de producción sin debilitar la barrera que mantiene la voz fixture y el
+ * proveedor espeak de Podcast fuera de producción. Solo se construye desde `voiceAvailability` con `owner: true`.
+ * `bin` permite a las pruebas simular un fallo del binario.
+ */
+export function demoVoice(opts: { bin?: string } = {}): StudioVoice {
+  const bin = opts.bin ?? "espeak-ng";
+  return {
+    mode: "demo",
+    voiceIdFor: (preset) => (voicePreset(preset) ? `demo-${preset}` : ""),
+    provider: (model) => ({
+      name: DEMO_PROVIDER_NAME, label: "mock", model, usdFor: () => 0,
+      async synth(text, voiceId, dest) {
+        const preset = voiceId.replace(/^demo-/, "");
+        const profiles = voicePreset(preset)?.language === "en" ? DEMO_PROFILES_EN : DEMO_PROFILES;
+        const dir = await mkdtemp(path.join(tmpdir(), "aps-demo-"));
+        try {
+          const raw = path.join(dir, "r.wav"), txt = path.join(dir, "t.txt");
+          // El texto va por archivo (-f), nunca como argumento: una línea que empiece con «-» no se lee como opción.
+          await writeFile(txt, text, "utf8");
+          await run(bin, [...profiles[fixtureProfile(preset) % profiles.length], "-s", "160", "-w", raw, "-f", txt], { timeout: TTS_TIMEOUT_MS });
+          await run("ffmpeg", ["-y", "-v", "error", "-i", raw, "-ar", "48000", "-ac", "1", dest], { timeout: TTS_TIMEOUT_MS });
+        } finally { await rm(dir, { recursive: true, force: true }); }
+        return { actualUsd: 0 };
+      },
+    }),
+  };
+}
+
 export class StudioProviderRejected extends Error { constructor(m: string) { super(m); this.name = "ProviderRejectedError"; } }
 export const TTS_TIMEOUT_MS = 180_000;
 
@@ -88,7 +132,12 @@ export function elevenLabsProvider(model: TtsModelId, rate: number, opts: { apiK
   };
 }
 
-export function voiceAvailability(env: Record<string, string | undefined> = process.env, rateFor: (model: TtsModelId) => number = () => 0.2): VoiceAvailability {
+/**
+ * Disponibilidad de voz. `opts.owner` = la cuenta autenticada (o el dueño del proyecto, en el worker) es la cuenta dueña.
+ * Precedencia: fixture (solo fuera de producción) → ElevenLabs (AUDIO_STUDIO_PAID_TTS=1; nunca la reemplaza la demo) →
+ * demo (AUDIO_STUDIO_VOICE=demo Y dueño; funciona también en producción) → PAID_BLOCKED (igual que antes para el resto).
+ */
+export function voiceAvailability(env: Record<string, string | undefined> = process.env, rateFor: (model: TtsModelId) => number = () => 0.2, opts: { owner?: boolean } = {}): VoiceAvailability {
   if (env.AUDIO_STUDIO_VOICE === "fixture" && !isProduction(env)) {
     // Inyección de fallo SOLO en pruebas locales: un texto con la marca simula un error del proveedor.
     const failMark = env.AUDIO_STUDIO_FIXTURE_FAIL_MARK;
@@ -99,6 +148,7 @@ export function voiceAvailability(env: Record<string, string | undefined> = proc
     if (!map) return { ok: false, reason: "Falta configurar las voces de ElevenLabs del estudio. No se hizo ningún cargo." };
     return { ok: true, voice: { mode: "elevenlabs", validate: (project) => validateStudioVoices(project, map, env), provider: (model) => elevenLabsProvider(model, rateFor(model)), voiceIdFor: (preset) => map[preset] ?? "" } };
   }
+  if (env.AUDIO_STUDIO_VOICE === "demo" && opts.owner === true) return { ok: true, voice: demoVoice() };
   return { ok: false, reason: PAID_BLOCKED };
 }
 

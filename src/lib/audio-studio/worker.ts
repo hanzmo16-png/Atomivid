@@ -66,9 +66,11 @@ export async function startWorker(
  *  - que el proyecto exista en la ruta del dueño indicado y que su JSON declare ese mismo dueño (otro dueño → no existe);
  *  - generación en cola o interrumpida (una terminada, inactiva o fallida no se vuelve a procesar: despacho duplicado);
  *  - para «generar»: autorización guardada para la revisión actual, con el mismo modelo, monto > 0 y dentro del tope.
+ *    Única excepción: con la voz de demostración (`opts.demo`, USD 0 por construcción) se acepta un monto exactamente 0.
+ *    Con voz de pago un monto 0 se sigue rechazando (una autorización de demo nunca habilita un cargo).
  * Devuelve el motivo del rechazo, o null si puede continuar.
  */
-export async function workerPreflight(store: ProjectStore, ownerId: string, id: string): Promise<string | null> {
+export async function workerPreflight(store: ProjectStore, ownerId: string, id: string, opts: { demo?: boolean } = {}): Promise<string | null> {
   if (!isUuid(ownerId) || !isUuid(id)) return "identificadores inválidos";
   const p = await store.get(ownerId, id);
   if (!p || p.ownerId !== ownerId || p.id !== id) return "proyecto inexistente para ese dueño";
@@ -80,6 +82,16 @@ export async function workerPreflight(store: ProjectStore, ownerId: string, id: 
   if (!a) return "sin autorización de gasto guardada";
   if (a.revision !== p.revision) return "la autorización es de otra revisión del guion";
   if (a.model !== p.ttsModel) return "la autorización es para otro modelo de voz";
-  if (!(a.usd > 0) || a.usd > p.budgetUsd + 1e-9) return "monto autorizado inválido o mayor que el tope del episodio";
+  const zeroDemo = opts.demo === true && a.usd === 0;
+  if (!(a.usd > 0 || zeroDemo) || a.usd > p.budgetUsd + 1e-9) return "monto autorizado inválido o mayor que el tope del episodio";
   return null;
+}
+
+/**
+ * El worker no tiene sesión: la voz de demostración solo se concede si el dueño del proyecto (ruta del payload, ya
+ * validada por `workerPreflight`) es exactamente INTERNAL_PRODUCTION_OWNER_USER_ID. Sin esa variable → nunca.
+ */
+export function workerOwnerIsInternal(ownerId: string, env: Record<string, string | undefined> = process.env): boolean {
+  const id = env.INTERNAL_PRODUCTION_OWNER_USER_ID?.trim().toLowerCase();
+  return !!id && isUuid(id) && ownerId.toLowerCase() === id;
 }

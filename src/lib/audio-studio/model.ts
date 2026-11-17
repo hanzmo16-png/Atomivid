@@ -338,7 +338,14 @@ export function voiceRate(env: Record<string, string | undefined> = process.env,
   return modelRate(model, env).rate;
 }
 
-export type ModelRate = { model: TtsModelId; rate: number; source: "produccion" | "verificada" | "conservadora"; listUsdPer1k: number; note: string };
+/** Rótulo único de la voz de demostración (solo la cuenta dueña): editor, biblioteca y tarifa. Seguro para el cliente. */
+export const DEMO_VOICE_LABEL = "Voz de demostración — no es la voz final; USD 0";
+/** Texto del proveedor del audio producido para la interfaz (fixture y demo nunca se confunden con la voz real). */
+export function audioProviderNote(provider: string): string {
+  return provider === "demo" ? ` · ${DEMO_VOICE_LABEL}` : provider === "fixture" ? " · voz de prueba local" : "";
+}
+
+export type ModelRate = { model: TtsModelId; rate: number; source: "produccion" | "verificada" | "conservadora" | "demo"; listUsdPer1k: number; note: string };
 /**
  * Tarifa usada para estimar y para el tope de cada autorización.
  *  - Multilingual v2: PRICING_ELEVENLABS_USD_PER_1K_CHARS de producción (mínimo 0.20).

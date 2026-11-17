@@ -14,7 +14,7 @@ export default async function AudioProjectPage({ params }: { params: Promise<{ i
     if (user.status === 401) redirect("/login");
     notFound();
   }
-  const out = await getProject(studioDeps(), user.id, (await params).id);
+  const out = await getProject(studioDeps(user), user.id, (await params).id);
   if (!out.ok) notFound();
   return (
     <div className="space-y-4">

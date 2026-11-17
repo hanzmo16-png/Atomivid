@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { INPUT_CLASS } from "@/components/ui/Field";
 import {
   LANGUAGES, defaultSecondVoice, draftOutline, estimate, GENERATION_LABEL, generationActive, MAX_BUDGET_USD, MAX_SCRIPT, MAX_TARGET_MINUTES, MAX_TITLE, MIN_TARGET_MINUTES, MOOD_LABEL, MUSIC_MOODS,
-  FALLBACK_TTS_MODEL, musicPlan, readinessIssues, STATUS_LABEL, TTS_MODELS, ttsModel, VOICE_PRESETS, voicePreset, type StudioLanguage, type AudioProject, type MusicConfig, type MusicMood, type TtsModelId,
+  audioProviderNote, DEMO_VOICE_LABEL, FALLBACK_TTS_MODEL, musicPlan, readinessIssues, STATUS_LABEL, TTS_MODELS, ttsModel, VOICE_PRESETS, voicePreset, type StudioLanguage, type AudioProject, type MusicConfig, type MusicMood, type TtsModelId,
 } from "@/lib/audio-studio/model";
 import type { StudioCatalogVoice } from "@/lib/audio-studio/catalog";
 import type { ProjectView } from "@/lib/audio-studio/service";
@@ -17,8 +17,11 @@ const same = (a: Draft, b: Draft) => JSON.stringify(a) === JSON.stringify(b);
 const usd = (n: number) => `USD ${n.toFixed(2)}`;
 const AUTOSAVE_MS = 2500;
 
-/** Estado de la síntesis según el servidor: "real" (ElevenLabs), "local" (voz de prueba) o "inactiva". */
-export type Synthesis = "real" | "local" | "inactiva";
+/**
+ * Estado de la síntesis según el servidor: "real" (ElevenLabs), "local" (voz de prueba), "demo" (voz de demostración,
+ * solo la cuenta dueña, USD 0) o "inactiva".
+ */
+export type Synthesis = "real" | "local" | "demo" | "inactiva";
 
 export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { initial: ProjectView; synthesis?: Synthesis | null }) {
   const [saved, setSaved] = useState<ProjectView>(initial);
@@ -34,7 +37,7 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
     let alive = true;
     fetch("/api/audio-studio/voices", { cache: "no-store" }).then(async res => {
       const body = await res.json();
-      if (alive && (body.synthesis === "real" || body.synthesis === "local" || body.synthesis === "inactiva")) setSynthesis(body.synthesis);
+      if (alive && (body.synthesis === "real" || body.synthesis === "local" || body.synthesis === "demo" || body.synthesis === "inactiva")) setSynthesis(body.synthesis);
       if (!res.ok) throw new Error(body.error ?? "No se pudieron cargar las voces.");
       if (alive) { setCatalog(body.voices); setCatalogError(null); }
     }).catch(err => { if (alive) setCatalogError(err.message); });
@@ -141,7 +144,8 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
   const catalogReady = catalog !== null && draft.voices.every(available);
   // Sin síntesis real ni local no se ofrece gasto ni generación. Hasta conocer el estado, tampoco.
   const inactive = synthesis === "inactiva";
-  const canPay = synthesis === "real" || synthesis === "local";
+  const canPay = synthesis === "real" || synthesis === "local" || synthesis === "demo";
+  const demo = synthesis === "demo";
   const checkVoices = catalog !== null && !inactive;
 
   const saveLabel = state === "saving" ? "Guardando…" : state === "conflict" ? "Conflicto de versiones" : state === "error" ? "No guardado" : dirty ? "Cambios sin guardar" : "Guardado";
@@ -309,6 +313,11 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
             La generación de audio con voz todavía no está activada. Puedes escribir, guardar, archivar y restaurar el episodio; no se puede generar el MP3 y no se hará ningún cargo.
           </p>
         )}
+        {demo && (
+          <p role="status" className="rounded-md border border-warning bg-surface-raised p-3 text-sm font-medium text-ink" data-testid="audio-voice-demo">
+            {DEMO_VOICE_LABEL}. El MP3 se genera con una voz sintética gratuita (espeak-ng) para escuchar y descargar el episodio completo; no se llama a ElevenLabs ni se hace ningún cargo.
+          </p>
+        )}
         {synthesis === "local" && (
           <p className="text-xs text-ink-muted" data-testid="audio-voice-local">Voz de prueba local: el MP3 se genera con una voz sintética de prueba, no con la voz final. Sin costo.</p>
         )}
@@ -331,7 +340,7 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
             <audio controls preload="none" className="w-full" src={`/api/audio-studio/projects/${saved.id}/audio`} data-testid="audio-player" />
             <p className="text-xs text-ink-muted">
               {Math.floor(saved.audio.durationSeconds / 60)} min {Math.round(saved.audio.durationSeconds % 60)} s · {saved.audio.lufs} LUFS · pico {saved.audio.truePeak} dBTP · {(saved.audio.bytes / 1e6).toFixed(1)} MB
-              {saved.audio.provider === "fixture" ? " · voz de prueba local" : ""}{saved.audio.revision !== saved.revision ? " · de una versión anterior del guion" : ""}
+              {audioProviderNote(saved.audio.provider)}{saved.audio.revision !== saved.revision ? " · de una versión anterior del guion" : ""}
             </p>
             <a href={`/api/audio-studio/projects/${saved.id}/audio?descargar=1`} className="inline-flex min-h-11 items-center text-sm font-medium text-accent underline" data-testid="audio-download">Descargar MP3</a>
           </div>
@@ -339,7 +348,11 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
         {canPay && !archived && !running && g.status !== "fallida" && (
           <label className="flex min-h-11 items-start gap-2 text-sm text-ink">
             <input type="checkbox" className="mt-1" data-testid="audio-authorize" checked={authorized} disabled={issues.length > 0 || !!busy} onChange={(e) => setAuthorized(e.target.checked)} />
-            <span>Autorizo un gasto de hasta <strong data-testid="audio-authorize-usd">USD {live.estimatedUsd.toFixed(2)}</strong> en voz para generar este episodio (tope del episodio USD {draft.budgetUsd.toFixed(2)}).</span>
+            {demo ? (
+              <span>Confirmo generar con la voz de demostración por <strong data-testid="audio-authorize-usd">USD {live.estimatedUsd.toFixed(2)}</strong> (no es la voz final).</span>
+            ) : (
+              <span>Autorizo un gasto de hasta <strong data-testid="audio-authorize-usd">USD {live.estimatedUsd.toFixed(2)}</strong> en voz para generar este episodio (tope del episodio USD {draft.budgetUsd.toFixed(2)}).</span>
+            )}
           </label>
         )}
         <div className="flex flex-wrap gap-2">
@@ -347,7 +360,7 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
             <Button variant="secondary" className="min-h-11" data-testid="audio-ready" disabled={issues.length > 0 || !!busy} loading={busy === "listo"} onClick={() => void action("listo")}>Marcar listo para autorizar</Button>
           )}
           {canPay && !archived && !running && g.status !== "fallida" && (
-            <Button className="min-h-11" data-testid="audio-generate" disabled={!authorized || !catalogReady || issues.length > 0 || !!busy} loading={busy === "generar"} onClick={() => void action("generar")}>Generar MP3</Button>
+            <Button className="min-h-11" data-testid="audio-generate" disabled={!authorized || !catalogReady || issues.length > 0 || !!busy} loading={busy === "generar"} onClick={() => void action("generar")}>{demo ? "Generar MP3 de demostración" : "Generar MP3"}</Button>
           )}
           {canPay && !archived && !running && (g.status === "fallida" || g.status === "generando" || g.status === "en_cola") && (
             <Button className="min-h-11" data-testid="audio-resume" disabled={!!busy} loading={busy === "reanudar"} onClick={() => void action("reanudar")}>Reanudar</Button>

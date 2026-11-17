@@ -32,7 +32,15 @@ function storageBucket() {
   return client.storage.from(AUDIO_STUDIO_BUCKET);
 }
 
-/** El almacén usa la clave de servicio solo en el servidor; la ruta siempre lleva el id de la cuenta autenticada. */
-export function studioDeps(): Deps & { store: ProjectStore & BlobStore; voice: VoiceAvailability } {
-  return { store: storageStore(storageBucket() as never), voice: voiceAvailability(process.env, (m) => modelRate(m).rate) };
+/**
+ * El almacén usa la clave de servicio solo en el servidor; la ruta siempre lleva el id de la cuenta autenticada.
+ * La voz depende de la cuenta: la voz de demostración (AUDIO_STUDIO_VOICE=demo) solo existe para la cuenta dueña.
+ */
+export function studioDeps(user: Pick<StudioUser, "owner">): Deps & { store: ProjectStore & BlobStore; voice: VoiceAvailability } {
+  return { store: storageStore(storageBucket() as never), voice: studioVoiceFor(user) };
+}
+
+/** Fuente única de la voz de la cuenta autenticada (rutas, páginas y ruta de voces usan esta misma función). */
+export function studioVoiceFor(user: Pick<StudioUser, "owner">, env: Record<string, string | undefined> = process.env): VoiceAvailability {
+  return voiceAvailability(env, (m) => modelRate(m, env).rate, { owner: user.owner === true });
 }
