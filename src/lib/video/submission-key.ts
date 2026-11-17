@@ -33,6 +33,10 @@ export async function intentFingerprint(formData: FormData): Promise<Record<stri
     out[k] = typeof v === "string" ? v.trim()
       : { sha256: createHash("sha256").update(Buffer.from(await v.arrayBuffer())).digest("hex"), size: v.size, type: v.type };
   }
+  // «Imágenes IA con FLUX»: part of the intent ONLY when chosen (no style fields), so other request ids are unchanged.
+  if (String(formData.get("mode") ?? "visual").trim() === "visual" && String(formData.get("reel_image_source") ?? "").trim() === "flux") {
+    out.reel_image_source = "flux";
+  }
   // «Imágenes IA con Recraft»: part of the intent ONLY when chosen, so every existing (default) request id is unchanged.
   if (String(formData.get("mode") ?? "visual").trim() === "visual" && String(formData.get("reel_image_source") ?? "").trim() === "recraft") {
     out.reel_image_source = "recraft";

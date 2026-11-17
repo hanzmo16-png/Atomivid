@@ -11,6 +11,7 @@ import { budgetsForPlans, loadScriptSpentUsd } from "@/lib/video/long-form/worke
 import { refreshDemandedCapacity } from "@/lib/video/long-form/refresh-capacity";
 import { jobSupplyDemands } from "@/lib/supply/job";
 import { recraftAllowedFor } from "@/lib/video/recraft-access";
+import { fluxAllowedFor } from "@/lib/video/flux-images";
 
 /** Las búsquedas gratuitas de material (material-plan.ts) tienen su propio plazo, por debajo de este. */
 export const maxDuration = 120;
@@ -32,12 +33,14 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const base = { script, topic: lookup.data.topic, durationSeconds: lookup.data.duration_seconds, cinematicV6: cinematicV6Enabled(user),
     footageProvider: materialCheckProviderWithDeadline(), searchCache: createMaterialSearchCache() };
   // Accounts that may choose Recraft also get the Recraft-priced plans re-checked (same as the Configure page).
-  const [withMaterial, recraftWithMaterial] = await Promise.all([configurePlansWithMaterial(base),
-    recraftAllowedFor(user) ? configurePlansWithMaterial({ ...base, imageProvider: "recraft" }) : Promise.resolve(null)]);
+  const [withMaterial, recraftWithMaterial, fluxWithMaterial] = await Promise.all([configurePlansWithMaterial(base),
+    recraftAllowedFor(user) ? configurePlansWithMaterial({ ...base, imageProvider: "recraft" }) : Promise.resolve(null),
+    fluxAllowedFor(user) ? configurePlansWithMaterial({ ...base, imageProvider: "flux" }) : Promise.resolve(null)]);
   const results = withMaterial.results;
   const recraftResults = recraftWithMaterial?.results ?? null;
+  const fluxResults = fluxWithMaterial?.results ?? null;
   const service = createServiceClient();
-  const all = [results, ...(recraftResults ? [recraftResults] : [])];
+  const all = [results, ...(recraftResults ? [recraftResults] : []), ...(fluxResults ? [fluxResults] : [])];
   const providers = [...new Set(all.flatMap((r) => VISUAL_STRATEGIES.flatMap((s) => jobSupplyDemands({ mode: "long_form", script_json: script, recorded_audio_path: null, long_form_production_plan: r[s].plan }, r[s].plan.providers.voice).map((d) => d.provider))))];
   const outcome = await refreshDemandedCapacity(service, providers);
   let scriptSpent: number | { error: string };
@@ -51,9 +54,10 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     return Object.fromEntries(await Promise.all(VISUAL_STRATEGIES.map(async (strategy) =>
       [strategy, await strategyPreflight(service, { strategy, plan: r[strategy].plan, scriptJson: script, refreshErrors: outcome.errors, workerBudget: budgets[strategy], material: material[strategy] })]))) as Record<VisualStrategy, StrategyPreflight>;
   };
-  const [preflight, recraftPreflight] = await Promise.all([check(results, withMaterial.material),
-    recraftResults && recraftWithMaterial ? check(recraftResults, recraftWithMaterial.material) : Promise.resolve(undefined)]);
+  const [preflight, recraftPreflight, fluxPreflight] = await Promise.all([check(results, withMaterial.material),
+    recraftResults && recraftWithMaterial ? check(recraftResults, recraftWithMaterial.material) : Promise.resolve(undefined),
+    fluxResults && fluxWithMaterial ? check(fluxResults, fluxWithMaterial.material) : Promise.resolve(undefined)]);
   const planSet = (r: typeof results) => Object.fromEntries(VISUAL_STRATEGIES.map((s) => [s, r[s].plan]));
-  return NextResponse.json({ preflight, ...(recraftPreflight ? { recraftPreflight } : {}),
-    plans: planSet(results), ...(recraftResults ? { recraftPlans: planSet(recraftResults) } : {}), checkedAt: new Date().toISOString(), refreshed: outcome.refreshed, reused: outcome.reused, manual: outcome.manual });
+  return NextResponse.json({ preflight, ...(recraftPreflight ? { recraftPreflight } : {}), ...(fluxPreflight ? { fluxPreflight } : {}),
+    plans: planSet(results), ...(recraftResults ? { recraftPlans: planSet(recraftResults) } : {}), ...(fluxResults ? { fluxPlans: planSet(fluxResults) } : {}), checkedAt: new Date().toISOString(), refreshed: outcome.refreshed, reused: outcome.reused, manual: outcome.manual });
 }

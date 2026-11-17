@@ -7,8 +7,9 @@ import { needsNarrationEdit } from "./duration-check";
 import { DeliverableUnverifiedError } from "@/lib/video/deliverable-check";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { editorialApprovalError } from "./long-form/editorial";
-import { loadReelRecraft, recraftDemandUsd, signReferenceUrls, persistReelStyleId, loadStyleMissing, persistStyleMissing } from "@/lib/video/recraft-reel-server";
-import { getRecraftImageProvider } from "@/lib/providers/image";
+import { loadReelRecraft, recraftDemandUsd, signReferenceUrls, persistReelStyleId, loadStyleMissing, persistStyleMissing, loadFluxChoice } from "@/lib/video/recraft-reel-server";
+import { getRecraftImageProvider, getFluxImageProvider } from "@/lib/providers/image";
+import { fluxAllowedForWorker, FluxAccessError, fluxReelDemandUsd } from "@/lib/video/flux-images";
 import { recraftAllowedForWorker, RecraftAccessError } from "@/lib/video/recraft-access";
 import { ChosenImageProviderError } from "@/lib/video/long-form/shot-executor";
 import { RecraftStyleMissingError } from "@/lib/video/recraft-reel";
@@ -216,7 +217,18 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
       if (!(await recraftAllowedForWorker(ownerData.user))) throw new RecraftAccessError();
       getRecraftImageProvider();
     }
-    await reserveJobSupply(service, requestId, row.render_attempts, jobSupplyDemands(row, getVoiceProvider().name, undefined, { recraftUsd: mode === "visual" ? recraftDemandUsd(recraft, row.script_json) : 0 }));
+    // «Imágenes IA con FLUX» (second selectable provider): same revalidation, before any reservation or paid voice.
+    const flux = !recraft && (mode === "visual" || mode === "long_form") ? await loadFluxChoice(service, requestId) : false;
+    if (mode === "long_form" && (longFormPlan?.providers.image === "flux") !== flux) throw new FluxAccessError("plan_mismatch");
+    if (flux) {
+      const { data: ownerData, error: ownerError } = await service.auth.admin.getUserById(row.user_id);
+      if (ownerError) throw ownerError;
+      if (!(await fluxAllowedForWorker(ownerData.user))) throw new FluxAccessError();
+      getFluxImageProvider();
+    }
+    await reserveJobSupply(service, requestId, row.render_attempts, jobSupplyDemands(row, getVoiceProvider().name, undefined, {
+      recraftUsd: mode === "visual" ? recraftDemandUsd(recraft, row.script_json) : 0,
+      fluxUsd: mode === "visual" && flux ? fluxReelDemandUsd(row.script_json) : 0 }));
     const { videoPath } =
       mode === "avatar"
         ? await generateAvatarVideo({
@@ -253,7 +265,8 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
                   onMissingStyleId: recraft.style.onMissingStyleId,
                   styleMissing: recraft.styleId ? false : await loadStyleMissing(service, requestId),
                   onStyleMissing: (providerJobId: string | undefined) => persistStyleMissing(service, requestId, providerJobId),
-                } } : {}) },
+                } } : {}),
+                ...(flux ? { fluxImages: true } : {}) },
             })
           : await generateVideoFromScript({
               supabase: service,
@@ -270,6 +283,7 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
                 match: recraft.style.match, styleNote: recraft.style.styleNote, onMissingStyleId: recraft.style.onMissingStyleId,
                 onStyleId: (styleId: string) => persistReelStyleId(service, requestId, styleId),
               } } : {}),
+              ...(flux ? { flux: {} } : {}),
               targetDurationSeconds: row.duration_seconds ?? undefined,
               onProgress,
               directorRender,
@@ -351,7 +365,7 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
       || error instanceof JobEnvelopeMismatchError || error instanceof JobEnvelopeExhaustedError || error instanceof DeliverableUnverifiedError
       || (error instanceof DirectorUnavailableError && error.reason !== "owner_lookup_failed")
       // Recraft: an account/plan mismatch or a stop that a retry cannot clear goes to support, never a retry loop.
-      || error instanceof RecraftAccessError || error instanceof RecraftStyleMissingError || error instanceof GeneratedImageRejectedError
+      || error instanceof RecraftAccessError || error instanceof FluxAccessError || error instanceof RecraftStyleMissingError || error instanceof GeneratedImageRejectedError
       || (error instanceof ChosenImageProviderError && !error.retryable) ? "support" : "retry";
     // A measured duration mismatch happens before footage/render and after the
     // voice ledger is settled. Reopen editing; retain attempts and paid history.

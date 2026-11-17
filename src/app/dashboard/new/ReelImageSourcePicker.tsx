@@ -15,19 +15,25 @@ function listedFiles(input: HTMLInputElement | null): RecraftClientFile[] {
  * Long Form reuses this picker and, when `defaultSource` is omitted, keeps its previous Recraft-first
  * initial value so ConfigureProduction's own state stays aligned. Passing `defaultSource` overrides that.
  */
-export function ReelImageSourcePicker({ format = "reel", disabled = false, onSourceChange, defaultSource }: {
+export type ImageSourceChoice = "default" | "recraft" | "flux";
+
+export function ReelImageSourcePicker({ format = "reel", disabled = false, onSourceChange, defaultSource, recraftAvailable = true, fluxAvailable = false }: {
   /** "reel": one image per scene (9:16). "long_form": the plan's AI images (16:9); archive footage stays as planned. */
   format?: "reel" | "long_form";
   disabled?: boolean;
-  onSourceChange?: (source: "default" | "recraft") => void;
-  defaultSource?: "default" | "recraft";
+  onSourceChange?: (source: ImageSourceChoice) => void;
+  defaultSource?: ImageSourceChoice;
+  /** Decided on the server (recraftAllowedFor / fluxAllowedFor). FLUX is the second selectable provider. */
+  recraftAvailable?: boolean;
+  fluxAvailable?: boolean;
 } = {}) {
-  const initialSource = defaultSource ?? (format === "long_form" ? "recraft" : "default");
-  const [source, setSourceState] = useState<"default" | "recraft">(initialSource);
+  // Reel: Material de archivo first (PR #280). Long Form: Recraft first when available (ConfigureProduction's own state).
+  const initialSource: ImageSourceChoice = defaultSource ?? (format === "long_form" && recraftAvailable ? "recraft" : "default");
+  const [source, setSourceState] = useState<ImageSourceChoice>(initialSource);
   const [inlineMessage, setInlineMessage] = useState("");
   const styleRef = useRef<HTMLInputElement>(null);
   const filesRef = useRef<HTMLInputElement>(null);
-  const setSource = (v: "default" | "recraft") => {
+  const setSource = (v: ImageSourceChoice) => {
     setSourceState(v);
     onSourceChange?.(v);
     if (v !== "recraft") setInlineMessage("");
@@ -71,11 +77,23 @@ export function ReelImageSourcePicker({ format = "reel", disabled = false, onSou
         <input type="radio" name={field} value="default" checked={source === "default"} onChange={() => setSource("default")} />
         {format === "reel" ? "Material de archivo (como hasta ahora)" : "Proveedor actual (como hasta ahora)"}
       </label>
-      <label className="flex items-center gap-2 text-sm">
+      {recraftAvailable && <label className="flex items-center gap-2 text-sm">
         <input type="radio" name={field} value="recraft" checked={source === "recraft"} onChange={() => setSource("recraft")} />
         Imágenes IA con Recraft
-      </label>
-      {source === "recraft" && (
+      </label>}
+      {fluxAvailable && <label className="flex items-center gap-2 text-sm">
+        <input type="radio" name={field} value="flux" checked={source === "flux"} onChange={() => setSource("flux")} />
+        Imágenes IA con FLUX
+      </label>}
+      {source === "flux" && (
+        <p className="rounded-md border border-line p-3 text-sm text-ink-muted">
+          {format === "reel"
+            ? "Una imagen FLUX por escena (vertical 9:16, 720×1280), creada a partir de la escena del guion. Costo estimado: USD 0,025 por escena."
+            : "Las imágenes IA del plan (horizontal 16:9, 1280×720) se crean con FLUX a partir de cada escena. Costo estimado: USD 0,025 por imagen; el plan de abajo ya lo incluye. El material de archivo y los clips de video previstos no cambian. Cada imagen se marca como recreación IA, nunca como registro histórico."}
+          {" "}Si algo falla, el video se detiene con un aviso claro: nunca se sustituyen imágenes.
+        </p>
+      )}
+      {source === "recraft" && recraftAvailable && (
         <div className="space-y-2 rounded-md border border-line p-3 text-sm">
           <p className="text-ink-muted">
             {format === "reel"

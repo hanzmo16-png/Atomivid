@@ -142,7 +142,7 @@ export async function configurePlansWithMaterial(input: {
   topic: string;
   durationSeconds: number | null;
   cinematicV6: boolean;
-  imageProvider?: "openai" | "recraft";
+  imageProvider?: "openai" | "recraft" | "flux";
   footageProvider: FootageProvider | null;
   searchCache?: MaterialSearchCache;
 }): Promise<{ results: Record<VisualStrategy, ProductPlanResult>; material: Record<VisualStrategy, MaterialPlanCheck> }> {
@@ -150,7 +150,7 @@ export async function configurePlansWithMaterial(input: {
   const topic = input.script.topic || input.topic;
   const searchCache = input.searchCache ?? createMaterialSearchCache();
   // Mismos proveedores que configurePlans / confirm-production.
-  const providers = { ...getRealLongFormProviderNames(), ...(input.imageProvider === "recraft" ? { image: "recraft" } : {}) };
+  const providers = { ...getRealLongFormProviderNames(), ...(input.imageProvider === "recraft" || input.imageProvider === "flux" ? { image: input.imageProvider } : {}) };
   const entries = await Promise.all(VISUAL_STRATEGIES.map(async (strategy) => {
     const out = await materialAwarePlan({
       beats, topic, footageProvider: input.footageProvider, searchCache,

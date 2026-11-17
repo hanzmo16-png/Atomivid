@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ReelImageSourcePicker } from "@/app/dashboard/new/ReelImageSourcePicker";
+import { ReelImageSourcePicker, type ImageSourceChoice } from "@/app/dashboard/new/ReelImageSourcePicker";
 import { ReelVoicePicker } from "@/app/dashboard/new/ReelVoicePicker";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
@@ -170,7 +170,7 @@ export function PlanSummary({ plan }: { plan: ProductionPlan }) {
         <Row label="Duración estimada" value={`~${formatDuration(plan.durationSeconds)}`} />
         <Row label="Escenas" value={String(plan.shotCount)} />
         <Row label="Video e imagen de archivo" value={String(plan.stockVideoCount + plan.stockImageCount)} />
-        <Row label={plan.imagePriority ? "Imágenes originales (Recraft)" : "Imágenes generadas por IA"} value={String(plan.aiImageCount)} />
+        <Row label={plan.imagePriority ? "Imágenes originales (Recraft)" : plan.providers.image === "flux" ? "Imágenes generadas por IA (FLUX)" : "Imágenes generadas por IA"} value={String(plan.aiImageCount)} />
         {plan.imagePriority && <>
           <Row label="· en la apertura / momentos clave" value={`${plan.imagePriority.openingImages} / ${plan.imagePriority.keyMomentImages}`} />
           <Row label="· reserva para regenerar defectos" value={String(plan.imagePriority.regenerationReserve)} />
@@ -225,6 +225,8 @@ export function ConfigureProduction({
   preflight: defaultPreflight,
   recraftPlans,
   recraftPreflight,
+  fluxPlans,
+  fluxPreflight,
   visual,
   summary,
   visualBlockText = null,
@@ -240,6 +242,9 @@ export function ConfigureProduction({
   /** Present only when this account may choose «Imágenes IA con Recraft» (decided on the server). */
   recraftPlans?: Record<VisualStrategy, ProductionPlan>;
   recraftPreflight?: Record<VisualStrategy, StrategyPreflight>;
+  /** Present only when this account may choose «Imágenes IA con FLUX» (second selectable provider, server-decided). */
+  fluxPlans?: Record<VisualStrategy, ProductionPlan>;
+  fluxPreflight?: Record<VisualStrategy, StrategyPreflight>;
   visual?: VisualCheck;
   summary?: PreflightSummary;
   visualBlockText?: string | null;
@@ -254,12 +259,14 @@ export function ConfigureProduction({
 }) {
   const router = useRouter();
   // Recraft first for new productions when this account may use it (owner decision 2026-10-21).
-  const [imageSource, setImageSource] = useState<"default" | "recraft">(recraftPlans ? "recraft" : "default");
+  const [imageSource, setImageSource] = useState<ImageSourceChoice>(recraftPlans ? "recraft" : "default");
   const [voiceId, setVoiceId] = useState("");
   const useRecraft = imageSource === "recraft" && !!recraftPlans;
+  const useFlux = imageSource === "flux" && !!fluxPlans;
   const [liveDefaultPlans, setLiveDefaultPlans] = useState(defaultPlans);
   const [liveRecraftPlans, setLiveRecraftPlans] = useState(recraftPlans);
-  const plans = (useRecraft ? liveRecraftPlans : undefined) ?? liveDefaultPlans;
+  const [liveFluxPlans, setLiveFluxPlans] = useState(fluxPlans);
+  const plans = (useRecraft ? liveRecraftPlans : useFlux ? liveFluxPlans : undefined) ?? liveDefaultPlans;
   const imageForm = useRef<HTMLFormElement>(null);
   const [strategy, setStrategy] = useState<VisualStrategy>("balanced");
   const [loading, setLoading] = useState(false);
@@ -269,7 +276,8 @@ export function ConfigureProduction({
   const onValidityChange = useCallback((valid: boolean) => setPackagingValid(valid), []);
   const [liveDefault, setLiveDefault] = useState(defaultPreflight);
   const [liveRecraft, setLiveRecraft] = useState(recraftPreflight);
-  const livePreflight = useRecraft ? liveRecraft : liveDefault;
+  const [liveFlux, setLiveFlux] = useState(fluxPreflight);
+  const livePreflight = useRecraft ? liveRecraft : useFlux ? liveFlux : liveDefault;
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [checkedAt, setCheckedAt] = useState<string | null>(null);
@@ -293,13 +301,16 @@ export function ConfigureProduction({
     try {
       const res = await fetch(`/api/generate/${requestId}/refresh-capacity`, { method: "POST" });
       const result = await safeParseJsonResponse<{ preflight: Record<VisualStrategy, StrategyPreflight>; recraftPreflight?: Record<VisualStrategy, StrategyPreflight>; checkedAt: string;
-        plans?: Record<VisualStrategy, ProductionPlan>; recraftPlans?: Record<VisualStrategy, ProductionPlan> }>(res);
+        plans?: Record<VisualStrategy, ProductionPlan>; recraftPlans?: Record<VisualStrategy, ProductionPlan>;
+        fluxPreflight?: Record<VisualStrategy, StrategyPreflight>; fluxPlans?: Record<VisualStrategy, ProductionPlan> }>(res);
       if (!result.ok) throw new Error(result.error);
       setLiveDefault(result.data.preflight);
       if (result.data.recraftPreflight) setLiveRecraft(result.data.recraftPreflight);
       // The material check can change a plan (scenes promoted to AI images): show the plan the ceiling belongs to.
       if (result.data.plans) setLiveDefaultPlans(result.data.plans);
       if (result.data.recraftPlans) setLiveRecraftPlans(result.data.recraftPlans);
+      if (result.data.fluxPreflight) setLiveFlux(result.data.fluxPreflight);
+      if (result.data.fluxPlans) setLiveFluxPlans(result.data.fluxPlans);
       setCheckedAt(result.data.checkedAt);
     } catch (err) {
       setRefreshError(`No se pudo actualizar la disponibilidad: ${classifyClientFetchError(err)}`);
@@ -326,8 +337,8 @@ export function ConfigureProduction({
     let confirmed = false;
     try {
       let confirmInit: RequestInit;
-      if (useRecraft && imageForm.current) {
-        // Recraft choice (+ optional reference images) travels as multipart; the server validates and stores it.
+      if ((useRecraft || useFlux) && imageForm.current) {
+        // Recraft choice (+ optional reference images) or FLUX travels as multipart; the server validates everything.
         const body = new FormData(imageForm.current);
         body.set("strategy", strategy);
         if (packaging) body.set("packaging", JSON.stringify(packaging));
@@ -405,10 +416,10 @@ export function ConfigureProduction({
         <ReelVoicePicker key={language} language={language} onSelect={setVoiceId} />
       </Card>
 
-      {recraftPlans && (
+      {(recraftPlans || fluxPlans) && (
         <Card className="mt-4 p-4">
           <form ref={imageForm} onSubmit={(e) => e.preventDefault()}>
-            <ReelImageSourcePicker format="long_form" disabled={loading} onSourceChange={setImageSource} />
+            <ReelImageSourcePicker format="long_form" disabled={loading} onSourceChange={setImageSource} recraftAvailable={!!recraftPlans} fluxAvailable={!!fluxPlans} />
           </form>
         </Card>
       )}

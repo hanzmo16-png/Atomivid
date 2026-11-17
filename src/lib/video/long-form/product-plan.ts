@@ -42,11 +42,11 @@ export function productPlan(input: {
 /** The three plans Configure shows (and the refresh route re-checks), computed exactly as the page does. */
 export function configurePlans(input: { script: { topic?: string; beats: (ProductionPlanBeatInput & { purpose?: string })[] }; topic: string; durationSeconds: number | null; cinematicV6: boolean;
   /** "recraft": the same plans priced and pinned for Recraft images (same engine confirm-production uses). */
-  imageProvider?: "openai" | "recraft";
+  imageProvider?: "openai" | "recraft" | "flux";
   /** Por estrategia: escenas promovidas a imagen IA por carencia de archivo (material-plan.ts). */
   materialGapImages?: Partial<Record<VisualStrategy, string[]>> }): Record<VisualStrategy, ProductPlanResult> {
   const beats = input.script.beats.map((b) => ({ id: b.id, type: b.type, purpose: b.purpose, narration: b.narration, visuals: b.visuals }));
-  const providers = { ...getRealLongFormProviderNames(), ...(input.imageProvider === "recraft" ? { image: "recraft" } : {}) };
+  const providers = { ...getRealLongFormProviderNames(), ...(input.imageProvider === "recraft" || input.imageProvider === "flux" ? { image: input.imageProvider } : {}) };
   return Object.fromEntries(VISUAL_STRATEGIES.map((strategy) => [strategy, productPlan({
     beats, topic: input.script.topic || input.topic, strategy, providers,
     requestedDurationSeconds: input.durationSeconds ?? undefined, cinematicV6: input.cinematicV6,

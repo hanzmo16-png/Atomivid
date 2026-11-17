@@ -45,7 +45,7 @@ export type SupplyJobInput = { mode: string | null; script_json: unknown; record
 /** Conservative envelopes, not an account balance or a quote. Runtime rates must be verified. */
 export function jobSupplyDemands(row: SupplyJobInput, voiceProvider: string, flags: FeatureFlags = getFeatureFlags(),
   /** Anexo C1: new Director material the owner approved for this start (render route only; 0 elsewhere). */
-  opts: { directorMaterialUsd?: number; recraftUsd?: number } = {}): JobSupplyDemand[] {
+  opts: { directorMaterialUsd?: number; recraftUsd?: number; fluxUsd?: number } = {}): JobSupplyDemand[] {
   const demands = new Map<string, JobSupplyDemand>();
   const add = (provider: string, usd: number, units = usd, unit: JobSupplyDemand["unit"] = "usd") => {
     if (provider === "fixture" || provider === "curated-library" || usd === 0) return;
@@ -81,6 +81,8 @@ export function jobSupplyDemands(row: SupplyJobInput, voiceProvider: string, fla
     if ((opts.directorMaterialUsd ?? 0) > 0) add(flags.imageProvider, opts.directorMaterialUsd!);
     // «Imágenes IA con Recraft» (per-video choice): one image per scene at the published fal price (recraft-reel.ts).
     if ((opts.recraftUsd ?? 0) > 0) add("recraft", opts.recraftUsd!);
+    // «Imágenes IA con FLUX» (second selectable provider): one image per scene at the published fal price (flux-images.ts).
+    if ((opts.fluxUsd ?? 0) > 0) add("flux", opts.fluxUsd!);
     // Includes the existing one repair call. This is a ceiling, never an automatic purchase.
     if (flags.visualDirectorEnabled) add("anthropic", Number(process.env.SUPPLY_STORYBOARD_RESERVATION_USD || "2"));
     // generateVideoFromScript currently uses stock footage and optional images;

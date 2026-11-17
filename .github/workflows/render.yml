@@ -134,6 +134,9 @@ jobs:
           # owner-only paths of this worker (Director material) that were never enabled in it.
           RECRAFT_PILOT_OWNER_USER_ID: ${{ secrets.INTERNAL_PRODUCTION_OWNER_USER_ID }}
           RECRAFT_REEL_ENABLED: ${{ vars.RECRAFT_REEL_ENABLED }}
+          # FLUX (fal.ai, second selectable image provider): same owner pilot (RECRAFT_PILOT_OWNER_USER_ID), or everyone when
+          # this repository variable is "true" (flux-images.ts). Uses the same FAL_KEY; nothing is selected from the payload.
+          FLUX_IMAGES_ENABLED: ${{ vars.FLUX_IMAGES_ENABLED }}
           # Video IA: en el worker se encienden para Long Form y el ÚNICO
           # control es la allocation del plan confirmado (calculada en Vercel
           # con sus propias flags y mostrada al usuario antes de confirmar):
