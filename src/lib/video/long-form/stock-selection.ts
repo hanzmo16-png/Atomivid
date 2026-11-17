@@ -184,11 +184,25 @@ export function englishTerms(text: string | undefined): string[] {
   return out;
 }
 
+/** «480 BC», «9600 BCE», «50 a. C.»: antes de la era común, siempre histórica. */
+const BEFORE_COMMON_ERA = /\b\d[\d,.]*\s*(?:bce?|b\.\s?c\.(?:\s?e\.)?|a\.\s?c\.?|a\.\s?n\.\s?e\.)(?![a-z])/i;
+/** «AD 79», «1066 CE», «d. C. 476»: el año decide. */
+const COMMON_ERA_YEAR = /\b(?:ad|a\.d\.|d\.\s?c\.)\s*(\d{1,4})\b|\b(\d{1,4})\s*(?:ad|ce|a\.d\.|c\.e\.|d\.\s?c\.?)(?![a-z])/i;
+const PRE_MODERN_WORDS =
+  /\b(?:centur(?:y|ies)|millenni(?:um|a)|historic(?:al)?|ancient|antiquity|vintage|colonial|medieval|middle ages|renaissance|victorian|edwardian|prehistor(?:y|ic)|neolithic|paleolithic|mesolithic|stone age|bronze age|iron age|roman|byzantine|viking|feudal|pharaonic|siglo|antig[uü]edad|edad media|prehistoria|virreinal)\b/i;
+
+/**
+ * Época que ninguna imagen moderna puede contradecir. Antes solo reconocía años 1500–1999 y unas pocas palabras: «480 BC»,
+ * «1066», «AD 79», «medieval» o «Roman Empire» pasaban como actuales y un coche o un móvil no se rechazaba.
+ */
 function isHistoricalEra(era: string | undefined): boolean {
   if (!era) return false;
-  const year = /\b(1[5-9]\d\d)/.exec(era);
+  if (BEFORE_COMMON_ERA.test(era)) return true;
+  const ce = COMMON_ERA_YEAR.exec(era);
+  if (ce) return Number(ce[1] ?? ce[2]) <= 1950;
+  const year = /\b(\d{3,4})(?:s\b|\b)/.exec(era);
   if (year) return Number(year[1]) <= 1950;
-  return /(century|historic|ancient|vintage|colonial|19th|18th|17th|1[5-9]\d0s)/i.test(era);
+  return PRE_MODERN_WORDS.test(era);
 }
 
 /** Pertinencia léxica de un candidato frente a la intención de la escena. */
