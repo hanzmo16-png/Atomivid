@@ -213,9 +213,9 @@ export function ResultView({
         )}
         {/* Control de costos (2026-10-18): the script of a failed attempt is kept and reviewable. Navigation only:
             opening the review generates nothing and calls no provider. */}
+        {/* A recoverable Reel says what the review offers (the same «Reintentar» the history card links to). */}
         {request.status === "failed" && Boolean(request.script_json) && !isLongForm && (
           <div className="mt-4 flex justify-center">
-            {/* A recoverable Reel says what the review offers (the same «Reintentar» the history card links to). */}
             <LinkButton href={`/dashboard/review/${request.id}`}>{request.recorded_audio_path ? "Revisar grabación"
               : canReviewReelRetry(request, nowMs) ? "Revisar y reintentar" : "Revisar guion"}</LinkButton>
           </div>

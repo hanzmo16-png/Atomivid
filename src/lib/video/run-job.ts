@@ -288,9 +288,9 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
               } } : {}),
               ...(flux ? { flux: {} } : {}),
               targetDurationSeconds: row.duration_seconds ?? undefined,
-              onProgress,
               // END GAME C: a cancelled (or replaced) attempt sends no new paid call, even inside one stage.
               beforeNewPaidCall: assertActive,
+              onProgress,
               directorRender,
               // Anexo C1: the approved ceiling exists only in THIS attempt's image envelope (reserved by the server).
               ...(ownerTest ? { directorMaterialBudgetUsd: () => directorMaterialBudgetUsd(service, requestId, row.render_attempts) } : {}),
