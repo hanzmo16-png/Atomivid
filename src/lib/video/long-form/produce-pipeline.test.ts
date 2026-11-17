@@ -20,6 +20,10 @@ import type { FootageProvider, ImageProvider, VideoProvider, VoiceProvider } fro
 import type { LongFormProviderSet } from "./mode";
 import type { RenderLongFormDocInput } from "./render";
 import { memoryOutputDeps } from "./output-finalize";
+import { LONG_FORM_MIN_DURATION_RATIO, LongFormDurationShortfallError, LongFormRenderedDurationError } from "./duration-shortfall";
+import { execFileSync } from "node:child_process";
+import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
+import ffprobeInstaller from "@ffprobe-installer/ffprobe";
 
 /**
  * Prueba de integración del pipeline REAL de producción de Long Form
@@ -140,6 +144,9 @@ async function run(
     replayOnly?: boolean;
     thumbnails?: { calls: unknown[]; uploads: string[] };
     observedUnitMax?: ObservedMax;
+    requestedDurationSeconds?: number;
+    /** Writes the rendered file (default: fake bytes, which no ffprobe can read). */
+    renderFile?: (out: string) => void;
   } = {},
 ) {
   const script = documentary180sFixture();
@@ -166,6 +173,7 @@ async function run(
     },
     output: env.out.deps,
     replayOnly: opts.replayOnly,
+    requestedDurationSeconds: opts.requestedDurationSeconds,
     // Identidad sin ffmpeg/sharp en pruebas (SHA-256 real; sin hash perceptual).
     identify: async (buffer) => ({ sha256: createHash("sha256").update(buffer).digest("hex"), dhashUnavailable: "test" }),
     saveVisualReport: async (report) => {
@@ -176,7 +184,8 @@ async function run(
       if (opts.renders) opts.renders.count += 1;
       for (let f = 0; f <= 5400; f += 540) input.onFrameProgress?.({ renderedFrames: f, totalFrames: 5400 });
       const out = path.join(os.tmpdir(), `lf-test-${Date.now()}-${Math.random().toString(36).slice(2)}.mp4`);
-      fs.writeFileSync(out, "fake-mp4");
+      if (opts.renderFile) opts.renderFile(out);
+      else fs.writeFileSync(out, "fake-mp4");
       return out;
     },
   };
@@ -471,4 +480,69 @@ test("hard cap: reservations use the highest billed price, the confirmed images 
   assert.ok(state.hardCap!.fixedUsd + (state.used.spentUsd ?? 0) <= state.hardCap!.capUsd + 1e-9);
   // Each fake image billed 0.05; reservations were 0.06 and were settled to the bill.
   assert.ok(Math.abs((state.used.spentUsd ?? 0) - 0.05 * c.image) < 1e-6);
+});
+
+// --- END GAME B: «el video termina mucho antes de lo pedido» ---
+
+test("duración: guion estimado muy por debajo de lo pedido → se detiene ANTES de cualquier llamada pagada, con mensaje claro", async () => {
+  const c = counters();
+  const env = freshEnv();
+  const renders = { count: 0 };
+  await assert.rejects(run(env, c, planFor("balanced"), { requestedDurationSeconds: 600, renders }), (err: unknown) => {
+    assert.ok(err instanceof LongFormDurationShortfallError);
+    assert.equal(err.stage, "script");
+    assert.match(err.customerMessage, /muy por debajo de los 10 min pedidos/);
+    assert.match(err.customerMessage, /No se llamó a ningún proveedor de pago/);
+    return true;
+  });
+  assert.deepEqual(c, { voice: 0, stock: 0, image: 0, veoSubmits: 0 });
+  assert.equal(renders.count, 0);
+  assert.equal(env.out.calls.upload, 0);
+});
+
+test("duración: narración MEDIDA muy por debajo de lo pedido → sin imágenes, música, render ni subida", async () => {
+  const c = counters();
+  const env = freshEnv();
+  const renders = { count: 0 };
+  const words = documentary180sFixture().beats.reduce((n, b) => n + b.narration.trim().split(/\s+/).length, 0);
+  // The word estimate (2.5 words/s) passes the 75 % gate; the measured narration is then checked on its own.
+  const requested = Math.floor(words / 2.5 / LONG_FORM_MIN_DURATION_RATIO);
+  await assert.rejects(run(env, c, planFor("balanced"), { requestedDurationSeconds: requested, renders,
+  }), (err: unknown) => err instanceof LongFormDurationShortfallError && err.stage === "narration");
+  assert.equal(c.voice, 5, "la narración se sintetizó una vez (queda en la caché TTS)");
+  assert.equal(c.image, 0, "0 imágenes IA");
+  assert.equal(renders.count, 0, "0 render");
+  assert.equal(env.out.calls.upload, 0, "0 subidas");
+});
+
+test("duración: lo pedido dentro de la tolerancia → produce y entrega como siempre", async () => {
+  const c = counters();
+  const env = freshEnv();
+  const { result } = await run(env, c, planFor("economical"), { requestedDurationSeconds: 180 });
+  assert.equal(result.videoPath, "req-panama-qa/output/final.mp4");
+});
+
+test("duración: un MP4 real que no dura lo compuesto NO se sube ni se marca completado (fallo cerrado)", async () => {
+  const prev = { ffmpeg: process.env.FFMPEG_BIN, ffprobe: process.env.FFPROBE_BIN };
+  process.env.FFMPEG_BIN = ffmpegInstaller.path;
+  process.env.FFPROBE_BIN = ffprobeInstaller.path;
+  try {
+    const c = counters();
+    const env = freshEnv({ durationSeconds: 180 });
+    const renderFile = (out: string) => {
+      execFileSync(ffmpegInstaller.path, ["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=gray:s=320x180:r=30:d=4",
+        "-f", "lavfi", "-i", "sine=frequency=330:sample_rate=48000:duration=4", "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", out]);
+    };
+    await assert.rejects(run(env, c, planFor("economical"), { renderFile }), (err: unknown) => {
+      assert.ok(err instanceof LongFormRenderedDurationError, String(err));
+      assert.ok(err.measuredSeconds < 10 && err.composedSeconds > 100);
+      assert.match(err.customerMessage, /no se entregó/);
+      return true;
+    });
+    assert.equal(env.out.calls.upload, 0, "nada se subió a la ruta canónica");
+    assert.equal(env.out.objects.size, 0);
+  } finally {
+    if (prev.ffmpeg === undefined) delete process.env.FFMPEG_BIN; else process.env.FFMPEG_BIN = prev.ffmpeg;
+    if (prev.ffprobe === undefined) delete process.env.FFPROBE_BIN; else process.env.FFPROBE_BIN = prev.ffprobe;
+  }
 });
