@@ -4,7 +4,7 @@ Módulo nuevo y aislado para crear podcasts **solo audio**. Ruta: `/dashboard/au
 
 ## Alcance de 1.0
 
-- **Episodios**: monólogo (1 voz) o diálogo (2 voces), con perfiles de voz en español latinoamericano elegidos uno por uno y duración objetivo de 5 a 60 min.
+- **Episodios**: monólogo (1 voz) o diálogo (2 voces), en **español o inglés**, con voces del idioma del episodio elegidas una por una y duración objetivo de 5 a 60 min (ver «Idioma y voces»).
 - **Guion**:
   - se pega o se escribe en el editor;
   - «Generar estructura de guion» crea un esqueleto de secciones con pautas (sin IA ni costo);
@@ -37,18 +37,18 @@ Módulo nuevo y aislado para crear podcasts **solo audio**. Ruta: `/dashboard/au
   - «Archivados» separados;
   - archivar no borra nada.
 - **Proveedores de voz**:
-  - `AUDIO_STUDIO_VOICE=fixture` usa espeak-ng local. Solo funciona fuera de producción.
-  - El adaptador real de ElevenLabs (`realTts`) solo se activa con `AUDIO_STUDIO_PAID_TTS=1` más el mapa `AUDIO_STUDIO_ELEVENLABS_VOICES` (perfil=voiceId para los 4 perfiles).
+  - `AUDIO_STUDIO_VOICE=fixture` usa espeak-ng local («voz de prueba local»). Solo funciona fuera de producción (nunca con `VERCEL` ni `NODE_ENV=production`).
+  - El adaptador real de ElevenLabs solo se activa con `AUDIO_STUDIO_PAID_TTS=1` **y** el mapa `AUDIO_STUDIO_ELEVENLABS_VOICES` (ver «Idioma y voces»).
 
-  En 1.0 **ningún entorno tiene ese interruptor**: en producción «Generar MP3» responde 409 sin llamada ni cargo hasta una autorización posterior.
-- **Worker**: en 1.0 existe el worker en proceso (`AUDIO_STUDIO_WORKER=inline`), que usan el arnés y el CI. En producción no se activa.
+  Sin esas dos condiciones la síntesis está **inactiva**: el editor lo avisa desde el inicio, no muestra la autorización de gasto, «Generar MP3» ni «Reanudar», y el servidor rechaza cualquier generación sin llamada ni cargo. Este documento **no afirma** si producción tiene hoy la síntesis activa: depende de configuración externa al código, que se comprueba en el entorno, no aquí.
+- **Worker**: el worker en proceso (`AUDIO_STUDIO_WORKER=inline`) lo usan el arnés y el CI. En producción el modo es `github` (ver «Worker de producción»), y solo sintetiza si la síntesis real está activa.
 
 ### Primer episodio
 
 El primer episodio se carga como proyecto editable para la cuenta interna del dueño:
 
 - Título: «El día que entiendes que no puedes controlarlo todo».
-- Voz: Mateo, masculina profesional, español latinoamericano.
+- Idioma y voz: español; perfil `es-latam-m-profesional` (Víctor, masculina profesional, latinoamericano).
 - Duración: objetivo 18 min; estimado 17.9 min.
 - Costo estimado: unos USD 3.04, con un tope de USD 6.
 - Guion original sobre estoicismo, en 15 secciones.
@@ -85,19 +85,28 @@ Su id es estable por cuenta, así que nunca se duplica ni pisa una versión edit
 
 No hace falta desplegar código. No es un secreto.
 
-## Modelo de voz: Multilingual v2 y v4 Turbo
+## Idioma y voces
 
-Cada proyecto elige su modelo en el editor («Modelo de voz»). Los proyectos anteriores, sin modelo guardado, quedan en Multilingual v2.
+- **Idioma del episodio**: `es` o `en`. Se elige al crear el episodio y se puede cambiar en el editor; cambiarlo no traduce el guion, reinicia las voces a las del nuevo idioma y exige una nueva autorización (cambia la revisión). Los proyectos guardados sin idioma se leen como español.
+- **Catálogo curado** (`VOICE_PRESETS`): 4 perfiles en español (Víctor, Mateo, Ximena, Tiara Gogh) y 4 en inglés (Roger, Sarah, Callie, Matilda). En un diálogo cada participante elige su voz del idioma del episodio; una voz de otro idioma bloquea «Listo para generar».
+- **Mapa `AUDIO_STUDIO_ELEVENLABS_VOICES`** (`perfil=voiceId`, separados por comas): los **4 perfiles en español son obligatorios**; los de inglés son **opcionales** (un perfil sin voz mapeada no está disponible).
+- **Validación contra la cuenta real**: con la síntesis real activa, `GET /api/audio-studio/voices` (exige sesión) consulta `GET /v1/voices` de ElevenLabs (sin síntesis ni costo) y devuelve solo las voces configuradas, públicas y compatibles con cada modelo; nunca expone clones privados. El servidor vuelve a validar idioma y compatibilidad **antes de encolar y antes de sintetizar**: una voz no disponible se rechaza sin cargo, nunca se sustituye en silencio.
+- **Estado de la síntesis**: la misma ruta responde `synthesis` = `real`, `local` o `inactiva`, calculado con la misma función que usa el servidor para generar (`voiceAvailability`). No devuelve valores de variables ni el motivo interno. Con `inactiva` no consulta al proveedor (0 llamadas salientes).
+- **Guion en inglés**: además de «Voz 1:» / «Voz 2:», se admite «Voice 1:» / «Voice 2:».
+
+## Modelo de voz: V4 Turbo y Multilingual v2
+
+Cada proyecto elige su modelo en el editor («Modelo de voz»). **Los proyectos nuevos empiezan en V4 Turbo.** Los proyectos anteriores, sin modelo guardado, se leen como Multilingual v2 (legado): ningún proyecto cambia de modelo al leerse.
 
 | Modelo | Rol | Tarifa usada en la estimación | Ajustes que se envían |
 |---|---|---|---|
-| `eleven_multilingual_v2` | Por defecto y **respaldo** | Tarifa efectiva de producción (`PRICING_ELEVENLABS_USD_PER_1K_CHARS`, nunca menos de USD 0,20/1K) | stability, similarity_boost, style, use_speaker_boost |
-| `eleven_v4_turbo` | Seleccionable, **en evaluación** | `AUDIO_STUDIO_RATE_ELEVEN_V4_TURBO` si se comprobó en la cuenta (nunca menos que la de lista, USD 0,04/1K); si no, **la misma de v2** | stability, similarity_boost |
+| `eleven_v4_turbo` | **Por defecto en proyectos nuevos** | `AUDIO_STUDIO_RATE_ELEVEN_V4_TURBO` si se comprobó en la cuenta (nunca menos que la de lista, USD 0,04/1K); si no, **la misma de v2** | stability, similarity_boost |
+| `eleven_multilingual_v2` | **Respaldo explícito** y modelo de los proyectos anteriores | Tarifa efectiva de producción (`PRICING_ELEVENLABS_USD_PER_1K_CHARS`, nunca menos de USD 0,20/1K) | stability, similarity_boost, style, use_speaker_boost |
 
 - **Sin descuentos no comprobados.** Mientras la tarifa real de v4 Turbo en la cuenta no esté comprobada, se estima igual que v2. El editor lo indica.
 - **Autorización ligada al modelo.** La autorización de gasto guarda el modelo. El worker se niega a sintetizar con otro.
 - **Sin cambio automático de proveedor ni de modelo.** Si v4 Turbo falla, el episodio queda «Falló» en v4 Turbo. Pasar a v2 es un botón explícito («Cambiar a Multilingual v2 (respaldo)»): borra la autorización vigente y exige una nueva. Así no hay doble cobro.
-- **Caché separada.** Clave = proveedor + modelo + voz + texto + ajustes de síntesis. Cambiar cualquiera vuelve a sintetizar; igualdad nunca se paga dos veces.
+- **Caché separada.** Clave = proveedor + modelo + voz + texto + ajustes de síntesis. Los episodios en inglés añaden `language: "en"` a los ajustes de la clave, así que las claves en español son las mismas de siempre (la caché existente sigue valiendo). Cambiar cualquiera vuelve a sintetizar; igualdad nunca se paga dos veces.
 - **Límite por solicitud.** 10.000 caracteres por intervención en ambos modelos. Una línea más larga bloquea «Listo para generar».
 
 Presupuesto del episodio inicial (18 min, 15.182 caracteres):
@@ -121,7 +130,7 @@ Presupuesto del episodio inicial (18 min, 15.182 caracteres):
   - No comparte evento con Reels, Long Form ni Podcast Premium.
   - El payload lleva solo los dos UUID.
 - El worker (`scripts/audio-studio/worker.ts`) **no genera nada** salvo que se cumplan las tres condiciones:
-  - la variable de repositorio `AUDIO_STUDIO_PAID_TTS` vale `1` (hoy no está definida);
+  - la variable de repositorio `AUDIO_STUDIO_PAID_TTS` vale `1` (su valor real no se documenta aquí: se comprueba en la configuración del repositorio);
   - existen `AUDIO_STUDIO_ELEVENLABS_VOICES`;
   - el proyecto trae una autorización guardada para el mismo modelo y monto.
 
@@ -141,7 +150,10 @@ Presupuesto del episodio inicial (18 min, 15.182 caracteres):
 | Tipo | Archivo | Qué cubre |
 |---|---|---|
 | Unitarias, integración y seguridad | `src/lib/audio-studio/audio-studio.test.ts` | Modelo, servicio, almacén en Storage simulado, aislamiento, costo, bloqueo de pago, aislamiento de código |
+| Modelos | `src/lib/audio-studio/v4-turbo.test.ts` | V4 Turbo por defecto, v2 de respaldo y legado, autorización ligada al modelo, worker |
+| Idiomas | `src/lib/audio-studio/languages.test.ts` | Español/inglés, voces por idioma, catálogo |
 | Render | `src/app/dashboard/audio-studio/audio-studio.render.test.tsx` | Biblioteca y editor |
+| Síntesis inactiva | `src/app/dashboard/audio-studio/sintesis-inactiva.render.test.tsx` | Aviso y ocultación del gasto con síntesis inactiva; flujo intacto con síntesis real/local; matriz de disponibilidad; contrato de la ruta de voces |
 | E2E | `scripts/harness/e2e/audio-studio/audio-studio-e2e.cjs` | Ver abajo |
 
 El E2E corre en Samsung 390×844 y en escritorio 1440×900, con un arnés local sin red externa. Cubre:
@@ -150,7 +162,7 @@ El E2E corre en Samsung 390×844 y en escritorio 1440×900, con un arnés local 
 - creación y guardado de episodios, con conservación tras recargar;
 - guardado automático y conflicto entre pestañas;
 - música y presupuesto;
-- generación bloqueada;
+- generación bloqueada hasta autorizar; estado de síntesis «local» informado por la ruta de voces y visible en el editor;
 - archivar y restaurar;
 - aislamiento entre cuentas por interfaz y por API;
 - 401 sin sesión y 415 para envíos que no son JSON;

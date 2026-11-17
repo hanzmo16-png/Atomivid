@@ -17,7 +17,10 @@ const same = (a: Draft, b: Draft) => JSON.stringify(a) === JSON.stringify(b);
 const usd = (n: number) => `USD ${n.toFixed(2)}`;
 const AUTOSAVE_MS = 2500;
 
-export function AudioEditor({ initial }: { initial: ProjectView }) {
+/** Estado de la síntesis según el servidor: "real" (ElevenLabs), "local" (voz de prueba) o "inactiva". */
+export type Synthesis = "real" | "local" | "inactiva";
+
+export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { initial: ProjectView; synthesis?: Synthesis | null }) {
   const [saved, setSaved] = useState<ProjectView>(initial);
   const [draft, setDraft] = useState<Draft>(() => draftOf(initial));
   const [state, setState] = useState<"idle" | "saving" | "error" | "conflict">("idle");
@@ -26,10 +29,12 @@ export function AudioEditor({ initial }: { initial: ProjectView }) {
   const [catalog, setCatalog] = useState<StudioCatalogVoice[] | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [catalogReload, setCatalogReload] = useState(0);
+  const [synthesis, setSynthesis] = useState<Synthesis | null>(initialSynthesis);
   useEffect(() => {
     let alive = true;
     fetch("/api/audio-studio/voices", { cache: "no-store" }).then(async res => {
       const body = await res.json();
+      if (alive && (body.synthesis === "real" || body.synthesis === "local" || body.synthesis === "inactiva")) setSynthesis(body.synthesis);
       if (!res.ok) throw new Error(body.error ?? "No se pudieron cargar las voces.");
       if (alive) { setCatalog(body.voices); setCatalogError(null); }
     }).catch(err => { if (alive) setCatalogError(err.message); });
@@ -134,6 +139,10 @@ export function AudioEditor({ initial }: { initial: ProjectView }) {
   });
   const available = (id: string) => catalog?.find(v => v.id === id)?.models.includes(draft.ttsModel) ?? false;
   const catalogReady = catalog !== null && draft.voices.every(available);
+  // Sin síntesis real ni local no se ofrece gasto ni generación. Hasta conocer el estado, tampoco.
+  const inactive = synthesis === "inactiva";
+  const canPay = synthesis === "real" || synthesis === "local";
+  const checkVoices = catalog !== null && !inactive;
 
   const saveLabel = state === "saving" ? "Guardando…" : state === "conflict" ? "Conflicto de versiones" : state === "error" ? "No guardado" : dirty ? "Cambios sin guardar" : "Guardado";
 
@@ -180,7 +189,7 @@ export function AudioEditor({ initial }: { initial: ProjectView }) {
               <div key={i}>
                 <label htmlFor={`audio-voice-${i}`} className="mb-1 block text-xs text-ink-muted">{draft.voiceCount === 1 ? "Voz" : `Voz ${i + 1}`}</label>
                 <select id={`audio-voice-${i}`} data-testid={`audio-voice-${i}`} className={INPUT_CLASS} value={v} disabled={locked} onChange={(e) => setVoice(i, e.target.value)}>
-                  {VOICE_PRESETS.filter(p => p.language === draft.language).map((p) => <option key={p.id} value={p.id} disabled={catalog !== null && !available(p.id)}>{p.label} — {p.gender}{catalog !== null && !available(p.id) ? " (no disponible con este modelo)" : ""}</option>)}
+                  {VOICE_PRESETS.filter(p => p.language === draft.language).map((p) => <option key={p.id} value={p.id} disabled={checkVoices && !available(p.id)}>{p.label} — {p.gender}{checkVoices && !available(p.id) ? " (no disponible con este modelo)" : ""}</option>)}
                 </select>
                 <p className="mt-1 text-xs text-ink-faint">{voicePreset(v)?.accent} · {voicePreset(v)?.style}</p>
                 {catalog?.find(c => c.id === v)?.previewUrl && <div className="mt-2"><span className="text-xs text-ink-muted">Muestra de la voz (catálogo de ElevenLabs)</span><audio aria-label={`Muestra de ${voicePreset(v)?.label}`} controls preload="none" className="mt-1 w-full" src={catalog.find(c => c.id === v)!.previewUrl!} /></div>}
@@ -189,7 +198,7 @@ export function AudioEditor({ initial }: { initial: ProjectView }) {
           </div>
           {catalogError && <p role="alert" className="mt-2 text-sm text-danger">{catalogError} <button type="button" className="underline" onClick={() => setCatalogReload(n => n + 1)}>Reintentar</button></p>}
           {!catalog && !catalogError && <p className="mt-2 text-xs text-ink-muted">Comprobando voces disponibles…</p>}
-          {catalog && !catalogReady && <p className="mt-2 text-sm text-danger">Elige voces disponibles para este modelo antes de generar.</p>}
+          {checkVoices && !catalogReady && <p className="mt-2 text-sm text-danger">Elige voces disponibles para este modelo antes de generar.</p>}
           {draft.voiceCount === 2 && <p className="mt-2 text-xs text-ink-muted">En el guion, empieza cada intervención con «Voz 1:» o «Voz 2:» (en inglés también «Voice 1:» / «Voice 2:»).</p>}
           <div className="mt-3">
             <label htmlFor="audio-model" className="mb-1 block text-xs text-ink-muted">Modelo de voz</label>
@@ -295,6 +304,14 @@ export function AudioEditor({ initial }: { initial: ProjectView }) {
             <span data-testid="audio-generation-status">{running || g.status !== "generando" ? GENERATION_LABEL[g.status] : "Interrumpida"}</span>
           </Badge>
         </div>
+        {inactive && (
+          <p role="status" className="rounded-md border border-border bg-surface-raised p-3 text-sm text-ink" data-testid="audio-voice-disabled">
+            La generación de audio con voz todavía no está activada. Puedes escribir, guardar, archivar y restaurar el episodio; no se puede generar el MP3 y no se hará ningún cargo.
+          </p>
+        )}
+        {synthesis === "local" && (
+          <p className="text-xs text-ink-muted" data-testid="audio-voice-local">Voz de prueba local: el MP3 se genera con una voz sintética de prueba, no con la voz final. Sin costo.</p>
+        )}
         {issues.length > 0 ? (
           <ul className="list-disc space-y-1 pl-5 text-sm text-ink-muted" data-testid="audio-readiness">{issues.map((i) => <li key={i}>{i}</li>)}</ul>
         ) : (
@@ -319,7 +336,7 @@ export function AudioEditor({ initial }: { initial: ProjectView }) {
             <a href={`/api/audio-studio/projects/${saved.id}/audio?descargar=1`} className="inline-flex min-h-11 items-center text-sm font-medium text-accent underline" data-testid="audio-download">Descargar MP3</a>
           </div>
         )}
-        {!archived && !running && g.status !== "fallida" && (
+        {canPay && !archived && !running && g.status !== "fallida" && (
           <label className="flex min-h-11 items-start gap-2 text-sm text-ink">
             <input type="checkbox" className="mt-1" data-testid="audio-authorize" checked={authorized} disabled={issues.length > 0 || !!busy} onChange={(e) => setAuthorized(e.target.checked)} />
             <span>Autorizo un gasto de hasta <strong data-testid="audio-authorize-usd">USD {live.estimatedUsd.toFixed(2)}</strong> en voz para generar este episodio (tope del episodio USD {draft.budgetUsd.toFixed(2)}).</span>
@@ -329,10 +346,10 @@ export function AudioEditor({ initial }: { initial: ProjectView }) {
           {!locked && saved.status !== "listo_para_autorizar" && (
             <Button variant="secondary" className="min-h-11" data-testid="audio-ready" disabled={issues.length > 0 || !!busy} loading={busy === "listo"} onClick={() => void action("listo")}>Marcar listo para autorizar</Button>
           )}
-          {!archived && !running && g.status !== "fallida" && (
+          {canPay && !archived && !running && g.status !== "fallida" && (
             <Button className="min-h-11" data-testid="audio-generate" disabled={!authorized || !catalogReady || issues.length > 0 || !!busy} loading={busy === "generar"} onClick={() => void action("generar")}>Generar MP3</Button>
           )}
-          {!archived && !running && (g.status === "fallida" || g.status === "generando" || g.status === "en_cola") && (
+          {canPay && !archived && !running && (g.status === "fallida" || g.status === "generando" || g.status === "en_cola") && (
             <Button className="min-h-11" data-testid="audio-resume" disabled={!!busy} loading={busy === "reanudar"} onClick={() => void action("reanudar")}>Reanudar</Button>
           )}
           {!archived && !running && g.status === "fallida" && saved.ttsModel !== FALLBACK_TTS_MODEL && (
