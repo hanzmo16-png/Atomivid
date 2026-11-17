@@ -77,3 +77,43 @@ test("clip sound only when a video scene's direction asks for it; label wording 
   assert.equal(labelTextFor(d({ label: "recreacion_ia", labelText: "  " })), "Recreación IA", "an empty override never removes the label");
   assert.equal(labelTextFor(d({ labelText: "x" })), null, "no label, no badge");
 });
+
+test("end card (CTA): off by default, last 1.5 s only, never over the hook, fades in and holds to the end", async () => {
+  const { END_CARD_SECONDS, END_CARD_FADE_FRAMES, endCardStyleAt, endCardText, endCardWindow } = await import("./reel-direction");
+  for (const off of [undefined, null, "", "   "]) assert.equal(endCardWindow(off, FPS, 30 * FPS), null, "no text = no card");
+  for (const seconds of [15, 30, 60]) {
+    const total = Math.round((seconds - 0.4) * FPS);
+    const w = endCardWindow("Sígueme para más", FPS, total)!;
+    assert.equal(w.durationInFrames, Math.round(END_CARD_SECONDS * FPS));
+    assert.equal(w.from + w.durationInFrames, total, `${seconds}s: the card ends exactly on the last frame`);
+    // The hook (first scene, ~5 s in a 15 s Short) is never covered.
+    assert.ok(w.from / FPS > 6, `${seconds}s: card starts at ${w.from / FPS}s`);
+  }
+  assert.equal(endCardWindow("Sígueme", FPS, 7 * FPS), null, "too short to carry a card without crowding the hook");
+  assert.deepEqual(endCardStyleAt(0), { opacity: 0, scale: 0.94 });
+  assert.deepEqual(endCardStyleAt(END_CARD_FADE_FRAMES), { opacity: 1, scale: 1 });
+  assert.deepEqual(endCardStyleAt(40), { opacity: 1, scale: 1 }, "holds until the end (no fade-out to black)");
+  assert.equal(endCardText("  Sígueme \n para   más "), "Sígueme para más");
+  assert.equal(endCardText("x".repeat(80))!.length, 40);
+});
+
+test("end card is wired: VerticalReel draws it in its own Sequence above the caption band, generate-video passes it", async () => {
+  const fs = await import("node:fs");
+  const reel = fs.readFileSync(new URL("./VerticalReel.tsx", import.meta.url), "utf8");
+  assert.match(reel, /endCardWindow\(rawEndCardText, fps, durationInFrames\)/);
+  assert.match(reel, /<Sequence from=\{endCard\.from\} durationInFrames=\{endCard\.durationInFrames\}>/);
+  const top = Number(/const END_CARD_TOP = (\d+);/.exec(reel)![1]);
+  const safeBottom = Number(/const SAFE_BOTTOM_PADDING = (\d+);/.exec(reel)![1]);
+  // Caption box: at most 2 lines of 64 px × 1.2 + padding, sitting on the bottom safe area of a 1920 px frame.
+  const captionTop = 1920 - safeBottom - (2 * 64 * 1.2 + 28);
+  assert.ok(top + 58 * 1.15 * 2 + 44 < captionTop, "a two-line CTA still ends above the caption band");
+  const gen = fs.readFileSync(new URL("../src/lib/video/generate-video.ts", import.meta.url), "utf8");
+  assert.match(gen, /endCardText = reelEndCardText\(\)/);
+  assert.match(gen, /showLogo: shouldShowLogo\(\),\n\s*endCardText,/);
+  const { reelEndCardText } = await import("../src/lib/video/brand");
+  const prev = process.env.REEL_END_CARD_TEXT;
+  try {
+    delete process.env.REEL_END_CARD_TEXT; assert.equal(reelEndCardText(), null, "off by default");
+    process.env.REEL_END_CARD_TEXT = "  Sígueme  para más "; assert.equal(reelEndCardText(), "Sígueme para más");
+  } finally { if (prev === undefined) delete process.env.REEL_END_CARD_TEXT; else process.env.REEL_END_CARD_TEXT = prev; }
+});

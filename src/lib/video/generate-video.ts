@@ -28,7 +28,7 @@ import { createFootageSelectionState, selectFootageForScene } from "@/lib/video/
 import { checkDuration, assertNarrationDuration } from "@/lib/video/duration-check";
 import { LOUDNESS_TARGET, masterAudioLoudness } from "@/lib/video/audio-master";
 import { buildEmphasisSet } from "@/lib/video/caption-emphasis";
-import { getAccentColor, shouldShowLogo } from "@/lib/video/brand";
+import { getAccentColor, reelEndCardText, shouldShowLogo } from "@/lib/video/brand";
 import { evaluateQualityGate, QUALITY_GATE_MIN_SCORE } from "@/lib/video/quality-gate";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { buildStoryboard } from "@/lib/video/storyboard";
@@ -83,8 +83,11 @@ export async function generateVideoFromScript({
   directorAdapter,
   recraft,
   flux,
+  endCardText = reelEndCardText(),
 }: {
   supabase: SupabaseClient;
+  /** CTA opcional de cierre (últimos 1,5 s). Por defecto REEL_END_CARD_TEXT (apagado si está vacío). */
+  endCardText?: string | null;
   /**
    * «Imágenes IA con FLUX» chosen by the creator for THIS Reel (video_requests.reel_image_source='flux'): one FLUX.1
    * [dev] image per scene (720×1280) through the same paid-call gate; a failure stops the render (no stock, no fixture,
@@ -725,6 +728,7 @@ export async function generateVideoFromScript({
     captions: renderCaptions,
     narrationGaps,
     durationSeconds: finalDurationSeconds,
+    endCardText,
   });
   const renderMs = Date.now() - renderStartedAt;
 
@@ -854,6 +858,7 @@ async function renderVerticalReel({
   captions,
   narrationGaps,
   durationSeconds,
+  endCardText,
 }: {
   audioUrl: string;
   musicUrl?: string;
@@ -861,6 +866,7 @@ async function renderVerticalReel({
   captions: Caption[];
   narrationGaps: NarrationGap[];
   durationSeconds: number;
+  endCardText: string | null;
 }): Promise<string> {
   const entryPoint = path.join(process.cwd(), "remotion", "index.ts");
   const browserExecutable = process.env.REMOTION_BROWSER_EXECUTABLE || undefined;
@@ -882,6 +888,7 @@ async function renderVerticalReel({
     durationSeconds,
     accentColor: getAccentColor(),
     showLogo: shouldShowLogo(),
+    endCardText,
   };
 
   const composition = await selectComposition({
