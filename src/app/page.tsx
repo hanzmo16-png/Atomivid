@@ -31,7 +31,7 @@ const BENEFITS = [
   },
   {
     title: "Formato listo para redes",
-    body: "Video vertical 9:16 de 30, 60 o 90 segundos, con subtítulos incrustados y clips o imágenes por escena.",
+    body: "Video vertical 9:16 de 15, 30, 60 o 90 segundos, con subtítulos incrustados y clips o imágenes por escena.",
     icon: IconPhone,
   },
 ];
