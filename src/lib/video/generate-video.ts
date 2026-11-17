@@ -5,7 +5,7 @@ import { getPricingConfig } from "@/lib/billing/pricing";
 import { gatedMusicTrack, gatedVoiceSynthesize, type PaidCallDeps } from "@/lib/paid-calls/gated-providers";
 import { supabaseLedgerStore } from "@/lib/paid-calls/supabase-ledger-store";
 import { supabaseResultStore } from "@/lib/paid-calls/result-store";
-import { buildCaptions } from "./captions";
+import { buildSceneCaptions } from "./captions";
 import { VIDEO_TAIL_SECONDS } from "./script-pacing";
 import { ProviderConfigurationError } from "@/lib/providers/production";
 import path from "node:path";
@@ -641,7 +641,8 @@ export async function generateVideoFromScript({
   // marcadas para énfasis visual (ver caption-emphasis.ts).
   const scriptEmphasisWords = script.segments.flatMap((s) => s.emphasisWords ?? []);
   const emphasisSet = buildEmphasisSet(scriptEmphasisWords);
-  const captions = buildCaptions(voice.words, emphasisSet);
+  // Por escena: un subtítulo nunca cruza un corte de escena (texto viejo sobre imagen nueva).
+  const captions = buildSceneCaptions(voice.words, script.segments.map((s) => s.text), emphasisSet);
   const narrationGaps = computeNarrationGaps(voice.words);
 
   // 6b. Director cinematográfico (solo si el worker lo decidió: CINEMATIC_DIRECTOR_RENDER_ENABLED + cuenta piloto + Reel visual;
