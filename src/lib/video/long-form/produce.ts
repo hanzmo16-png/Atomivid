@@ -33,10 +33,9 @@ import path from "node:path";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildCaptions } from "../captions";
 import { buildEmphasisSet } from "../caption-emphasis";
-import { LOUDNESS_TARGET, masterAudioLoudness } from "../audio-master";
-
-/** Margen de pico real de Long Form: la codificación AAC subía el pico ~0.3 dB sobre −1.5 dBTP (muestra M2: −1.21). */
-export const LONG_FORM_TRUE_PEAK_MARGIN_DB = 1.0;
+import { LOUDNESS_TARGET } from "../audio-master";
+import { masterLongFormAudio } from "./mastering";
+export { LONG_FORM_TRUE_PEAK_MARGIN_DB } from "./mastering";
 import { VIDEO_TAIL_SECONDS } from "../script-pacing";
 import { computeNarrationGaps } from "../../../../remotion/audio-mix";
 import { getVideoProvider } from "@/lib/providers/video-gen";
@@ -815,7 +814,7 @@ export async function generateLongFormVideoFromScript({
     withHeartbeat(() => onProgress?.("rendering", { completed: lastReportedFrames, total: Math.max(lastReportedFrames, 1), label: "fotogramas" }));
   try {
     const masteredPath = rawOutputPath.replace(/\.mp4$/, ".mastered.mp4");
-    const mastering = await keepAlive()(() => masterAudioLoudness(rawOutputPath, masteredPath, { faststart: true, truePeakMarginDb: LONG_FORM_TRUE_PEAK_MARGIN_DB }));
+    const mastering = await keepAlive()(() => masterLongFormAudio(rawOutputPath, masteredPath));
     outputPath = masteredPath;
     console.log("[atomivid:long-form:produce] masterización de loudness", JSON.stringify({ requestId, target: LOUDNESS_TARGET, ...mastering }));
   } catch (err) {
