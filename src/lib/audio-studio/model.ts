@@ -39,27 +39,33 @@ export type TtsModel = {
 export const TTS_MODELS: readonly TtsModel[] = [
   { id: "eleven_multilingual_v2", label: "Multilingual v2 (estándar)", description: "Modelo actual de Atomivid. Máxima estabilidad en narraciones largas.",
     listUsdPer1k: 0.08, maxCharsPerRequest: 10_000, voiceSettings: ["stability", "similarity_boost", "style", "use_speaker_boost"], verified: true, fallback: true },
-  { id: "eleven_v4_turbo", label: "v4 Turbo (rápido, en evaluación)", description: "Más rápido y expresivo; tarifa de lista la mitad que v2. Capacidades y tarifa de la cuenta aún sin verificar.",
+  { id: "eleven_v4_turbo", label: "V4 Turbo (preferido)", description: "Voces en español e inglés. El costo se estima de forma conservadora.",
     listUsdPer1k: 0.04, maxCharsPerRequest: 10_000, voiceSettings: ["stability", "similarity_boost"], verified: false, fallback: false },
 ];
-export const DEFAULT_TTS_MODEL: TtsModelId = "eleven_multilingual_v2";
+export const DEFAULT_TTS_MODEL: TtsModelId = "eleven_v4_turbo";
 export const FALLBACK_TTS_MODEL: TtsModelId = "eleven_multilingual_v2";
 export const ttsModel = (id: string): TtsModel | null => TTS_MODELS.find((m) => m.id === id) ?? null;
 export const DEFAULT_BUDGET_USD = 6;
 export const MAX_BUDGET_USD = 20;
 
+export type StudioLanguage = "es" | "en";
+export const LANGUAGES = [{ id: "es", label: "Español" }, { id: "en", label: "English" }] as const;
+
 export type VoiceGender = "masculina" | "femenina";
-export type VoicePreset = { id: string; label: string; gender: VoiceGender; accent: string; style: string };
+export type VoicePreset = { id: string; label: string; gender: VoiceGender; accent: string; style: string; language: StudioLanguage };
 
 /**
- * Perfiles de voz del estudio. Son perfiles, no voces del proveedor: la voz concreta de ElevenLabs se confirma al
- * autorizar la primera generación real (consultar el catálogo del proveedor no forma parte de 1.0).
+ * Catálogo curado por idioma. El servidor comprueba disponibilidad y compatibilidad en la cuenta antes de generar.
  */
 export const VOICE_PRESETS: readonly VoicePreset[] = [
-  { id: "es-latam-m-profesional", label: "Mateo — masculina profesional", gender: "masculina", accent: "Español latinoamericano", style: "Grave, pausada, de locutor" },
-  { id: "es-latam-m-calida", label: "Andrés — masculina cálida", gender: "masculina", accent: "Español latinoamericano", style: "Cercana, conversacional" },
-  { id: "es-latam-f-profesional", label: "Lucía — femenina profesional", gender: "femenina", accent: "Español latinoamericano", style: "Clara, serena, de locutora" },
-  { id: "es-latam-f-energica", label: "Sofía — femenina enérgica", gender: "femenina", accent: "Español latinoamericano", style: "Dinámica, expresiva" },
+  { id: "es-latam-m-profesional", label: "Víctor", gender: "masculina", accent: "Latinoamericano", style: "Profesional", language: "es" },
+  { id: "es-latam-m-calida", label: "Mateo", gender: "masculina", accent: "Latinoamericano", style: "Conversacional", language: "es" },
+  { id: "es-latam-f-profesional", label: "Ximena", gender: "femenina", accent: "Mexicano", style: "Suave y envolvente", language: "es" },
+  { id: "es-latam-f-energica", label: "Tiara Gogh", gender: "femenina", accent: "Mexicano", style: "Narración", language: "es" },
+  { id: "en-us-m-roger", label: "Roger", gender: "masculina", accent: "American", style: "Casual, resonant", language: "en" },
+  { id: "en-us-f-sarah", label: "Sarah", gender: "femenina", accent: "American", style: "Reassuring, confident", language: "en" },
+  { id: "en-us-f-callie", label: "Callie", gender: "femenina", accent: "American", style: "Playful, friendly", language: "en" },
+  { id: "en-us-f-matilda", label: "Matilda", gender: "femenina", accent: "American", style: "Knowledgeable, professional", language: "en" },
 ];
 export const voicePreset = (id: string) => VOICE_PRESETS.find((v) => v.id === id) ?? null;
 
@@ -78,7 +84,7 @@ export type AudioProject = {
   ownerId: string;
   version: typeof MODULE_VERSION;
   title: string;
-  language: "es";
+  language: StudioLanguage;
   voiceCount: 1 | 2;
   voices: string[];
   targetMinutes: number;
@@ -127,7 +133,7 @@ export function generationActive(g: Generation, now: number): boolean {
 }
 export const GENERATION_LABEL: Record<GenerationStatus, string> = { inactiva: "Sin generar", en_cola: "En cola", generando: "Generando", terminada: "Audio listo", fallida: "Falló" };
 
-export type ProjectInput = Partial<Pick<AudioProject, "title" | "voiceCount" | "voices" | "targetMinutes" | "script" | "notes" | "music" | "budgetUsd" | "ttsModel">>;
+export type ProjectInput = Partial<Pick<AudioProject, "title" | "language" | "voiceCount" | "voices" | "targetMinutes" | "script" | "notes" | "music" | "budgetUsd" | "ttsModel">>;
 
 export class ValidationError extends Error {
   constructor(readonly field: string, message: string) { super(message); this.name = "ValidationError"; }
@@ -174,6 +180,10 @@ function cleanVoices(count: 1 | 2, v: unknown): string[] {
 export function applyInput(prev: AudioProject, input: ProjectInput, now: string): AudioProject {
   if (!input || typeof input !== "object") throw new ValidationError("body", "Datos del proyecto no válidos.");
   const next: AudioProject = { ...prev, music: { ...prev.music }, voices: [...prev.voices] };
+  if (input.language !== undefined) {
+    if (input.language !== "es" && input.language !== "en") throw new ValidationError("language", "Elige español o inglés.");
+    next.language = input.language;
+  }
   if (input.title !== undefined) {
     const t = cleanText(input.title, MAX_TITLE, "título").replace(/\s+/g, " ").trim();
     if (!t) throw new ValidationError("title", "El episodio necesita un título.");
@@ -184,7 +194,7 @@ export function applyInput(prev: AudioProject, input: ProjectInput, now: string)
     next.voiceCount = input.voiceCount;
   }
   if (input.voices !== undefined || input.voiceCount !== undefined) {
-    const wanted = input.voices ?? (next.voiceCount === 2 && next.voices.length === 1 ? [next.voices[0], defaultSecondVoice(next.voices[0])] : next.voices);
+    const wanted = input.voices ?? (next.voiceCount === 2 && next.voices.length === 1 ? [next.voices[0], defaultSecondVoice(next.voices[0], next.language)] : next.voices);
     next.voices = cleanVoices(next.voiceCount, wanted);
   }
   if (input.targetMinutes !== undefined) next.targetMinutes = clampInt(input.targetMinutes, MIN_TARGET_MINUTES, MAX_TARGET_MINUTES, "duración");
@@ -208,23 +218,27 @@ export function applyInput(prev: AudioProject, input: ProjectInput, now: string)
 }
 
 const contentChanged = (a: AudioProject, b: AudioProject) =>
-  a.ttsModel !== b.ttsModel ||
+  a.language !== b.language || a.ttsModel !== b.ttsModel ||
   a.title !== b.title || a.script !== b.script || a.voiceCount !== b.voiceCount || a.voices.join() !== b.voices.join() ||
   a.targetMinutes !== b.targetMinutes || JSON.stringify(a.music) !== JSON.stringify(b.music) || a.budgetUsd !== b.budgetUsd;
 
-export function defaultSecondVoice(first: string): string {
+export function defaultSecondVoice(first: string, language: StudioLanguage = voicePreset(first)?.language ?? "es"): string {
   const g = voicePreset(first)?.gender;
-  return (VOICE_PRESETS.find((v) => v.id !== first && v.gender !== g) ?? VOICE_PRESETS.find((v) => v.id !== first))!.id;
+  const voices = VOICE_PRESETS.filter((v) => v.language === language);
+  return (voices.find((v) => v.id !== first && v.gender !== g) ?? voices.find((v) => v.id !== first))!.id;
 }
 
-export function newProject(args: { id: string; ownerId: string; now: string; title?: string; voiceCount?: 1 | 2 }): AudioProject {
+export function newProject(args: { id: string; ownerId: string; now: string; title?: string; voiceCount?: 1 | 2; language?: StudioLanguage }): AudioProject {
   if (!isUuid(args.id) || !isUuid(args.ownerId)) throw new ValidationError("id", "Identificador no válido.");
   const base: AudioProject = {
     id: args.id, ownerId: args.ownerId, version: MODULE_VERSION, title: "Episodio sin título", language: "es", voiceCount: 1,
     voices: [VOICE_PRESETS[0].id], targetMinutes: 10, script: "", notes: "", music: { ...DEFAULT_MUSIC }, budgetUsd: DEFAULT_BUDGET_USD, ttsModel: DEFAULT_TTS_MODEL,
     status: "borrador", spentUsd: 0, audio: null, generation: { ...IDLE_GENERATION }, revision: 0, archivedAt: null, createdAt: args.now, updatedAt: args.now,
   };
-  const p = applyInput(base, { title: args.title ?? base.title, voiceCount: args.voiceCount ?? 1 }, args.now);
+  const language = args.language ?? "es";
+  const first = VOICE_PRESETS.find(v => v.language === language)!.id;
+  const voices = [first, defaultSecondVoice(first, language)].slice(0, args.voiceCount ?? 1);
+  const p = applyInput(base, { title: args.title ?? base.title, language, voices, voiceCount: args.voiceCount ?? 1 }, args.now);
   return { ...p, revision: 1 };
 }
 
@@ -236,8 +250,8 @@ export function parseStored(raw: unknown, ownerId: string): AudioProject | null 
   try {
     const base = newProject({ id: r.id, ownerId, now: typeof r.createdAt === "string" ? r.createdAt : new Date(0).toISOString() });
     const p = applyInput(base, {
-      title: r.title as string, voiceCount: r.voiceCount as 1 | 2, voices: r.voices as string[], targetMinutes: r.targetMinutes as number,
-      script: r.script as string, notes: (r.notes as string) ?? "", music: r.music as MusicConfig, budgetUsd: r.budgetUsd as number, ttsModel: (ttsModel(String(r.ttsModel ?? "")) ? r.ttsModel : DEFAULT_TTS_MODEL) as TtsModelId,
+      title: r.title as string, language: (r.language ?? "es") as StudioLanguage, voiceCount: r.voiceCount as 1 | 2, voices: r.voices as string[], targetMinutes: r.targetMinutes as number,
+      script: r.script as string, notes: (r.notes as string) ?? "", music: r.music as MusicConfig, budgetUsd: r.budgetUsd as number, ttsModel: (ttsModel(String(r.ttsModel ?? "")) ? r.ttsModel : FALLBACK_TTS_MODEL) as TtsModelId,
     }, typeof r.updatedAt === "string" ? r.updatedAt : base.updatedAt);
     return {
       ...p,
@@ -289,7 +303,7 @@ function parseGeneration(v: unknown): Generation {
 // Guion, duración y costo
 
 export type ScriptLine = { voice: 0 | 1; text: string; section: number };
-const SPEAKER = /^\s*(?:voz\s*([12])|\[([12])\])\s*[:\-—]\s*/i;
+const SPEAKER = /^\s*(?:(?:voz|voice)\s*([12])|\[([12])\])\s*[:\-—]\s*/i;
 
 /** Divide el guion en intervenciones. Con dos voces, «Voz 1:» / «Voz 2:» (o «[1]:») cambian de voz. */
 export function scriptLines(script: string, voiceCount: 1 | 2): ScriptLine[] {
@@ -403,6 +417,7 @@ export function readinessIssues(p: AudioProject, e: Estimate): string[] {
   const issues: string[] = [];
   const limit = ttsModel(p.ttsModel)?.maxCharsPerRequest ?? 10_000;
   if (scriptLines(p.script, p.voiceCount).some((l) => l.text.length > limit)) issues.push(`Una intervención supera ${limit.toLocaleString("es")} caracteres (límite por solicitud del modelo): divídela en párrafos.`);
+  if (p.voices.some(id => voicePreset(id)?.language !== p.language)) issues.push("Elige voces del idioma seleccionado.");
   if (!p.title.trim()) issues.push("Falta el título.");
   if (e.words < 50) issues.push("El guion es demasiado corto (menos de 50 palabras).");
   if (p.voiceCount === 2 && e.perVoiceCharacters[1] === 0) issues.push("Con dos voces, marca las intervenciones de la segunda con «Voz 2:».");
@@ -415,7 +430,10 @@ export function readinessIssues(p: AudioProject, e: Estimate): string[] {
  * Estructura inicial de guion (sin IA ni costo): secciones con pautas que la persona reemplaza por su texto.
  * Con dos voces alterna «Voz 1:» y «Voz 2:». La cantidad de secciones crece con la duración objetivo.
  */
-export function draftOutline(title: string, minutes: number, voiceCount: 1 | 2): string {
+export function draftOutline(title: string, minutes: number, voiceCount: 1 | 2, language: StudioLanguage = "es"): string {
+  if (language === "en") {
+    return ["Opening", "Main idea", "Conclusion"].map((heading, i) => `## ${heading}\n\n${voiceCount === 2 ? "Voice 1: " : ""}${i === 0 ? `Introduce ${title}.` : i === 2 ? "Summarize the key idea and suggest one practical action." : "Develop the idea with an everyday example."} Replace this outline with your English script.${voiceCount === 2 ? "\n\nVoice 2: Add a question or another perspective." : ""}`).join("\n\n");
+  }
   const n = Math.min(12, Math.max(3, Math.round(minutes / 3)));
   const middle = Array.from({ length: n - 2 }, (_, i) => `Idea ${i + 1}`);
   const heads = ["Apertura", ...middle, "Cierre"];

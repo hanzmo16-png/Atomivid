@@ -161,7 +161,7 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`), fu
         await p.getByTestId("audio-music-inteligente").check();
         await p.getByTestId("audio-budget").fill("5");
         // El dúo se genera con v4 Turbo; el monólogo con Multilingual v2 (modelo por defecto).
-        check(`[${dev}] modelo por defecto: Multilingual v2`, (await p.getByTestId("audio-model").inputValue()) === "eleven_multilingual_v2");
+        check(`[${dev}] modelo por defecto: V4 Turbo`, (await p.getByTestId("audio-model").inputValue()) === "eleven_v4_turbo");
         if (duo) {
           await p.getByTestId("audio-model").selectOption("eleven_v4_turbo");
           check(`[${dev}] v4 Turbo: tarifa conservadora sin descuentos no comprobados`, /conservadora|sin verificar|no comprobad/i.test(await p.getByTestId("audio-rate-note").innerText()), await p.getByTestId("audio-rate-note").innerText());
@@ -175,7 +175,7 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`), fu
         const proj = await apiProject(p, id);
         check(`[${dev}] ${duo ? "dúo" : "monólogo"}: duración ${proj.audio?.durationSeconds} s, ${proj.audio?.lufs} LUFS, pico ${proj.audio?.truePeak}`, proj.audio && proj.audio.durationSeconds > 180 && Math.abs(proj.audio.lufs + 16) <= 1.5 && proj.audio.truePeak <= -1, proj.audio);
         const dl = await downloadMp3(p, id, path.join(OUT, `${dev}-${duo ? "duo" : "monologo"}.mp3`));
-        check(`[${dev}] el MP3 registra el modelo ${duo ? "v4 Turbo" : "Multilingual v2"}`, proj.audio.model === (duo ? "eleven_v4_turbo" : "eleven_multilingual_v2") && proj.generation.authorization?.model === proj.audio.model, [proj.audio.model, proj.generation.authorization]);
+        check(`[${dev}] el MP3 registra el modelo V4 Turbo`, proj.audio.model === "eleven_v4_turbo" && proj.generation.authorization?.model === proj.audio.model, [proj.audio.model, proj.generation.authorization]);
         check(`[${dev}] descarga MP3 válida`, dl.status === 200 && dl.mp3 && dl.bytes === proj.audio.bytes, dl);
         check(`[${dev}] reproductor presente`, (await p.getByTestId("audio-player").count()) === 1);
         await shot(p, `${dev}-03b-mp3`);

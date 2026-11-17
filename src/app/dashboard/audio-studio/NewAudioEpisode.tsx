@@ -4,11 +4,12 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { INPUT_CLASS } from "@/components/ui/Field";
-import { MAX_TITLE } from "@/lib/audio-studio/model";
+import { LANGUAGES, MAX_TITLE, type StudioLanguage } from "@/lib/audio-studio/model";
 
 export function NewAudioEpisode() {
   const router = useRouter();
   const [title, setTitle] = useState("");
+  const [language, setLanguage] = useState<StudioLanguage>("es");
   const [voiceCount, setVoiceCount] = useState<1 | 2>(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +18,7 @@ export function NewAudioEpisode() {
     e.preventDefault();
     setBusy(true); setError(null);
     try {
-      const res = await fetch("/api/audio-studio/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, voiceCount }) });
+      const res = await fetch("/api/audio-studio/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, voiceCount, language }) });
       const body = await res.json().catch(() => null);
       if (!res.ok || !body?.id) throw new Error(body?.error ?? "No se pudo crear el episodio.");
       router.push(`/dashboard/audio-studio/${body.id}`);
@@ -33,6 +34,8 @@ export function NewAudioEpisode() {
         <h2 className="text-base font-semibold text-ink">Nuevo episodio</h2>
         <label htmlFor="audio-new-title" className="block text-sm font-medium text-ink">Título</label>
         <input id="audio-new-title" className={INPUT_CLASS} value={title} maxLength={MAX_TITLE} onChange={(e) => setTitle(e.target.value)} placeholder="¿De qué trata el episodio?" required />
+        <label htmlFor="audio-new-language" className="block text-sm font-medium text-ink">Idioma del episodio</label>
+        <select id="audio-new-language" className={INPUT_CLASS} value={language} onChange={e => setLanguage(e.target.value as StudioLanguage)}>{LANGUAGES.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}</select>
         <fieldset className="flex flex-wrap gap-2">
           <legend className="mb-1 text-sm font-medium text-ink">Voces</legend>
           {([1, 2] as const).map((n) => (

@@ -16,7 +16,7 @@ const seed = () => view(applyInput(newProject({ id: "aaaaaaaa-aaaa-4aaa-8aaa-000
 test("biblioteca de audio: título, voces, duración, costo estimado, tope, gastado USD 0.00 y estado", () => {
   const html = renderToStaticMarkup(<AudioLibrary projects={[seed()]} archived={false} />);
   assert.match(html, /El día que entiendes que no puedes controlarlo todo/);
-  assert.match(html, /1 voz · Mateo · objetivo 18 min/);
+  assert.match(html, /1 voz · Víctor · objetivo 18 min/);
   assert.match(html, /Costo estimado USD 3\.\d\d · tope USD 6\.00 · gastado USD 0\.00/);
   assert.match(html, /Borrador/);
   assert.match(html, /href="\/dashboard\/audio-studio\/aaaaaaaa-aaaa-4aaa-8aaa-000000000001"/);
@@ -31,8 +31,8 @@ test("biblioteca vacía y archivados vacíos tienen su mensaje", () => {
 test("editor: guion, voces, música inteligente con plan por sección, presupuesto y generación real explicada", () => {
   const html = renderToStaticMarkup(<AudioEditor initial={seed()} />);
   assert.match(html, /data-testid="audio-script"/);
-  assert.match(html, /Mateo — masculina profesional/);
-  assert.match(html, /Español latinoamericano/);
+  assert.match(html, /Víctor — masculina/);
+  assert.match(html, /Latinoamericano/);
   assert.match(html, /Plan musical por sección \(1[0-9]\)/);
   assert.match(html, /data-testid="audio-estimated-usd">USD 3\.\d\d</);
   assert.match(html, /data-testid="audio-spent-usd">USD 0\.00</);
