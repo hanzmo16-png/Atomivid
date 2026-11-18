@@ -73,7 +73,7 @@ test("the offer only lists what a customer can use: no avatar in plans, duration
   for (const id of PLAN_ORDER) {
     const text = PLAN_CONFIGS[id].includes.join(" | ");
     assert.doesNotMatch(text, /avatar/i, id);
-    assert.match(text, /30, 60 o 90 segundos/, id);
+    assert.match(text, /15, 30, 60 o 90 segundos/, id);
   }
   assert.deepEqual(PLAN_ORDER.map((id) => PLAN_CONFIGS[id].priceUsdPerMonth), [19, 49, 129], "prices unchanged");
 });

@@ -9,7 +9,7 @@ import {
   useVideoConfig,
 } from "remotion";
 import { type NarrationGap, musicVolumeAtSeconds, voiceVolumeAtSeconds } from "./audio-mix";
-import { clipAudible, labelTextFor, type SceneDirection, type SceneTiming, sceneOpacity, sceneTiming, sceneTransform } from "./reel-direction";
+import { clipAudible, endCardStyleAt, endCardText, endCardWindow, labelTextFor, type SceneDirection, type SceneTiming, sceneOpacity, sceneTiming, sceneTransform } from "./reel-direction";
 
 export type Scene = {
   mediaUrl: string;
@@ -40,6 +40,8 @@ export type VerticalReelProps = {
   accentColor?: string;
   /** Badge de logo opt-in en la esquina — nunca activo por defecto, ver src/lib/video/brand.ts. */
   showLogo?: boolean;
+  /** CTA opcional de cierre (p. ej. «Sígueme para más») en los últimos 1,5 s. Ausente/vacío = sin tarjeta. */
+  endCardText?: string | null;
 };
 
 const DEFAULT_ACCENT_COLOR = "#8f7ff5";
@@ -53,8 +55,10 @@ export function VerticalReel({
   narrationGaps = [],
   accentColor = DEFAULT_ACCENT_COLOR,
   showLogo = false,
+  endCardText: rawEndCardText = null,
 }: VerticalReelProps) {
   const { fps, durationInFrames } = useVideoConfig();
+  const endCard = endCardWindow(rawEndCardText, fps, durationInFrames);
 
   return (
     <AbsoluteFill style={{ backgroundColor: "black" }}>
@@ -79,6 +83,12 @@ export function VerticalReel({
       <Captions captions={captions} accentColor={accentColor} />
 
       {showLogo && <LogoBadge accentColor={accentColor} />}
+
+      {endCard && (
+        <Sequence from={endCard.from} durationInFrames={endCard.durationInFrames}>
+          <EndCard text={endCardText(rawEndCardText)!} accentColor={accentColor} />
+        </Sequence>
+      )}
 
       {audioUrl && (
         <Audio
@@ -227,6 +237,39 @@ function Captions({ captions, accentColor }: { captions: Caption[]; accentColor:
             );
           })}
         </div>
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+// Tarjeta de cierre (CTA): franja media-alta (~36 % del alto), lejos de los subtítulos (zona inferior) y de los
+// badges de esquina; el último subtítulo sigue visible debajo. Entra con un fundido breve y se mantiene hasta el final.
+const END_CARD_TOP = 620;
+
+function EndCard({ text, accentColor }: { text: string; accentColor: string }) {
+  const { opacity, scale } = endCardStyleAt(useCurrentFrame());
+  return (
+    <AbsoluteFill style={{ justifyContent: "flex-start", alignItems: "center" }}>
+      <div
+        style={{
+          marginTop: END_CARD_TOP,
+          maxWidth: CAPTION_MAX_WIDTH,
+          padding: "22px 40px",
+          borderRadius: 999,
+          backgroundColor: "rgba(10,10,14,0.8)",
+          border: `3px solid ${accentColor}`,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.55)",
+          fontFamily: "Arial, Helvetica, sans-serif",
+          fontWeight: 800,
+          fontSize: 58,
+          lineHeight: 1.15,
+          color: "white",
+          textAlign: "center",
+          opacity,
+          transform: `scale(${scale})`,
+        }}
+      >
+        {text}
       </div>
     </AbsoluteFill>
   );

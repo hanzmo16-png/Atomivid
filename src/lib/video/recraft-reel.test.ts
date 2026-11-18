@@ -1,9 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseRecraftSelection, recraftReelEstimateUsd, recraftScenePrompt, parseStoredRecraftStyle, isValidStyleId } from "./recraft-reel";
+import { createElement, type ComponentProps, type FunctionComponent } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { parseRecraftSelection, recraftReelEstimateUsd, recraftScenePrompt, parseStoredRecraftStyle, isValidStyleId, recraftClientBlockMessage, RECRAFT_CLIENT_NEED_PATH, RECRAFT_CLIENT_BAD_STYLE, RECRAFT_CLIENT_TOO_MANY_REFS, RECRAFT_CLIENT_BAD_REFS, RECRAFT_MAX_REFERENCE_BYTES } from "./recraft-reel";
+import { ReelImageSourcePicker } from "@/app/dashboard/new/ReelImageSourcePicker";
+import { NewVideoForm } from "@/app/dashboard/new/NewVideoForm";
 import { jobSupplyDemands } from "@/lib/supply/job";
 import { getFeatureFlags } from "./feature-flags";
 import { intentFingerprint } from "./submission-key";
+
+/** The picker's props parameter is optional (`= {}`), so React's createElement overload does not infer them. */
+type ReelPickerProps = NonNullable<ComponentProps<typeof ReelImageSourcePicker>>;
+const ReelPicker: FunctionComponent<ReelPickerProps> = ReelImageSourcePicker;
 
 const base = { styleId: "", match: "", styleNote: "", referenceCount: 0 };
 
@@ -22,6 +30,81 @@ test("Recraft exige style_id o 1-10 referencias", () => {
   const cont = parseRecraftSelection({ ...base, source: "recraft", referenceCount: 1, onMissingStyleId: "same_references" }, true);
   assert.equal("onMissingStyleId" in cont && cont.onMissingStyleId, "same_references");
 });
+const png = (size = 12) => ({ type: "image/png", size });
+
+test("cliente: Recraft sin estilo ni referencias no se puede enviar", () => {
+  assert.equal(recraftClientBlockMessage("", []), RECRAFT_CLIENT_NEED_PATH);
+  assert.equal(recraftClientBlockMessage("   ", [{ type: "image/png", size: 0 }]), RECRAFT_CLIENT_NEED_PATH);
+  assert.doesNotMatch(RECRAFT_CLIENT_NEED_PATH, /style_id|request_id|fal\.ai/i);
+});
+
+test("cliente: un estilo válido o 1–10 referencias válidas dejan pasar el formulario", () => {
+  const style = "6654d01b-7c9d-4f87-9f99-80e6cb989380";
+  assert.equal(recraftClientBlockMessage(style, []), "");
+  assert.equal(recraftClientBlockMessage(`  ${style}  `, []), "");
+  assert.equal(recraftClientBlockMessage("", [png()]), "");
+  assert.equal(recraftClientBlockMessage("", Array.from({ length: 10 }, () => png())), "");
+  assert.equal(recraftClientBlockMessage("", [{ type: "image/jpeg", size: 20 }, { type: "image/webp", size: RECRAFT_MAX_REFERENCE_BYTES }]), "");
+  assert.equal(recraftClientBlockMessage(style, [png(), { type: "image/gif", size: 20 }]), "", "con estilo válido las referencias de más no se usan");
+});
+
+test("cliente: estilo inválido, más de 10 archivos o un archivo no válido bloquean", () => {
+  assert.equal(recraftClientBlockMessage("01a15cd6-f79f-77f1-8f4a-06d582611ae4", [png()]), RECRAFT_CLIENT_BAD_STYLE);
+  assert.equal(recraftClientBlockMessage("no es", []), RECRAFT_CLIENT_BAD_STYLE);
+  assert.doesNotMatch(RECRAFT_CLIENT_BAD_STYLE, /style_id|request_id|fal\.ai/i);
+  assert.equal(recraftClientBlockMessage("6654d01b-7c9d-4f87-9f99-80e6cb989380", Array.from({ length: 11 }, () => png())), RECRAFT_CLIENT_TOO_MANY_REFS);
+  assert.equal(recraftClientBlockMessage("", Array.from({ length: 11 }, () => png())), RECRAFT_CLIENT_TOO_MANY_REFS);
+  assert.equal(recraftClientBlockMessage("", [{ type: "image/gif", size: 20 }]), RECRAFT_CLIENT_BAD_REFS);
+  assert.equal(recraftClientBlockMessage("", [{ type: "image/png", size: RECRAFT_MAX_REFERENCE_BYTES + 1 }]), RECRAFT_CLIENT_BAD_REFS);
+  assert.equal(recraftClientBlockMessage("", [{ type: "", size: 20 }]), RECRAFT_CLIENT_BAD_REFS);
+});
+
+test("el selector de un Reel empieza en Material de archivo", () => {
+  const html = renderToStaticMarkup(createElement(ReelPicker));
+  assert.match(html, /Material de archivo \(como hasta ahora\)/);
+  assert.match(html, /name="reel_image_source"/);
+  assert.equal(html.includes("Elige una sola vía"), false, "el panel de Recraft no aparece hasta que la persona lo elige");
+  assert.equal(html.includes("Style ID de Recraft (opcional)"), false);
+  assert.equal(html.includes('value="default"'), true);
+  const checked = html.match(/<input[^>]*name="reel_image_source"[^>]*>/g) ?? [];
+  assert.equal(checked.length, 2);
+  assert.match(checked[0], /value="default"/);
+  assert.match(checked[0], /checked/);
+  assert.doesNotMatch(checked[1], /checked/);
+});
+
+test("con Recraft elegido, la regla visible no trata el estilo como opcional", () => {
+  const html = renderToStaticMarkup(createElement<ReelPickerProps>(ReelPicker, { defaultSource: "recraft" }));
+  assert.match(html, /Elige una sola vía: indica un estilo guardado O sube de 1 a 10 imágenes de referencia\./);
+  assert.match(html, /Identificador de estilo guardado/);
+  assert.match(html, /Un identificador de solicitud del proveedor no es un estilo guardado\./);
+  assert.equal(html.includes("opcional"), true, "la nota de estilo sigue siendo opcional");
+  const visible = html.replace(/<[^>]+>/g, " ");
+  assert.equal(/\bstyle_id\b|\brequest_id\b|fal\.ai|Style ID/.test(visible), false);
+  const checked = html.match(/<input[^>]*name="reel_image_source"[^>]*>/g) ?? [];
+  assert.match(checked[1], /value="recraft"/);
+  assert.match(checked[1], /checked/);
+});
+
+test("el formulario de Reel no preselecciona Recraft cuando la función está activa", () => {
+  const html = renderToStaticMarkup(createElement(NewVideoForm, { action: () => {}, avatarModeEnabled: false, existingAvatars: [], recraftReelEnabled: true }));
+  assert.match(html, /Material de archivo \(como hasta ahora\)/);
+  assert.equal(html.includes("Elige una sola vía"), false);
+  const checked = html.match(/<input[^>]*name="reel_image_source"[^>]*>/g) ?? [];
+  const chosen = checked[0];
+  assert.ok(chosen);
+  assert.match(chosen, /value="default"/);
+  assert.match(chosen, /checked/);
+});
+
+test("Long Form conserva la elección inicial anterior si no se pasa defaultSource", () => {
+  const html = renderToStaticMarkup(createElement<ReelPickerProps>(ReelPicker, { format: "long_form" }));
+  const checked = html.match(/<input[^>]*name="image_source"[^>]*>/g) ?? [];
+  assert.match(checked[1], /value="recraft"/);
+  assert.match(checked[1], /checked/);
+  assert.match(html, /Elige una sola vía: indica un estilo guardado O sube de 1 a 10 imágenes de referencia\./);
+});
+
 test("el request_id de la prueba manual NO es un style_id", () => {
   assert.equal(isValidStyleId("01a15cd6-f79f-77f1-8f4a-06d582611ae4"), false);
   assert.ok("error" in parseRecraftSelection({ ...base, source: "recraft", styleId: "01a15cd6-f79f-77f1-8f4a-06d582611ae4" }, true));

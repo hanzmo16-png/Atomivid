@@ -91,3 +91,16 @@ export async function persistStyleMissing(service: SupabaseClient, requestId: st
   const { error } = await service.storage.from(BUCKET).upload(styleMissingPath(requestId), body, { contentType: "application/json", upsert: true });
   if (error) throw new Error("No se pudo registrar que Recraft no devolvió style_id; se detiene para no mezclar estilos.");
 }
+
+/**
+ * «Imágenes IA con FLUX»: true when THIS video chose FLUX (reel_image_source = 'flux'). Own query, like Recraft: an
+ * absent column (migration not applied) means nobody could choose it (false); any other read error fails closed.
+ */
+export async function loadFluxChoice(service: SupabaseClient, requestId: string): Promise<boolean> {
+  const { data, error } = await service.from("video_requests").select("reel_image_source").eq("id", requestId).maybeSingle();
+  if (error) {
+    if (error.code === "42703" || error.code === "PGRST204") return false;
+    throw new Error("No se pudo leer la configuración de imágenes de este video. No se ha cobrado nada.");
+  }
+  return (data as { reel_image_source?: string | null } | null)?.reel_image_source === "flux";
+}

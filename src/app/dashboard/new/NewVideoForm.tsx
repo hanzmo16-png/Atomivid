@@ -25,6 +25,7 @@ const STYLES = [
 ];
 
 const DURATIONS = [
+  { value: 15, label: "15s" },
   { value: 30, label: "30s" },
   { value: 60, label: "60s" },
   { value: 90, label: "90s" },
@@ -51,6 +52,7 @@ export function NewVideoForm({
   maxAvatarDurationSeconds = 45,
   reelVoiceSelectionEnabled = false,
   recraftReelEnabled = false,
+  fluxReelEnabled = false,
 }: {
   action: (formData: FormData) => void;
   avatarModeEnabled: boolean;
@@ -65,6 +67,8 @@ export function NewVideoForm({
   maxAvatarDurationSeconds?: number;
   reelVoiceSelectionEnabled?: boolean;
   recraftReelEnabled?: boolean;
+  /** «Imágenes IA con FLUX» (second selectable provider), decided on the server (fluxAllowedFor). */
+  fluxReelEnabled?: boolean;
 }) {
   const [mode, setMode] = useState<VideoMode>(avatarModeEnabled ? initialMode : "visual");
   const [language, setLanguage] = useState<"es" | "en">("es");
@@ -228,7 +232,7 @@ export function NewVideoForm({
       </Field>
 
       {mode === "visual" && reelVoiceSelectionEnabled && <ReelVoicePicker key={language} language={language} />}
-      {mode === "visual" && recraftReelEnabled && <ReelImageSourcePicker />}
+      {mode === "visual" && (recraftReelEnabled || fluxReelEnabled) && <ReelImageSourcePicker recraftAvailable={recraftReelEnabled} fluxAvailable={fluxReelEnabled} />}
 
       <Field id="style" label="Estilo / tono" hint={styleTouched ? undefined : "Elegido automáticamente según tu idea. Puedes cambiarlo."}>
         <select id="style" name="style" required value={style} onChange={(e) => setStyle(e.target.value)} className={INPUT_CLASS}>

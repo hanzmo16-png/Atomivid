@@ -25,3 +25,18 @@ export async function recraftProductionBlocker(service: Pick<SupabaseClient, "rp
 export function recraftBlockedMessage(reason: string): string {
   return `Recraft no está listo para producir: ${reason}. Elige las imágenes predeterminadas o pide habilitar Recraft. No se confirmó ni cobró nada.`;
 }
+
+/** Same readiness rule for «Imágenes IA con FLUX» (its own `flux` supply policy; same fal balance reader). */
+export async function fluxProductionBlocker(service: Pick<SupabaseClient, "rpc">, env: Record<string, string | undefined> = process.env): Promise<string | null> {
+  if (!falBillingKey(env)) return "el saldo de fal.ai no se puede verificar en este entorno";
+  const { data, error } = await service.rpc("pi_supply_state", { p_provider: "flux" });
+  const state = data as { level?: string; reason?: string } | null;
+  if (error || !state) return "el control de gasto de FLUX no está disponible";
+  if (state.level === "UNKNOWN" && state.reason === "policy unconfigured") return "los límites de gasto de FLUX todavía no están configurados";
+  if (state.level === "RED") return "el saldo de FLUX no alcanza para producir";
+  return null;
+}
+
+export function fluxBlockedMessage(reason: string): string {
+  return `FLUX no está listo para producir: ${reason}. Elige otra fuente de imágenes o pide habilitar FLUX. No se confirmó ni cobró nada.`;
+}

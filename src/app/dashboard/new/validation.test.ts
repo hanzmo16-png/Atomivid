@@ -16,7 +16,7 @@ const VALID_COMMON = { topic: "Un tema", style: "Educativo", durationSeconds: 30
 test("Avatar respeta el límite configurado sin recortar las opciones de Reel", () => {
   assert.deepEqual(availableVideoDurations("avatar", 45), [30]);
   assert.deepEqual(availableVideoDurations("avatar", 90), [30, 60, 90]);
-  assert.deepEqual(availableVideoDurations("visual", 45), [30, 60, 90]);
+  assert.deepEqual(availableVideoDurations("visual", 45), [15, 30, 60, 90]);
   assert.equal(avatarDurationError(45, 45), null);
   assert.match(avatarDurationError(45.01, 45)!, /límite de Avatar es 45 segundos/);
   for (const seconds of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) assert.match(avatarDurationError(seconds, 45)!, /No se pudo comprobar/);

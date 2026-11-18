@@ -20,11 +20,11 @@ export function NarrationFitMeter({ text, language, mode, targetSeconds, offered
   onSelectDuration?: (seconds: number) => void;
 }) {
   const stats = narrationStats(text, language, mode);
-  const fit = maxSeconds !== undefined ? fitForMaximum(stats, maxSeconds) : fitForDuration(stats, targetSeconds ?? 30, offeredDurations ?? [30, 60, 90]);
+  const fit = maxSeconds !== undefined ? fitForMaximum(stats, maxSeconds) : fitForDuration(stats, targetSeconds ?? 30, offeredDurations ?? [15, 30, 60, 90]);
   const capacity = targetSeconds !== undefined && maxSeconds === undefined ? recommendedCapacity(targetSeconds, language) : null;
   const tone = !stats.text ? "info" : fit.verdict === "compatible" ? "success" : fit.verdict === "borderline" ? "warning" : "danger";
   // Durations this text can start with (comfortable first), offered as one-click choices; never applied automatically.
-  const offered = offeredDurations ?? [30, 60, 90];
+  const offered = offeredDurations ?? [15, 30, 60, 90];
   const viable = maxSeconds !== undefined || fit.verdict === "compatible" ? [] : offered.filter(d => d !== targetSeconds && fitForDuration(stats, d, offered).allowed);
   const alternatives = fit.compatibleDurations.filter(d => viable.includes(d)).concat(viable.filter(d => !fit.compatibleDurations.includes(d)));
 

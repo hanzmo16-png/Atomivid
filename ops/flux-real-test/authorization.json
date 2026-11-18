@@ -1,0 +1,6 @@
+{
+  "authorizedUsd": 0.10,
+  "confirm": "GENERAR-UNA-IMAGEN-FLUX",
+  "authorizedBy": "Hans (mensaje en la sesión: «Autorizo la prueba FLUX con tope USD 0.10»)",
+  "scope": "UNA imagen 9:16 (720x1280) fal-ai/flux/dev con el prompt del guerrero romano; sin reintentos pagados, merge, deploy ni migraciones"
+}

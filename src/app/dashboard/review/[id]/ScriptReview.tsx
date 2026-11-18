@@ -402,7 +402,7 @@ export function ScriptReview({
             loading={generating}
             title={entitlementBlocked ? entitlementBlockedReason : durationBlockedReason ?? undefined}
           >
-            {generating ? "Generando video…" : recoveryAction ? recoveryAction.label : "Generar video final"}
+            {generating ? "Generando video…" : recoveryAction ? recoveryAction.label : reelRetryEligible ? "Reintentar" : "Generar video final"}
           </Button>
           {generating && <PendingOperationProgress label="Iniciando producción del video" />}
         </div>
