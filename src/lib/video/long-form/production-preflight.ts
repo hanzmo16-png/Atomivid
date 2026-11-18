@@ -56,7 +56,7 @@ export type StrategyPreflight = {
   material?: MaterialPlanCheck;
 };
 
-const LABEL: Record<string, string> = { heygen: "HeyGen (avatar)", elevenlabs: "ElevenLabs (voz)", openai: "OpenAI (imágenes)", runway: "Runway (video IA)", veo: "Veo (video IA)", beatoven: "Beatoven (música)", anthropic: "Anthropic (guion)", bfl: "BFL (imágenes)", luma: "Luma (video IA)", ltx: "LTX (video IA)" };
+const LABEL: Record<string, string> = { heygen: "HeyGen (avatar)", elevenlabs: "ElevenLabs (voz)", openai: "OpenAI (imágenes)", runway: "Runway (video IA)", veo: "Veo (video IA)", beatoven: "Beatoven (música)", anthropic: "Anthropic (guion)", bfl: "BFL (imágenes)", flux: "FLUX (imágenes vía fal.ai)", luma: "Luma (video IA)", ltx: "LTX (video IA)" };
 const UNIT: Record<string, string> = { character: "caracteres", usd: "USD", credit: "créditos" };
 const label = (p: string) => LABEL[p] ?? p;
 const ceil2 = (n: number) => Math.ceil(n * 100) / 100;

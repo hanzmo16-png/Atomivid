@@ -10,7 +10,8 @@ import { randomUUID } from "node:crypto";
 import { parseRecraftSelection, type ReelRecraftStyle } from "@/lib/video/recraft-reel";
 import { storeRecraftReferences } from "@/lib/video/recraft-reel-server";
 import { resolveReelVoiceSelection } from "@/lib/video/reel-voices-server";
-import { recraftBlockedMessage, recraftProductionBlocker } from "@/lib/video/long-form/recraft-readiness";
+import { fluxBlockedMessage, fluxProductionBlocker, recraftBlockedMessage, recraftProductionBlocker } from "@/lib/video/long-form/recraft-readiness";
+import { fluxAllowedFor } from "@/lib/video/flux-images";
 
 /**
  * Paso 9/10 del contrato de Long Form: fija el plan confirmado (ver
@@ -68,7 +69,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (!voiceId) return NextResponse.json({ error: "La selección de voz no está activa. No se confirmó ni cobró nada." }, { status: 400 });
     }
     let recraft: ReelRecraftStyle | undefined;
-    if (form && String(form.get("image_source") ?? "default") !== "default") {
+    let flux = false;
+    if (form && String(form.get("image_source") ?? "").trim() === "flux") {
+      // «Imágenes IA con FLUX» (second selectable provider): no style, no uploads. Permitted from the session only.
+      if (!fluxAllowedFor(user)) return NextResponse.json({ error: "Las imágenes IA con FLUX no están disponibles para esta cuenta todavía. No se confirmó ni cobró nada." }, { status: 400 });
+      const { data: row } = await service.from("video_requests").select("user_id, mode, long_form_confirmed_at").eq("id", id)
+        .maybeSingle<{ user_id: string; mode: string; long_form_confirmed_at: string | null }>();
+      if (!row) return NextResponse.json({ error: "Solicitud no encontrada" }, { status: 404 });
+      if (row.user_id !== user.id) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+      if (row.mode !== "long_form") return NextResponse.json({ error: "Esta solicitud no es de Long Form" }, { status: 409 });
+      // The choice becomes immutable with the confirmation: never lock FLUX while it cannot be started.
+      if (!row.long_form_confirmed_at) {
+        const blocker = await fluxProductionBlocker(service);
+        if (blocker) return NextResponse.json({ error: fluxBlockedMessage(blocker), code: "FLUX_NOT_READY" }, { status: 409 });
+      }
+      flux = true;
+    } else if (form && String(form.get("image_source") ?? "default") !== "default") {
       const refs = form.getAll("recraft_style_refs").filter((f): f is File => typeof f !== "string" && f.size > 0);
       const choice = parseRecraftSelection({ source: form.get("image_source"), styleId: form.get("recraft_style_id"), match: form.get("recraft_style_match"),
         styleNote: form.get("recraft_style_note"), referenceCount: refs.length, onMissingStyleId: form.get("recraft_style_missing") }, recraftAllowedFor(user));
@@ -103,6 +119,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       packaging,
       cinematicV6: cinematicV6Enabled(user),
       ...(recraft ? { recraft } : {}),
+      ...(flux ? { flux: true } : {}),
       ...(voiceId ? { voiceId } : {}),
     });
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });

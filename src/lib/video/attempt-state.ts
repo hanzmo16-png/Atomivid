@@ -1,5 +1,6 @@
 import { supplyGuardRequired } from "@/lib/supply/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { AttemptNoLongerActiveError } from "@/lib/paid-calls/active-attempt";
 
 export type AttemptToken = { requestId: string; userId: string; attempt: number };
 
@@ -10,6 +11,14 @@ export function attemptState(service: SupabaseClient, token: AttemptToken) {
     .eq("render_attempts", token.attempt);
   return {
     update,
+    /** Throws AttemptNoLongerActiveError unless this exact attempt is still processing (read before each new paid call). */
+    async assertActive() {
+      const { data, error } = await service.from("video_requests").select("id")
+        .eq("id", token.requestId).eq("user_id", token.userId).eq("status", "processing")
+        .eq("render_attempts", token.attempt).maybeSingle();
+      if (error) throw new Error("No se pudo verificar que el trabajo siga activo. No se envió ningún cobro nuevo.");
+      if (!data) throw new AttemptNoLongerActiveError();
+    },
     async claim(stage: string | null) {
       if (stage !== null && stage !== "queued") return false;
       if (supplyGuardRequired()) {

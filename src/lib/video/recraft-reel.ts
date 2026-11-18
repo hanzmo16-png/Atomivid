@@ -28,6 +28,33 @@ export const RECRAFT_MAX_REFERENCES = 10;
 export const RECRAFT_MAX_REFERENCE_BYTES = 5 * 1024 * 1024;
 export const RECRAFT_REFERENCE_TYPES: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
 
+/** Shown on the Reel form when Recraft is selected with neither a saved style nor reference images. */
+export const RECRAFT_CLIENT_NEED_PATH =
+  "Para usar imágenes IA con Recraft, indica un estilo guardado o sube de 1 a 10 imágenes de referencia.";
+/** A non-empty value that is not a saved style (including a provider request id). */
+export const RECRAFT_CLIENT_BAD_STYLE =
+  "Ese texto no es un identificador de estilo guardado. Un identificador de solicitud del proveedor no es un estilo.";
+export const RECRAFT_CLIENT_TOO_MANY_REFS = "Puedes subir como máximo 10 imágenes de referencia.";
+export const RECRAFT_CLIENT_BAD_REFS = "Las imágenes de referencia deben ser PNG, JPG o WEBP de hasta 5 MB cada una.";
+
+export type RecraftClientFile = { type: string; size: number };
+
+/**
+ * Client constraint for the Recraft panel. "" means this choice may be submitted.
+ * Mirrors parseRecraftSelection without weakening it: an invalid style still blocks even if references
+ * are present, and more than 10 references still block even when the style is valid. The server rechecks.
+ */
+export function recraftClientBlockMessage(styleId: unknown, files: readonly RecraftClientFile[]): string {
+  const id = String(styleId ?? "").trim();
+  const present = files.filter((f) => f.size > 0);
+  if (id && !isValidStyleId(id)) return RECRAFT_CLIENT_BAD_STYLE;
+  if (present.length > RECRAFT_MAX_REFERENCES) return RECRAFT_CLIENT_TOO_MANY_REFS;
+  if (id) return "";
+  if (present.length < 1) return RECRAFT_CLIENT_NEED_PATH;
+  if (present.some((f) => !RECRAFT_REFERENCE_TYPES[f.type] || f.size > RECRAFT_MAX_REFERENCE_BYTES)) return RECRAFT_CLIENT_BAD_REFS;
+  return "";
+}
+
 export type RecraftSelectionInput = {
   source: unknown; styleId: unknown; match: unknown; styleNote: unknown; referenceCount: number; onMissingStyleId?: unknown;
 };

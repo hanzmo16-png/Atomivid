@@ -5,8 +5,10 @@ import type { CapacitySnapshot } from "@/lib/production-intelligence/capacity/ca
  * FAL_KEY is refused (401/403) and the reading stays unverified. Only `credits.current_balance` in USD is spendable
  * supply; any other shape, currency or error is NOT a balance. The key is read at call time and never logged.
  * Supply ledger name is "recraft" (the provider of pi_supply_policies / pi_paid_operations for these images). */
-export async function falApiSnapshot(request: typeof fetch, env: Record<string, string | undefined>, checkedAt: string): Promise<CapacitySnapshot> {
-  const base: CapacitySnapshot = { provider: "recraft", accountLabel: "ATOMIVID fal.ai account", unit: "usd", available: null,
+export async function falApiSnapshot(request: typeof fetch, env: Record<string, string | undefined>, checkedAt: string,
+  /** Supply ledger name: "recraft" (default) or "flux" — both bill the same fal.ai account. */
+  provider: "recraft" | "flux" = "recraft"): Promise<CapacitySnapshot> {
+  const base: CapacitySnapshot = { provider, accountLabel: "ATOMIVID fal.ai account", unit: "usd", available: null,
     reserved: 0, pending: 0, renewalDate: null, lastCheckedAt: checkedAt, health: "UNCHECKED", reliability: "none" };
   const key = falBillingKey(env);
   if (!key) return base;

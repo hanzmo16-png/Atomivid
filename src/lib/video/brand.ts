@@ -25,3 +25,13 @@ export function getAccentColor(): string {
 export function shouldShowLogo(): boolean {
   return process.env.BRAND_SHOW_LOGO?.trim().toLowerCase() === "true";
 }
+
+/**
+ * CTA de cierre del Reel (tarjeta de los últimos 1,5 s, ver remotion/reel-direction.ts). Apagado por defecto: solo
+ * se dibuja si REEL_END_CARD_TEXT tiene texto (p. ej. «Sígueme para más»). Es configuración del servidor, no del
+ * guion: no cambia la narración ni los subtítulos.
+ */
+export function reelEndCardText(): string | null {
+  const configured = process.env.REEL_END_CARD_TEXT?.replace(/\s+/g, " ").trim();
+  return configured || null;
+}

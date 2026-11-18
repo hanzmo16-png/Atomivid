@@ -13,7 +13,9 @@ export function avatarDurationError(seconds: number, maxSeconds: number): string
 
 /** Filter form targets using the server configuration, preserving Reel options. */
 export function availableVideoDurations(mode: "visual" | "avatar", maxAvatarSeconds: number): number[] {
-  return [30, 60, 90].filter(seconds => mode === "visual" || seconds <= maxAvatarSeconds);
+  // 15 s is a Reel/Shorts option only; Avatar keeps its historic 30/60/90 targets under its own limit.
+  if (mode === "visual") return [15, 30, 60, 90];
+  return [30, 60, 90].filter(seconds => seconds <= maxAvatarSeconds);
 }
 
 /** An accepted provider job must remain recoverable even if the current limit changed. */

@@ -1,4 +1,6 @@
 import { isRenderStale } from "@/lib/video/render-guard";
+import { CancelReelButton } from "./CancelReelButton";
+import { canCancelReel } from "@/lib/video/reel-cancel";
 import { describeStoredFailure, renderFailureMessage, splitSupportCode } from "@/lib/video/job-error";
 import { isNoRetryScriptMessage } from "@/lib/video/script-retry";
 import Link from "next/link";
@@ -270,6 +272,7 @@ export function RequestCard({
             />
           </div>
           <p className="mt-1.5 text-xs text-ink-faint">Avance orientativo por etapas; no es tiempo restante.</p>
+          {canCancelReel(request) && <div className="mt-3 flex justify-start"><CancelReelButton requestId={request.id} /></div>}
         </div>
       )}
       {request.status === "completed" && videoUrl && (
