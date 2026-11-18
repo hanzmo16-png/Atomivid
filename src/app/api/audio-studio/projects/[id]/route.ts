@@ -20,7 +20,7 @@ async function body(request: Request): Promise<unknown> {
 export async function GET(_request: Request, { params }: Ctx) {
   const user = await audioStudioUser();
   if ("error" in user) return NextResponse.json({ error: user.error }, { status: user.status });
-  const out = await getProject(studioDeps(), user.id, (await params).id);
+  const out = await getProject(studioDeps(user), user.id, (await params).id);
   return NextResponse.json(out.body, { status: out.status, headers: { "Cache-Control": "no-store" } });
 }
 
@@ -31,7 +31,7 @@ export async function PUT(request: Request, { params }: Ctx) {
   if ("error" in user) return NextResponse.json({ error: user.error }, { status: user.status });
   const b = await body(request);
   if (b && typeof b === "object" && "__tooLarge" in b) return NextResponse.json({ error: "El proyecto es demasiado grande." }, { status: 413 });
-  const out = await saveProject(studioDeps(), user.id, (await params).id, b);
+  const out = await saveProject(studioDeps(user), user.id, (await params).id, b);
   return NextResponse.json(out.body, { status: out.status });
 }
 
@@ -48,7 +48,7 @@ export async function POST(request: Request, { params }: Ctx) {
   if ("error" in user) return NextResponse.json({ error: user.error }, { status: user.status });
   const { id } = await params;
   const b = (await body(request)) as { action?: unknown; revision?: unknown; confirmUsd?: unknown } | null;
-  const d = studioDeps();
+  const d = studioDeps(user);
   const out =
     b?.action === "archivar" ? await setArchived(d, user.id, id, true)
     : b?.action === "restaurar" ? await setArchived(d, user.id, id, false)

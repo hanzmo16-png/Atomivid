@@ -1,19 +1,25 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
   applyInput, estimate, FALLBACK_TTS_MODEL, TTS_MODELS, generationActive, isUuid, modelRate, musicPlan, newProject, readinessIssues, ttsModel, ValidationError,
-  type StudioLanguage, type AudioProject, type Estimate, type ModelRate, type MusicSection, type ProjectInput,
+  type StudioLanguage, type AudioProject, type Estimate, type ModelRate, type MusicSection, type ProjectInput, type TtsModelId,
 } from "./model";
-import { PAID_BLOCKED, type VoiceAvailability } from "./voice";
+import { DEMO_VOICE_LABEL, PAID_BLOCKED, type VoiceAvailability } from "./voice";
 import type { ProjectStore } from "./store";
 import { SEED_EPISODE } from "./seed";
 
 export type Result<T> = { ok: true; status: number; body: T } | { ok: false; status: number; body: { error: string; field?: string; current?: ProjectView } };
 export type ProjectView = AudioProject & { estimate: Estimate; musicPlan: MusicSection[]; readiness: string[]; rate: ModelRate; rates: ModelRate[] };
 
-export function view(p: AudioProject, env: Record<string, string | undefined> = process.env): ProjectView {
-  const rate = modelRate(p.ttsModel, env);
+/**
+ * Vista del proyecto con estimación. Con la voz de demostración (solo la cuenta dueña) la tarifa de todos los modelos es
+ * 0: el costo estimado y la autorización son USD 0.00. Sin `voice` o con cualquier otra voz, igual que antes.
+ */
+export function view(p: AudioProject, env: Record<string, string | undefined> = process.env, voice?: VoiceAvailability): ProjectView {
+  const demo = !!voice?.ok && voice.voice.mode === "demo";
+  const rateOf = (m: TtsModelId): ModelRate => demo ? { model: m, rate: 0, source: "demo", listUsdPer1k: 0, note: `${DEMO_VOICE_LABEL}.` } : modelRate(m, env);
+  const rate = rateOf(p.ttsModel);
   const e = estimate(p, rate.rate);
-  return { ...p, estimate: e, musicPlan: musicPlan(p.script, p.music), readiness: readinessIssues(p, e), rate, rates: TTS_MODELS.map((m) => modelRate(m.id, env)) };
+  return { ...p, estimate: e, musicPlan: musicPlan(p.script, p.music), readiness: readinessIssues(p, e), rate, rates: TTS_MODELS.map((m) => rateOf(m.id)) };
 }
 
 const fail = (status: number, error: string, extra: { field?: string; current?: ProjectView } = {}) => ({ ok: false as const, status, body: { error, ...extra } });
@@ -26,17 +32,17 @@ function guard<T>(fn: () => Promise<Result<T>>): Promise<Result<T>> {
   });
 }
 
-export type Deps = { store: ProjectStore; now?: () => string; newId?: () => string; env?: Record<string, string | undefined> };
+export type Deps = { store: ProjectStore; now?: () => string; newId?: () => string; env?: Record<string, string | undefined>; voice?: VoiceAvailability };
 const nowOf = (d: Deps) => (d.now ?? (() => new Date().toISOString()))();
 
 export const listProjects = (d: Deps, ownerId: string) => guard(async () => {
   const all = await d.store.list(ownerId);
-  return { ok: true, status: 200, body: { projects: all.map((p) => view(p, d.env)) } };
+  return { ok: true, status: 200, body: { projects: all.map((p) => view(p, d.env, d.voice)) } };
 });
 
 export const getProject = (d: Deps, ownerId: string, id: string) => guard(async () => {
   const p = isUuid(id) ? await d.store.get(ownerId, id) : null;
-  return p ? { ok: true, status: 200, body: view(p, d.env) } : NOT_FOUND();
+  return p ? { ok: true, status: 200, body: view(p, d.env, d.voice) } : NOT_FOUND();
 });
 
 export const createProject = (d: Deps, ownerId: string, input: unknown) => guard(async () => {
@@ -46,7 +52,7 @@ export const createProject = (d: Deps, ownerId: string, input: unknown) => guard
   const title = typeof i.title === "string" && i.title.trim() ? i.title : "Episodio sin título";
   const p = newProject({ id: (d.newId ?? randomUUID)(), ownerId, now: nowOf(d), title, voiceCount, language: (i.language ?? "es") as StudioLanguage });
   if (!(await d.store.create(p))) return fail(409, "El proyecto ya existe.");
-  return { ok: true, status: 201, body: view(p, d.env) };
+  return { ok: true, status: 201, body: view(p, d.env, d.voice) };
 });
 
 /** Guardado con control de revisión: si otra pestaña guardó antes, no se pisa su trabajo (409 con la versión actual). */
@@ -55,37 +61,37 @@ export const saveProject = (d: Deps, ownerId: string, id: string, body: unknown)
   if (!cur) return NOT_FOUND();
   const b = (body && typeof body === "object" ? body : null) as ({ revision?: unknown } & ProjectInput) | null;
   if (!b || typeof b.revision !== "number") return fail(400, "Falta la revisión del proyecto.", { field: "revision" });
-  if (cur.archivedAt) return fail(409, "El proyecto está archivado. Restáuralo para editarlo.", { current: view(cur, d.env) });
-  if (generationActive(cur.generation, Date.parse(nowOf(d)))) return fail(409, "Se está generando el audio: espera a que termine para editar.", { current: view(cur, d.env) });
-  if (b.revision !== cur.revision) return fail(409, "El proyecto cambió en otra pestaña o dispositivo. Recarga para ver la última versión.", { current: view(cur, d.env) });
+  if (cur.archivedAt) return fail(409, "El proyecto está archivado. Restáuralo para editarlo.", { current: view(cur, d.env, d.voice) });
+  if (generationActive(cur.generation, Date.parse(nowOf(d)))) return fail(409, "Se está generando el audio: espera a que termine para editar.", { current: view(cur, d.env, d.voice) });
+  if (b.revision !== cur.revision) return fail(409, "El proyecto cambió en otra pestaña o dispositivo. Recarga para ver la última versión.", { current: view(cur, d.env, d.voice) });
   const { title, language, voiceCount, voices, targetMinutes, script, notes, music, budgetUsd, ttsModel: model } = b;
   const next = applyInput(cur, { title, language, voiceCount, voices, targetMinutes, script, notes, music, budgetUsd, ttsModel: model }, nowOf(d));
   await d.store.put(next);
-  return { ok: true, status: 200, body: view(next, d.env) };
+  return { ok: true, status: 200, body: view(next, d.env, d.voice) };
 });
 
 /** Archivar no borra nada: solo marca la fecha. Restaurar la quita. */
 export const setArchived = (d: Deps, ownerId: string, id: string, archived: boolean) => guard(async () => {
   const cur = isUuid(id) ? await d.store.get(ownerId, id) : null;
   if (!cur) return NOT_FOUND();
-  if (!!cur.archivedAt === archived) return { ok: true, status: 200, body: view(cur, d.env) };
-  if (generationActive(cur.generation, Date.parse(nowOf(d)))) return fail(409, "Se está generando el audio: espera a que termine.", { current: view(cur, d.env) });
+  if (!!cur.archivedAt === archived) return { ok: true, status: 200, body: view(cur, d.env, d.voice) };
+  if (generationActive(cur.generation, Date.parse(nowOf(d)))) return fail(409, "Se está generando el audio: espera a que termine.", { current: view(cur, d.env, d.voice) });
   const next: AudioProject = { ...cur, archivedAt: archived ? nowOf(d) : null, revision: cur.revision + 1, updatedAt: nowOf(d) };
   await d.store.put(next);
-  return { ok: true, status: 200, body: view(next, d.env) };
+  return { ok: true, status: 200, body: view(next, d.env, d.voice) };
 });
 
 /** Deja el proyecto «listo para autorizar». No llama a ningún proveedor ni reserva gasto. */
 export const markReady = (d: Deps, ownerId: string, id: string, revision: unknown) => guard(async () => {
   const cur = isUuid(id) ? await d.store.get(ownerId, id) : null;
   if (!cur) return NOT_FOUND();
-  if (revision !== cur.revision) return fail(409, "Guarda los cambios antes de marcarlo como listo.", { current: view(cur, d.env) });
-  if (generationActive(cur.generation, Date.parse(nowOf(d)))) return fail(409, "Se está generando el audio: espera a que termine.", { current: view(cur, d.env) });
-  const v = view(cur, d.env);
+  if (revision !== cur.revision) return fail(409, "Guarda los cambios antes de marcarlo como listo.", { current: view(cur, d.env, d.voice) });
+  if (generationActive(cur.generation, Date.parse(nowOf(d)))) return fail(409, "Se está generando el audio: espera a que termine.", { current: view(cur, d.env, d.voice) });
+  const v = view(cur, d.env, d.voice);
   if (v.readiness.length) return fail(422, v.readiness[0], { current: v });
   const next: AudioProject = { ...cur, status: "listo_para_autorizar", revision: cur.revision + 1, updatedAt: nowOf(d) };
   await d.store.put(next);
-  return { ok: true, status: 200, body: view(next, d.env) };
+  return { ok: true, status: 200, body: view(next, d.env, d.voice) };
 });
 
 export const GENERATION_BLOCKED = PAID_BLOCKED;
@@ -101,13 +107,13 @@ export const requestGeneration = (d: Deps & { voice?: VoiceAvailability }, owner
   const cur = isUuid(id) ? await d.store.get(ownerId, id) : null;
   if (!cur) return NOT_FOUND();
   const why = unavailable(d.voice);
-  if (why) return fail(409, why, { current: view(cur, d.env) });
+  if (why) return fail(409, why, { current: view(cur, d.env, d.voice) });
   const b = (body && typeof body === "object" ? body : {}) as { revision?: unknown; confirmUsd?: unknown };
-  if (cur.archivedAt) return fail(409, "El proyecto está archivado. Restáuralo para generar.", { current: view(cur, d.env) });
+  if (cur.archivedAt) return fail(409, "El proyecto está archivado. Restáuralo para generar.", { current: view(cur, d.env, d.voice) });
   const now = nowOf(d);
-  if (generationActive(cur.generation, Date.parse(now))) return fail(409, "Ya hay una generación en curso para este episodio.", { current: view(cur, d.env) });
-  if (b.revision !== cur.revision) return fail(409, "Guarda los cambios antes de generar.", { current: view(cur, d.env) });
-  const v = view(cur, d.env);
+  if (generationActive(cur.generation, Date.parse(now))) return fail(409, "Ya hay una generación en curso para este episodio.", { current: view(cur, d.env, d.voice) });
+  if (b.revision !== cur.revision) return fail(409, "Guarda los cambios antes de generar.", { current: view(cur, d.env, d.voice) });
+  const v = view(cur, d.env, d.voice);
   if (v.readiness.length) return fail(422, v.readiness[0], { current: v });
   const confirm = typeof b.confirmUsd === "number" ? b.confirmUsd : NaN;
   if (!(Math.abs(confirm - v.estimate.estimatedUsd) < 0.005)) return fail(400, `Confirma el gasto estimado exacto (USD ${v.estimate.estimatedUsd.toFixed(2)}) para generar. No se hizo ningún cargo.`, { field: "confirmUsd", current: v });
@@ -116,7 +122,7 @@ export const requestGeneration = (d: Deps & { voice?: VoiceAvailability }, owner
   const next: AudioProject = { ...cur, generation: { ...cur.generation, status: "en_cola", kind: "generar", error: null, progress: null, startedAt: null, finishedAt: null, heartbeatAt: now,
     authorization: { usd: confirm, revision: cur.revision, at: now, spentBefore: cur.spentUsd, model: cur.ttsModel } } };
   await d.store.put(next);
-  return { ok: true, status: 202, body: view(next, d.env) };
+  return { ok: true, status: 202, body: view(next, d.env, d.voice) };
 });
 
 /** Remezclar la música sin regenerar la voz: usa solo la voz en caché (costo 0, sin autorización de gasto). */
@@ -124,15 +130,15 @@ export const requestRemix = (d: Deps & { voice?: VoiceAvailability }, ownerId: s
   const cur = isUuid(id) ? await d.store.get(ownerId, id) : null;
   if (!cur) return NOT_FOUND();
   const why = unavailable(d.voice);
-  if (why) return fail(409, why, { current: view(cur, d.env) });
+  if (why) return fail(409, why, { current: view(cur, d.env, d.voice) });
   const b = (body && typeof body === "object" ? body : {}) as { revision?: unknown };
   const now = nowOf(d);
-  if (!cur.audio) return fail(409, "Primero genera el audio; la remezcla reutiliza esa voz.", { current: view(cur, d.env) });
-  if (generationActive(cur.generation, Date.parse(now))) return fail(409, "Ya hay una generación en curso para este episodio.", { current: view(cur, d.env) });
-  if (b.revision !== cur.revision) return fail(409, "Guarda los cambios antes de remezclar.", { current: view(cur, d.env) });
+  if (!cur.audio) return fail(409, "Primero genera el audio; la remezcla reutiliza esa voz.", { current: view(cur, d.env, d.voice) });
+  if (generationActive(cur.generation, Date.parse(now))) return fail(409, "Ya hay una generación en curso para este episodio.", { current: view(cur, d.env, d.voice) });
+  if (b.revision !== cur.revision) return fail(409, "Guarda los cambios antes de remezclar.", { current: view(cur, d.env, d.voice) });
   const next: AudioProject = { ...cur, generation: { ...cur.generation, status: "en_cola", kind: "remezclar", error: null, progress: null, startedAt: null, finishedAt: null, heartbeatAt: now } };
   await d.store.put(next);
-  return { ok: true, status: 202, body: view(next, d.env) };
+  return { ok: true, status: 202, body: view(next, d.env, d.voice) };
 });
 
 /** Reanudar tras un fallo o una interrupción: misma autorización y misma revisión; la voz ya generada no se vuelve a pagar. */
@@ -140,14 +146,14 @@ export const resumeGeneration = (d: Deps & { voice?: VoiceAvailability }, ownerI
   const cur = isUuid(id) ? await d.store.get(ownerId, id) : null;
   if (!cur) return NOT_FOUND();
   const why = unavailable(d.voice);
-  if (why) return fail(409, why, { current: view(cur, d.env) });
+  if (why) return fail(409, why, { current: view(cur, d.env, d.voice) });
   const now = nowOf(d), g = cur.generation;
   const interrupted = g.status === "fallida" || ((g.status === "en_cola" || g.status === "generando") && !generationActive(g, Date.parse(now)));
-  if (!interrupted) return fail(409, "No hay una generación interrumpida que reanudar.", { current: view(cur, d.env) });
-  if (g.kind === "generar" && g.authorization?.revision !== cur.revision) return fail(409, "El guion cambió desde la autorización: vuelve a autorizar el gasto.", { current: view(cur, d.env) });
+  if (!interrupted) return fail(409, "No hay una generación interrumpida que reanudar.", { current: view(cur, d.env, d.voice) });
+  if (g.kind === "generar" && g.authorization?.revision !== cur.revision) return fail(409, "El guion cambió desde la autorización: vuelve a autorizar el gasto.", { current: view(cur, d.env, d.voice) });
   const next: AudioProject = { ...cur, generation: { ...g, status: "en_cola", error: null, heartbeatAt: now, finishedAt: null } };
   await d.store.put(next);
-  return { ok: true, status: 202, body: view(next, d.env) };
+  return { ok: true, status: 202, body: view(next, d.env, d.voice) };
 });
 
 /**
@@ -158,14 +164,14 @@ export const resumeGeneration = (d: Deps & { voice?: VoiceAvailability }, ownerI
 export const switchToFallbackModel = (d: Deps, ownerId: string, id: string, revision: unknown) => guard(async () => {
   const cur = isUuid(id) ? await d.store.get(ownerId, id) : null;
   if (!cur) return NOT_FOUND();
-  if (cur.ttsModel === FALLBACK_TTS_MODEL) return fail(409, `El episodio ya usa ${ttsModel(FALLBACK_TTS_MODEL)!.label}.`, { current: view(cur, d.env) });
-  if (generationActive(cur.generation, Date.parse(nowOf(d)))) return fail(409, "Se está generando el audio: espera a que termine.", { current: view(cur, d.env) });
-  if (revision !== cur.revision) return fail(409, "Guarda los cambios antes de cambiar de modelo.", { current: view(cur, d.env) });
+  if (cur.ttsModel === FALLBACK_TTS_MODEL) return fail(409, `El episodio ya usa ${ttsModel(FALLBACK_TTS_MODEL)!.label}.`, { current: view(cur, d.env, d.voice) });
+  if (generationActive(cur.generation, Date.parse(nowOf(d)))) return fail(409, "Se está generando el audio: espera a que termine.", { current: view(cur, d.env, d.voice) });
+  if (revision !== cur.revision) return fail(409, "Guarda los cambios antes de cambiar de modelo.", { current: view(cur, d.env, d.voice) });
   const next = applyInput(cur, { ttsModel: FALLBACK_TTS_MODEL }, nowOf(d));
   // La autorización previa era para otro modelo y otra revisión: se descarta (no se puede reanudar con ella).
   const out: AudioProject = { ...next, generation: { ...next.generation, authorization: null, status: next.generation.status === "fallida" ? "inactiva" : next.generation.status, error: null } };
   await d.store.put(out);
-  return { ok: true, status: 200, body: view(out, d.env) };
+  return { ok: true, status: 200, body: view(out, d.env, d.voice) };
 });
 
 /** Id estable del episodio inicial de una cuenta: cargarlo dos veces nunca crea un duplicado. */

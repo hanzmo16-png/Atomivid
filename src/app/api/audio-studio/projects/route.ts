@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const user = await audioStudioUser();
   if ("error" in user) return NextResponse.json({ error: user.error }, { status: user.status });
-  const out = await listProjects(studioDeps(), user.id);
+  const out = await listProjects(studioDeps(user), user.id);
   return NextResponse.json(out.body, { status: out.status, headers: { "Cache-Control": "no-store" } });
 }
 
@@ -21,6 +21,6 @@ export async function POST(request: Request) {
   if (notJson(request)) return NOT_JSON();
   const user = await audioStudioUser();
   if ("error" in user) return NextResponse.json({ error: user.error }, { status: user.status });
-  const out = await createProject(studioDeps(), user.id, await request.json().catch(() => null));
+  const out = await createProject(studioDeps(user), user.id, await request.json().catch(() => null));
   return NextResponse.json(out.body, { status: out.status });
 }

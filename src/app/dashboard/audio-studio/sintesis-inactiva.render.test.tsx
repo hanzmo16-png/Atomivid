@@ -82,8 +82,9 @@ test("ruta de voces: con síntesis inactiva responde «inactiva» antes de consu
   const src = readFileSync("src/app/api/audio-studio/voices/route.ts", "utf8");
   const inactive = src.indexOf('synthesis: "inactiva"');
   assert.ok(inactive > 0 && inactive < src.indexOf("studioCatalog(map)"), "«inactiva» se decide antes de llamar al catálogo");
-  assert.ok(src.indexOf("audioStudioUser()") < src.indexOf("voiceAvailability(process.env)"), "la sesión se exige antes que todo");
-  assert.match(src, /voiceAvailability\(process\.env\)/);
+  // La disponibilidad depende de la cuenta (la voz de demostración es solo del dueño): se calcula con la sesión.
+  assert.ok(src.indexOf("audioStudioUser()") < src.indexOf("studioVoiceFor(user)"), "la sesión se exige antes que todo");
+  assert.match(src, /studioVoiceFor\(user\)/);
   // Nunca devuelve valores de variables ni el motivo interno de la indisponibilidad.
   assert.doesNotMatch(src, /availability\.reason|process\.env\.[A-Z_]+\s*[,}]|JSON\.stringify\(process\.env/);
 });

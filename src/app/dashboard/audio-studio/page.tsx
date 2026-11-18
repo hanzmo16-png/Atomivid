@@ -17,7 +17,7 @@ export default async function AudioStudioPage({ searchParams }: { searchParams: 
     notFound();
   }
   const { archivados } = await searchParams;
-  const deps = studioDeps();
+  const deps = studioDeps(user);
   // El primer episodio del dueño queda cargado como proyecto editable (id estable: nunca se duplica).
   const seedError = user.owner
     ? await ensureSeed(deps, user.id).then(() => null, (e: unknown) => {
