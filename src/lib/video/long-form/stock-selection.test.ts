@@ -489,3 +489,17 @@ test("sujetos compuestos y categorías: una parte completa ilustra la escena; el
   ok(v("game reserve", "Game reserve vehicle near a bushveld trail", "South Africa"), "wildlife safari at kruger national park");
   no(v("GPS collar", "GPS tracking collar on ungulate neck"), "zebras and wildebeests grazing");
 });
+
+// Auditoría endgame Long Form (2026-11-17): la época solo se reconocía con años 1500–1999 o unas pocas palabras. En un
+// video de historia/misterio («480 BC», «1066», «AD 79», «medieval», «Roman Empire») un coche o un móvil no se rechazaba.
+test("[REGRESIÓN época] eras antiguas o medievales rechazan material moderno; las actuales no cambian", () => {
+  const scene = (era: string) => ({ description: "army marching through a narrow mountain pass", motion: false, subject: "army", era }) as BeatVisual;
+  const modern = "army convoy trucks on a modern highway";
+  for (const era of ["480 BC", "9600 BCE", "50 a. C.", "AD 79", "1066", "1066 CE", "872", "medieval", "Middle Ages", "Roman Empire", "Bronze Age",
+    "Viking age", "siglo XV", "Edad Media", "2nd century", "1880s", "1910"])
+    assert.ok(assessRelevance(scene(era), modern).conflicts.some((c) => c.startsWith("época")), era);
+  for (const era of ["2020s", "1990s", "1972", "present day", "contemporary", "2026", "AD 2001"])
+    assert.ok(!assessRelevance(scene(era), modern).conflicts.some((c) => c.startsWith("época")), era);
+  // Material de la época sigue pasando.
+  assert.deepEqual(assessRelevance(scene("480 BC"), "ancient army marching through a narrow mountain pass").conflicts, []);
+});

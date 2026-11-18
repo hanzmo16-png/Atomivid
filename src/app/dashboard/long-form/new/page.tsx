@@ -56,11 +56,9 @@ export default async function NewLongFormVideoPage({
 
   return (
     <div className="mx-auto max-w-2xl">
-      <h1 className="text-2xl font-bold text-ink">Nuevo documental (beta)</h1>
+      <h1 className="text-2xl font-bold text-ink">Nuevo video de YouTube</h1>
       <p className="mt-1 text-sm text-ink-muted">
-        Long Form/YouTube — video 1920×1080 con narración, imágenes/video de archivo y clips
-        generados con IA solo donde aportan valor. Función beta, visible únicamente para tu
-        cuenta.
+        Escribe la idea. ATOMIVID investiga, escribe el guion y te lo muestra antes de producir nada.
       </p>
 
       {error && (
@@ -73,7 +71,7 @@ export default async function NewLongFormVideoPage({
 
       <Card className="mt-6 p-6">
         <form action={createLongFormVideoRequest} className="space-y-4">
-          <Field id="topic" label="Tema del documental">
+          <Field id="topic" label="¿De qué trata tu video?">
             <input
               id="topic"
               name="topic"
@@ -93,19 +91,28 @@ export default async function NewLongFormVideoPage({
             </select>
           </Field>
 
-          <Field id="duration_minutes" label="Duración objetivo (minutos)" hint="Entre 3 y 30 minutos. Empieza con 7: prioriza una historia completa, sin relleno. Los episodios largos tardan más en producirse y cuestan más.">
+          {/* Sin valor por defecto (incidente Anunnaki, 2026-11-07): un «7» ya escrito se enviaba sin que el cliente lo
+              eligiera y el documental de 30 min salía de 7. La duración se escribe siempre a propósito. */}
+          <Field id="duration_minutes" label="Duración (minutos)" hint="Escribe entre 3 y 30. Por ejemplo, 10 para un video o 30 para un documental. Más minutos tardan más y cuestan más.">
             <input
               id="duration_minutes"
               name="duration_minutes"
               type="number"
+              inputMode="numeric"
               required
               min={3}
               max={30}
-              defaultValue={durationMinutes ?? "7"}
+              step={1}
+              placeholder="Ej.: 10"
+              defaultValue={durationMinutes ?? ""}
               className={INPUT_CLASS}
             />
           </Field>
 
+          {/* Opciones avanzadas (T-LF100, interfaz sencilla): plegadas por defecto; abiertas si ya traen valores (reenvío tras un error). */}
+          <details className="rounded-md border border-border px-3 py-2" open={Boolean(sources || openQuestions) || undefined}>
+            <summary className="cursor-pointer text-sm font-medium text-ink">Opciones avanzadas (opcional)</summary>
+            <div className="mt-3 space-y-4">
           <Field
             id="sources"
             label="Referencias para investigar (opcional)"
@@ -135,13 +142,13 @@ export default async function NewLongFormVideoPage({
               className={`${INPUT_CLASS} font-mono text-base sm:text-xs`}
             />
           </Field>
+            </div>
+          </details>
 
           <SubmitButton />
           <p className="text-xs text-ink-faint">
-            La IA investiga, compara ángulos y consulta tus guiones recientes antes de escribir y revisar la historia. Si detecta repetición o
-            promesas sin resolver, realiza una sola corrección y la comprueba. La búsqueda y la escritura usan
-            créditos del proveedor y puede tardar varios minutos. La voz y las imágenes se generan
-            después de superar esta revisión y confirmar el plan. No pulses el botón más de una vez.
+            Escribir el guion tarda unos minutos y usa créditos del proveedor. La voz y las imágenes solo se producen después de
+            que revises el guion y confirmes el costo.
           </p>
         </form>
       </Card>

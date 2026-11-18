@@ -178,7 +178,9 @@ test("page.tsx: topic/duration_minutes/sources/open_questions se leen de searchP
   const source = readPage();
   assert.match(source, /topic\?: string;\s*duration_minutes\?: string;\s*sources\?: string;\s*open_questions\?: string;/);
   assert.match(source, /defaultValue=\{topic \?\? ""\}/);
-  assert.match(source, /defaultValue=\{durationMinutes \?\? "7"\}/);
+  assert.match(source, /defaultValue=\{durationMinutes \?\? ""\}/);
+  // Incidente Anunnaki: ninguna duración llega escrita por defecto (un «7» se enviaba sin elegirlo).
+  assert.doesNotMatch(source, /durationMinutes \?\? "\d+"/);
   assert.match(source, /defaultValue=\{sources \?\? ""\}/);
   assert.match(source, /defaultValue=\{openQuestions \?\? ""\}/);
 });

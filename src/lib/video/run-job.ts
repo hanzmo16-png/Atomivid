@@ -4,6 +4,7 @@ import { isInternalProductionOwner } from "@/lib/billing/internal-production";
 import { MAX_DIRECTOR_MATERIAL_USD } from "@/lib/video/director/material-fill";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { needsNarrationEdit } from "./duration-check";
+import { LongFormDurationShortfallError } from "./long-form/duration-shortfall";
 import { DeliverableUnverifiedError } from "@/lib/video/deliverable-check";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { editorialApprovalError } from "./long-form/editorial";
@@ -242,7 +243,7 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
               language: row.language ?? undefined,
               plan: longFormPlan as ProductionPlan,
               onProgress: onLongFormProgress,
-              runtime: { attempt: row.render_attempts,
+              runtime: { attempt: row.render_attempts, requestedDurationSeconds: row.duration_seconds,
                 ...(row.reel_voice_id ? { voiceId: row.reel_voice_id } : {}),
                 ...(recraft ? { recraftStyle: {
                   styleId: recraft.styleId,
@@ -352,7 +353,9 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
       || (error instanceof DirectorUnavailableError && error.reason !== "owner_lookup_failed")
       // Recraft: an account/plan mismatch or a stop that a retry cannot clear goes to support, never a retry loop.
       || error instanceof RecraftAccessError || error instanceof RecraftStyleMissingError || error instanceof GeneratedImageRejectedError
-      || (error instanceof ChosenImageProviderError && !error.retryable) ? "support" : "retry";
+      || (error instanceof ChosenImageProviderError && !error.retryable)
+      // A script far shorter than the requested duration stops the same way on every retry: it needs a longer script.
+      || error instanceof LongFormDurationShortfallError ? "support" : "retry";
     // A measured duration mismatch happens before footage/render and after the
     // voice ledger is settled. Reopen editing; retain attempts and paid history.
     // T-24 C1: same for an Avatar narrated from the script whose REAL audio exceeds the limit (no avatar job was
