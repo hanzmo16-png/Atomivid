@@ -137,6 +137,18 @@ export function elevenLabsProvider(model: TtsModelId, rate: number, opts: { apiK
  * Precedencia: fixture (solo fuera de producción) → ElevenLabs (AUDIO_STUDIO_PAID_TTS=1; nunca la reemplaza la demo) →
  * demo (AUDIO_STUDIO_VOICE=demo Y dueño; funciona también en producción) → PAID_BLOCKED (igual que antes para el resto).
  */
+/**
+ * ¿Está encendida la voz de demostración (solo se concede a la cuenta dueña)?
+ *  - AUDIO_STUDIO_VOICE=demo → sí, en cualquier entorno.
+ *  - Sin la variable, EN PRODUCCIÓN → sí: el dueño puede probar el estudio de punta a punta sin tocar la configuración
+ *    de Vercel (USD 0, espeak-ng). Fuera de producción sin la variable → no (las pruebas locales siguen explícitas).
+ *  - AUDIO_STUDIO_VOICE=off (o cualquier otro valor) → no. Es el interruptor de rollback sin redeploy de código.
+ */
+export function demoVoiceEnabled(env: Record<string, string | undefined>): boolean {
+  const v = env.AUDIO_STUDIO_VOICE;
+  return v === "demo" || ((v === undefined || v === "") && isProduction(env));
+}
+
 export function voiceAvailability(env: Record<string, string | undefined> = process.env, rateFor: (model: TtsModelId) => number = () => 0.2, opts: { owner?: boolean } = {}): VoiceAvailability {
   if (env.AUDIO_STUDIO_VOICE === "fixture" && !isProduction(env)) {
     // Inyección de fallo SOLO en pruebas locales: un texto con la marca simula un error del proveedor.
@@ -148,7 +160,7 @@ export function voiceAvailability(env: Record<string, string | undefined> = proc
     if (!map) return { ok: false, reason: "Falta configurar las voces de ElevenLabs del estudio. No se hizo ningún cargo." };
     return { ok: true, voice: { mode: "elevenlabs", validate: (project) => validateStudioVoices(project, map, env), provider: (model) => elevenLabsProvider(model, rateFor(model)), voiceIdFor: (preset) => map[preset] ?? "" } };
   }
-  if (env.AUDIO_STUDIO_VOICE === "demo" && opts.owner === true) return { ok: true, voice: demoVoice() };
+  if (opts.owner === true && demoVoiceEnabled(env)) return { ok: true, voice: demoVoice() };
   return { ok: false, reason: PAID_BLOCKED };
 }
 

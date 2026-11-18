@@ -14,11 +14,15 @@ export type WorkerMode = "inline" | "github" | "apagado";
  *  - inline: render en el propio proceso; solo fuera de producción (arnés y CI con la voz fixture).
  *  - github: despacha `.github/workflows/audio-studio-worker.yml` (ffmpeg real en un runner). Es el modo de producción;
  *    requiere GH_WORKER_TOKEN y GH_WORKER_REPO, que ya existen para el worker de video (no se modifican).
- *  - apagado: cualquier otro valor. La generación queda en cola sin gastar nada.
+ *  - sin variable: github si corre en Vercel con GH_WORKER_TOKEN y GH_WORKER_REPO; si no, apagado.
+ *  - apagado: cualquier otro valor (p. ej. «off»). La generación queda en cola sin gastar nada.
  */
 export function workerMode(env: Record<string, string | undefined> = process.env): WorkerMode {
   if (env.AUDIO_STUDIO_WORKER === "inline" && !env.VERCEL && env.NODE_ENV !== "production") return "inline";
   if (env.AUDIO_STUDIO_WORKER === "github") return "github";
+  // Sin la variable, en Vercel y con las credenciales del worker de video → github. Solo despacha si la cuenta tiene voz
+  // (hoy: la demo del dueño, USD 0); para el resto `startWorker` sigue en «apagado». AUDIO_STUDIO_WORKER=off lo apaga.
+  if ((env.AUDIO_STUDIO_WORKER ?? "") === "" && !!env.VERCEL && !!env.GH_WORKER_TOKEN && !!env.GH_WORKER_REPO) return "github";
   return "apagado";
 }
 

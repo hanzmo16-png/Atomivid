@@ -32,10 +32,16 @@ test("disponibilidad: demo solo para la cuenta dueña (también en producción);
       const other = voiceAvailability(env, undefined, opts);
       assert.deepEqual(other, { ok: false, reason: PAID_BLOCKED }, `cliente ${JSON.stringify(p)} ${JSON.stringify(opts)}`);
     }
-    // Sin la variable, ni el dueño tiene demo.
-    assert.deepEqual(voiceAvailability({ ...p }, undefined, { owner: true }), { ok: false, reason: PAID_BLOCKED });
-    // Valores parecidos no activan nada.
-    for (const v of ["Demo", "DEMO", "demo ", "1", "true", ""]) assert.equal(voiceAvailability({ AUDIO_STUDIO_VOICE: v, ...p }, undefined, { owner: true }).ok, false, v);
+    // Sin la variable: en producción el dueño tiene demo (sin tocar Vercel); fuera de producción, no. El cliente, nunca.
+    const prod = "NODE_ENV" in p || "VERCEL" in p;
+    for (const unset of [{}, { AUDIO_STUDIO_VOICE: "" }]) {
+      const own0 = voiceAvailability({ ...unset, ...p }, undefined, { owner: true });
+      if (prod) assert.ok(own0.ok && own0.voice.mode === "demo", `dueño sin variable ${JSON.stringify(p)}`);
+      else assert.deepEqual(own0, { ok: false, reason: PAID_BLOCKED });
+      assert.deepEqual(voiceAvailability({ ...unset, ...p }, undefined, { owner: false }), { ok: false, reason: PAID_BLOCKED });
+    }
+    // «off» (rollback) y valores parecidos no activan nada, ni en producción.
+    for (const v of ["off", "Demo", "DEMO", "demo ", "1", "true"]) assert.equal(voiceAvailability({ AUDIO_STUDIO_VOICE: v, ...p }, undefined, { owner: true }).ok, false, v);
   }
 });
 
@@ -114,8 +120,8 @@ test("worker CLI: demo con otro dueño → SIN_VOZ; con el dueño pasa la barrer
   assert.equal(own.status, 2); assert.match(own.stdout, /RESULTADO ERROR falta configuración de Storage/);
   const wf = readFileSync(".github/workflows/audio-studio-worker.yml", "utf8");
   assert.match(wf, /apt-get install -yq ffmpeg espeak-ng/);
-  assert.match(wf, /AUDIO_STUDIO_VOICE: \$\{\{ vars\.AUDIO_STUDIO_VOICE \}\}/);
-  assert.match(wf, /INTERNAL_PRODUCTION_OWNER_USER_ID: \$\{\{ vars\.INTERNAL_PRODUCTION_OWNER_USER_ID \}\}/);
+  assert.match(wf, /AUDIO_STUDIO_VOICE: \$\{\{ vars\.AUDIO_STUDIO_VOICE \|\| 'demo' \}\}/);
+  assert.match(wf, /INTERNAL_PRODUCTION_OWNER_USER_ID: \$\{\{ vars\.INTERNAL_PRODUCTION_OWNER_USER_ID \|\| secrets\.INTERNAL_PRODUCTION_OWNER_USER_ID \}\}/);
 });
 
 test("render completo en modo demo con NODE_ENV=production: MP3 válido, proveedor «demo», USD 0 (espeakVoice no se usa)", async () => {

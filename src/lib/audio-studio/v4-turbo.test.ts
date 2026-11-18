@@ -189,6 +189,13 @@ test("worker de producción: inline nunca en producción; github despacha su pro
   assert.equal(workerMode({ AUDIO_STUDIO_WORKER: "inline", NODE_ENV: "production" }), "apagado");
   assert.equal(workerMode({ AUDIO_STUDIO_WORKER: "github", VERCEL: "1" }), "github");
   assert.equal(workerMode({}), "apagado");
+  // Sin variable: github solo en Vercel y con las credenciales del worker; «off» u otro valor lo apaga.
+  const gh = { VERCEL: "1", GH_WORKER_TOKEN: "t", GH_WORKER_REPO: "o/r" };
+  assert.equal(workerMode(gh), "github");
+  assert.equal(workerMode({ ...gh, AUDIO_STUDIO_WORKER: "" }), "github");
+  assert.equal(workerMode({ ...gh, AUDIO_STUDIO_WORKER: "off" }), "apagado");
+  assert.equal(workerMode({ ...gh, GH_WORKER_TOKEN: "" }), "apagado");
+  assert.equal(workerMode({ GH_WORKER_TOKEN: "t", GH_WORKER_REPO: "o/r", NODE_ENV: "production" }), "apagado");
   assert.equal(AUDIO_STUDIO_DISPATCH_EVENT, "audio-studio-render");
   assert.throws(() => dispatchPayload("x; rm -rf /", A));
   const store = memoryStore();

@@ -39,7 +39,7 @@ Módulo nuevo y aislado para crear podcasts **solo audio**. Ruta: `/dashboard/au
 - **Proveedores de voz**:
   - `AUDIO_STUDIO_VOICE=fixture` usa espeak-ng local («voz de prueba local»). Solo funciona fuera de producción (nunca con `VERCEL` ni `NODE_ENV=production`).
   - El adaptador real de ElevenLabs solo se activa con `AUDIO_STUDIO_PAID_TTS=1` **y** el mapa `AUDIO_STUDIO_ELEVENLABS_VOICES` (ver «Idioma y voces»).
-  - `AUDIO_STUDIO_VOICE=demo`: voz de demostración espeak-ng, USD 0, **solo para la cuenta dueña** (ver «Voz de demostración (solo la cuenta dueña)»).
+  - `AUDIO_STUDIO_VOICE=demo` (o sin definir en producción; `off` la apaga): voz de demostración espeak-ng, USD 0, **solo para la cuenta dueña** (ver «Voz de demostración (solo la cuenta dueña)»).
 
   Sin esas dos condiciones la síntesis está **inactiva**: el editor lo avisa desde el inicio, no muestra la autorización de gasto, «Generar MP3» ni «Reanudar», y el servidor rechaza cualquier generación sin llamada ni cargo. Este documento **no afirma** si producción tiene hoy la síntesis activa: depende de configuración externa al código, que se comprueba en el entorno, no aquí.
 - **Worker**: el worker en proceso (`AUDIO_STUDIO_WORKER=inline`) lo usan el arnés y el CI. En producción el modo es `github` (ver «Worker de producción»), y solo sintetiza si la síntesis real está activa.
@@ -149,30 +149,10 @@ Permite al dueño generar, escuchar y descargar un MP3 completo en producción *
 - **Gasto**: la autorización se guarda con USD 0. El worker solo acepta un monto 0 con la voz demo; con voz de pago un monto 0 se sigue rechazando.
 - **Worker**: el runner instala `espeak-ng` y solo usa la demo si el dueño del proyecto es `INTERNAL_PRODUCTION_OWNER_USER_ID`; en otro caso imprime `RESULTADO SIN_VOZ`.
 
-**Activar** (sin desplegar código nuevo, después del merge):
+**Activación**: no requiere configuración. Tras el deploy, en producción (Vercel) la demo queda encendida para la cuenta dueña aunque `AUDIO_STUDIO_VOICE` no exista, y el worker pasa a `github` si `AUDIO_STUDIO_WORKER` no existe y están `GH_WORKER_TOKEN`/`GH_WORKER_REPO` (los del worker de video). El runner toma `AUDIO_STUDIO_VOICE` de la variable de repositorio o `demo` por defecto, y el dueño de la variable `INTERNAL_PRODUCTION_OWNER_USER_ID` o, si no existe, del secreto ya existente (no se modifica). Ninguna otra cuenta dispara el worker: sin voz, `startWorker` devuelve «apagado».
 
-1. Vercel (producción): `AUDIO_STUDIO_VOICE=demo` (y que ya existan `INTERNAL_PRODUCTION_OWNER_USER_ID` y `AUDIO_STUDIO_WORKER=github` con `GH_WORKER_TOKEN`/`GH_WORKER_REPO`). Volver a desplegar para que la variable se lea.
-2. GitHub → Settings → Variables (repositorio): `AUDIO_STUDIO_VOICE` = `demo` e `INTERNAL_PRODUCTION_OWNER_USER_ID` = el UUID del dueño.
+**Desactivar / revertir sin código**: `AUDIO_STUDIO_VOICE=off` en Vercel (redesplegar) y como variable de repositorio; `AUDIO_STUDIO_WORKER=off` apaga el despacho. El estudio vuelve a «inactiva». Los MP3 de demostración ya generados quedan en la biblioteca marcados como demo; un episodio en cola con autorización USD 0 no se procesa con voz de pago (el worker lo rechaza). Para quitar el código: `git revert -m 1` del merge.
 
-**Desactivar / revertir**: borrar `AUDIO_STUDIO_VOICE` en Vercel (y redesplegar) y la variable de repositorio `AUDIO_STUDIO_VOICE`. El estudio vuelve a «inactiva» para todos. Los MP3 de demostración ya generados quedan en la biblioteca marcados como demo; un episodio en cola con autorización USD 0 no se procesa con voz de pago (el worker lo rechaza). Para quitar el código: `git revert` del commit.
-
-## Respaldo y recuperación
-
-1. **Antes del despliegue.** No hay datos previos del módulo. Producción solo gana archivos nuevos bajo `videos/audio-studio/v1/`. Nada existente se modifica.
-2. **Respaldo de proyectos.** Descargar el prefijo `videos/audio-studio/v1/` con la clave de servicio, desde un entorno autorizado. Cada archivo es autocontenido y lleva `version: "audio-studio-1.0"` y `revision`.
-3. **Restaurar un proyecto.** Volver a subir su JSON a la misma ruta. Al leerlo, el estudio lo valida contra el esquema y la cuenta (`parseStored`). Un archivo corrupto o ajeno se ignora y nunca se ejecuta.
-4. **Retirar el módulo sin desplegar.** Poner `AUDIO_STUDIO_DISABLED=1`. Los proyectos guardados quedan intactos.
-5. **Revertir el código.** Usar `git revert` del commit de merge del PR. Sin migraciones, no hay nada que deshacer en la base. Los JSON del prefijo pueden quedarse: ningún otro módulo los lee.
-
-## Pruebas
-
-| Tipo | Archivo | Qué cubre |
-|---|---|---|
-| Unitarias, integración y seguridad | `src/lib/audio-studio/audio-studio.test.ts` | Modelo, servicio, almacén en Storage simulado, aislamiento, costo, bloqueo de pago, aislamiento de código |
-| Modelos | `src/lib/audio-studio/v4-turbo.test.ts` | V4 Turbo por defecto, v2 de respaldo y legado, autorización ligada al modelo, worker |
-| Idiomas | `src/lib/audio-studio/languages.test.ts` | Español/inglés, voces por idioma, catálogo |
-| Render | `src/app/dashboard/audio-studio/audio-studio.render.test.tsx` | Biblioteca y editor |
-| Síntesis inactiva | `src/app/dashboard/audio-studio/sintesis-inactiva.render.test.tsx` | Aviso y ocultación del gasto con síntesis inactiva; flujo intacto con síntesis real/local; matriz de disponibilidad; contrato de la ruta de voces |
 | Voz de demostración | `src/lib/audio-studio/voz-demo.test.ts`, `src/app/dashboard/audio-studio/voz-demo.render.test.tsx` | Matriz dueño/cliente/producción/precedencia, USD 0 de punta a punta, preflight, CLI y workflow, render real en modo demo con `NODE_ENV=production`, rótulos en editor y biblioteca |
 | E2E | `scripts/harness/e2e/audio-studio/audio-studio-e2e.cjs` | Ver abajo |
 
