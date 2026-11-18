@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { GENERATION_LABEL, STATUS_LABEL, voicePreset } from "@/lib/audio-studio/model";
+import { audioProviderNote, GENERATION_LABEL, STATUS_LABEL, voicePreset } from "@/lib/audio-studio/model";
 import type { ProjectView } from "@/lib/audio-studio/service";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -33,7 +33,7 @@ export function AudioLibrary({ projects, archived }: { projects: ProjectView[]; 
                 <audio controls preload="none" className="w-full" src={`/api/audio-studio/projects/${p.id}/audio`} />
                 <p className="text-xs text-ink-muted">
                   MP3 · {Math.floor(p.audio.durationSeconds / 60)} min {Math.round(p.audio.durationSeconds % 60)} s · {p.audio.lufs} LUFS
-                  {p.audio.provider === "fixture" ? " · voz de prueba local" : ""}
+                  {audioProviderNote(p.audio.provider)}
                 </p>
                 <a href={`/api/audio-studio/projects/${p.id}/audio?descargar=1`} className="inline-flex min-h-11 items-center text-sm text-accent underline">Descargar MP3</a>
               </div>
