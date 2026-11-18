@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getStripe } from "@/lib/stripe/client";
 import { buildCheckoutUrl } from "@/lib/billing/checkout";
+import { resolveSiteUrl } from "@/lib/http/site-url";
 import { SupabaseQueryError, classifyBillingError, logBillingError } from "@/lib/billing/checkout-error";
 import { MissingEnvVarError } from "@/lib/env-errors";
 import { getPlanPriceId, isPlanPurchasable, planPriceIdEnvVar, type PlanId } from "@/lib/billing/plans";
@@ -21,13 +22,8 @@ import { ATTRIBUTION_COOKIE, VISITOR_COOKIE, decodeAttribution, recordMarketingE
 class NoSubscriptionError extends Error {}
 
 async function getSiteUrl(): Promise<string> {
-  // The Stripe test environment runs on a preview branch: send the customer back there, not to production.
-  const branchUrl = process.env.VERCEL_ENV === "preview" ? process.env.VERCEL_BRANCH_URL?.trim() : undefined;
-  if (branchUrl) return `https://${branchUrl}`;
-  const envUrl = process.env.NEXT_PUBLIC_SITE_URL;
-  if (envUrl) return envUrl;
-  const origin = (await headers()).get("origin");
-  return origin ?? "http://localhost:3000";
+  // The Stripe test environment runs on a preview branch: resolveSiteUrl sends the customer back there.
+  return resolveSiteUrl(process.env, (await headers()).get("origin"));
 }
 
 /**

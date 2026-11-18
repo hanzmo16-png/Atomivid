@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { Alert } from "@/components/ui/Alert";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
 import { isInternalProductionOwner } from "@/lib/billing/internal-production";
 import Link from "next/link";
 
@@ -123,9 +124,7 @@ export default async function BillingPage({
 
             <div className="mt-6">
               <form action={createPortalSession}>
-                <Button type="submit" variant="secondary">
-                  Administrar suscripción
-                </Button>
+                <PendingSubmitButton variant="secondary" className="" pendingLabel="Abriendo…">Administrar suscripción</PendingSubmitButton>
               </form>
             </div>
           </div>
@@ -168,9 +167,7 @@ function PlanCard({ plan }: { plan: PlanConfig }) {
 
         {isPlanPurchasable(plan.id) ? (
           <form action={createCheckoutSessionForPlan} className="mt-6">
-            <Button type="submit" className="w-full">
-              Elegir {plan.name}
-            </Button>
+            <PendingSubmitButton pendingLabel="Abriendo el pago seguro…">Elegir {plan.name}</PendingSubmitButton>
           </form>
         ) : (
           <div className="mt-6">

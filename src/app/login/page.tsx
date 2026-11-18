@@ -2,7 +2,7 @@ import Link from "next/link";
 import { signIn } from "./actions";
 import { Alert } from "@/components/ui/Alert";
 import { Field, INPUT_CLASS } from "@/components/ui/Field";
-import { Button } from "@/components/ui/Button";
+import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
 import { AuthCard } from "@/components/ui/AuthCard";
 
 export default async function LoginPage({
@@ -49,9 +49,7 @@ export default async function LoginPage({
             ¿Olvidaste tu contraseña?
           </Link>
         </p>
-        <Button type="submit" className="w-full">
-          Iniciar sesión
-        </Button>
+        <PendingSubmitButton pendingLabel="Entrando…">Iniciar sesión</PendingSubmitButton>
       </form>
 
       <p className="mt-6 text-center text-sm text-ink-muted">
