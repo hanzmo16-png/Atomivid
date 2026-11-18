@@ -131,6 +131,12 @@ export async function masterAudioLoudness(
      * Sin esta opción no se aplica el limitador adicional (Shorts/Avatar).
      */
     truePeakMarginDb?: number;
+    /**
+     * Frecuencia de muestreo explícita de la salida AAC. loudnorm trabaja a 192 kHz y, sin esto, ffmpeg deja el
+     * AAC a 96 kHz (no estándar para redes). El Reel pide 48000; Avatar no lo pide (sin cambios). Con
+     * `truePeakMarginDb` la salida ya es 48 kHz.
+     */
+    sampleRate?: 48000;
   } = {},
 ): Promise<MasteringResult> {
   const probe = await promisify(execFile)(ffprobe.path, [
@@ -164,7 +170,7 @@ export async function masterAudioLoudness(
       "aac",
       "-b:a",
       "192k",
-      ...(guarded ? ["-ar", "48000"] : []),
+      ...(guarded || opts.sampleRate ? ["-ar", String(opts.sampleRate ?? 48000)] : []),
       ...(opts.faststart ? ["-movflags", "+faststart"] : []),
       output,
     ]);

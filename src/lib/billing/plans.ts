@@ -37,7 +37,7 @@ export const PLAN_ORDER: PlanId[] = ["starter", "pro", "business"];
  * quota the server would apply if that ever changes. Durations match the form (30, 60 or 90 s).
  */
 const REEL_INCLUDES = [
-  "Videos de 30, 60 o 90 segundos en 1080×1920",
+  "Videos de 15, 30, 60 o 90 segundos en 1080×1920",
   "Revisas y editas el guion antes del video final",
   "Narración con IA en español o inglés",
   "Cancela cuando quieras",

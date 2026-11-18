@@ -115,7 +115,10 @@ async function main() {
   );
   const { buildCaptions } = await import("../src/lib/video/captions");
   const { buildEmphasisSet } = await import("../src/lib/video/caption-emphasis");
-  const { masterAudioLoudness, LOUDNESS_TARGET } = await import("../src/lib/video/audio-master");
+  const { LOUDNESS_TARGET } = await import("../src/lib/video/audio-master");
+  const { masterLongFormAudio } = await import("../src/lib/video/long-form/mastering");
+  const { probeOutput } = await import("../src/lib/video/long-form/output-media");
+  const { renderedDurationMismatch } = await import("../src/lib/video/long-form/duration-shortfall");
   const { renderLongFormDoc } = await import("../src/lib/video/long-form/render");
   const { VIDEO_TAIL_SECONDS } = await import("../src/lib/video/script-pacing");
   const { computeNarrationGaps } = await import("../remotion/audio-mix");
@@ -480,17 +483,21 @@ async function main() {
     });
     const renderMs = Date.now() - renderStartedAt;
 
-    // 9. Masterización de loudness — reutiliza audio-master.ts tal cual.
+    // 9. Masterización de loudness — la MISMA del worker (mastering.ts: 48 kHz, margen de pico real, faststart).
     let finalPath = rawOutputPath;
     try {
       const masteredPath = rawOutputPath.replace(/\.mp4$/, ".mastered.mp4");
-      const mastering = await masterAudioLoudness(rawOutputPath, masteredPath);
+      const mastering = await masterLongFormAudio(rawOutputPath, masteredPath);
       finalPath = masteredPath;
       console.log("[atomivid:long-form] masterización de loudness:", JSON.stringify({ target: LOUDNESS_TARGET, ...mastering }));
     } catch (err) {
       console.warn("[atomivid:long-form] no se pudo masterizar loudness (¿falta ffmpeg?), se usa el render sin normalizar:", err);
     }
 
+    // Misma puerta que el worker: un MP4 que no dura lo compuesto no se entrega.
+    const media = await probeOutput(finalPath);
+    const mismatch = renderedDurationMismatch(media.durationSeconds, finalDurationSeconds);
+    if (mismatch) throw new Error(`El MP4 dura ${media.durationSeconds.toFixed(2)} s y se compusieron ${finalDurationSeconds.toFixed(2)} s: no se entrega.`);
     await fs.mkdir(path.dirname(args.output), { recursive: true });
     await fs.copyFile(finalPath, args.output);
 
@@ -503,6 +510,7 @@ async function main() {
       storyboardSource: args.storyboardFile ?? "shotsForSpan() (ciclo genérico, sin storyboard)",
       targetDurationSeconds: args.durationSeconds,
       actualDurationSeconds: finalDurationSeconds,
+      measuredDurationSeconds: media.durationSeconds,
       beatCount: timeline.beats.length,
       shotCount: shotScenes.length,
       distinctShotTypes: new Set(shotTypesUsed).size,

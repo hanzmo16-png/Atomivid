@@ -74,7 +74,8 @@ export function sceneOpacity(t: SceneTiming, f: number): number {
 export function sceneTransform(direction: SceneDirection | undefined, isFirst: boolean, p: number): { scale: number; translateX: number } {
   const motion: SceneMotion = direction ? direction.motion : isFirst ? "hook" : "legacy" as SceneMotion;
   switch (motion) {
-    case "hook": return { scale: lerp(1, 1.22, p / 0.4), translateX: 0 };
+    // Punch-in over the first 40 %, then a slow drift (never a still frame in the opening seconds).
+    case "hook": return p <= 0.4 ? { scale: lerp(1, 1.22, p / 0.4), translateX: 0 } : { scale: lerp(1.22, 1.3, (p - 0.4) / 0.6), translateX: lerp(0, -18, (p - 0.4) / 0.6) };
     case "static": case "real": return { scale: 1, translateX: 0 };
     case "push_in": return { scale: lerp(1, 1.15, p), translateX: 0 };
     case "pan": return { scale: 1.12, translateX: lerp(40, -40, p) };
@@ -91,4 +92,35 @@ export function clipAudible(direction: SceneDirection | undefined, mediaType: "i
 export function labelTextFor(direction: SceneDirection | undefined): string | null {
   if (!direction?.label) return null;
   return direction.labelText?.trim() || LABEL_TEXT[direction.label];
+}
+
+/**
+ * Optional end card (CTA) for the last seconds of a Reel, e.g. «Sígueme para más». Off unless a text is given
+ * (REEL_END_CARD_TEXT, see src/lib/video/brand.ts). It never touches the hook (a video shorter than
+ * END_CARD_MIN_VIDEO_SECONDS gets no card) and is drawn in the upper-middle band, away from the caption safe area,
+ * so the last subtitle stays readable underneath it.
+ */
+export const END_CARD_SECONDS = 1.5;
+export const END_CARD_FADE_FRAMES = 8;
+export const END_CARD_MIN_VIDEO_SECONDS = 8;
+export const END_CARD_MAX_CHARS = 40;
+
+/** Cleaned CTA text (single line, at most END_CARD_MAX_CHARS characters) or null when the card is off. */
+export function endCardText(raw: string | null | undefined): string | null {
+  const text = (raw ?? "").replace(/\s+/g, " ").trim();
+  if (!text) return null;
+  return text.length <= END_CARD_MAX_CHARS ? text : text.slice(0, END_CARD_MAX_CHARS - 1).trimEnd() + "…";
+}
+
+/** Frame window of the end card: the last END_CARD_SECONDS of the composition, or null when off or too short. */
+export function endCardWindow(text: string | null | undefined, fps: number, totalFrames: number): { from: number; durationInFrames: number } | null {
+  if (!endCardText(text) || totalFrames < END_CARD_MIN_VIDEO_SECONDS * fps) return null;
+  const durationInFrames = Math.min(totalFrames, Math.round(END_CARD_SECONDS * fps));
+  return { from: totalFrames - durationInFrames, durationInFrames };
+}
+
+/** Opacity and scale of the end card at local frame f: a short fade/scale-in, then it holds until the last frame. */
+export function endCardStyleAt(f: number): { opacity: number; scale: number } {
+  const p = clamp01(f / END_CARD_FADE_FRAMES);
+  return { opacity: p, scale: lerp(0.94, 1, p) };
 }

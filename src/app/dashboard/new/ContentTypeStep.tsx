@@ -79,6 +79,7 @@ export function ContentTypeStep({
   maxAvatarDurationSeconds = 45,
   reelVoiceSelectionEnabled = false,
   recraftReelEnabled = false,
+  fluxReelEnabled = false,
   initialType = null,
   initialTopic = "",
   initialAutoStyle = false,
@@ -92,6 +93,7 @@ export function ContentTypeStep({
   maxAvatarDurationSeconds?: number;
   reelVoiceSelectionEnabled?: boolean;
   recraftReelEnabled?: boolean;
+  fluxReelEnabled?: boolean;
   /** Desde el inicio: formato ya elegido (salta el selector) e idea ya escrita. */
   initialType?: "reel" | null;
   initialTopic?: string;
@@ -106,6 +108,7 @@ export function ContentTypeStep({
       maxAvatarDurationSeconds={maxAvatarDurationSeconds}
       reelVoiceSelectionEnabled={reelVoiceSelectionEnabled}
       recraftReelEnabled={recraftReelEnabled}
+      fluxReelEnabled={fluxReelEnabled}
       existingAvatars={existingAvatars}
       initialMode={mode === "avatar" ? "avatar" : "visual"}
       initialTopic={initialTopic}

@@ -60,3 +60,22 @@ export function buildCaptions(words: WordTiming[], emphasisSet: ReadonlySet<stri
   return captions;
 }
 
+
+/**
+ * Reel: captions never straddle a scene cut. Scene cuts are placed at the first word of each scene
+ * (scene-timings.ts), so a caption that groups the last words of one scene with the first words of the
+ * next shows the old narration over the new image. Words are split by each scene's word count (counted
+ * exactly like alignScenesToWords) and grouped per scene; any extra words stay with the last scene.
+ */
+export function buildSceneCaptions(words: WordTiming[], sceneTexts: readonly string[], emphasisSet: ReadonlySet<string>): Caption[] {
+  const out: Caption[] = [];
+  let offset = 0;
+  sceneTexts.forEach((text, i) => {
+    const count = text.split(/\s+/).filter(Boolean).length;
+    const end = i === sceneTexts.length - 1 ? words.length : Math.min(words.length, offset + count);
+    if (end > offset) out.push(...buildCaptions(words.slice(offset, end), emphasisSet));
+    offset = end;
+  });
+  if (offset < words.length) out.push(...buildCaptions(words.slice(offset), emphasisSet));
+  return out;
+}

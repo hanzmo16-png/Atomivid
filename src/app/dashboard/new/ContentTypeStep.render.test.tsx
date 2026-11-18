@@ -8,9 +8,9 @@ test("formulario Avatar muestra el límite real de 45s y solo ofrece el objetivo
   const html = renderToStaticMarkup(<NewVideoForm action={() => {}} avatarModeEnabled existingAvatars={[]} initialMode="avatar" maxAvatarDurationSeconds={45} />);
   assert.match(html, /Límite de Avatar: 45 segundos/);
   assert.match(html, />30s<\/button>/);
-  assert.doesNotMatch(html, />(60|90)s<\/button>/);
+  assert.doesNotMatch(html, />(15|60|90)s<\/button>/);
   const reel = renderToStaticMarkup(<NewVideoForm action={() => {}} avatarModeEnabled existingAvatars={[]} initialMode="visual" maxAvatarDurationSeconds={45} />);
-  for (const seconds of [30, 60, 90]) assert.ok(reel.includes(`>${seconds}s</button>`));
+  for (const seconds of [15, 30, 60, 90]) assert.ok(reel.includes(`>${seconds}s</button>`));
 });
 
 test("Avatar con fotografía nueva no ofrece repetir como si autorizara otro activo pagado", () => {

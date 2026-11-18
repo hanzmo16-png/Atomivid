@@ -29,20 +29,20 @@ import { supabaseResultStore } from "@/lib/paid-calls/result-store";
  * éxito, reutiliza el registro STARTED/COMPLETED de ai-video-storage.ts.
  */
 import fs from "node:fs/promises";
+import path from "node:path";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildCaptions } from "../captions";
 import { buildEmphasisSet } from "../caption-emphasis";
-import { LOUDNESS_TARGET, masterAudioLoudness } from "../audio-master";
-
-/** Margen de pico real de Long Form: la codificación AAC subía el pico ~0.3 dB sobre −1.5 dBTP (muestra M2: −1.21). */
-export const LONG_FORM_TRUE_PEAK_MARGIN_DB = 1.0;
+import { LOUDNESS_TARGET } from "../audio-master";
+import { masterLongFormAudio } from "./mastering";
+export { LONG_FORM_TRUE_PEAK_MARGIN_DB } from "./mastering";
 import { VIDEO_TAIL_SECONDS } from "../script-pacing";
 import { computeNarrationGaps } from "../../../../remotion/audio-mix";
 import { getVideoProvider } from "@/lib/providers/video-gen";
 import { getVoiceIdentity } from "@/lib/ai/voice";
 import type { MusicResult, ScriptLanguage, VideoProvider } from "@/lib/providers/types";
 import { resolveLongFormProviders, type LongFormProviderSet } from "./mode";
-import { getRecraftImageProvider } from "@/lib/providers/image";
+import { getRecraftImageProvider, getFluxImageProvider } from "@/lib/providers/image";
 import { allocateWithImagePriority, RECRAFT_PRIORITY_VERSION } from "./image-priority";
 import type { BeatType } from "./types";
 import { getVoiceProvider } from "@/lib/providers/voice";
@@ -51,6 +51,7 @@ import { shotsForSpan } from "./shots";
 import { assertOpeningValid, CoverValidationError, renderLongFormDoc, renderLongFormThumbnail, type RenderLongFormDocInput } from "./render";
 import { canonicalSubtitlePath, canonicalThumbnailPath, toCoverSpec } from "./packaging";
 import { probeOutput } from "./output-media";
+import { assertNarrationCoversRequestedDuration, assertScriptCoversRequestedDuration, LongFormRenderedDurationError, renderedDurationMismatch } from "./duration-shortfall";
 import { attachLongFormSubtitles } from "./subtitle-track";
 import { provenanceLabel } from "../../../../remotion/long-form-card-fit";
 import { defaultDirections, snapSceneBoundaries } from "./montage-direction";
@@ -94,7 +95,7 @@ import { getPricingConfig } from "@/lib/billing/pricing";
 import { getLongFormBudget, LONG_FORM_RENDER_JOB_TIMEOUT_MIN, longFormRenderCeilingUsd } from "./cost";
 import { conservativeUnits, conservativeWorstCaseUsd, loadObservedMax, productionHardCap, type ObservedMax } from "./spend-cap";
 import { supabaseShotAssetStore, type ShotAssetStore } from "./durable-shot-assets";
-import { createImageStyleContext, executeShot, type ImageStyleContext, type ShotExecution } from "./shot-executor";
+import { createFixedProviderContext, createImageStyleContext, executeShot, type ImageStyleContext, type ShotExecution } from "./shot-executor";
 import { type LongFormStage } from "./stages";
 import {
   finalizeLongFormOutput,
@@ -175,6 +176,11 @@ export type LongFormRuntime = {
   encoding?: RenderLongFormDocInput["encoding"];
   /** Intento (render_attempts) — solo para el estado durable de la salida. */
   attempt?: number | null;
+  /**
+   * Duración pedida (video_requests.duration_seconds). Ausente = la del plan confirmado. Una narración muy
+   * por debajo (duration-shortfall.ts) se detiene antes de pagar y antes del render, nunca se entrega corta.
+   */
+  requestedDurationSeconds?: number | null;
   /** Destino del informe visual previo al render (por defecto `${requestId}/state/visual-report.json`). */
   saveVisualReport?: (report: VisualReport) => Promise<void>;
   /**
@@ -199,6 +205,11 @@ export type LongFormRuntime = {
   recraftStyle?: { styleId: string | null; referenceImageUrls: string[]; match: "precise" | "flexible" | null; styleNote: string | null;
     onStyleId: (styleId: string) => Promise<void>; onMissingStyleId?: "stop" | "same_references"; styleMissing?: boolean;
     onStyleMissing?: (providerJobId: string | undefined) => Promise<void> };
+  /**
+   * «Imágenes IA con FLUX» chosen for THIS documentary (reel_image_source = 'flux', revalidated by run-job.ts). Required
+   * exactly when the confirmed plan pins image provider "flux"; AI images then use FLUX strictly (no fallback).
+   */
+  fluxImages?: boolean;
 };
 
 export class LongFormReplayError extends Error {
@@ -309,6 +320,10 @@ export async function generateLongFormVideoFromScript({
     return { videoPath: existingOutput.videoPath, deviations: 0, spentUsd: 0, reconciled: true, output: existingOutput.state };
   }
   const replayOnly = runtime.replayOnly === true;
+  // «Termina mucho antes de lo pedido»: un guion cuya narración estimada queda por debajo del −25 % duro de la
+  // duración pedida se detiene AQUÍ, antes de cualquier llamada pagada (voz, imágenes, video, render).
+  const requestedDurationSeconds = runtime.requestedDurationSeconds ?? plan.requestedDurationSeconds;
+  assertScriptCoversRequestedDuration(beats, requestedDurationSeconds);
   // v4: lo que el PLAN ya revela como no entregable (clasificación incierta en HERO, apertura de
   // tarjetas seguras) se detiene ANTES de cualquier llamada pagada: voz, imágenes, video o render.
   // Además, la cobertura HERO con material verificado: si las reglas existentes (3 tarjetas en los primeros
@@ -334,14 +349,22 @@ export async function generateLongFormVideoFromScript({
   if (!replayOnly && chosenRecraft !== Boolean(runtime.recraftStyle)) {
     throw new Error("La elección de imágenes de este documental no coincide con su plan confirmado. No se ha iniciado la generación.");
   }
-  const baseProviders = withChosenVoice(providers ?? resolveLongFormProviders("real"), runtime.voiceId, Boolean(providers));
-  // The plan pins Recraft: the per-video provider replaces the environment's image provider (FAL_KEY checked here,
-  // before narration or any reservation). Injected test providers must already be "recraft".
-  const resolvedProviders: LongFormProviderSet = chosenRecraft && !providers && !replayOnly ? { ...baseProviders, imageProvider: getRecraftImageProvider() } : baseProviders;
-  if (chosenRecraft && !replayOnly && resolvedProviders.imageProvider.name !== "recraft") {
-    throw new Error("El plan confirmado usa imágenes de Recraft, pero el proveedor de imágenes resuelto es otro. No se ha iniciado la generación.");
+  const chosenFlux = plan.providers.image === "flux";
+  if (!replayOnly && chosenFlux !== Boolean(runtime.fluxImages)) {
+    throw new Error("La elección de imágenes de este documental no coincide con su plan confirmado. No se ha iniciado la generación.");
   }
-  const imageStyle: ImageStyleContext | undefined = runtime.recraftStyle && !replayOnly ? createImageStyleContext(runtime.recraftStyle) : undefined;
+  const baseProviders = withChosenVoice(providers ?? resolveLongFormProviders("real"), runtime.voiceId, Boolean(providers));
+  // The plan pins Recraft or FLUX: the per-video provider replaces the environment's image provider (FAL_KEY checked
+  // here, before narration or any reservation). Injected test providers must already carry that name.
+  const chosenImage = chosenRecraft ? "recraft" : chosenFlux ? "flux" : null;
+  const resolvedProviders: LongFormProviderSet = chosenImage && !providers && !replayOnly
+    ? { ...baseProviders, imageProvider: chosenImage === "recraft" ? getRecraftImageProvider() : getFluxImageProvider() } : baseProviders;
+  if (chosenImage && !replayOnly && resolvedProviders.imageProvider.name !== chosenImage) {
+    throw new Error(`El plan confirmado usa imágenes de ${chosenImage === "flux" ? "FLUX" : "Recraft"}, pero el proveedor de imágenes resuelto es otro. No se ha iniciado la generación.`);
+  }
+  const imageStyle: ImageStyleContext | undefined = replayOnly ? undefined
+    : runtime.recraftStyle ? createImageStyleContext(runtime.recraftStyle)
+    : chosenFlux ? createFixedProviderContext() : undefined;
   const requireReal = !providers;
   const store = runtime.store ?? supabaseShotAssetStore(supabase, requestId, STORAGE_BUCKET);
   const allocation = executionAllocation(plan);
@@ -501,6 +524,9 @@ export async function generateLongFormVideoFromScript({
     // Las escenas se re-derivan del guion: solo un plan v4 lee clase e identidad.
     (beat) => visualsForBeat(beat as { narration: string; visuals?: unknown }, topic, { identity: usesVisualIdentity(plan), personActions }),
   );
+  // Narración MEDIDA (ya pagada y guardada en la caché TTS): si quedó muy por debajo de lo pedido, se detiene
+  // antes de imágenes, video IA, música y render — nunca un documental corto entregado en silencio.
+  assertNarrationCoversRequestedDuration(timeline.durationSeconds, requestedDurationSeconds);
 
   // Proveedor de video IA real (solo si el plan confirmado tiene clips). Si
   // en este entorno resuelve a fixture (p. ej. falta VEO_API_KEY), el video
@@ -801,7 +827,7 @@ export async function generateLongFormVideoFromScript({
     withHeartbeat(() => onProgress?.("rendering", { completed: lastReportedFrames, total: Math.max(lastReportedFrames, 1), label: "fotogramas" }));
   try {
     const masteredPath = rawOutputPath.replace(/\.mp4$/, ".mastered.mp4");
-    const mastering = await keepAlive()(() => masterAudioLoudness(rawOutputPath, masteredPath, { faststart: true, truePeakMarginDb: LONG_FORM_TRUE_PEAK_MARGIN_DB }));
+    const mastering = await keepAlive()(() => masterLongFormAudio(rawOutputPath, masteredPath));
     outputPath = masteredPath;
     console.log("[atomivid:long-form:produce] masterización de loudness", JSON.stringify({ requestId, target: LOUDNESS_TARGET, ...mastering }));
   } catch (err) {
@@ -819,6 +845,18 @@ export async function generateLongFormVideoFromScript({
   // attachLongFormSubtitles lanza y no se publica un video sin subtítulos.
   let subtitleSidecar: { directory: string; sidecarPath: string } | null = null;
   const media = await probeOutput(outputPath).catch(() => null);
+  // Cierre en falso imposible: un MP4 legible que no dura lo compuesto no se sube ni se marca completado.
+  // (Uno ilegible lo rechaza finalizeLongFormOutput con su propio ffprobe.)
+  const durationMismatch = media?.videoCodec ? renderedDurationMismatch(media.durationSeconds, finalDurationSeconds) : null;
+  if (durationMismatch) {
+    // Same retention rule as a failed delivery: a copy for the admin when LONG_FORM_OUTPUT_KEEP_DIR is set.
+    if (outputDeps.keepDir) {
+      await fs.mkdir(outputDeps.keepDir, { recursive: true }).then(() => fs.copyFile(outputPath, path.join(outputDeps.keepDir as string, `${requestId}-duration-mismatch.mp4`))).catch(() => {});
+    }
+    if (outputPath !== rawOutputPath) await fs.unlink(rawOutputPath).catch(() => {});
+    await fs.unlink(outputPath).catch(() => {});
+    throw new LongFormRenderedDurationError(durationMismatch.measuredSeconds, durationMismatch.composedSeconds);
+  }
   if (media?.videoCodec && media.durationSeconds > 0) {
     const attached = await keepAlive()(() => attachLongFormSubtitles({
       videoPath: outputPath,

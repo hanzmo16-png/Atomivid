@@ -10,11 +10,13 @@ import {
   type VisualStrategy,
 } from "@/lib/video/long-form/production-plan";
 import { ConfigureProduction } from "./ConfigureProduction";
+import { DurationNotice } from "./DurationNotice";
 import { defaultPackaging, isOwnChannelAccount } from "@/lib/video/long-form/packaging";
 import { PRODUCT_DEFAULT_PLAN_VERSION, usesAnchoredVisuals } from "@/lib/video/long-form/production-plan-types";
 import { configurePlansWithMaterial, createMaterialSearchCache, materialCheckProviderWithDeadline, type MaterialPlanCheck } from "@/lib/video/long-form/material-plan";
 import { cinematicV6Enabled } from "@/lib/video/long-form/cinematic-v6-access";
 import { recraftAllowedFor } from "@/lib/video/recraft-access";
+import { fluxAllowedFor } from "@/lib/video/flux-images";
 import { createServiceClient } from "@/lib/supabase/service";
 import { canCurateAssets } from "@/lib/video/long-form/asset-curation";
 import type { ProductionPlanBeatInput } from "@/lib/video/long-form/production-plan";
@@ -61,9 +63,11 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
   const searchCache = createMaterialSearchCache();
   const planInput = { script, topic: data.topic, durationSeconds: data.duration_seconds, cinematicV6, footageProvider, searchCache };
   const recraftAllowed = recraftAllowedFor(user);
-  const [withMaterial, recraftWithMaterial] = await Promise.all([
+  const fluxAllowed = fluxAllowedFor(user);
+  const [withMaterial, recraftWithMaterial, fluxWithMaterial] = await Promise.all([
     configurePlansWithMaterial(planInput),
     recraftAllowed ? configurePlansWithMaterial({ ...planInput, imageProvider: "recraft" }) : Promise.resolve(undefined),
+    fluxAllowed ? configurePlansWithMaterial({ ...planInput, imageProvider: "flux" }) : Promise.resolve(undefined),
   ]);
   const results = withMaterial.results;
   const plans = Object.fromEntries(VISUAL_STRATEGIES.map((s) => [s, results[s].plan])) as Record<VisualStrategy, ProductionPlan>;
@@ -73,6 +77,9 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
   // «Imágenes IA con Recraft» (pilot account or general release): the same plans priced/pinned for Recraft, and their
   // own pre-flight (Recraft supply) — shown only when the creator picks it; confirm-production recomputes server-side.
   const recraftPlans = recraftWithMaterial ? Object.fromEntries(Object.entries(recraftWithMaterial.results)
+    .map(([s, r]) => [s, r.plan])) as Record<VisualStrategy, ProductionPlan> : undefined;
+  // «Imágenes IA con FLUX» (second selectable provider): same plans priced/pinned for FLUX, with their own pre-flight.
+  const fluxPlans = fluxWithMaterial ? Object.fromEntries(Object.entries(fluxWithMaterial.results)
     .map(([s, r]) => [s, r.plan])) as Record<VisualStrategy, ProductionPlan> : undefined;
   let scriptSpent: number | { error: string };
   try {
@@ -85,10 +92,14 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
     return Object.fromEntries(await Promise.all(VISUAL_STRATEGIES.map(async (strategy) =>
       [strategy, await strategyPreflight(service, { strategy, plan: set[strategy], scriptJson: script, workerBudget: budgets[strategy], material: material[strategy] })]))) as Record<VisualStrategy, StrategyPreflight>;
   };
-  const [preflight, recraftPreflight] = await Promise.all([check(plans, withMaterial.material),
-    recraftPlans && recraftWithMaterial ? check(recraftPlans, recraftWithMaterial.material) : Promise.resolve(undefined)]);
+  const [preflight, recraftPreflight, fluxPreflight] = await Promise.all([check(plans, withMaterial.material),
+    recraftPlans && recraftWithMaterial ? check(recraftPlans, recraftWithMaterial.material) : Promise.resolve(undefined),
+    fluxPlans && fluxWithMaterial ? check(fluxPlans, fluxWithMaterial.material) : Promise.resolve(undefined)]);
   const visual = await visualCheck(service, { requestId: id, plan: plans.balanced, beats: beats as ProductionPlanBeatInput[], topic: script.topic || data.topic })
     .catch((): VisualCheck => ({ applies: true, ready: false, codes: ["VISUAL_CHECK_UNAVAILABLE"], missingHeroIdentities: 0, missingHeroEvidence: 0, textCardRatio: null, maxTextCardRatio: 0.25, verifiedAssets: 0 }));
+  // Datos originales del formulario (lectura del propio dueño, RLS) para «Cambiar duración»; sin ellos, solo el tema.
+  const { data: sourceJob } = await supabase.from("documentary_script_jobs").select("input").eq("request_id", id).eq("user_id", user.id).maybeSingle();
+  const formFields = (sourceJob?.input as { fields?: Record<string, unknown> } | null)?.fields ?? null;
   const summary = {
     modality: "Documental largo (Long Form, 16:9)",
     engine: engine.engine === "cinematic-v6" ? "Cinematic V6 (plan v6)" : `Plan estándar (v${plans.balanced.version})`,
@@ -101,6 +112,7 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
     <div className="mx-auto w-full max-w-2xl">
       <h1 className="text-2xl font-bold text-ink">Configurar producción</h1>
       <p className="mt-1 break-words text-sm text-ink-muted">{data.topic}</p>
+      <DurationNotice requestedSeconds={data.duration_seconds ?? null} estimatedSeconds={plans.balanced.durationSeconds} fields={formFields} topic={data.topic} />
       {script.editorial && <section aria-label="Revisión del guion" className="mt-4 rounded-lg border border-border p-4 text-sm">
         <p className="font-medium">Revisión editorial completada{script.editorial.corrected ? " después de una corrección" : ""}</p>
         <p className="mt-2 text-ink-muted">Se revisaron la progresión, las repeticiones y la resolución de la promesa. Es una revisión automática; no garantiza la retención de audiencia ni sustituye la verificación de fuentes.</p>
@@ -169,6 +181,8 @@ export default async function ConfigureLongFormProductionPage({ params }: { para
         preflight={preflight}
         recraftPlans={recraftPlans}
         recraftPreflight={recraftPreflight}
+        fluxPlans={fluxPlans}
+        fluxPreflight={fluxPreflight}
         visual={visual}
         summary={summary}
         visualBlockText={visual.ready ? null : visualBlockMessage(visual)}

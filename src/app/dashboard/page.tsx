@@ -12,8 +12,7 @@ import { AutoRefresh } from "./AutoRefresh";
 import { RequestCard } from "@/components/video/RequestCard";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isExhaustedStaleAttempt, isRenderStale } from "@/lib/video/render-guard";
-import { closeExhaustedStaleAttempt } from "@/lib/video/exhausted-attempt";
-import { EXHAUSTED_ATTEMPT_CLOSED } from "@/lib/video/start-outcome";
+import { closeStaleAttempt, isStaleLongFormAttempt } from "@/lib/video/exhausted-attempt";
 import { loadAvatarRecoveries } from "@/lib/video/avatar/recovery";
 import { Alert } from "@/components/ui/Alert";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -50,11 +49,12 @@ export default async function DashboardPage({
     .returns<VideoRequestSummary[]>();
 
   if (user) await reconcileStaleScriptJobs(user.id).catch(() => {});
-  // Intentos colgados sin intentos restantes: estado final aquí mismo (antes quedaban «processing» para siempre).
+  // Intentos colgados: estado final aquí mismo (antes quedaban «processing» para siempre). Sin intentos restantes,
+  // fallo terminal; Long Form con intentos, fallo recuperable con «Reintentar» (reutiliza lo ya pagado).
   for (const r of requests ?? []) {
-    if (!isExhaustedStaleAttempt(r)) continue;
-    const outcome = await closeExhaustedStaleAttempt(createServiceClient(), r).catch(() => "changed" as const);
-    if (outcome === "closed") Object.assign(r, { status: "failed", progress_stage: null, error_message: EXHAUSTED_ATTEMPT_CLOSED });
+    if (!isExhaustedStaleAttempt(r) && !isStaleLongFormAttempt(r)) continue;
+    const { outcome, errorMessage } = await closeStaleAttempt(createServiceClient(), r).catch(() => ({ outcome: "changed" as const, errorMessage: null }));
+    if (outcome === "closed") Object.assign(r, { status: "failed", progress_stage: null, long_form_stage: null, long_form_progress: null, error_message: errorMessage });
   }
   const { data: scriptJobs, error: scriptJobsError } = await supabase.from("documentary_script_jobs")
     .select(SCRIPT_JOB_COLUMNS)

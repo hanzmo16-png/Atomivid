@@ -1,14 +1,17 @@
 import { supplyGuardRequired } from "@/lib/supply/server";
+import { AttemptNoLongerActiveError } from "@/lib/paid-calls/active-attempt";
 import { classifyPaidFailure, isRenderEngineFailure, RENDER_ENGINE_CUSTOMER_MESSAGE } from "./render-engine-error";
 import { isInternalProductionOwner } from "@/lib/billing/internal-production";
 import { MAX_DIRECTOR_MATERIAL_USD } from "@/lib/video/director/material-fill";
 import { getFeatureFlags } from "@/lib/video/feature-flags";
 import { needsNarrationEdit } from "./duration-check";
+import { LongFormDurationShortfallError } from "./long-form/duration-shortfall";
 import { DeliverableUnverifiedError } from "@/lib/video/deliverable-check";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { editorialApprovalError } from "./long-form/editorial";
-import { loadReelRecraft, recraftDemandUsd, signReferenceUrls, persistReelStyleId, loadStyleMissing, persistStyleMissing } from "@/lib/video/recraft-reel-server";
-import { getRecraftImageProvider } from "@/lib/providers/image";
+import { loadReelRecraft, recraftDemandUsd, signReferenceUrls, persistReelStyleId, loadStyleMissing, persistStyleMissing, loadFluxChoice } from "@/lib/video/recraft-reel-server";
+import { getRecraftImageProvider, getFluxImageProvider } from "@/lib/providers/image";
+import { fluxAllowedForWorker, FluxAccessError, fluxReelDemandUsd } from "@/lib/video/flux-images";
 import { recraftAllowedForWorker, RecraftAccessError } from "@/lib/video/recraft-access";
 import { ChosenImageProviderError } from "@/lib/video/long-form/shot-executor";
 import { RecraftStyleMissingError } from "@/lib/video/recraft-reel";
@@ -117,13 +120,15 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
     return;
   }
   if (expectedAttempt !== undefined && row.render_attempts !== expectedAttempt) return;
-  const { claim, update } = attemptState(service, {requestId, userId: row.user_id, attempt: row.render_attempts});
+  const { claim, update, assertActive } = attemptState(service, {requestId, userId: row.user_id, attempt: row.render_attempts});
   if (!await claim(row.progress_stage)) return;
 
   const mode = row.mode ?? "visual";
   const onProgress = async (stage: RenderStage) => {
     const result = await update({ progress_stage: stage }).select("id").maybeSingle();
-    if (result.error || !result.data) throw new Error("El trabajo ya no tiene una reserva activa. No se repetirá automáticamente.");
+    if (result.error) throw new Error("El trabajo ya no tiene una reserva activa. No se repetirá automáticamente.");
+    // Same text as before; typed so a cancelled Reel ends quietly below instead of reporting a save failure.
+    if (!result.data) throw new AttemptNoLongerActiveError();
   };
   // Long Form tiene su propio vocabulario de etapas (columna long_form_stage,
   // migración 0016) — nunca se reutiliza progress_stage para esto, ver el
@@ -216,7 +221,18 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
       if (!(await recraftAllowedForWorker(ownerData.user))) throw new RecraftAccessError();
       getRecraftImageProvider();
     }
-    await reserveJobSupply(service, requestId, row.render_attempts, jobSupplyDemands(row, getVoiceProvider().name, undefined, { recraftUsd: mode === "visual" ? recraftDemandUsd(recraft, row.script_json) : 0 }));
+    // «Imágenes IA con FLUX» (second selectable provider): same revalidation, before any reservation or paid voice.
+    const flux = !recraft && (mode === "visual" || mode === "long_form") ? await loadFluxChoice(service, requestId) : false;
+    if (mode === "long_form" && (longFormPlan?.providers.image === "flux") !== flux) throw new FluxAccessError("plan_mismatch");
+    if (flux) {
+      const { data: ownerData, error: ownerError } = await service.auth.admin.getUserById(row.user_id);
+      if (ownerError) throw ownerError;
+      if (!(await fluxAllowedForWorker(ownerData.user))) throw new FluxAccessError();
+      getFluxImageProvider();
+    }
+    await reserveJobSupply(service, requestId, row.render_attempts, jobSupplyDemands(row, getVoiceProvider().name, undefined, {
+      recraftUsd: mode === "visual" ? recraftDemandUsd(recraft, row.script_json) : 0,
+      fluxUsd: mode === "visual" && flux ? fluxReelDemandUsd(row.script_json) : 0 }));
     const { videoPath } =
       mode === "avatar"
         ? await generateAvatarVideo({
@@ -242,7 +258,7 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
               language: row.language ?? undefined,
               plan: longFormPlan as ProductionPlan,
               onProgress: onLongFormProgress,
-              runtime: { attempt: row.render_attempts,
+              runtime: { attempt: row.render_attempts, requestedDurationSeconds: row.duration_seconds,
                 ...(row.reel_voice_id ? { voiceId: row.reel_voice_id } : {}),
                 ...(recraft ? { recraftStyle: {
                   styleId: recraft.styleId,
@@ -253,7 +269,8 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
                   onMissingStyleId: recraft.style.onMissingStyleId,
                   styleMissing: recraft.styleId ? false : await loadStyleMissing(service, requestId),
                   onStyleMissing: (providerJobId: string | undefined) => persistStyleMissing(service, requestId, providerJobId),
-                } } : {}) },
+                } } : {}),
+                ...(flux ? { fluxImages: true } : {}) },
             })
           : await generateVideoFromScript({
               supabase: service,
@@ -270,7 +287,10 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
                 match: recraft.style.match, styleNote: recraft.style.styleNote, onMissingStyleId: recraft.style.onMissingStyleId,
                 onStyleId: (styleId: string) => persistReelStyleId(service, requestId, styleId),
               } } : {}),
+              ...(flux ? { flux: {} } : {}),
               targetDurationSeconds: row.duration_seconds ?? undefined,
+              // END GAME C: a cancelled (or replaced) attempt sends no new paid call, even inside one stage.
+              beforeNewPaidCall: assertActive,
               onProgress,
               directorRender,
               // Anexo C1: the approved ceiling exists only in THIS attempt's image envelope (reserved by the server).
@@ -351,8 +371,10 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
       || error instanceof JobEnvelopeMismatchError || error instanceof JobEnvelopeExhaustedError || error instanceof DeliverableUnverifiedError
       || (error instanceof DirectorUnavailableError && error.reason !== "owner_lookup_failed")
       // Recraft: an account/plan mismatch or a stop that a retry cannot clear goes to support, never a retry loop.
-      || error instanceof RecraftAccessError || error instanceof RecraftStyleMissingError || error instanceof GeneratedImageRejectedError
-      || (error instanceof ChosenImageProviderError && !error.retryable) ? "support" : "retry";
+      || error instanceof RecraftAccessError || error instanceof FluxAccessError || error instanceof RecraftStyleMissingError || error instanceof GeneratedImageRejectedError
+      || (error instanceof ChosenImageProviderError && !error.retryable)
+      // A script far shorter than the requested duration stops the same way on every retry: it needs a longer script.
+      || error instanceof LongFormDurationShortfallError ? "support" : "retry";
     // A measured duration mismatch happens before footage/render and after the
     // voice ledger is settled. Reopen editing; retain attempts and paid history.
     // T-24 C1: same for an Avatar narrated from the script whose REAL audio exceeds the limit (no avatar job was
@@ -362,6 +384,8 @@ async function runRenderJobWithSupply(requestId: string, expectedAttempt?: numbe
     // T42: a Director preflight block happened before narration: reopen the script with the explanation (no spend).
     const editNarration = needsNarrationEdit(error, mode) || avatarNarrationTooLong || (mode === "visual" && error instanceof DirectorPreflightBlockedError);
     const failed = await update({ status: editNarration ? "script_ready" : "failed", error_message: encodeStoredFailure(message, action), progress_stage: null, long_form_stage: null, long_form_progress: null }).select("id").maybeSingle();
+    // END GAME C: the owner cancelled (or the attempt was replaced): its row already says so; nothing else to save.
+    if (!failed.error && !failed.data && error instanceof AttemptNoLongerActiveError) return;
     if (failed.error || !failed.data) throw new Error("No se pudo guardar el resultado del intento.");
     if (editNarration) return;
 

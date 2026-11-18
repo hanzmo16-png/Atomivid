@@ -12,7 +12,9 @@ import type { AvatarJobStatus } from "@/lib/providers/avatar";
 // en el servidor (nunca confiar solo en el <select> del cliente) para no
 // dejar pasar una duración arbitraria que dispare un guion/voz/render
 // desproporcionado. Ver también el CHECK de la migración 0007.
-export const ALLOWED_DURATIONS = [30, 60, 90];
+// 15 s (Shorts/Reels cortos) solo existe para el Reel visual: Avatar mantiene 30/60/90 (availableVideoDurations).
+// El CHECK vigente (20261010050000_long_form_30_minutes.sql) admite 1..120 s fuera de Long Form: 15 cabe sin migración.
+export const ALLOWED_DURATIONS = [15, 30, 60, 90];
 export const ALLOWED_LANGUAGES = ["es", "en"] as const;
 export const MAX_TOPIC_LENGTH = 500;
 export const MAX_STYLE_LENGTH = 100;
