@@ -59,7 +59,7 @@ for (const [vp, size] of [["390x844", { width: 390, height: 844 }], ["412x915", 
   await page.goto(`${APP}/`, { waitUntil: "networkidle" });
   const registerLinks = await page.locator('a[href="/register"]').count();
   const bodyText = (await page.locator("body").innerText()).replace(/\s+/g, " ");
-  if (MODE === "open") check(`[${vp}] portada con ventas abiertas invita a crear cuenta`, registerLinks > 0, { registerLinks });
+  if (MODE !== "closed") check(`[${vp}] portada con ventas abiertas invita a crear cuenta`, registerLinks > 0, { registerLinks });
   else check(`[${vp}] portada con ventas cerradas no invita a registrarse y lo dice`, registerLinks === 0 && /Apertura de pagos pendiente|todavía no aceptamos pagos/i.test(bodyText), { registerLinks });
   await audit(page, `portada-${MODE}`, vp);
 
@@ -115,6 +115,21 @@ for (const [vp, size] of [["390x844", { width: 390, height: 844 }], ["412x915", 
       const disabledBuy = await page.getByRole("button", { name: "Pagos aún no habilitados" }).count();
       check(`[${vp}] sin Stripe: tres botones «Pagos aún no habilitados» desactivados y ningún «Elegir»`, disabledBuy === 3 && !/Elegir (Starter|Pro|Business)/.test(billing), { disabledBuy });
       await audit(page, "facturacion-cerrada", vp);
+    } else if (MODE === "paid") {
+      // 5b. Suscripción en MODO PRUEBA (Stripe simulado local, webhook firmado con el SDK real) → plan activo
+      check(`[${vp}] con Price IDs configurados se ofrece «Elegir Starter/Pro/Business»`, ["Starter", "Pro", "Business"].every((p) => billing.includes(`Elegir ${p}`)));
+      await audit(page, "facturacion", vp);
+      await Promise.all([page.waitForURL(/\/pay\/cs_test_sim_/, { timeout: 60000 }), page.getByRole("button", { name: "Elegir Pro" }).tap()]);
+      check(`[${vp}] «Elegir Pro» abre el Checkout de prueba`, /Checkout de PRUEBA/.test(await page.locator("body").innerText()));
+      await page.screenshot({ path: `${OUT}/capturas/checkout-prueba-${vp}.png` });
+      await Promise.all([page.waitForURL(/\/dashboard\/billing\?checkout=success/, { timeout: 60000 }), page.getByRole("button", { name: "Pagar (modo prueba)" }).tap()]);
+      const sstats = await (await fetch(`${process.env.MOCK_STRIPE ?? "http://127.0.0.1:54330"}/__stats`)).json();
+      check(`[${vp}] el webhook firmado se aceptó (200)`, sstats.webhooks.at(-1)?.status === 200, { webhook: sstats.webhooks.at(-1) });
+      await page.reload({ waitUntil: "networkidle" }); await dismissTour(page);
+      const after = (await page.locator("body").innerText()).replace(/\s+/g, " ");
+      check(`[${vp}] tras pagar: «Plan actual Atomicvid Pro», activa y con fecha de renovación`, /Plan actual/i.test(after) && /Atomicvid Pro/.test(after) && /Activa/.test(after) && /Se renueva el/.test(after));
+      check(`[${vp}] con plan activo ya no se ofrece otro plan (sin doble suscripción)`, !/Elegir (Starter|Pro|Business)/.test(after) && /Administrar suscripción/.test(after));
+      await audit(page, "facturacion-activa", vp);
     } else {
     check(`[${vp}] con Price IDs configurados se ofrece «Elegir Starter/Pro/Business»`, ["Starter", "Pro", "Business"].every((p) => billing.includes(`Elegir ${p}`)));
     check(`[${vp}] clave de prueba → aviso «Entorno de prueba de Stripe»`, /Entorno de prueba de Stripe/.test(billing));
@@ -134,7 +149,39 @@ for (const [vp, size] of [["390x844", { width: 390, height: 844 }], ["412x915", 
     await page.goto(`${APP}/dashboard`, { waitUntil: "networkidle" });
     await dismissTour(page);
     const panel = (await page.locator("body").innerText()).replace(/\s+/g, " ");
-    check(`[${vp}] sin suscripción, el panel dice «necesitas una suscripción activa» con «Ver planes»`, /necesitas una suscripción activa/i.test(panel) && (await page.getByRole("link", { name: "Ver planes" }).count()) > 0);
+    if (MODE === "paid") {
+      check(`[${vp}] con suscripción, el panel ya no pide «suscripción activa»`, !/necesitas una suscripción activa/i.test(panel));
+      // 7. Crear un Reel y elegir el proveedor de imágenes (FLUX/Recraft habilitados SOLO en este entorno de prueba)
+      await page.goto(`${APP}/dashboard/new`, { waitUntil: "networkidle" }); await dismissTour(page);
+      // Un cliente sin accesos beta va directo al Reel; con más formatos, primero elige «Reel / Short».
+      const reelCard = page.getByRole("button", { name: /Reel \/ Short/ });
+      if (await reelCard.count()) await reelCard.tap();
+      const radios = { def: page.locator('input[name="reel_image_source"][value="default"]'), recraft: page.locator('input[name="reel_image_source"][value="recraft"]'), flux: page.locator('input[name="reel_image_source"][value="flux"]') };
+      check(`[${vp}] el Reel ofrece 3 fuentes de imágenes: archivo, Recraft y FLUX`, (await radios.def.count()) === 1 && (await radios.recraft.count()) === 1 && (await radios.flux.count()) === 1);
+      await radios.flux.check();
+      check(`[${vp}] FLUX muestra su costo por escena antes de crear`, /USD 0,025 por escena/.test(await page.locator("body").innerText()));
+      await audit(page, "nuevo-reel-flux", vp);
+      await page.fill('textarea[name="topic"]', `5 datos curiosos del océano ${stamp}`);
+      await page.selectOption('select[name="style"]', { label: "Curiosidades" });
+      const submit = page.getByRole("button", { name: "Crear solicitud" });
+      await Promise.all([page.waitForURL((u) => !(u.pathname === "/dashboard/new" && !u.searchParams.get("error")) || u.searchParams.has("error"), { timeout: 60000 }), submit.tap()]);
+      const landed = new URL(page.url());
+      const vstats = await (await fetch(`${MOCK}/__stats`)).json();
+      const mine = vstats.video_requests.filter((v) => v.reel_image_source === "flux" && v.user_id === (vstats.subscriptions.at(-1)?.user_id));
+      check(`[${vp}] «Crear solicitud» guarda el Reel con reel_image_source=flux (sin cobrar)`, !landed.searchParams.has("error") && mine.length >= 1 && mine.every((v) => v.mode === "visual" && v.status === "pending"), { url: `${landed.pathname}${landed.search}`.slice(0, 140), flux: mine.length });
+      await page.screenshot({ path: `${OUT}/capturas/reel-creado-${vp}.png`, fullPage: true });
+      // 8. Impago (Stripe marca past_due): sin acceso, se ofrece «Actualizar método de pago» y NUNCA otro plan
+      const myId = mine.at(-1)?.user_id;
+      await fetch(`${MOCK}/rest/v1/subscriptions?user_id=eq.${myId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status: "past_due" }) });
+      await page.goto(`${APP}/dashboard/billing`, { waitUntil: "networkidle" }); await dismissTour(page);
+      const due = (await page.locator("body").innerText()).replace(/\s+/g, " ");
+      check(`[${vp}] con pago pendiente: aviso + «Actualizar método de pago», sin «Elegir» otro plan`, /pago pendiente/i.test(due) && /Actualizar método de pago/.test(due) && !/Elegir (Starter|Pro|Business)/.test(due));
+      await audit(page, "facturacion-pago-pendiente", vp);
+      await page.goto(`${APP}/dashboard`, { waitUntil: "networkidle" }); await dismissTour(page);
+      check(`[${vp}] con pago pendiente el panel vuelve a pedir una suscripción activa`, /necesitas una suscripción activa/i.test((await page.locator("body").innerText()).replace(/\s+/g, " ")));
+    } else {
+      check(`[${vp}] sin suscripción, el panel dice «necesitas una suscripción activa» con «Ver planes»`, /necesitas una suscripción activa/i.test(panel) && (await page.getByRole("link", { name: "Ver planes" }).count()) > 0);
+    }
   }
   await ctx.close();
 }

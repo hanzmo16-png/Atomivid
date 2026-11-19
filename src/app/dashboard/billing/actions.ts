@@ -33,13 +33,13 @@ async function getSiteUrl(): Promise<string> {
  * silencio y el flujo seguía como si el usuario no tuviera cliente de
  * Stripe todavía, en vez de reportar el error real.
  */
-async function getExistingCustomerId(
+async function getExistingSubscription(
   service: ReturnType<typeof createServiceClient>,
   userId: string,
-): Promise<string | null> {
+): Promise<{ stripe_customer_id: string | null; status: string | null } | null> {
   const { data, error } = await service
     .from("subscriptions")
-    .select("stripe_customer_id")
+    .select("stripe_customer_id, status")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -47,7 +47,11 @@ async function getExistingCustomerId(
     throw new SupabaseQueryError(error.code);
   }
 
-  return (data as { stripe_customer_id: string | null } | null)?.stripe_customer_id ?? null;
+  return (data as { stripe_customer_id: string | null; status: string | null } | null) ?? null;
+}
+
+async function getExistingCustomerId(service: ReturnType<typeof createServiceClient>, userId: string): Promise<string | null> {
+  return (await getExistingSubscription(service, userId))?.stripe_customer_id ?? null;
 }
 
 export async function createCheckoutSession(planId: PlanId) {
@@ -81,6 +85,8 @@ export async function createCheckoutSession(planId: PlanId) {
     checkoutUrl = await buildCheckoutUrl(user, {
       createCheckoutSession: (params) => getStripe().checkout.sessions.create(params),
       getExistingCustomerId: (userId) => getExistingCustomerId(service, userId),
+      // Server-side: a second subscription is refused even if the plan buttons are posted by hand.
+      getExistingStatus: async (userId) => (await getExistingSubscription(service, userId))?.status ?? null,
       priceId,
       siteUrl,
     });

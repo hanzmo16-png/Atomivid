@@ -173,3 +173,19 @@ test("los botones de registro, inicio de sesión y pago se bloquean mientras env
   assert.match(billing, /Administrar suscripción<\/PendingSubmitButton>/);
   assert.doesNotMatch(billing, /<Button type="submit"/);
 });
+
+test("recuperar contraseña: botones bloqueados al enviar y enlace del correo con la misma regla que el registro", () => {
+  const source = (p: string) => readFileSync(p, "utf8");
+  assert.match(source("src/app/forgot-password/page.tsx"), /<PendingSubmitButton pendingLabel="Enviando el enlace…">Enviar enlace de recuperación<\/PendingSubmitButton>/);
+  assert.match(source("src/app/reset-password/page.tsx"), /<PendingSubmitButton pendingLabel="Guardando…">Guardar nueva contraseña<\/PendingSubmitButton>/);
+  const forgot = source("src/app/forgot-password/actions.ts");
+  assert.match(forgot, /resolveSiteUrl\(process\.env, \(await headers\(\)\)\.get\("origin"\)\)/);
+  assert.match(forgot, /redirectTo: `\$\{origin\}\/auth\/callback\?next=\/reset-password`/);
+  assert.equal(`${resolveSiteUrl({ NEXT_PUBLIC_SITE_URL: "https://atomicvid.app" }, null)}/auth/callback?next=/reset-password`, "https://atomicvid.app/auth/callback?next=/reset-password");
+});
+
+test("facturación con pago pendiente: se ofrece «Actualizar método de pago», no un segundo plan", () => {
+  const billing = readFileSync("src/app/dashboard/billing/page.tsx", "utf8");
+  assert.match(billing, /\{recoverable && \([\s\S]*createPortalSession[\s\S]*Actualizar método de pago<\/PendingSubmitButton>/);
+  assert.match(billing, /\{!active && !recoverable && \(/);
+});

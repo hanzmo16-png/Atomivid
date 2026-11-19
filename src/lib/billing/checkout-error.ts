@@ -16,6 +16,14 @@ export class SupabaseQueryError extends Error {
 }
 
 /** Stripe completó el checkout sin error pero no devolvió session.url. */
+/** La cuenta ya tiene una suscripción viva (activa o con pago pendiente): no se abre un segundo cobro. */
+export class AlreadySubscribedError extends Error {
+  constructor(readonly status: string) {
+    super(`subscription already ${status}`);
+    this.name = "AlreadySubscribedError";
+  }
+}
+
 export class CheckoutUrlMissingError extends Error {
   constructor() {
     super("Stripe no devolvió una URL de checkout");
@@ -58,6 +66,12 @@ export function classifyBillingError(error: unknown): string {
 
   if (error instanceof SupabaseQueryError) {
     return "No se pudo verificar tu cuenta de facturación. Intenta de nuevo en un momento.";
+  }
+
+  if (error instanceof AlreadySubscribedError) {
+    return error.status === "active" || error.status === "trialing"
+      ? "Ya tienes una suscripción activa. Para cambiar de plan usa «Administrar suscripción». No se te cobró nada."
+      : "Tu suscripción tiene un pago pendiente. Actualiza tu método de pago en «Administrar suscripción»; no abrimos un segundo cobro.";
   }
 
   if (error instanceof CheckoutUrlMissingError) {
