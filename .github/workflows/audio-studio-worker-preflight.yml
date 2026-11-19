@@ -1,0 +1,66 @@
+# Preflight GRATUITO del worker de producción de Audio Podcast Studio (T-20261119-0918-chatgpt-25).
+# Ejecuta el CLI real del worker (scripts/audio-studio/worker.ts) contra un Supabase Storage desechable en 127.0.0.1,
+# con la voz de demostración espeak-ng y FFmpeg locales. Sin secretos, sin Supabase real, sin ElevenLabs: USD 0.
+# NO prueba producción autenticada (ver docs/AUDIO-STUDIO-WORKER-PREFLIGHT.md, runbook de 10 minutos).
+name: audio-studio-worker-preflight
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/audio-studio-worker-preflight]
+    paths:
+      - ".github/workflows/audio-studio-worker-preflight.yml"
+      - "scripts/harness/audio-studio-worker-preflight/**"
+      - "tests/audio-studio-worker-preflight.test.ts"
+permissions:
+  contents: read
+concurrency:
+  group: audio-studio-worker-preflight-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - name: ffmpeg y espeak-ng (los mismos que instala el worker de producción)
+        timeout-minutes: 25
+        run: |
+          APT="sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30"
+          for i in 1 2 3; do $APT update -q && $APT install -yq --no-install-recommends ffmpeg espeak-ng && exit 0; echo "::warning::apt intento $i falló"; sleep $((i * 15)); done; exit 1
+      - run: npm ci --no-audit --no-fund
+      - name: Contrato del worker (sin binarios ni red)
+        run: node --import tsx --test tests/audio-studio-worker-preflight.test.ts
+      - name: Preflight con el CLI real del worker
+        run: |
+          set -o pipefail
+          npx tsx scripts/harness/audio-studio-worker-preflight/preflight.mts --out preflight-out 2>&1 | tee preflight.log
+      - name: Control negativo (voz apagada → el preflight DEBE fallar)
+        run: |
+          set +e
+          npx tsx scripts/harness/audio-studio-worker-preflight/preflight.mts --out preflight-negativo --control-negativo > preflight-negativo.log 2>&1
+          code=$?
+          grep -E '^(FAIL|RESULTADO)' preflight-negativo.log | head -5
+          [ "$code" -eq 1 ] && grep -q '^FAIL  \[A1\]' preflight-negativo.log || { echo "::error::el control negativo no detectó el fallo (salida $code)"; exit 1; }
+          echo "control negativo OK: el preflight detecta un worker sin voz"
+      - name: Resumen
+        if: always()
+        run: |
+          [ -f preflight.log ] && echo "::notice title=preflight::$(grep -E '^RESULTADO' preflight.log)"
+          sha256sum preflight-out/mp3/*.mp3 preflight-out/matriz.json 2>/dev/null | tee preflight-out/SHA256SUMS || true
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audio-studio-worker-preflight
+          retention-days: 30
+          path: |
+            preflight.log
+            preflight-negativo.log
+            preflight-out/matriz.json
+            preflight-out/matriz.md
+            preflight-out/SHA256SUMS
+            preflight-out/red-bloqueada.ndjson
+            preflight-out/worker-*.log
+            preflight-out/mp3/*.mp3
