@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 const notJson = (r: Request) => !(r.headers.get("content-type") ?? "").toLowerCase().startsWith("application/json");
 const NOT_JSON = () => NextResponse.json({ error: "Se esperaba JSON." }, { status: 415 });
 import { audioStudioUser, studioDeps } from "@/lib/audio-studio/server";
-import { createProject, listProjects } from "@/lib/audio-studio/service";
+import { createProject, readLibrary } from "@/lib/audio-studio/service";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const user = await audioStudioUser();
   if ("error" in user) return NextResponse.json({ error: user.error }, { status: user.status });
-  const out = await listProjects(studioDeps(user), user.id);
+  const out = await readLibrary(studioDeps(user), user.id, { owner: user.owner });
   return NextResponse.json(out.body, { status: out.status, headers: { "Cache-Control": "no-store" } });
 }
 

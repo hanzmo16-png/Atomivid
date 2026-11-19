@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { audioStudioUser, studioDeps } from "@/lib/audio-studio/server";
-import { ensureSeed, listProjects } from "@/lib/audio-studio/service";
+import { readLibrary } from "@/lib/audio-studio/service";
 import { Alert } from "@/components/ui/Alert";
 import { AudioLibrary } from "./AudioLibrary";
 import { NewAudioEpisode } from "./NewAudioEpisode";
@@ -18,14 +18,9 @@ export default async function AudioStudioPage({ searchParams }: { searchParams: 
   }
   const { archivados } = await searchParams;
   const deps = studioDeps(user);
-  // El primer episodio del dueño queda cargado como proyecto editable (id estable: nunca se duplica).
-  const seedError = user.owner
-    ? await ensureSeed(deps, user.id).then(() => null, (e: unknown) => {
-        console.error("[audio-studio] episodio inicial no cargado", e instanceof Error ? e.message.slice(0, 200) : "error");
-        return "No se pudo cargar el episodio inicial.";
-      })
-    : null;
-  const out = await listProjects(deps, user.id);
+  // Leer no escribe nada (T-30): el episodio inicial del dueño se muestra virtual, con su id estable, hasta que la
+  // persona lo guarde o actúe sobre él; solo entonces se crea (una vez).
+  const out = await readLibrary(deps, user.id, { owner: user.owner });
   const all = out.ok ? out.body.projects : [];
   const showArchived = archivados === "1";
   const shown = all.filter((p) => !!p.archivedAt === showArchived);
@@ -39,7 +34,6 @@ export default async function AudioStudioPage({ searchParams }: { searchParams: 
         <p className="mt-1 text-sm text-ink-muted">Una o dos voces, guion editable, música de fondo y presupuesto visible. Nada se cobra mientras editas.</p>
       </div>
       {!out.ok && <Alert tone="danger">{out.body.error}</Alert>}
-      {seedError && <Alert tone="warning">{seedError}</Alert>}
       <NewAudioEpisode />
       <section aria-labelledby="audio-library-title" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">

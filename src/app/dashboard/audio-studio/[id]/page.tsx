@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { audioStudioUser, studioDeps } from "@/lib/audio-studio/server";
-import { getProject } from "@/lib/audio-studio/service";
+import { readProject } from "@/lib/audio-studio/service";
 import { AudioEditor } from "../AudioEditor";
 
 export const metadata: Metadata = { title: "Editor · Audio Podcast Studio" };
@@ -14,7 +14,8 @@ export default async function AudioProjectPage({ params }: { params: Promise<{ i
     if (user.status === 401) redirect("/login");
     notFound();
   }
-  const out = await getProject(studioDeps(user), user.id, (await params).id);
+  // Solo lectura: el episodio inicial aún no guardado se abre virtual (sin escribir nada).
+  const out = await readProject(studioDeps(user), user.id, (await params).id, { owner: user.owner });
   if (!out.ok) notFound();
   return (
     <div className="space-y-4">
