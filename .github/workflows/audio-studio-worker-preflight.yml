@@ -19,7 +19,7 @@ concurrency:
 jobs:
   preflight:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
@@ -37,14 +37,19 @@ jobs:
         run: |
           set -o pipefail
           npx tsx scripts/harness/audio-studio-worker-preflight/preflight.mts --out preflight-out 2>&1 | tee preflight.log
-      - name: Control negativo (voz apagada → el preflight DEBE fallar)
+      - name: Controles negativos (cada uno DEBE fallar exactamente en su comprobación)
         run: |
           set +e
-          npx tsx scripts/harness/audio-studio-worker-preflight/preflight.mts --out preflight-negativo --control-negativo > preflight-negativo.log 2>&1
-          code=$?
-          grep -E '^(FAIL|RESULTADO)' preflight-negativo.log | head -5
-          [ "$code" -eq 1 ] && grep -q '^FAIL  \[A1\]' preflight-negativo.log || { echo "::error::el control negativo no detectó el fallo (salida $code)"; exit 1; }
-          echo "control negativo OK: el preflight detecta un worker sin voz"
+          ok=1
+          for spec in "voz:A1" "red:N1" "mp3:A2"; do
+            m=${spec%%:*}; want=${spec#*:}
+            npx tsx scripts/harness/audio-studio-worker-preflight/preflight.mts --out "preflight-negativo-$m" --control-negativo=$m > "preflight-negativo-$m.log" 2>&1
+            code=$?
+            got=$(sed -nE 's/^FAIL  \[([A-Z0-9]+)\].*/\1/p' "preflight-negativo-$m.log" | sort -u | paste -sd, -)
+            grep -E '^(FAIL|RESULTADO)' "preflight-negativo-$m.log" | cut -c1-200
+            if [ "$code" -eq 1 ] && [ "$got" = "$want" ]; then echo "control negativo «$m» OK: falla solo $want"; else echo "::error::control negativo «$m»: salida $code, fallos [$got], se esperaba [$want]"; ok=0; fi
+          done
+          [ "$ok" -eq 1 ]
       - name: Resumen
         if: always()
         run: |
@@ -57,7 +62,7 @@ jobs:
           retention-days: 30
           path: |
             preflight.log
-            preflight-negativo.log
+            preflight-negativo-*.log
             preflight-out/matriz.json
             preflight-out/matriz.md
             preflight-out/SHA256SUMS

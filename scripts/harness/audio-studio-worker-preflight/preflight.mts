@@ -8,7 +8,11 @@
  * No usa ElevenLabs, OpenAI ni Anthropic, ni secretos, ni Supabase real. NO prueba producción autenticada: eso sigue
  * siendo la prueba de 10 minutos de Hans (docs/AUDIO-STUDIO-WORKER-PREFLIGHT.md).
  *
- * Uso: npx tsx scripts/harness/audio-studio-worker-preflight/preflight.mts [--out DIR] [--control-negativo]
+ * Uso: npx tsx scripts/harness/audio-studio-worker-preflight/preflight.mts [--out DIR] [--control-negativo[=voz|red|mp3]]
+ *  Controles negativos (cada uno DEBE salir con 1 y fallar exactamente en su comprobación):
+ *   voz → AUDIO_STUDIO_VOICE=off en el caso A (falla A1);
+ *   red → el worker intenta salir a internet (red-canary.mjs): el cortafuegos debe bloquearlo y N1 fallar;
+ *   mp3 → el MP3 publicado de A desaparece del Storage: A2 debe fallar (nunca aprobar un MP3 ausente).
  */
 import { execFileSync, spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync, existsSync } from "node:fs";
@@ -27,7 +31,9 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../../..");
 const args = process.argv.slice(2);
 const OUT = path.resolve(args.includes("--out") ? args[args.indexOf("--out") + 1] : path.join(tmpdir(), "audio-studio-worker-preflight"));
-const NEGATIVE = args.includes("--control-negativo");
+const negArg = args.find((a) => a === "--control-negativo" || a.startsWith("--control-negativo="));
+const NEGATIVE: "voz" | "red" | "mp3" | null = negArg ? ((negArg.split("=")[1] || "voz") as "voz" | "red" | "mp3") : null;
+if (NEGATIVE && !["voz", "red", "mp3"].includes(NEGATIVE)) throw new Error(`control negativo desconocido: ${NEGATIVE}`);
 mkdirSync(path.join(OUT, "mp3"), { recursive: true });
 
 const OWNER = "0f0f0f0f-1111-4111-8111-000000000001"; // hace de INTERNAL_PRODUCTION_OWNER_USER_ID
@@ -80,7 +86,7 @@ async function worker(owner: string, project: string, extra: Record<string, stri
     PATH: `${FAKEBIN}:${process.env.PATH}`, HOME: process.env.HOME ?? "/tmp", TMPDIR: tmpdir(),
     SUPABASE_URL: storage.url, SUPABASE_SERVICE_ROLE_KEY: storage.key,
     AUDIO_STUDIO_VOICE: "demo", INTERNAL_PRODUCTION_OWNER_USER_ID: OWNER, AUDIO_STUDIO_MUSIC_DIR: MUSIC,
-    NODE_OPTIONS: `--import ${path.join(HERE, "net-guard.mjs")}`, PREFLIGHT_NET_LOG: NET_LOG,
+    NODE_OPTIONS: `--import ${path.join(HERE, "net-guard.mjs")}${NEGATIVE === "red" ? ` --import ${path.join(HERE, "red-canary.mjs")}` : ""}`, PREFLIGHT_NET_LOG: NET_LOG,
     PREFLIGHT_ESPEAK_COUNT: COUNT, PREFLIGHT_REAL_ESPEAK: REAL_ESPEAK, ...extra,
   };
   const before = espeakCalls();
@@ -96,10 +102,15 @@ async function worker(owner: string, project: string, extra: Record<string, stri
   return { code, resultado, calls: espeakCalls() - before };
 }
 const ownerObjects = () => [...storage.objects.keys()];
-function probe(buf: Buffer, name: string) {
+/** Escrituras reales (subidas) recibidas por el Storage desechable: list y sign no cuentan. */
+const writes = () => storage.log.filter((l: { method: string; path: string }) => (l.method === "POST" || l.method === "PUT") && l.path.startsWith(`/storage/v1/object/${AUDIO_STUDIO_BUCKET}/`)).length;
+function probe(buf: Buffer | null, name: string) {
+  if (!buf || buf.length === 0) return null; // MP3 ausente o vacío: la comprobación falla, no se aprueba
   const f = path.join(OUT, "mp3", name);
   writeFileSync(f, buf);
-  const p = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-show_entries", "stream=codec_name,sample_rate,channels:format=duration,bit_rate", "-of", "json", f]).toString());
+  let p;
+  try { p = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-show_entries", "stream=codec_name,sample_rate,channels:format=duration,bit_rate", "-of", "json", f]).toString()); } catch { return null; }
+  if (!p.streams?.length) return null;
   const pcm = execFileSync("ffmpeg", ["-v", "error", "-i", f, "-ac", "1", "-ar", "8000", "-f", "s16le", "-"], { maxBuffer: 1 << 28 });
   const s = new Int16Array(pcm.buffer, pcm.byteOffset, pcm.length / 2);
   const rms = (a: number, b: number) => { let x = 0, k = 0; for (let i = Math.floor(a * 8000); i < Math.min(s.length, Math.floor(b * 8000)); i++) { x += (s[i] / 32768) ** 2; k++; } return k ? 20 * Math.log10(Math.sqrt(x / k) + 1e-9) : -120; };
@@ -146,14 +157,16 @@ for (const k of cases) {
   const p = await newEpisode(k.lang, k.voices);
   const q = await enqueue(OWNER, p.id);
   check(`${k.id}0`, `${k.lang.toUpperCase()} ${k.voices} voz: la API acepta la autorización (USD ${p.estimate.estimatedUsd.toFixed(2)}) y encola`, q.ok && q.status === 202, { status: q.status });
-  const w = await worker(OWNER, p.id, NEGATIVE && k.id === "A" ? { AUDIO_STUDIO_VOICE: "off" } : {});
+  const w = await worker(OWNER, p.id, NEGATIVE === "voz" && k.id === "A" ? { AUDIO_STUDIO_VOICE: "off" } : {});
   const after = (await store.get(OWNER, p.id))!;
   const ok = w.code === 0 && /^RESULTADO TERMINADA \(voz de demostración, USD 0\)$/.test(w.resultado) && after.generation.status === "terminada" && !!after.audio;
   check(`${k.id}1`, `${k.lang.toUpperCase()} ${k.voices} voz: el worker real termina con voz demo USD 0`, ok, { code: w.code, resultado: w.resultado, estado: after.generation.status });
   if (!after.audio) continue;
   done[k.id] = after;
+  if (NEGATIVE === "mp3" && k.id === "A") storage.objects.delete(after.audio.path); // control negativo: el MP3 «publicado» no está
   const buf = await store.getBlob(after.audio.path);
-  const m = probe(buf!, `${k.id}-${k.lang}-${k.voices}voz.mp3`);
+  const m = probe(buf, `${k.id}-${k.lang}-${k.voices}voz.mp3`);
+  if (!m) { check(`${k.id}2`, `${k.id}: MP3 decodificable (mp3, 48 kHz, ~192 kbps) y duración = la registrada`, false, { mp3: "ausente o no decodificable", ruta: after.audio.path }); continue; }
   check(`${k.id}2`, `${k.id}: MP3 decodificable (mp3, 48 kHz, ~192 kbps) y duración = la registrada`, m.codec === "mp3" && m.sampleRate === 48000 && m.kbps >= 180 && m.kbps <= 200 && Math.abs(m.duration - after.audio.durationSeconds) < 0.25 && m.duration > 150, { ...m, rms: undefined });
   check(`${k.id}3`, `${k.id}: máster −16 LUFS ±1,5 y pico ≤ −1 dBTP`, Math.abs(after.audio.lufs + 16) <= 1.5 && after.audio.truePeak <= -1, { lufs: after.audio.lufs, tp: after.audio.truePeak });
   const intro = m.rms(0.8, 2.5), speech = m.rms(5, 9);
@@ -220,11 +233,14 @@ if (done.C) {
   const other = await listProjects(deps, OTHER);
   const peek = await getProject(deps, OTHER, done.C.id);
   check("L2", "otra cuenta no ve la biblioteca del dueño ni abre su proyecto (404)", other.ok && (other.body as { projects: unknown[] }).projects.length === 0 && peek.status === 404);
+  const w3 = writes();
   const w = await worker(OTHER, done.C.id, { AUDIO_STUDIO_VOICE: "demo" });
-  check("L3", "worker despachado con una cuenta que no es la dueña → SIN_VOZ (no lee ni escribe nada)", /RESULTADO SIN_VOZ/.test(w.resultado) && w.calls === 0, { resultado: w.resultado });
+  check("L3", "worker despachado con una cuenta que no es la dueña → SIN_VOZ (no lee ni escribe nada)", /RESULTADO SIN_VOZ/.test(w.resultado) && w.calls === 0 && writes() === w3, { resultado: w.resultado, escrituras: writes() - w3 });
   const foreign = await newEpisode("es", 1, OTHER);
+  const foreignBefore = JSON.stringify(await store.get(OTHER, foreign.id));
+  const w4 = writes();
   const w2 = await worker(OWNER, foreign.id);
-  check("L4", "payload con el dueño interno pero un proyecto de otra cuenta → RECHAZADO (proyecto inexistente)", /RESULTADO RECHAZADO proyecto inexistente para ese dueño/.test(w2.resultado) && w2.calls === 0, { resultado: w2.resultado });
+  check("L4", "payload con el dueño interno pero un proyecto de otra cuenta → RECHAZADO (proyecto inexistente), sin escrituras y el proyecto ajeno intacto", /RESULTADO RECHAZADO proyecto inexistente para ese dueño/.test(w2.resultado) && w2.calls === 0 && writes() === w4 && JSON.stringify(await store.get(OTHER, foreign.id)) === foreignBefore, { resultado: w2.resultado, escrituras: writes() - w4 });
   check("L5", "todo lo escrito queda bajo audio-studio/v1/<cuenta>/", ownerObjects().every((o) => o.startsWith(`${AUDIO_STUDIO_PREFIX}/${OWNER}/`) || o.startsWith(`${AUDIO_STUDIO_PREFIX}/${OTHER}/`)), { objetos: ownerObjects().length });
 }
 
@@ -233,12 +249,13 @@ if (done.C) {
   const p = await newEpisode("es", 1);
   const cur = (await store.get(OWNER, p.id))!;
   await store.put({ ...cur, generation: { ...cur.generation, status: "en_cola", kind: "generar", heartbeatAt: new Date().toISOString(), authorization: null } });
+  const wx = writes();
   const w = await worker(OWNER, p.id);
-  check("X1", "en cola sin autorización guardada → RECHAZADO sin sintetizar", /RESULTADO RECHAZADO sin autorización de gasto guardada/.test(w.resultado) && w.calls === 0, { resultado: w.resultado });
+  check("X1", "en cola sin autorización guardada → RECHAZADO sin sintetizar", /RESULTADO RECHAZADO sin autorización de gasto guardada/.test(w.resultado) && w.calls === 0 && writes() === wx, { resultado: w.resultado, escrituras: writes() - wx });
   const off = await worker(OWNER, p.id, { AUDIO_STUDIO_VOICE: "off" });
-  check("X2", "rollback sin código AUDIO_STUDIO_VOICE=off → SIN_VOZ", /RESULTADO SIN_VOZ/.test(off.resultado) && off.calls === 0, { resultado: off.resultado });
+  check("X2", "rollback sin código AUDIO_STUDIO_VOICE=off → SIN_VOZ, sin escrituras", /RESULTADO SIN_VOZ/.test(off.resultado) && off.calls === 0 && writes() === wx, { resultado: off.resultado, escrituras: writes() - wx });
   const bad = await worker("no-es-uuid", p.id);
-  check("X3", "identificadores inválidos → salida 2 sin tocar nada", bad.code === 2 && /identificadores inválidos/.test(bad.resultado));
+  check("X3", "identificadores inválidos → salida 2 sin tocar nada", bad.code === 2 && /identificadores inválidos/.test(bad.resultado) && writes() === wx, { escrituras: writes() - wx });
 }
 
 // ---------- 8. Red y gasto ----------
@@ -249,10 +266,16 @@ check("N2", "gasto total USD 0 en todos los episodios", allSpent.every((x) => x 
 note("P1", "producción autenticada (sesión real de Hans, Supabase y GitHub reales)", "NO_PROBADO", "Fuera del alcance del CI por diseño: runbook de 10 minutos en docs/AUDIO-STUDIO-WORKER-PREFLIGHT.md");
 note("P2", "voz real ElevenLabs", "BLOCKED", "Requiere autorización de importe de Hans (USD ≈3,04, tope 6)");
 
+// Ninguna comprobación puede saltarse en silencio (p. ej. por un caso previo sin MP3). En los controles negativos
+// los saltos que provoca el propio fallo inyectado son esperados, así que Z1 solo se exige en la ejecución normal.
+const EXPECTED = ["K1", "K2", "K3", "K4", "K5", "K6", ...["A", "B", "C", "D"].flatMap((c) => [0, 1, 2, 3, 4, 5].map((n) => `${c}${n}`)), "E1", "F1", "F2", "R1", "M1", "L1", "L2", "L3", "L4", "L5", "X1", "X2", "X3", "N1", "N2"];
+const missing = EXPECTED.filter((id) => !rows.some((r) => r.id === id));
+if (!NEGATIVE) check("Z1", "todas las comprobaciones esperadas se ejecutaron (ninguna se saltó)", missing.length === 0, { esperadas: EXPECTED.length, faltan: missing });
+
 await storage.close();
 const fails = rows.filter((r) => r.estado === "FAIL").length;
 const pass = rows.filter((r) => r.estado === "PASS").length;
-writeFileSync(path.join(OUT, "matriz.json"), JSON.stringify({ controlNegativo: NEGATIVE, pass, fail: fails, rows, peticionesStorage: storage.log.length }, null, 2));
+writeFileSync(path.join(OUT, "matriz.json"), JSON.stringify({ controlNegativo: NEGATIVE, pass, faltan: missing, fail: fails, rows, peticionesStorage: storage.log.length }, null, 2));
 writeFileSync(path.join(OUT, "matriz.md"), `| Id | Requisito | Estado | Detalle |\n|---|---|---|---|\n${rows.map((r) => `| ${r.id} | ${r.requisito} | ${r.estado} | ${r.detalle.replace(/\|/g, "/").slice(0, 300)} |`).join("\n")}\n`);
-console.log(`RESULTADO ${pass} PASS / ${fails} FAIL${NEGATIVE ? " (control negativo: debe tener FAIL)" : ""}`);
+console.log(`RESULTADO ${pass} PASS / ${fails} FAIL${NEGATIVE ? ` (control negativo «${NEGATIVE}»: debe tener FAIL)` : ""}`);
 process.exit(fails ? 1 : 0);

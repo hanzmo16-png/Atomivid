@@ -10,6 +10,8 @@ T-20261119-0918-chatgpt-25. Gasto: **USD 0**. Solo archivos nuevos: no cambia el
 - **Voz de demostración** espeak-ng y **FFmpeg locales**: los mismos que instala el worker.
 - **Cortafuegos de proceso** (`net-guard.mjs`): cualquier conexión del worker fuera de 127.0.0.1 se bloquea y se anota.
 - **Fallo inyectado** (`fake-espeak.sh`): el motor de voz falla en la llamada N para probar la reanudación.
+- **Sin saltos silenciosos** (Z1): la ejecución normal exige que se hayan registrado las 45 comprobaciones esperadas.
+- **Rechazos sin escrituras**: L3, L4, X1, X2 y X3 comprueban además que el Storage no recibió ninguna subida, y L4 que el proyecto ajeno queda intacto.
 
 | Cubre | No cubre |
 |---|---|
@@ -29,8 +31,13 @@ Ejecución local (necesita `ffmpeg` y `espeak-ng`):
 
 ```bash
 npx tsx scripts/harness/audio-studio-worker-preflight/preflight.mts --out /tmp/preflight
-npx tsx scripts/harness/audio-studio-worker-preflight/preflight.mts --out /tmp/neg --control-negativo  # debe salir con 1
+# Controles negativos: cada uno debe salir con 1 y fallar SOLO en su comprobación
+npx tsx scripts/harness/audio-studio-worker-preflight/preflight.mts --out /tmp/neg-voz --control-negativo=voz  # falla A1: worker sin voz
+npx tsx scripts/harness/audio-studio-worker-preflight/preflight.mts --out /tmp/neg-red --control-negativo=red  # falla N1: el worker intenta salir a internet (red-canary.mjs) y el cortafuegos lo bloquea y lo anota
+npx tsx scripts/harness/audio-studio-worker-preflight/preflight.mts --out /tmp/neg-mp3 --control-negativo=mp3  # falla A2: el MP3 publicado no está; nunca se aprueba un MP3 ausente
 ```
+
+Límite del cortafuegos: protege el proceso Node del worker (fetch y sockets, incluido TLS). FFmpeg y espeak-ng son binarios nativos que no pasan por él; el worker solo les entrega rutas locales.
 
 En CI corre `.github/workflows/audio-studio-worker-preflight.yml`, que sube como artefacto la matriz, los logs, los MP3 y los SHA-256.
 
