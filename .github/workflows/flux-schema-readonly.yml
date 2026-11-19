@@ -1,0 +1,49 @@
+# FLUX: estado REAL de la migración 20261113150000_flux_image_source en Supabase productivo, en SOLO LECTURA
+# (cada consulta dentro de BEGIN TRANSACTION READ ONLY … ROLLBACK; pg_dump --schema-only, sin datos, no sale del runner),
+# y ensayo aplicar → re-aplicar → rollback → re-aplicar → rollback negado con video FLUX en un PostgreSQL DESECHABLE
+# con ese mismo esquema. NO aplica nada en producción. Ver docs/FLUX-ACTIVACION.md.
+name: flux-schema-readonly
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/flux-activacion]
+    paths:
+      - ".github/workflows/flux-schema-readonly.yml"
+      - "scripts/qa/flux-readonly/**"
+      - "supabase/migrations/20261113150000_flux_image_source.sql"
+      - "supabase/rollbacks/20261113150000_flux_image_source.rollback.sql"
+permissions:
+  contents: read
+jobs:
+  readonly:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: PostgreSQL 17 (cliente para pg_dump del remoto y servidor desechable)
+        timeout-minutes: 15
+        run: |
+          for i in 1 2 3; do sudo apt-get -o Acquire::Retries=5 update -q && sudo apt-get install -yq postgresql-common && sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -yq postgresql-17 && break; sleep $((i*15)); done
+          sudo systemctl stop postgresql || true
+          test -x /usr/lib/postgresql/17/bin/pg_dump
+      - name: Estado en producción (solo lectura) + ensayo en réplica desechable
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST || 'aws-0-us-west-2.pooler.supabase.com' }}
+          SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
+        run: |
+          set -o pipefail
+          bash scripts/qa/flux-readonly/run.sh 2>&1 | tee flux-readonly.log
+      - name: Resumen
+        if: always()
+        run: grep -E '^(ESTADO_PRODUCCION|RESULTADO|FAIL|NO_PROBADO)' flux-readonly.log || true
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: flux-schema-readonly, path: flux-readonly.log, retention-days: 30 }
