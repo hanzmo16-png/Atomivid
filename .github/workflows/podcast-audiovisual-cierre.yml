@@ -35,13 +35,24 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - name: PostgreSQL 17, ffmpeg, espeak-ng
-        timeout-minutes: 15
+        # Los espejos de Ubuntu del runner fallan a ratos (2026-11-18: ~50 KB/s y timeout a los 15 min; 2026-11-19:
+        # 503 en security.ubuntu.com). Reintentos acotados de apt con los MISMOS paquetes: no cambia el producto.
+        timeout-minutes: 25
         run: |
           sudo rm -f /var/lib/man-db/auto-update
-          sudo apt-get -o Acquire::Retries=3 update -q
-          sudo apt-get install -yq postgresql-common
+          APT="sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30"
+          apt_install() {
+            for i in 1 2 3; do
+              $APT install -yq "$@" && return 0
+              echo "::warning title=apt::instalación fallida (intento $i de 3); se reintenta"
+              sleep $((i * 15)); $APT update -q || true
+            done
+            return 1
+          }
+          $APT update -q
+          apt_install postgresql-common
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
-          sudo apt-get install -yq --no-install-recommends postgresql-17 ffmpeg espeak-ng fonts-dejavu-core
+          apt_install --no-install-recommends postgresql-17 ffmpeg espeak-ng fonts-dejavu-core
           sudo systemctl stop postgresql || true
           echo "PG_BIN=/usr/lib/postgresql/17/bin" >> "$GITHUB_ENV"
       - run: npm ci --no-audit --no-fund
