@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { INPUT_CLASS } from "@/components/ui/Field";
+import { commitTargetMinutes, parseTargetMinutes, voiceReplacements } from "@/lib/audio-studio/editor-rules";
 import {
   LANGUAGES, defaultSecondVoice, draftOutline, estimate, GENERATION_LABEL, generationActive, MAX_BUDGET_USD, MAX_SCRIPT, MAX_TARGET_MINUTES, MAX_TITLE, MIN_TARGET_MINUTES, MOOD_LABEL, MUSIC_MOODS,
   audioProviderNote, DEMO_VOICE_LABEL, FALLBACK_TTS_MODEL, musicPlan, readinessIssues, STATUS_LABEL, TTS_MODELS, ttsModel, VOICE_PRESETS, voicePreset, type StudioLanguage, type AudioProject, type MusicConfig, type MusicMood, type TtsModelId,
@@ -147,20 +148,10 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
   const catalogReady = catalog !== null && draft.voices.every(available);
   // Voces elegidas que el catálogo real no ofrece con el modelo actual (bloquean «Generar» aunque el monto esté autorizado).
   const unavailableVoices = catalog === null ? [] : draft.voices.filter((id) => !available(id));
-  const replacementVoices = (() => {
-    if (!unavailableVoices.length) return null;
-    const next = [...draft.voices];
-    for (let i = 0; i < next.length; i++) {
-      if (available(next[i])) continue;
-      const alt = VOICE_PRESETS.find((p) => p.language === draft.language && available(p.id) && !next.includes(p.id));
-      if (!alt) return null;
-      next[i] = alt.id;
-    }
-    return next;
-  })();
+  const replacementVoices = catalog === null ? null : voiceReplacements(draft.voices, draft.language, available);
   const consentKey = JSON.stringify(draft);
   const authorized = authorizedFor === consentKey;
-  const commitTarget = (raw: string) => { const n = Number.parseInt(raw, 10); setTargetText(null); if (Number.isFinite(n)) set("targetMinutes", Math.min(MAX_TARGET_MINUTES, Math.max(MIN_TARGET_MINUTES, n))); };
+  const commitTarget = (raw: string) => { setTargetText(null); set("targetMinutes", commitTargetMinutes(raw, draft.targetMinutes, MIN_TARGET_MINUTES, MAX_TARGET_MINUTES)); };
   // Sin síntesis real ni local no se ofrece gasto ni generación. Hasta conocer el estado, tampoco.
   const inactive = synthesis === "inactiva";
   const canPay = synthesis === "real" || synthesis === "local" || synthesis === "demo";
@@ -237,7 +228,7 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
           <div>
             <label htmlFor="audio-target" className="mb-1.5 block text-sm font-medium text-ink">Duración objetivo (min)</label>
             <input id="audio-target" data-testid="audio-target" type="text" inputMode="numeric" pattern="[0-9]*" min={MIN_TARGET_MINUTES} max={MAX_TARGET_MINUTES} className={INPUT_CLASS} value={targetText ?? String(draft.targetMinutes)} disabled={locked}
-              onChange={(e) => { const t = e.target.value.replace(/[^0-9]/g, "").slice(0, 3); setTargetText(t); const n = Number.parseInt(t, 10); if (n >= MIN_TARGET_MINUTES && n <= MAX_TARGET_MINUTES) set("targetMinutes", n); }}
+              onChange={(e) => { const t = e.target.value.replace(/[^0-9]/g, "").slice(0, 3); setTargetText(t); const n = parseTargetMinutes(t, MIN_TARGET_MINUTES, MAX_TARGET_MINUTES); if (n !== null) set("targetMinutes", n); }}
               onBlur={(e) => commitTarget(e.target.value)} />
           </div>
           <div>
