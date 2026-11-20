@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { INPUT_CLASS } from "@/components/ui/Field";
+import { commitTargetMinutes, parseTargetMinutes, voiceReplacements } from "@/lib/audio-studio/editor-rules";
 import {
   LANGUAGES, defaultSecondVoice, draftOutline, estimate, GENERATION_LABEL, generationActive, MAX_BUDGET_USD, MAX_SCRIPT, MAX_TARGET_MINUTES, MAX_TITLE, MIN_TARGET_MINUTES, MOOD_LABEL, MUSIC_MOODS,
   audioProviderNote, DEMO_VOICE_LABEL, FALLBACK_TTS_MODEL, musicPlan, readinessIssues, STATUS_LABEL, TTS_MODELS, ttsModel, VOICE_PRESETS, voicePreset, type StudioLanguage, type AudioProject, type MusicConfig, type MusicMood, type TtsModelId,
@@ -43,7 +44,10 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
     }).catch(err => { if (alive) setCatalogError(err.message); });
     return () => { alive = false; };
   }, [catalogReload]);
-  const [authorized, setAuthorized] = useState(false);
+  // Consentimiento ligado al contenido exacto que se autoriza (guion, voces, duración, modelo, tope): cualquier cambio lo invalida.
+  const [authorizedFor, setAuthorizedFor] = useState<string | null>(null);
+  // Texto libre del campo de duración: se puede borrar y reescribir; se valida al salir del campo.
+  const [targetText, setTargetText] = useState<string | null>(null);
   const [clock, setClock] = useState(() => Date.now());
   const dirty = !same(draft, draftOf(saved));
   const archived = !!saved.archivedAt;
@@ -109,7 +113,11 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
     return () => window.removeEventListener("beforeunload", h);
   }, [dirty]);
 
+  // Cerrojo síncrono: `busy` es estado de React y no bloquea un segundo clic en el mismo instante (doble toque).
+  const actionRef = useRef(false);
   async function action(a: "listo" | "generar" | "archivar" | "restaurar" | "remezclar" | "reanudar" | "respaldo") {
+    if (actionRef.current) return;
+    actionRef.current = true;
     setBusy(a); setMessage(null);
     try {
       let current = saved;
@@ -118,10 +126,10 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
       if (a === "generar") payload.confirmUsd = current.estimate.estimatedUsd;
       const res = await fetch(`/api/audio-studio/projects/${saved.id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const body = await res.json().catch(() => null);
-      if (res.ok) { setSaved(body); setDraft(draftOf(body)); setClock(Date.now()); if (a === "generar") setAuthorized(false); }
+      if (res.ok) { setSaved(body); setDraft(draftOf(body)); setClock(Date.now()); if (a === "generar") setAuthorizedFor(null); }
       else setMessage(body?.error ?? "No se pudo completar la acción.");
     } catch { setMessage("Sin conexión. Vuelve a intentar."); }
-    finally { setBusy(null); }
+    finally { setBusy(null); actionRef.current = false; }
   }
 
   async function reload() {
@@ -142,6 +150,12 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
   });
   const available = (id: string) => catalog?.find(v => v.id === id)?.models.includes(draft.ttsModel) ?? false;
   const catalogReady = catalog !== null && draft.voices.every(available);
+  // Voces elegidas que el catálogo real no ofrece con el modelo actual (bloquean «Generar» aunque el monto esté autorizado).
+  const unavailableVoices = catalog === null ? [] : draft.voices.filter((id) => !available(id));
+  const replacementVoices = catalog === null ? null : voiceReplacements(draft.voices, draft.language, available);
+  const consentKey = JSON.stringify(draft);
+  const authorized = authorizedFor === consentKey;
+  const commitTarget = (raw: string) => { setTargetText(null); set("targetMinutes", commitTargetMinutes(raw, draft.targetMinutes, MIN_TARGET_MINUTES, MAX_TARGET_MINUTES)); };
   // Sin síntesis real ni local no se ofrece gasto ni generación. Hasta conocer el estado, tampoco.
   const inactive = synthesis === "inactiva";
   const canPay = synthesis === "real" || synthesis === "local" || synthesis === "demo";
@@ -217,8 +231,9 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label htmlFor="audio-target" className="mb-1.5 block text-sm font-medium text-ink">Duración objetivo (min)</label>
-            <input id="audio-target" data-testid="audio-target" type="number" inputMode="numeric" min={MIN_TARGET_MINUTES} max={MAX_TARGET_MINUTES} className={INPUT_CLASS} value={draft.targetMinutes} disabled={locked}
-              onChange={(e) => set("targetMinutes", Math.min(MAX_TARGET_MINUTES, Math.max(MIN_TARGET_MINUTES, Number(e.target.value) || MIN_TARGET_MINUTES)))} />
+            <input id="audio-target" data-testid="audio-target" type="text" inputMode="numeric" pattern="[0-9]*" min={MIN_TARGET_MINUTES} max={MAX_TARGET_MINUTES} className={INPUT_CLASS} value={targetText ?? String(draft.targetMinutes)} disabled={locked}
+              onChange={(e) => { const t = e.target.value.replace(/[^0-9]/g, "").slice(0, 3); setTargetText(t); const n = parseTargetMinutes(t, MIN_TARGET_MINUTES, MAX_TARGET_MINUTES); if (n !== null) set("targetMinutes", n); }}
+              onBlur={(e) => commitTarget(e.target.value)} />
           </div>
           <div>
             <label htmlFor="audio-budget" className="mb-1.5 block text-sm font-medium text-ink">Tope de gasto del episodio (USD)</label>
@@ -347,7 +362,7 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
         )}
         {canPay && !archived && !running && g.status !== "fallida" && (
           <label className="flex min-h-11 items-start gap-2 text-sm text-ink">
-            <input type="checkbox" className="mt-1" data-testid="audio-authorize" checked={authorized} disabled={issues.length > 0 || !!busy} onChange={(e) => setAuthorized(e.target.checked)} />
+            <input type="checkbox" className="mt-1" data-testid="audio-authorize" checked={authorized} disabled={issues.length > 0 || !!busy} onChange={(e) => setAuthorizedFor(e.target.checked ? consentKey : null)} />
             {demo ? (
               <span>Confirmo generar con la voz de demostración por <strong data-testid="audio-authorize-usd">USD {live.estimatedUsd.toFixed(2)}</strong> (no es la voz final).</span>
             ) : (
@@ -361,6 +376,16 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
           )}
           {canPay && !archived && !running && g.status !== "fallida" && (
             <Button className="min-h-11" data-testid="audio-generate" disabled={!authorized || !catalogReady || issues.length > 0 || !!busy} loading={busy === "generar"} onClick={() => void action("generar")}>{demo ? "Generar MP3 de demostración" : "Generar MP3"}</Button>
+          )}
+          {canPay && !archived && !running && g.status !== "fallida" && !busy && (issues.length > 0 || !authorized || !catalogReady) && (
+            <p role="status" className="w-full text-sm text-ink-muted" data-testid="audio-generate-why">
+              {issues.length > 0 ? `No se puede generar todavía: ${issues[0]}`
+                : catalog === null ? (catalogError ? "No se pudo cargar el catálogo de voces: pulsa «Reintentar» junto a las voces." : "Cargando el catálogo de voces…")
+                : !catalogReady ? `No se puede generar: ${unavailableVoices.map((id) => VOICE_PRESETS.find((p) => p.id === id)?.label ?? id).join(" y ")} no ${unavailableVoices.length > 1 ? "están disponibles" : "está disponible"} con el modelo ${TTS_MODELS.find((m) => m.id === draft.ttsModel)?.label ?? draft.ttsModel}. ${replacementVoices ? "Cámbiala por una voz disponible:" : "Elige otro modelo de voz arriba."}`
+                : "Marca la autorización del monto para habilitar «Generar»."}
+              {catalog === null && catalogError && <> <button type="button" className="underline" data-testid="audio-generate-retry" onClick={() => setCatalogReload((n) => n + 1)}>Reintentar</button></>}
+              {catalog !== null && !catalogReady && replacementVoices && <> <button type="button" className="underline" data-testid="audio-generate-fix-voices" onClick={() => set("voices", replacementVoices)}>Usar {replacementVoices.filter((id, i) => id !== draft.voices[i]).map((id) => VOICE_PRESETS.find((p) => p.id === id)?.label ?? id).join(" y ")}</button></>}
+            </p>
           )}
           {canPay && !archived && !running && (g.status === "fallida" || g.status === "generando" || g.status === "en_cola") && (
             <Button className="min-h-11" data-testid="audio-resume" disabled={!!busy} loading={busy === "reanudar"} onClick={() => void action("reanudar")}>Reanudar</Button>
