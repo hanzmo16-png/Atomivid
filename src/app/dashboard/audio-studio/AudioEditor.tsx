@@ -113,7 +113,11 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
     return () => window.removeEventListener("beforeunload", h);
   }, [dirty]);
 
+  // Cerrojo síncrono: `busy` es estado de React y no bloquea un segundo clic en el mismo instante (doble toque).
+  const actionRef = useRef(false);
   async function action(a: "listo" | "generar" | "archivar" | "restaurar" | "remezclar" | "reanudar" | "respaldo") {
+    if (actionRef.current) return;
+    actionRef.current = true;
     setBusy(a); setMessage(null);
     try {
       let current = saved;
@@ -125,7 +129,7 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
       if (res.ok) { setSaved(body); setDraft(draftOf(body)); setClock(Date.now()); if (a === "generar") setAuthorizedFor(null); }
       else setMessage(body?.error ?? "No se pudo completar la acción.");
     } catch { setMessage("Sin conexión. Vuelve a intentar."); }
-    finally { setBusy(null); }
+    finally { setBusy(null); actionRef.current = false; }
   }
 
   async function reload() {
