@@ -16,3 +16,18 @@ export function clampStep(index: number, length: number): number {
   if (index > length - 1) return length - 1;
   return index;
 }
+
+/**
+ * Rutas donde el recorrido de primera visita NO se abre solo. Sus 5 pasos
+ * describen el flujo de video; en Audio Studio (editor de guion de audio) la
+ * hoja inferior tapaba en el teléfono el título, el idioma, «Guardar» y el
+ * guion con instrucciones que no corresponden a esa pantalla. El botón de
+ * ayuda sigue disponible para abrirlo a mano.
+ */
+const NO_AUTO_OPEN_PREFIXES = ["/dashboard/audio-studio"];
+
+/** ¿Debe abrirse solo el recorrido en esta ruta? Sin ruta conocida, sí (comportamiento previo). */
+export function shouldAutoOpenOnboarding(pathname: string | null | undefined): boolean {
+  if (!pathname) return true;
+  return !NO_AUTO_OPEN_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
