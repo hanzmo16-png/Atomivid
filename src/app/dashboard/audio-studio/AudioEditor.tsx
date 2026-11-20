@@ -145,6 +145,19 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
   });
   const available = (id: string) => catalog?.find(v => v.id === id)?.models.includes(draft.ttsModel) ?? false;
   const catalogReady = catalog !== null && draft.voices.every(available);
+  // Voces elegidas que el catálogo real no ofrece con el modelo actual (bloquean «Generar» aunque el monto esté autorizado).
+  const unavailableVoices = catalog === null ? [] : draft.voices.filter((id) => !available(id));
+  const replacementVoices = (() => {
+    if (!unavailableVoices.length) return null;
+    const next = [...draft.voices];
+    for (let i = 0; i < next.length; i++) {
+      if (available(next[i])) continue;
+      const alt = VOICE_PRESETS.find((p) => p.language === draft.language && available(p.id) && !next.includes(p.id));
+      if (!alt) return null;
+      next[i] = alt.id;
+    }
+    return next;
+  })();
   const consentKey = JSON.stringify(draft);
   const authorized = authorizedFor === consentKey;
   const commitTarget = (raw: string) => { const n = Number.parseInt(raw, 10); setTargetText(null); if (Number.isFinite(n)) set("targetMinutes", Math.min(MAX_TARGET_MINUTES, Math.max(MIN_TARGET_MINUTES, n))); };
@@ -373,8 +386,10 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
             <p role="status" className="w-full text-sm text-ink-muted" data-testid="audio-generate-why">
               {issues.length > 0 ? `No se puede generar todavía: ${issues[0]}`
                 : catalog === null ? (catalogError ? "No se pudo cargar el catálogo de voces: pulsa «Reintentar» junto a las voces." : "Cargando el catálogo de voces…")
-                : !catalogReady ? "Alguna voz elegida no está disponible con este modelo: elige otra voz o modelo para poder generar."
+                : !catalogReady ? `No se puede generar: ${unavailableVoices.map((id) => VOICE_PRESETS.find((p) => p.id === id)?.label ?? id).join(" y ")} no ${unavailableVoices.length > 1 ? "están disponibles" : "está disponible"} con el modelo ${TTS_MODELS.find((m) => m.id === draft.ttsModel)?.label ?? draft.ttsModel}. ${replacementVoices ? "Cámbiala por una voz disponible:" : "Elige otro modelo de voz arriba."}`
                 : "Marca la autorización del monto para habilitar «Generar»."}
+              {catalog === null && catalogError && <> <button type="button" className="underline" data-testid="audio-generate-retry" onClick={() => setCatalogReload((n) => n + 1)}>Reintentar</button></>}
+              {catalog !== null && !catalogReady && replacementVoices && <> <button type="button" className="underline" data-testid="audio-generate-fix-voices" onClick={() => set("voices", replacementVoices)}>Usar {replacementVoices.filter((id, i) => id !== draft.voices[i]).map((id) => VOICE_PRESETS.find((p) => p.id === id)?.label ?? id).join(" y ")}</button></>}
             </p>
           )}
           {canPay && !archived && !running && (g.status === "fallida" || g.status === "generando" || g.status === "en_cola") && (
