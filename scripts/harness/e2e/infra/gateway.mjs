@@ -16,13 +16,33 @@ const json = (res, code, body) => { res.writeHead(code, { "content-type": "appli
 const body = (req) => new Promise((r) => { const c = []; req.on("data", (d) => c.push(d)); req.on("end", () => r(Buffer.concat(c))); });
 const claims = (req) => { const a = req.headers.authorization ?? ""; return a.startsWith("Bearer ") ? verify(a.slice(7)) : null; };
 const mime = (k) => k.endsWith(".mp4") ? "video/mp4" : k.endsWith(".json") ? "application/json" : k.endsWith(".mp3") ? "audio/mpeg" : k.endsWith(".png") ? "image/png" : k.endsWith(".jpg") ? "image/jpeg" : k.endsWith(".svg") ? "image/svg+xml" : k.endsWith(".srt") || k.endsWith(".vtt") ? "text/plain" : "application/octet-stream";
+// Lectura estable: un descriptor abierto una sola vez fija el archivo (la subida reemplaza por rename, no reescribe
+// el mismo inodo) y la respuesta nunca envía más bytes que su Content-Length (antes, una lectura cruzada con una
+// subida mandaba bytes de más y desincronizaba la conexión keep-alive: «fetch failed» HPE_INVALID_CONSTANT, T-42).
 function serveFile(req, res, key, download) {
   const extra = download ? { "content-disposition": `attachment; filename="${download}"` } : {};
-  const f = path.join(STORE, key); if (!f.startsWith(STORE) || !fs.existsSync(f)) return json(res, 404, { statusCode: "404", error: "not_found", message: "Object not found" });
-  const size = fs.statSync(f).size, range = req.headers.range;
-  if (range) { const [s, e] = range.replace("bytes=", "").split("-"); const start = Number(s), end = e ? Number(e) : size - 1;
-    res.writeHead(206, { ...extra, "content-type": mime(key), "content-range": `bytes ${start}-${end}/${size}`, "accept-ranges": "bytes", "content-length": end - start + 1 }); fs.createReadStream(f, { start, end }).pipe(res); return; }
-  res.writeHead(200, { ...extra, "content-type": mime(key), "content-length": size, "accept-ranges": "bytes" }); fs.createReadStream(f).pipe(res);
+  const f = path.join(STORE, key); const nf = () => json(res, 404, { statusCode: "404", error: "not_found", message: "Object not found" });
+  if (!f.startsWith(STORE)) return nf();
+  let fd; try { fd = fs.openSync(f, "r"); } catch { return nf(); }
+  let size; try { const st = fs.fstatSync(fd); if (!st.isFile()) { fs.closeSync(fd); return nf(); } size = st.size; } catch { try { fs.closeSync(fd); } catch {} return nf(); }
+  const send = (code, headers, start, end) => {
+    res.writeHead(code, { ...extra, "content-type": mime(key), "accept-ranges": "bytes", ...headers, "content-length": end >= start ? end - start + 1 : 0 });
+    if (req.method === "HEAD" || end < start) { fs.closeSync(fd); res.end(); return; }
+    const rs = fs.createReadStream(null, { fd, start, end, autoClose: true }); rs.on("error", () => res.destroy()); rs.pipe(res);
+  };
+  const range = req.headers.range;
+  if (range && size > 0) { const [s, e] = range.replace("bytes=", "").split("-"); const start = Number(s), end = Math.min(e ? Number(e) : size - 1, size - 1);
+    if (!(start >= 0 && start <= end)) { fs.closeSync(fd); res.writeHead(416, { "content-range": `bytes */${size}` }); return res.end(); }
+    return send(206, { "content-range": `bytes ${start}-${end}/${size}` }, start, end); }
+  return send(200, {}, 0, size - 1);
+}
+// Subida atómica: temporal único junto al destino y rename (un lector concurrente ve el archivo anterior completo o el
+// nuevo completo, nunca uno a medio escribir). Ante error solo se borra ese temporal propio.
+const TMP_MARK = ".gw-tmp-";
+function writeAtomic(f, b) {
+  const tmp = `${f}${TMP_MARK}${process.pid}-${crypto.randomUUID()}`;
+  try { fs.writeFileSync(tmp, b, { flag: "wx" }); fs.renameSync(tmp, f); }
+  catch (e) { try { fs.rmSync(tmp, { force: true }); } catch {} throw e; }
 }
 http.createServer(async (req, res) => {
   const u = new URL(req.url, "http://x"); const p = u.pathname;
@@ -56,14 +76,14 @@ http.createServer(async (req, res) => {
       const f = path.join(STORE, key); if (fs.existsSync(f) && req.headers["x-upsert"] !== "true") return json(res, 400, { statusCode: "409", error: "Duplicate", message: "The resource already exists" });
       let b = await body(req); const ct = req.headers["content-type"] ?? "";
       if (ct.startsWith("multipart/form-data")) { const bd = "--" + ct.split("boundary=")[1]; const hdrEnd = b.indexOf("\r\n\r\n", b.indexOf(Buffer.from('name=""')) >= 0 ? b.indexOf(Buffer.from('name=""')) : 0) + 4; const e = b.lastIndexOf(Buffer.from("\r\n" + bd)); b = b.subarray(hdrEnd, e); }
-      fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, b); log({ kind: "signed-upload", key, bytes: b.length, sha256: crypto.createHash("sha256").update(b).digest("hex") }); return json(res, 200, { Key: key });
+      fs.mkdirSync(path.dirname(f), { recursive: true }); writeAtomic(f, b); log({ kind: "signed-upload", key, bytes: b.length, sha256: crypto.createHash("sha256").update(b).digest("hex") }); return json(res, 200, { Key: key });
     }
     if ((m = p.match(/^\/storage\/v1\/object\/sign\/(.+)$/))) {
       if (req.method === "POST") { if (claims(req)?.role !== "service_role") return json(res, 403, {}); const key = decodeURIComponent(m[1]); const t = sign({ url: key, exp: Math.floor(Date.now() / 1000) + 3600 }); log({ kind: "sign", key }); return json(res, 200, { signedURL: `/object/sign/${m[1]}?token=${t}` }); }
       const c = verify(u.searchParams.get("token") ?? ""); const key = decodeURIComponent(m[1]); if (!c || c.url !== key) return json(res, 400, { message: "invalid signature" });
       log({ kind: "signed-get", key, range: req.headers.range ?? null, download: u.searchParams.get("download") }); return serveFile(req, res, key, u.searchParams.get("download"));
     }
-    if ((m = p.match(/^\/storage\/v1\/object\/list\/([^/]+)$/))) { const b = JSON.parse((await body(req)).toString() || "{}"); const d = path.join(STORE, m[1], b.prefix ?? ""); const names = fs.existsSync(d) ? fs.readdirSync(d) : []; return json(res, 200, names.map((n) => ({ name: n, id: n, metadata: {} }))); }
+    if ((m = p.match(/^\/storage\/v1\/object\/list\/([^/]+)$/))) { const b = JSON.parse((await body(req)).toString() || "{}"); const d = path.join(STORE, m[1], b.prefix ?? ""); const names = fs.existsSync(d) ? fs.readdirSync(d).filter((n) => !n.includes(TMP_MARK)) : []; return json(res, 200, names.map((n) => ({ name: n, id: n, metadata: {} }))); }
     if ((m = p.match(/^\/storage\/v1\/object\/(?:authenticated\/|public\/)?([^/]+)\/(.+)$/)) && (req.method === "GET" || req.method === "HEAD")) { if (claims(req)?.role !== "service_role") return json(res, 403, {}); return serveFile(req, res, `${m[1]}/${decodeURIComponent(m[2])}`); }
     if ((m = p.match(/^\/storage\/v1\/object\/([^/]+)\/(.+)$/)) && (req.method === "POST" || req.method === "PUT") && storageFault(decodeURIComponent(m[2]))) return json(res, 500, { statusCode: "500", error: "InternalError", message: "mock storage fault" });
     if ((m = p.match(/^\/storage\/v1\/object\/([^/]+)\/(.+)$/)) && (req.method === "POST" || req.method === "PUT")) {
@@ -71,7 +91,7 @@ http.createServer(async (req, res) => {
       if (fs.existsSync(f) && req.method === "POST" && req.headers["x-upsert"] !== "true") return json(res, 400, { statusCode: "409", error: "Duplicate", message: "The resource already exists" });
       let b = await body(req); const ct = req.headers["content-type"] ?? "";
       if (ct.startsWith("multipart/form-data")) { const bd = "--" + ct.split("boundary=")[1]; const s = b.indexOf("\r\n\r\n") + 4; const e = b.lastIndexOf(Buffer.from("\r\n" + bd)); b = b.subarray(s, e); }
-      fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, b); log({ kind: "upload", key, bytes: b.length, sha256: crypto.createHash("sha256").update(b).digest("hex") });
+      fs.mkdirSync(path.dirname(f), { recursive: true }); writeAtomic(f, b); log({ kind: "upload", key, bytes: b.length, sha256: crypto.createHash("sha256").update(b).digest("hex") });
       return json(res, 200, { Key: key, Id: key });
     }
     if ((m = p.match(/^\/storage\/v1\/object\/([^/]+)$/)) && req.method === "DELETE") { if (claims(req)?.role !== "service_role") return json(res, 403, {}); const b = JSON.parse((await body(req)).toString() || "{}"); for (const x of b.prefixes ?? []) fs.rmSync(path.join(STORE, m[1], x), { force: true }); log({ kind: "delete", bucket: m[1], n: (b.prefixes ?? []).length }); return json(res, 200, []); }
