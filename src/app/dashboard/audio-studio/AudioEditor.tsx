@@ -374,6 +374,7 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
         <div ref={productionRef}>
           <AudioGenerationProgress generation={g} now={clock} submitting={submitting} connectionError={monitorError} uncertain={uncertain} />
         </div>
+        {message && <p role="alert" className="text-sm text-danger" data-testid="audio-action-error">{message}</p>}
         {g.error && !running && <p role="alert" className="text-sm text-danger" data-testid="audio-generation-error">{g.error}</p>}
         {saved.audio && (
           <div className="space-y-2 rounded-md border border-border p-3" data-testid="audio-result">
