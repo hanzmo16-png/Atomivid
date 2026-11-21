@@ -190,19 +190,21 @@ export async function authorizedSchedulerTick(service: SupabaseClient, presented
 
 /**
  * One scheduler tick (called by the database every minute while something is due): claims each due production
- * and dispatches the worker. A failed dispatch puts it back to "scheduled" (the claim counted an attempt, so a
- * dispatch that keeps failing ends blocked by the attempt limit); a budget/attempt refusal blocks it with ONE notice.
+ * and dispatches the worker. An unconfirmed dispatch retains its queued claim: GitHub may have accepted it.
+ * Never requeue automatically on transport uncertainty; a budget/attempt refusal blocks it with ONE notice.
  */
 export async function runSchedulerTick(service: SupabaseClient, columns: string, dispatch: (episodeId: string, kind?: "video" | "notices") => Promise<boolean>) {
   const due = await dueScheduled(service, columns, new Date(), 3);
-  const out = { due: due.length, dispatched: 0, blocked: 0, requeued: 0 };
+  const out = { due: due.length, dispatched: 0, blocked: 0, requeued: 0, unconfirmed: 0 };
   for (const ep of due) {
     const claim = await claimScheduled(service, ep, await episodeSpend(service, ep.id), await readRunBudget(service, ep.id), await pendingNarration(service, ep));
     if (claim.claimed) {
-      if (await dispatch(ep.id, "video")) { out.dispatched++; continue; }
-      await service.from("podcast_episodes").update({ video_status: "scheduled", scheduled_at: new Date().toISOString(), video_stage: null, retry_count: (ep.retry_count ?? 0) + 1, updated_at: new Date().toISOString() })
-        .eq("id", ep.id).eq("video_run_token", claim.token).eq("video_status", "queued");
-      out.requeued++;
+      let confirmed = false;
+      try { confirmed = await dispatch(ep.id, "video"); } catch { /* Lost acknowledgement is not a rejected job. */ }
+      if (confirmed) { out.dispatched++; continue; }
+      // Preserve token, heartbeat, attempt and status even if the worker already moved on.
+      // The owner can inspect the durable state and use the existing stalled-job recovery.
+      out.unconfirmed++;
     } else if (claim.blocked) {
       out.blocked++;
       const notice = await recordNotice(service, ep, claim.blocked.kind, `scheduled-${ep.video_requested_at ?? ep.id}`, claim.blocked.message);
