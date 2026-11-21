@@ -59,6 +59,7 @@ for(const width of [390,1440]) {
  assert.equal(await page.getByTestId('audio-generate').count(),0);assert.equal(posts,2);
  project.generation={...project.generation,status:'en_cola',heartbeatAt:new Date().toISOString()};
  await page.getByText('Solicitud recibida · esperando para comenzar',{exact:true}).waitFor();
+ assert.equal(await page.getByTestId('audio-action-error').count(),0);
  console.log('PASS',width,'lost POST response reconciles through GET without a duplicate POST');
  assert.deepEqual(browserErrors,[]);
  await page.close();

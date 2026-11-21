@@ -115,6 +115,7 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
         setMonitorError(false);
         // After an ambiguous POST, an unchanged pre-request snapshot is not confirmation of failure.
         if (uncertain && JSON.stringify(body.generation) === JSON.stringify(g)) return;
+        if (uncertain) setMessage(null);
         setUncertain(false);
         setClock(Date.now());
         setSaved(body);
