@@ -28,3 +28,5 @@ export function imageUrl(s?: string): string | undefined { try { const u=new URL
 export type OwnedChannel = { channel_id:string; owner_user_id:string; connection_id:string; status:string; title:string };
 /** Defense in depth after the database owner filter; no foreign envelope can be resolved. */
 export function ownedChannel(owner:string, channels:OwnedChannel[], channelId:string):OwnedChannel|null { return channels.find(c=>c.owner_user_id===owner&&c.channel_id===channelId&&c.status==="connected")??null; }
+/** datetime-local has no offset: render the stored UTC instant in this device's zone. */
+export function localDateInput(iso:string):string { const d=new Date(iso); return Number.isFinite(d.getTime()) ? new Date(d.getTime()-d.getTimezoneOffset()*60_000).toISOString().slice(0,16) : ""; }

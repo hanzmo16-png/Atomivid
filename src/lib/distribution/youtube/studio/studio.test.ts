@@ -1,6 +1,6 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
-import {ownedChannel,draftKey,validateDraft,parseDraft,durationSeconds,videoKind,imageUrl,type Draft} from "./model";
+import {localDateInput,ownedChannel,draftKey,validateDraft,parseDraft,durationSeconds,videoKind,imageUrl,type Draft} from "./model";
 import {readStudio,StudioReadError} from "./read";
 const cid="UC"+"a".repeat(22), vid="abcdefghijk";
 const ready=[{id:"done",title:"Terminado",mode:"long_form"}];
@@ -17,3 +17,5 @@ test("invalid page/channel fail before transport",async()=>{let n=0;const f:type
 test("Analytics is explicit; absent rows remain absent, permission failure does not fabricate stats",async()=>{for(const status of [200,403]){let analytics=0;const f:typeof fetch=async(u)=>{const url=new URL(String(u));if(url.hostname==="youtubeanalytics.googleapis.com"){analytics++;return call(status===200?{columnHeaders:[{name:"day"}],rows:[]}:{error:{}},status);}return call({items:[{...channel,contentDetails:{}}]});};const r=await readStudio("fixture",cid,undefined,true,f);assert.equal(analytics,1);assert.equal(r.analytics.available,status===200);assert.deepEqual(r.analytics.rows,[]);}});
 
 test("foreign, pending and revoked channels fail owner gate before token resolution",()=>{const c={channel_id:cid,owner_user_id:"owner",connection_id:"encrypted-connection",status:"connected",title:"Fixture"};assert.equal(ownedChannel("other",[c],cid),null);assert.equal(ownedChannel("owner",[{...c,status:"revoked"}],cid),null);assert.equal(ownedChannel("owner",[{...c,status:"pending"}],cid),null);assert.equal(ownedChannel("owner",[c],cid),c);});
+
+test("saved UTC schedule restores local editable value without changing the instant",()=>{const iso="2026-12-01T14:30:00.000Z";assert.equal(new Date(localDateInput(iso)).getTime(),Date.parse(iso));assert.equal(localDateInput("broken"),"");});

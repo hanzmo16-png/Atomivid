@@ -26,7 +26,7 @@ Un futuro worker de publicación necesita consentimiento por operación, scopes 
 
 ## QA y límites de evidencia
 
-- 29 pruebas directas node/tsx: Studio9, OAuth8, conexión Command Center7, paquete5. Sin llamadas Google. Conservar el primer FAIL (el test legado prohibía enlaces en el botón; el enlace se movió al contenedor sin alterar el botón ni la prueba).
+- 30 pruebas directas node/tsx: Studio10, OAuth8, conexión Command Center7, paquete5. Sin llamadas Google. Conservar el primer FAIL (el test legado prohibía enlaces en el botón; el enlace se movió al contenedor sin alterar el botón ni la prueba).
 - TypeScript y ESLint de archivos tocados aprobados. next typegen requerido antes de typecheck por LayoutProps generado. Build de producción con Webpack aprobado; default Turbopack no pudo resolver el symlink local de node_modules (fuera del root). No se cambia configuración global por ello.
 - `scripts/youtube-studio/qa.mjs`: componente cliente real, CSS productivo, React y Chromium reales. HTTP reemplazado por fixtures explícitos, sin backend Supabase/Google real. 390×844, 412×915,1440×900, guardado/reload, previsualización, filtros, Analytics fixture, errores de cuota, botones de escritura deshabilitados. Axe WCAG2/2.1 AA, cero serious/critical y cero overflow. Se preservan FAIL de labels y contraste previos; contraste del botón reutilizado corregido sólo dentro del Studio, sin editar componente compartido.
 - Esta prueba NO es E2E autenticado de Next→Supabase→Google ni una sesión física Samsung. Faltan sesión owner autorizada, despliegue de revisión y consentimiento existente para esa verificación. Producción sin sesión responde redirect de login: eso no acredita el módulo desplegado.

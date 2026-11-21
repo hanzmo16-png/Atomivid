@@ -14,7 +14,7 @@ writeFileSync(temp+'/entry.tsx',`import React from '${root}/node_modules/react';
 await require('esbuild').build({entryPoints:[temp+'/entry.tsx'],bundle:true,outfile:temp+'/app.js',platform:'browser',jsx:'automatic',jsxImportSource:root+'/node_modules/react',nodePaths:[root+'/node_modules'],tsconfig:root+'/tsconfig.json',define:{'process.env.NODE_ENV':'"production"','process.env':'{}'}});
 const css=await require('postcss')([require('@tailwindcss/postcss')({base:root})]).process(readFileSync(root+'/src/app/globals.css','utf8'),{from:root+'/src/app/globals.css'});
 writeFileSync(temp+'/app.css',css.css);
-const html='<!doctype html><html lang="es"><head><title>YouTube Studio · FIXTURE QA</title><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/app.css"></head><body><aside style="background:#172554;color:white;padding:12px">PRUEBA LOCAL · DATOS SINTÉTICOS · SIN CONEXIÓN A GOOGLE</aside><div id="root"></div><script src="/app.js"></script></body></html>';
+const html='<!doctype html><html lang="es"><head><meta charset="utf-8"><title>YouTube Studio · FIXTURE QA</title><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/app.css"></head><body><aside style="background:#172554;color:white;padding:12px">PRUEBA LOCAL · DATOS SINTÉTICOS · SIN CONEXIÓN A GOOGLE</aside><div id="root"></div><script src="/app.js"></script></body></html>';
 const server=createServer((req,res)=>{const f={'/app.js':'app.js','/app.css':'app.css'}[req.url];res.setHeader('Content-Type',f?.endsWith('js')?'text/javascript':f?'text/css':'text/html');res.end(f?readFileSync(temp+'/'+f):html);});
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const origin='http://127.0.0.1:'+server.address().port;
@@ -22,7 +22,7 @@ const browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_PATH
 const report={source:'SYNTHETIC HTTP FIXTURES · actual component and production CSS · NOT Google/OAuth/Next authenticated E2E',cases:[],blockedExternal:[],errors:[]};
 try{
  for(const viewport of [{width:390,height:844},{width:412,height:915},{width:1440,height:900}]){
-  const context=await browser.newContext({viewport});const page=await context.newPage();let quota=false;
+  const context=await browser.newContext({viewport,locale:"es-MX"});const page=await context.newPage();let quota=false;
   page.on('pageerror',e=>report.errors.push(e.message));
   await page.route('**/*',async route=>{
    const u=new URL(route.request().url());if(u.origin!==origin){report.blockedExternal.push(u.origin+u.pathname);return route.abort();}
@@ -37,8 +37,10 @@ try{
   await page.goto(origin);await page.getByLabel('Video terminado',{exact:true}).selectOption('done');
   await page.getByLabel('Descripción',{exact:true}).fill('Descripción idéntica al borrador guardado');
   await page.getByLabel('Etiquetas separadas por comas').fill('viajes,oro histórico');
+  await page.getByLabel('Fecha y hora deseadas (hora local de tu teléfono)',{exact:true}).fill('2026-12-01T14:30');
   await page.getByRole('button',{name:'Guardar borrador',exact:true}).click();await page.getByText('Borrador guardado en este teléfono.',{exact:false}).waitFor();
   await page.reload();await page.getByLabel('Descripción',{exact:true}).waitFor();assert.equal(await page.getByLabel('Descripción',{exact:true}).inputValue(),'Descripción idéntica al borrador guardado');
+  assert.equal(await page.getByLabel('Fecha y hora deseadas (hora local de tu teléfono)',{exact:true}).inputValue(),'2026-12-01T14:30');
   await page.getByRole('button',{name:'Previsualizar',exact:true}).click();await page.getByRole('heading',{name:'Vista previa · borrador'}).waitFor();
   await page.getByRole('button',{name:'Consultar canal y videos',exact:true}).click();await page.getByRole('heading',{name:'Largo FIXTURE',exact:true}).waitFor();
   await page.getByLabel('Formato',{exact:true}).selectOption('short');await page.getByRole('heading',{name:'Corto FIXTURE',exact:true}).waitFor();assert.equal(await page.getByRole('heading',{name:'Largo FIXTURE',exact:true}).count(),0);
