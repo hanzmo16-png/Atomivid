@@ -209,7 +209,7 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
                 <select id={`audio-voice-${i}`} data-testid={`audio-voice-${i}`} className={INPUT_CLASS} value={v} disabled={locked} onChange={(e) => setVoice(i, e.target.value)}>
                   {VOICE_PRESETS.filter(p => p.language === draft.language).map((p) => <option key={p.id} value={p.id} disabled={checkVoices && !available(p.id)}>{p.label} — {p.gender}{checkVoices && !available(p.id) ? " (no disponible con este modelo)" : ""}</option>)}
                 </select>
-                <p className="mt-1 text-xs text-ink-faint">{voicePreset(v)?.accent} · {voicePreset(v)?.style}</p>
+                <p className="mt-1 text-xs text-ink-muted">{voicePreset(v)?.accent} · {voicePreset(v)?.style}</p>
                 {catalog?.find(c => c.id === v)?.previewUrl && <div className="mt-2"><span className="text-xs text-ink-muted">Muestra de la voz (catálogo de ElevenLabs)</span><audio aria-label={`Muestra de ${voicePreset(v)?.label}`} controls preload="none" className="mt-1 w-full" src={catalog.find(c => c.id === v)!.previewUrl!} /></div>}
               </div>
             ))}
@@ -223,7 +223,7 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
             <select id="audio-model" data-testid="audio-model" className={INPUT_CLASS} value={draft.ttsModel} disabled={locked} onChange={(e) => set("ttsModel", e.target.value as TtsModelId)}>
               {TTS_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
             </select>
-            <p className="mt-1 text-xs text-ink-faint" data-testid="audio-model-note">
+            <p className="mt-1 text-xs text-ink-muted" data-testid="audio-model-note">
               {ttsModel(draft.ttsModel)?.description}{ttsModel(draft.ttsModel)?.verified ? "" : " Se envían solo los ajustes comprobados (estabilidad y similitud)."}
             </p>
           </div>
@@ -248,7 +248,7 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
           <label htmlFor="audio-script" className="text-sm font-medium text-ink">Guion</label>
           <span className="text-xs text-ink-muted" data-testid="audio-script-stats">{live.words.toLocaleString("es")} palabras · {live.characters.toLocaleString("es")} caracteres · ≈ {live.estimatedMinutes} min</span>
         </div>
-        <p className="text-xs text-ink-faint">Las líneas que empiezan con «## » son títulos de sección: organizan la música y no se narran.</p>
+        <p className="text-xs text-ink-muted">Las líneas que empiezan con «## » son títulos de sección: organizan la música y no se narran.</p>
         {!draft.script.trim() && !locked && (
           <Button type="button" variant="secondary" className="min-h-11" data-testid="audio-outline" onClick={() => set("script", draftOutline(draft.title, draft.targetMinutes, draft.voiceCount, draft.language))}>
             Generar estructura de guion
@@ -298,7 +298,7 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
                 </ol>
               </details>
             )}
-            <p className="text-xs text-ink-faint">Música de la biblioteca propia de Atomivid (CC0). No usa proveedores de pago.</p>
+            <p className="text-xs text-ink-muted">Música de la biblioteca propia de Atomivid (CC0). No usa proveedores de pago.</p>
           </>
         )}
       </Card>
@@ -313,7 +313,7 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
         </dl>
         {modelRateInfo && <p className="text-xs text-ink-muted" data-testid="audio-rate-note">{modelRateInfo.note}</p>}
         {!live.withinBudget && <p className="text-sm text-danger">El costo estimado supera el tope.</p>}
-        <p className="text-xs text-ink-faint">Mientras editas no se hace ninguna llamada de pago. La música es propia y gratuita.</p>
+        <p className="text-xs text-ink-muted">Mientras editas no se hace ninguna llamada de pago. La música es propia y gratuita.</p>
       </Card>
 
       <Card className="space-y-3 p-4" data-testid="audio-production">
@@ -404,7 +404,7 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
             <Button variant="ghost" className="min-h-11" data-testid="audio-archive" disabled={!!busy || running} onClick={() => void action("archivar")}>Archivar</Button>
           )}
         </div>
-        <p className="text-xs text-ink-faint">
+        <p className="text-xs text-ink-muted">
           Generar necesita tu autorización expresa del monto. La remezcla reutiliza la voz ya generada: no se vuelve a cobrar. Si el proveedor de voz de pago no está habilitado, no se hace ninguna llamada ni cargo.
         </p>
       </Card>

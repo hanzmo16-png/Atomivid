@@ -38,7 +38,7 @@ export function AudioLibrary({ projects, archived }: { projects: ProjectView[]; 
                 <a href={`/api/audio-studio/projects/${p.id}/audio?descargar=1`} className="inline-flex min-h-11 items-center text-sm text-accent underline">Descargar MP3</a>
               </div>
             ) : (
-              <p className="mt-2 text-xs text-ink-faint">Audio: {GENERATION_LABEL[p.generation.status].toLowerCase()}. Generar requiere tu autorización del gasto.</p>
+              <p className="mt-2 text-xs text-ink-muted">Audio: {GENERATION_LABEL[p.generation.status].toLowerCase()}. Generar requiere tu autorización del gasto.</p>
             )}
           </Card>
         </li>

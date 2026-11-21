@@ -44,7 +44,7 @@ export interface ProjectStore {
 
 type StorageApi = {
   list(prefix: string, opts: { limit: number; sortBy?: { column: string; order: string } }): Promise<{ data: { name: string }[] | null; error: { message: string } | null }>;
-  download(path: string): Promise<{ data: Blob | null; error: { message: string; statusCode?: string | number } | null }>;
+  download(path: string): Promise<{ data: Blob | null; error: { message: string; statusCode?: string | number; name?: string; originalError?: unknown } | null }>;
   upload(path: string, body: string | Blob | Buffer, opts: { contentType: string; upsert: boolean; cacheControl?: string }): Promise<{ error: { message: string; statusCode?: string | number } | null }>;
   createSignedUrl?(path: string, seconds: number, opts?: { download?: string | boolean }): Promise<{ data: { signedUrl: string } | null; error: unknown }>;
 };
@@ -56,7 +56,28 @@ const notFound = (e: { message?: string; statusCode?: string | number } | null) 
 const conflict = (e: { message?: string; statusCode?: string | number } | null) =>
   !!e && (String(e.statusCode) === "409" || /already exists|duplicate/i.test(e.message ?? ""));
 
-export function storageStore(bucket: StorageApi): ProjectStore & BlobStore {
+/** Códigos de transporte: la conexión se cortó o la respuesta HTTP llegó ilegible (no es una respuesta del servidor). */
+const TRANSPORT_CODES = /^(UND_ERR_SOCKET|UND_ERR_CLOSED|ECONNRESET|EPIPE|HPE_[A-Z_]+)$/;
+/**
+ * Causa de transporte de un error de Storage, o null. storage-js entrega un fallo de red como `StorageUnknownError`
+ * sin `statusCode` y con el error de `fetch` en `originalError` (su `cause` lleva el código de undici o de Node).
+ * Un error con `statusCode` es una respuesta HTTP del servidor (403, 429, 5xx…) y nunca cuenta como transporte.
+ */
+export function transportCause(e: { statusCode?: string | number; originalError?: unknown } | null): string | null {
+  if (!e || (e.statusCode !== undefined && e.statusCode !== null && e.statusCode !== "")) return null;
+  let x: unknown = e.originalError;
+  for (let i = 0; i < 4 && x && typeof x === "object"; i++) {
+    const code = (x as { code?: unknown }).code;
+    if (typeof code === "string" && TRANSPORT_CODES.test(code)) return code;
+    x = (x as { cause?: unknown }).cause;
+  }
+  return null;
+}
+/** Espera antes del único reintento de lectura tras un fallo de transporte (fija: sin azar). */
+export const BLOB_READ_RETRY_MS = 200;
+
+export function storageStore(bucket: StorageApi, opts: { retryDelayMs?: number } = {}): ProjectStore & BlobStore {
+  const retryDelayMs = opts.retryDelayMs ?? BLOB_READ_RETRY_MS;
   const read = async (ownerId: string, id: string) => {
     const { data, error } = await bucket.download(projectPath(ownerId, id));
     if (error) {
@@ -100,9 +121,18 @@ export function storageStore(bucket: StorageApi): ProjectStore & BlobStore {
       return (data ?? []).some((o) => o.name === name);
     },
     async getBlob(path) {
-      const { data, error } = await bucket.download(path);
-      if (error) { if (notFound(error)) return null; throw new StoreError("No se pudo leer el audio."); }
-      return data ? Buffer.from(await data.arrayBuffer()) : null;
+      // Un solo reintento, y solo si la conexión falló (sin respuesta del servidor): 404 = no está en caché;
+      // cualquier otra respuesta (403, 429, 5xx) o un segundo fallo de transporte se informan como error.
+      for (let attempt = 1; ; attempt++) {
+        const { data, error } = await bucket.download(path);
+        if (!error) return data ? Buffer.from(await data.arrayBuffer()) : null;
+        if (notFound(error)) return null;
+        const cause = transportCause(error);
+        const retry = !!cause && attempt === 1;
+        console.error("[audio-studio] lectura de audio en Storage falló", { attempt, retry, name: error.name ?? null, status: error.statusCode ?? null, cause });
+        if (!retry) throw new StoreError("No se pudo leer el audio.");
+        await new Promise((r) => setTimeout(r, retryDelayMs));
+      }
     },
     async putBlob(path, data, contentType) {
       // Sin sobrescritura: la voz en caché y cada MP3 son inmutables (si ya existe, se conserva el original).

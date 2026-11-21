@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ONBOARDING_STEPS, clampStep } from "@/lib/onboarding/steps";
+import { usePathname } from "next/navigation";
+import { ONBOARDING_STEPS, clampStep, shouldAutoOpenOnboarding } from "@/lib/onboarding/steps";
 
 const STORAGE_KEY = "atomivid_onboarding_completed_v1";
 
@@ -36,16 +37,19 @@ export function Onboarding() {
   const [step, setStep] = useState(0);
   const dialogRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const pathname = usePathname();
 
   useEffect(() => {
     // localStorage no existe durante el render en servidor, así que la
     // primera visita solo puede detectarse aquí, en un efecto de montaje —
     // no hay forma de evitar este setState síncrono sin romper el SSR.
-    if (!readCompleted()) {
+    // En Audio Studio no se abre solo (ver shouldAutoOpenOnboarding); si el
+    // usuario navega después a otra sección del dashboard, se abre allí.
+    if (shouldAutoOpenOnboarding(pathname) && !readCompleted()) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- ver comentario arriba
       setOpen(true);
     }
-  }, []);
+  }, [pathname]);
 
   useEffect(() => {
     if (!open) return;

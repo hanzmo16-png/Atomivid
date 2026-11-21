@@ -4,10 +4,16 @@ import { NextResponse } from "next/server";
 const notJson = (r: Request) => !(r.headers.get("content-type") ?? "").toLowerCase().startsWith("application/json");
 const NOT_JSON = () => NextResponse.json({ error: "Se esperaba JSON." }, { status: 415 });
 import { audioStudioUser, studioDeps } from "@/lib/audio-studio/server";
-import { getProject, markReady, requestGeneration, requestRemix, resumeGeneration, saveProject, setArchived, switchToFallbackModel } from "@/lib/audio-studio/service";
+import { markReady, materializeSeed, readProject, requestGeneration, requestRemix, resumeGeneration, saveProject, setArchived, switchToFallbackModel } from "@/lib/audio-studio/service";
 import { startWorker } from "@/lib/audio-studio/worker";
 
 export const dynamic = "force-dynamic";
+const SEED_FAILED = () => NextResponse.json({ error: "No se pudo guardar el episodio inicial. Inténtalo de nuevo; no se cobró nada." }, { status: 503 });
+
+/** Guarda el episodio inicial aún virtual antes de una acción explícita (una vez). false si el almacenamiento falló. */
+async function persistSeed(d: ReturnType<typeof studioDeps>, user: { id: string; owner: boolean }, id: string): Promise<boolean> {
+  return materializeSeed(d, user.id, id, { owner: user.owner }).then(() => true, () => false);
+}
 type Ctx = { params: Promise<{ id: string }> };
 const MAX_BODY = 200_000;
 
@@ -20,7 +26,7 @@ async function body(request: Request): Promise<unknown> {
 export async function GET(_request: Request, { params }: Ctx) {
   const user = await audioStudioUser();
   if ("error" in user) return NextResponse.json({ error: user.error }, { status: user.status });
-  const out = await getProject(studioDeps(user), user.id, (await params).id);
+  const out = await readProject(studioDeps(user), user.id, (await params).id, { owner: user.owner });
   return NextResponse.json(out.body, { status: out.status, headers: { "Cache-Control": "no-store" } });
 }
 
@@ -31,7 +37,11 @@ export async function PUT(request: Request, { params }: Ctx) {
   if ("error" in user) return NextResponse.json({ error: user.error }, { status: user.status });
   const b = await body(request);
   if (b && typeof b === "object" && "__tooLarge" in b) return NextResponse.json({ error: "El proyecto es demasiado grande." }, { status: 413 });
-  const out = await saveProject(studioDeps(user), user.id, (await params).id, b);
+  const { id } = await params;
+  const d = studioDeps(user);
+  // Acción explícita: si es el episodio inicial aún virtual, se guarda ahora (una vez) y luego se aplica la edición.
+  if (!(await persistSeed(d, user, id))) return SEED_FAILED();
+  const out = await saveProject(d, user.id, id, b);
   return NextResponse.json(out.body, { status: out.status });
 }
 
@@ -49,6 +59,8 @@ export async function POST(request: Request, { params }: Ctx) {
   const { id } = await params;
   const b = (await body(request)) as { action?: unknown; revision?: unknown; confirmUsd?: unknown } | null;
   const d = studioDeps(user);
+  const known = ["archivar", "restaurar", "listo", "generar", "remezclar", "reanudar", "respaldo"];
+  if (typeof b?.action === "string" && known.includes(b.action) && !(await persistSeed(d, user, id))) return SEED_FAILED();
   const out =
     b?.action === "archivar" ? await setArchived(d, user.id, id, true)
     : b?.action === "restaurar" ? await setArchived(d, user.id, id, false)
