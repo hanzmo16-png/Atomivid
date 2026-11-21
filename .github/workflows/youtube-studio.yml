@@ -1,0 +1,50 @@
+name: YouTube Studio (fixtures only, no Google quota)
+on:
+  pull_request:
+    branches: [claude/atomivid-mvp-setup-0079jv]
+    paths:
+      - 'src/app/dashboard/youtube/**'
+      - 'src/app/api/distribution/youtube/studio/**'
+      - 'src/lib/distribution/youtube/**'
+      - 'src/app/dashboard/command-center/CommandCenterView.tsx'
+      - 'scripts/youtube-studio/**'
+      - '.github/workflows/youtube-studio.yml'
+permissions:
+  contents: read
+concurrency:
+  group: youtube-studio-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22, cache: npm}
+      - run: npm ci --no-audit --no-fund
+      - run: npx next typegen && npm run typecheck
+      - run: npx eslint src/app/dashboard/youtube src/app/api/distribution/youtube/studio src/lib/distribution/youtube/studio src/app/dashboard/command-center/CommandCenterView.tsx
+      - name: Read-only OAuth, metadata, errors and owner isolation
+        run: |
+          node --import tsx src/lib/distribution/youtube/studio/studio.test.ts
+          node --import tsx src/lib/distribution/youtube/oauth-readonly.test.ts
+          node --import tsx src/app/dashboard/command-center/connect-youtube.test.tsx
+          node --import tsx src/lib/delivery/youtube-package.test.ts
+      - name: Production compilation (no deployment)
+        run: npx next build --webpack
+      - name: Local browser tools (no provider credentials)
+        run: |
+          npm install --prefix /tmp/youtube-qa --no-audit --no-fund playwright@1.58.2 axe-core@4.11.1
+          /tmp/youtube-qa/node_modules/.bin/playwright install --with-deps chromium
+      - name: Actual component and production CSS at 390, 412 and desktop
+        env:
+          YOUTUBE_QA_DEPS: /tmp/youtube-qa
+        run: node scripts/youtube-studio/qa.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: youtube-studio-fixture-evidence
+          path: .youtube-qa/

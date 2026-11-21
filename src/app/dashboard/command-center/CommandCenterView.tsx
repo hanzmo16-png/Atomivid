@@ -159,6 +159,7 @@ export function CommandCenterView({ vm, alerts }: { vm: CommandCenterViewModel; 
             <p className="mt-1 text-xs text-ink-muted">{vm.youtube.setup === "MIGRATION_REQUIRED" ? "YouTube tables require database migration (0024–0028)." : vm.youtube.setup === "NOT_CONFIGURED" ? "Read-only monitoring ready · Google OAuth configuration required" : "Read-only monitoring ready · Connection required"}</p>
             <p className="mt-2 text-[11px] text-ink-faint">Nothing is published from here. Once connected: channels, videos linked, views, watch time, retention, subscribers.</p>
             {vm.youtube.setup === "NOT_CONNECTED" && <ConnectYouTubeButton />}
+            <Link href="/dashboard/youtube" className="mt-3 inline-flex min-h-11 items-center text-sm text-sky-300">Abrir YouTube Studio</Link>
           </div>
         )}
       </Section>
