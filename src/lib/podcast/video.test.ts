@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import "./video-recovery.test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { buildPodcastMontage, readySignal } from "./video-montage";
