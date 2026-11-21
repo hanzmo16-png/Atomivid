@@ -164,10 +164,10 @@ export function voiceAvailability(env: Record<string, string | undefined> = proc
   return { ok: false, reason: PAID_BLOCKED };
 }
 
-/** «perfil=voiceId,perfil=voiceId»; exige una voz válida por cada perfil del catálogo. */
+/** Configured legacy voices plus public defaults shared by web and worker. Explicit mappings take precedence. */
 export function parseVoiceMap(raw: string | undefined): Record<string, string> | null {
   if (!raw) return null;
-  const out: Record<string, string> = {};
+  const out: Record<string, string> = Object.fromEntries(VOICE_PRESETS.filter(p => p.providerVoiceId).map(p => [p.id, p.providerVoiceId!]));
   for (const pair of raw.split(",")) {
     const [k, v] = pair.split("=").map((x) => x?.trim());
     if (k && v && voicePreset(k) && /^[A-Za-z0-9]{8,64}$/.test(v)) out[k] = v;

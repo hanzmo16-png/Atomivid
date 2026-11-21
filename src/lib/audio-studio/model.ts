@@ -52,7 +52,7 @@ export type StudioLanguage = "es" | "en";
 export const LANGUAGES = [{ id: "es", label: "Español" }, { id: "en", label: "English" }] as const;
 
 export type VoiceGender = "masculina" | "femenina";
-export type VoicePreset = { id: string; label: string; gender: VoiceGender; accent: string; style: string; language: StudioLanguage };
+export type VoicePreset = { id: string; label: string; gender: VoiceGender; accent: string; style: string; language: StudioLanguage; providerVoiceId?: string };
 
 /**
  * Catálogo curado por idioma. El servidor comprueba disponibilidad y compatibilidad en la cuenta antes de generar.
@@ -66,6 +66,24 @@ export const VOICE_PRESETS: readonly VoicePreset[] = [
   { id: "en-us-f-sarah", label: "Sarah", gender: "femenina", accent: "American", style: "Reassuring, confident", language: "en" },
   { id: "en-us-f-callie", label: "Callie", gender: "femenina", accent: "American", style: "Playful, friendly", language: "en" },
   { id: "en-us-f-matilda", label: "Matilda", gender: "femenina", accent: "American", style: "Knowledgeable, professional", language: "en" },
+  // Public premade IDs verified against ElevenLabs GET /v1/voices. Spanish additions are multilingual, English-native.
+  { id: "es-public-m-brian", label: "Brian", gender: "masculina", accent: "Multilingüe · base inglesa", style: "Profunda y cálida", language: "es", providerVoiceId: "nPczCjzI2devNBz1zQrb" },
+  { id: "es-public-m-george", label: "George", gender: "masculina", accent: "Multilingüe · base inglesa", style: "Narración cálida", language: "es", providerVoiceId: "JBFqnCBsd6RMkjVDRZzb" },
+  { id: "es-public-m-daniel", label: "Daniel", gender: "masculina", accent: "Multilingüe · base inglesa", style: "Documental", language: "es", providerVoiceId: "onwK4e9ZLuTAKqWW03F9" },
+  { id: "es-public-m-liam", label: "Liam", gender: "masculina", accent: "Multilingüe · base inglesa", style: "Enérgica", language: "es", providerVoiceId: "TX3LPaxmHKxFdv7VOQHJ" },
+  { id: "es-public-f-sarah", label: "Sarah", gender: "femenina", accent: "Multilingüe · base inglesa", style: "Serena y segura", language: "es", providerVoiceId: "EXAVITQu4vr4xnSDxMaL" },
+  { id: "es-public-f-matilda", label: "Matilda", gender: "femenina", accent: "Multilingüe · base inglesa", style: "Profesional", language: "es", providerVoiceId: "XrExE9yKIg1WjnnlVkGX" },
+  { id: "es-public-f-jessica", label: "Jessica", gender: "femenina", accent: "Multilingüe · base inglesa", style: "Cálida y expresiva", language: "es", providerVoiceId: "cgSgspJ2msm6clMCkdW9" },
+  { id: "es-public-f-alice", label: "Alice", gender: "femenina", accent: "Multilingüe · base inglesa", style: "Clara y educativa", language: "es", providerVoiceId: "Xb7hH8MSUJpSbSDYk0k2" },
+  { id: "en-public-m-daniel", label: "Daniel", gender: "masculina", accent: "British", style: "Steady broadcaster", language: "en", providerVoiceId: "onwK4e9ZLuTAKqWW03F9" },
+  { id: "en-public-m-brian", label: "Brian", gender: "masculina", accent: "American", style: "Deep and comforting", language: "en", providerVoiceId: "nPczCjzI2devNBz1zQrb" },
+  { id: "en-public-m-george", label: "George", gender: "masculina", accent: "British", style: "Warm storyteller", language: "en", providerVoiceId: "JBFqnCBsd6RMkjVDRZzb" },
+  { id: "en-public-m-liam", label: "Liam", gender: "masculina", accent: "American", style: "Energetic", language: "en", providerVoiceId: "TX3LPaxmHKxFdv7VOQHJ" },
+  { id: "en-public-m-will", label: "Will", gender: "masculina", accent: "American", style: "Relaxed", language: "en", providerVoiceId: "bIHbv24MWmeRgasZH58o" },
+  { id: "en-public-f-jessica", label: "Jessica", gender: "femenina", accent: "American", style: "Bright and warm", language: "en", providerVoiceId: "cgSgspJ2msm6clMCkdW9" },
+  { id: "en-public-f-laura", label: "Laura", gender: "femenina", accent: "American", style: "Enthusiastic", language: "en", providerVoiceId: "FGY2WhTYpPnrIDTdsKH5" },
+  { id: "en-public-f-alice", label: "Alice", gender: "femenina", accent: "British", style: "Clear educator", language: "en", providerVoiceId: "Xb7hH8MSUJpSbSDYk0k2" },
+  { id: "es-public-m-will", label: "Will", gender: "masculina", accent: "Multilingüe · base inglesa", style: "Relajada", language: "es", providerVoiceId: "bIHbv24MWmeRgasZH58o" },
 ];
 export const voicePreset = (id: string) => VOICE_PRESETS.find((v) => v.id === id) ?? null;
 

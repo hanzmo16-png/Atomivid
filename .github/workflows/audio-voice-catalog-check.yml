@@ -1,0 +1,26 @@
+name: Audio voice catalog (read only)
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/audio-real-voices-20261121]
+    paths: ['.github/workflows/audio-voice-catalog-check.yml', 'scripts/audio-studio/public-catalog-check.mjs', 'src/lib/audio-studio/**']
+permissions:
+  contents: read
+jobs:
+  catalog:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci --no-audit --no-fund
+      - run: sudo apt-get update -q && sudo apt-get install -yq espeak-ng ffmpeg
+      - name: Check public voice metadata without synthesis
+        run: node --import tsx scripts/audio-studio/public-catalog-check.mjs
+        # Provider IDs are public configuration. Credentials stay in the existing secret store.
+        env:
+          AUDIO_STUDIO_ELEVENLABS_VOICES: ${{ vars.AUDIO_STUDIO_ELEVENLABS_VOICES }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+      - name: Audio regression
+        run: node --import tsx --test --test-concurrency=1 src/lib/audio-studio/*.test.ts src/app/dashboard/audio-studio/audio-studio.render.test.tsx
