@@ -2,7 +2,7 @@ import { ownedChannel } from "@/lib/distribution/youtube/studio/model";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { supabaseYouTubeOAuthStore } from "@/lib/distribution/youtube/oauth-store";
-import { tokenForConnection } from "@/lib/distribution/youtube/connect-flow";
+import { studioAccessToken } from "@/lib/distribution/youtube/studio/access";
 import { SCOPES } from "@/lib/distribution/youtube/capabilities";
 import { readStudio, StudioReadError } from "@/lib/distribution/youtube/studio/read";
 export const dynamic="force-dynamic";
@@ -24,7 +24,7 @@ export async function GET(request:Request){
  if(!connection)return reply({error:"reconnect"},409);
  const allowed=[...SCOPES.READ_CHANNEL,...SCOPES.READ_ANALYTICS];
  if(!SCOPES.READ_CHANNEL.every(s=>connection.scopes.includes(s))||connection.scopes.some(s=>!allowed.includes(s)))return reply({error:"permission"},403);
- let token:string;try{token=await tokenForConnection({store,env:process.env,fetch:((input,init)=>fetch(input,{...init,signal:AbortSignal.timeout(12_000)})) as typeof fetch as never},selected.connection_id);}catch{return reply({error:"reconnect"},409);}
+ const token=await studioAccessToken({store,env:process.env,fetch},selected.connection_id);
  const live=await readStudio(token,id,q.get("page")??undefined,q.get("analytics")==="true"&&SCOPES.READ_ANALYTICS.every(s=>connection.scopes.includes(s)));
  return reply(live);
  }catch(e){return reply({error:e instanceof StudioReadError?e.code:"unavailable"},e instanceof StudioReadError?e.http:503);}

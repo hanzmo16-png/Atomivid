@@ -8,7 +8,8 @@ export async function readStudio(token:string, channelId:string, page:string|und
  const get=async(url:URL):Promise<Json>=>{
   try { const r=await run(url,{method:"GET",headers:{Authorization:`Bearer ${token}`},cache:"no-store",signal:AbortSignal.timeout(12_000)});
    if(!r.ok){let reason="";try{const e=await r.json();reason=e?.error?.errors?.[0]?.reason??"";}catch{}
-    throw new StudioReadError(r.status===401?"reconnect":r.status===429||["quotaExceeded","dailyLimitExceeded"].includes(reason)?"quota":r.status===403?"permission":"unavailable",r.status===401?401:r.status===403||r.status===429?429:502);}
+    const quota=r.status===429||["quotaExceeded","dailyLimitExceeded"].includes(reason);
+    throw new StudioReadError(r.status===401?"reconnect":quota?"quota":r.status===403?"permission":"unavailable",r.status===401?401:quota?429:r.status===403?403:502);}
    return await r.json() as Json;
   }catch(e){if(e instanceof StudioReadError)throw e;throw new StudioReadError("unavailable",502);}
  };

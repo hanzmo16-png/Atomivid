@@ -1,5 +1,6 @@
 // Actual shared client component + production CSS, fixture HTTP only. No OAuth/API certification.
 import {createRequire} from 'node:module';
+import {createHash} from 'node:crypto';
 import {readFileSync,writeFileSync,mkdirSync,mkdtempSync} from 'node:fs';
 import {createServer} from 'node:http';
 import {tmpdir} from 'node:os';
@@ -34,7 +35,10 @@ try{
    if(u.pathname.startsWith('/api/'))throw new Error('Unexpected API attempt: '+u.pathname);
    return route.continue();
   });
-  await page.goto(origin);await page.getByLabel('Video terminado',{exact:true}).selectOption('done');
+  await page.goto(origin);await page.getByText('PREPARADO: consulta de canales, videos y métricas.',{exact:false}).waitFor();await page.getByText('BLOQUEADO: subir, publicar, programar y desconectar.',{exact:false}).waitFor();await page.getByLabel('Video terminado',{exact:true}).selectOption('done');
+  const image = await page.evaluate(()=>{const c=document.createElement('canvas');c.width=1280;c.height=720;const x=c.getContext('2d');x.fillStyle='#234567';x.fillRect(0,0,1280,720);return c.toDataURL('image/png').split(',')[1];});
+  await page.locator('input[type=file]').setInputFiles({name:'miniatura-fixture.png',mimeType:'image/png',buffer:Buffer.from(image,'base64')});
+  await page.getByAltText('Vista previa de miniatura',{exact:true}).waitFor();
   await page.getByLabel('Descripción',{exact:true}).fill('Descripción idéntica al borrador guardado');
   await page.getByLabel('Etiquetas separadas por comas').fill('viajes,oro histórico');
   await page.getByLabel('Fecha y hora deseadas (hora local de tu teléfono)',{exact:true}).fill('2026-12-01T14:30');
@@ -51,7 +55,20 @@ try{
   const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);assert.equal(overflow,false);
   await page.screenshot({path:out+`/studio-${viewport.width}.png`,fullPage:true});
   quota=true;await page.getByRole('button',{name:'Consultar canal y videos',exact:true}).click();await page.getByRole('alert').filter({hasText:'cuota'}).waitFor();
-  report.cases.push({viewport,draftReload:true,preview:true,libraryFilter:true,analyticsFixture:true,writeActionsDisabled:true,quotaError:true,horizontalOverflow:false,seriousOrCritical:serious.length,allAxeViolations:accessibility.violations.map(v=>({id:v.id,impact:v.impact}))});await context.close();
+  const stored=await page.evaluate(()=>JSON.parse(localStorage.getItem('atomivid.youtube.draft.v1:fixture-owner')));
+  assert.equal(stored.thumbnail.sha256,createHash('sha256').update(Buffer.from(image,'base64')).digest('hex'));
+  const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'Exportar borrador',exact:true}).click()]);
+  const exported=readFileSync(await download.path());assert.deepEqual(JSON.parse(exported),stored);writeFileSync(out+'/export-'+viewport.width+'.json',exported);
+
+  await page.locator('input[type=file]').setInputFiles({name:'wrong.png',mimeType:'image/png',buffer:Buffer.from('not an image')});
+  await page.getByRole('alert').filter({hasText:'Miniatura inválida'}).waitFor();
+  await page.locator('input[type=file]').setInputFiles({name:'corrected.png',mimeType:'image/png',buffer:Buffer.from(image,'base64')});
+  await page.getByText('corrected.png · SHA-256',{exact:false}).waitFor();
+  assert.equal(await page.getByRole('alert').filter({hasText:'Miniatura inválida'}).count(),0);
+  // Fixing a local thumbnail must not hide a concurrent Google quota error.
+  assert.equal(await page.getByRole('alert').filter({hasText:'cuota'}).count(),1);
+  const unchanged=await page.evaluate(()=>JSON.parse(localStorage.getItem('atomivid.youtube.draft.v1:fixture-owner')));assert.equal(unchanged.thumbnail.sha256,stored.thumbnail.sha256);
+  report.cases.push({viewport,draftReload:true,preview:true,libraryFilter:true,analyticsFixture:true,writeActionsDisabled:true,quotaError:true,readinessLabels:true,thumbnailErrorRecovery:true,quotaErrorPreserved:true,validThumbnailAndHash:true,invalidThumbnailRejected:true,exportDownloadMatchesStored:true,horizontalOverflow:false,seriousOrCritical:serious.length,allAxeViolations:accessibility.violations.map(v=>({id:v.id,impact:v.impact}))});await context.close();
  }
  assert.deepEqual(report.errors,[]);assert.deepEqual(report.blockedExternal,[]);
 }finally{writeFileSync(out+'/mobile-desktop.json',JSON.stringify(report,null,2));await browser.close();server.close();}
