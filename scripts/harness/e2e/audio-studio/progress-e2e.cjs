@@ -4,7 +4,7 @@ const http=require('node:http'),path=require('node:path'),assert=require('node:a
 const { buildSync } = require('esbuild');
 const root = path.resolve(__dirname, '../../../..');
 const entry = 'import React from \'react\';\nimport { createRoot } from \'react-dom/client\';\nimport { AudioEditor } from \'./src/app/dashboard/audio-studio/AudioEditor\';\nimport { newProject, applyInput, VOICE_PRESETS, TTS_MODELS, modelRate, estimate, musicPlan, readinessIssues } from \'./src/lib/audio-studio/model\';\nconst view = (p) => { const rate=modelRate(p.ttsModel, {}); const e=estimate(p,rate.rate); return {...p,estimate:e,musicPlan:musicPlan(p.script,p.music),readiness:readinessIssues(p,e),rate,rates:TTS_MODELS.map(m=>modelRate(m.id,{}))}; };\nconst now = new Date().toISOString();\nconst p = view(applyInput(newProject({id:\'aaaaaaaa-aaaa-4aaa-8aaa-000000000002\',ownerId:\'11111111-1111-4111-8111-111111111111\',now,title:\'Islas Flannan\'}), {script: \'El farero miró el mar y buscó la luz. \'.repeat(90),targetMinutes:5,budgetUsd:10},now),{});\nwindow.fixture = p;\nwindow.catalog = VOICE_PRESETS.map(v=>({...v,models:TTS_MODELS.map(m=>m.id)}));\ncreateRoot(document.getElementById(\'root\')!).render(<AudioEditor initial={p} synthesis="real" />);\n';
-const bundle = buildSync({stdin:{contents:entry,resolveDir:root,loader:"tsx"},bundle:true,platform:"browser",jsx:"automatic",tsconfig:path.join(root,"tsconfig.json"),write:false}).outputFiles[0].contents;
+const bundle = buildSync({stdin:{contents:entry,resolveDir:root,loader:"tsx"},bundle:true,platform:"browser",jsx:"automatic",define:{"process.env":"{}"},tsconfig:path.join(root,"tsconfig.json"),write:false}).outputFiles[0].contents;
 (async()=>{
 const server=http.createServer((req,res)=>{res.setHeader('Content-Type',req.url==='/bundle.js'?'text/javascript':'text/html');res.end(req.url==='/bundle.js'?bundle:'<html><meta name="viewport" content="width=device-width,initial-scale=1"><div id="root"></div><script src="/bundle.js"></script></html>')});
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
@@ -14,6 +14,7 @@ try{
 browser=await chromium.launch({headless:true,executablePath:process.env.E2E_CHROME || undefined});
 for(const width of [390,1440]) {
  const page=await browser.newPage({viewport:{width,height:844}});
+ const browserErrors=[]; page.on("pageerror",error=>{browserErrors.push(error.message);console.error("Browser error:",error.message);});
  let project,posts=0,release,failGet=false;
  await page.route('**/api/audio-studio/**',async route=>{
   const req=route.request();
@@ -24,6 +25,7 @@ for(const width of [390,1440]) {
  });
  await page.goto(base);
  project=await page.evaluate(()=>window.fixture);
+ assert(project, "Fixture must load before exercising the editor: " + browserErrors.join("; "));
  await page.getByTestId('audio-authorize').check();
  await page.getByTestId('audio-generate').click();
  await page.getByTestId('audio-progress').getByText('Enviando solicitud de generación…',{exact:true}).waitFor();
@@ -58,6 +60,7 @@ for(const width of [390,1440]) {
  project.generation={...project.generation,status:'en_cola',heartbeatAt:new Date().toISOString()};
  await page.getByText('Solicitud recibida · esperando para comenzar',{exact:true}).waitFor();
  console.log('PASS',width,'lost POST response reconciles through GET without a duplicate POST');
+ assert.deepEqual(browserErrors,[]);
  await page.close();
 }
 }finally{await browser?.close();server.close();}
