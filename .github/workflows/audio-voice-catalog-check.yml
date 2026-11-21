@@ -1,0 +1,20 @@
+name: Audio voice catalog (read only)
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/audio-real-voices-20261121]
+    paths: ['.github/workflows/audio-voice-catalog-check.yml', 'scripts/audio-studio/public-catalog-check.mjs']
+permissions:
+  contents: read
+jobs:
+  catalog:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Check public voice metadata without synthesis
+        run: node scripts/audio-studio/public-catalog-check.mjs
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
