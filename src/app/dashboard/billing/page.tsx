@@ -1,11 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
-import { STATUS_LABEL, isSubscriptionActive } from "@/lib/billing/subscription";
+import { STATUS_LABEL, isSubscriptionActive, isSubscriptionRecoverable } from "@/lib/billing/subscription";
 import { PLAN_CONFIGS, PLAN_ORDER, getPlanByPriceId, isPlanPurchasable, stripeMode, type PlanConfig } from "@/lib/billing/plans";
 import { createCheckoutSession, createPortalSession } from "./actions";
 import { Card } from "@/components/ui/Card";
 import { Alert } from "@/components/ui/Alert";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
 import { isInternalProductionOwner } from "@/lib/billing/internal-production";
 import Link from "next/link";
 
@@ -63,6 +64,7 @@ export default async function BillingPage({
   const subscription = data as SubscriptionRow | null;
   const status = subscription?.status ?? "none";
   const active = isSubscriptionActive(status);
+  const recoverable = isSubscriptionRecoverable(status);
   // null cuando la suscripción es de un plan heredado o desconocido — ver
   // el mismo fallback aplicado en quota.ts (assertCanGenerate).
   const currentPlan = active ? getPlanByPriceId(subscription?.price_id) : null;
@@ -123,16 +125,29 @@ export default async function BillingPage({
 
             <div className="mt-6">
               <form action={createPortalSession}>
-                <Button type="submit" variant="secondary">
-                  Administrar suscripción
-                </Button>
+                <PendingSubmitButton variant="secondary" className="" pendingLabel="Abriendo…">Administrar suscripción</PendingSubmitButton>
               </form>
             </div>
           </div>
         </Card>
       )}
 
-      {!active && (
+      {recoverable && (
+        <Card className="mt-6 p-6">
+          <div className="flex items-center justify-between gap-3">
+            <p className="font-semibold text-ink">Tu suscripción tiene un pago pendiente</p>
+            <Badge tone="warning">{STATUS_LABEL[status] ?? status}</Badge>
+          </div>
+          <p className="mt-2 text-sm text-ink-muted">
+            Stripe no pudo cobrar tu plan. Actualiza tu método de pago para recuperar el acceso; no hace falta contratar otro plan.
+          </p>
+          <form action={createPortalSession} className="mt-4">
+            <PendingSubmitButton pendingLabel="Abriendo…">Actualizar método de pago</PendingSubmitButton>
+          </form>
+        </Card>
+      )}
+
+      {!active && !recoverable && (
         <div className="mt-6 grid gap-4 sm:grid-cols-3">
           {PLAN_ORDER.map((id) => (
             <PlanCard key={id} plan={PLAN_CONFIGS[id]} />
@@ -168,9 +183,7 @@ function PlanCard({ plan }: { plan: PlanConfig }) {
 
         {isPlanPurchasable(plan.id) ? (
           <form action={createCheckoutSessionForPlan} className="mt-6">
-            <Button type="submit" className="w-full">
-              Elegir {plan.name}
-            </Button>
+            <PendingSubmitButton pendingLabel="Abriendo el pago seguro…">Elegir {plan.name}</PendingSubmitButton>
           </form>
         ) : (
           <div className="mt-6">

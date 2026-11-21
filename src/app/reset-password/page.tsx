@@ -5,7 +5,7 @@ import { getSupabaseServiceRoleKey } from "@/lib/supabase/env";
 import { RECOVERY_COOKIE, validRecoveryProof } from "@/lib/auth/recovery";
 import { Alert } from "@/components/ui/Alert";
 import { Field, INPUT_CLASS } from "@/components/ui/Field";
-import { Button } from "@/components/ui/Button";
+import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
 import { AuthCard } from "@/components/ui/AuthCard";
 import { resetPassword } from "./actions";
 
@@ -76,9 +76,7 @@ export default async function ResetPasswordPage({
                 placeholder="••••••••••••"
               />
             </Field>
-            <Button type="submit" className="w-full">
-              Guardar nueva contraseña
-            </Button>
+            <PendingSubmitButton pendingLabel="Guardando…">Guardar nueva contraseña</PendingSubmitButton>
           </form>
         </>
       )}

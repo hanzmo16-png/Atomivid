@@ -2,7 +2,7 @@ import Link from "next/link";
 import { signUp } from "./actions";
 import { Alert } from "@/components/ui/Alert";
 import { Field, INPUT_CLASS } from "@/components/ui/Field";
-import { Button } from "@/components/ui/Button";
+import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
 import { AuthCard } from "@/components/ui/AuthCard";
 import { PLAN_CONFIGS } from "@/lib/billing/plans";
 import { salesOpen } from "@/lib/billing/sales";
@@ -48,9 +48,7 @@ export default async function RegisterPage({
             placeholder="••••••••"
           />
         </Field>
-        <Button type="submit" className="w-full">
-          Crear cuenta
-        </Button>
+        <PendingSubmitButton pendingLabel="Creando tu cuenta…">Crear cuenta</PendingSubmitButton>
         <p className="text-xs leading-relaxed text-ink-faint">
           Crear la cuenta no tiene costo. Para generar guiones y videos necesitas un plan de pago (desde {PLAN_CONFIGS.starter.priceUsdPerMonth} USD al mes);
           no hay prueba gratuita. Al crear tu cuenta aceptas los{" "}

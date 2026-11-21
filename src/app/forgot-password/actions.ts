@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { cookies, headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { RECOVERY_COOKIE } from "@/lib/auth/recovery";
+import { resolveSiteUrl } from "@/lib/http/site-url";
 
 const COOLDOWN_COOKIE = "atomivid-recovery-cooldown";
 const COOLDOWN_SECONDS = 60;
@@ -23,9 +24,10 @@ export async function requestPasswordReset(formData: FormData) {
   }
   store.delete(RECOVERY_COOKIE);
 
-  const origin = (await headers()).get("origin");
-  let failed = !origin;
-  if (origin) {
+  // Same rule as the signup link (#294): preview → NEXT_PUBLIC_SITE_URL → Origin. A missing Origin no longer fails.
+  const origin = resolveSiteUrl(process.env, (await headers()).get("origin"));
+  let failed = false;
+  {
     try {
       const supabase = await createClient();
       const { error } = await supabase.auth.resetPasswordForEmail(email, {

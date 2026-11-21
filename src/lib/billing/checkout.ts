@@ -1,5 +1,6 @@
 import type Stripe from "stripe";
-import { CheckoutUrlMissingError } from "./checkout-error";
+import { AlreadySubscribedError, CheckoutUrlMissingError } from "./checkout-error";
+import { blocksNewCheckout } from "./subscription";
 
 /**
  * Lógica de creación de la Checkout Session, separada de la Server Action
@@ -15,10 +16,14 @@ export async function buildCheckoutUrl(
   deps: {
     createCheckoutSession: CreateCheckoutSessionFn;
     getExistingCustomerId: (userId: string) => Promise<string | null>;
+    /** Estado de la suscripción guardada (webhook). Activa o con pago pendiente → no se crea otra (doble cobro). */
+    getExistingStatus?: (userId: string) => Promise<string | null>;
     priceId: string;
     siteUrl: string;
   },
 ): Promise<string> {
+  const existingStatus = deps.getExistingStatus ? await deps.getExistingStatus(user.id) : null;
+  if (existingStatus && blocksNewCheckout(existingStatus)) throw new AlreadySubscribedError(existingStatus);
   const existingCustomerId = await deps.getExistingCustomerId(user.id);
 
   const session = await deps.createCheckoutSession({

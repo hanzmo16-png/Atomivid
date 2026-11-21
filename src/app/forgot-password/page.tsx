@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Alert } from "@/components/ui/Alert";
 import { Field, INPUT_CLASS } from "@/components/ui/Field";
-import { Button } from "@/components/ui/Button";
+import { PendingSubmitButton } from "@/components/ui/PendingSubmitButton";
 import { AuthCard } from "@/components/ui/AuthCard";
 import { RECOVERY_MESSAGE } from "@/lib/auth/recovery";
 import { requestPasswordReset } from "./actions";
@@ -37,9 +37,7 @@ export default async function ForgotPasswordPage({
             placeholder="tu@correo.com"
           />
         </Field>
-        <Button type="submit" className="w-full">
-          Enviar enlace de recuperación
-        </Button>
+        <PendingSubmitButton pendingLabel="Enviando el enlace…">Enviar enlace de recuperación</PendingSubmitButton>
       </form>
 
       <p className="mt-4 text-xs text-ink-faint">

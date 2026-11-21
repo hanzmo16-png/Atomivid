@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { cookies, headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { humanizeAuthError } from "@/lib/auth/errors";
+import { resolveSiteUrl } from "@/lib/http/site-url";
 import { createServiceClient } from "@/lib/supabase/service";
 import { ATTRIBUTION_COOKIE, VISITOR_COOKIE, decodeAttribution, recordMarketingEvent } from "@/lib/marketing/events";
 
@@ -11,19 +12,19 @@ export async function signUp(formData: FormData) {
   const email = String(formData.get("email") ?? "");
   const password = String(formData.get("password") ?? "");
 
-  const origin = (await headers()).get("origin");
+  const siteUrl = resolveSiteUrl(process.env, (await headers()).get("origin"));
   const supabase = await createClient();
 
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      emailRedirectTo: `${origin}/auth/callback`,
+      emailRedirectTo: `${siteUrl}/auth/callback`,
     },
   });
 
   if (error) {
-    redirect(`/register?error=${encodeURIComponent(humanizeAuthError(error.message))}`);
+    redirect(`/register?error=${encodeURIComponent(humanizeAuthError(error.message, error.code))}`);
   }
 
   // A new account only: for an address that already exists Supabase answers with no identities.

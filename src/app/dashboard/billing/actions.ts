@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getStripe } from "@/lib/stripe/client";
 import { buildCheckoutUrl } from "@/lib/billing/checkout";
+import { resolveSiteUrl } from "@/lib/http/site-url";
 import { SupabaseQueryError, classifyBillingError, logBillingError } from "@/lib/billing/checkout-error";
 import { MissingEnvVarError } from "@/lib/env-errors";
 import { getPlanPriceId, isPlanPurchasable, planPriceIdEnvVar, type PlanId } from "@/lib/billing/plans";
@@ -21,13 +22,8 @@ import { ATTRIBUTION_COOKIE, VISITOR_COOKIE, decodeAttribution, recordMarketingE
 class NoSubscriptionError extends Error {}
 
 async function getSiteUrl(): Promise<string> {
-  // The Stripe test environment runs on a preview branch: send the customer back there, not to production.
-  const branchUrl = process.env.VERCEL_ENV === "preview" ? process.env.VERCEL_BRANCH_URL?.trim() : undefined;
-  if (branchUrl) return `https://${branchUrl}`;
-  const envUrl = process.env.NEXT_PUBLIC_SITE_URL;
-  if (envUrl) return envUrl;
-  const origin = (await headers()).get("origin");
-  return origin ?? "http://localhost:3000";
+  // The Stripe test environment runs on a preview branch: resolveSiteUrl sends the customer back there.
+  return resolveSiteUrl(process.env, (await headers()).get("origin"));
 }
 
 /**
@@ -37,13 +33,13 @@ async function getSiteUrl(): Promise<string> {
  * silencio y el flujo seguía como si el usuario no tuviera cliente de
  * Stripe todavía, en vez de reportar el error real.
  */
-async function getExistingCustomerId(
+async function getExistingSubscription(
   service: ReturnType<typeof createServiceClient>,
   userId: string,
-): Promise<string | null> {
+): Promise<{ stripe_customer_id: string | null; status: string | null } | null> {
   const { data, error } = await service
     .from("subscriptions")
-    .select("stripe_customer_id")
+    .select("stripe_customer_id, status")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -51,7 +47,11 @@ async function getExistingCustomerId(
     throw new SupabaseQueryError(error.code);
   }
 
-  return (data as { stripe_customer_id: string | null } | null)?.stripe_customer_id ?? null;
+  return (data as { stripe_customer_id: string | null; status: string | null } | null) ?? null;
+}
+
+async function getExistingCustomerId(service: ReturnType<typeof createServiceClient>, userId: string): Promise<string | null> {
+  return (await getExistingSubscription(service, userId))?.stripe_customer_id ?? null;
 }
 
 export async function createCheckoutSession(planId: PlanId) {
@@ -85,6 +85,8 @@ export async function createCheckoutSession(planId: PlanId) {
     checkoutUrl = await buildCheckoutUrl(user, {
       createCheckoutSession: (params) => getStripe().checkout.sessions.create(params),
       getExistingCustomerId: (userId) => getExistingCustomerId(service, userId),
+      // Server-side: a second subscription is refused even if the plan buttons are posted by hand.
+      getExistingStatus: async (userId) => (await getExistingSubscription(service, userId))?.status ?? null,
       priceId,
       siteUrl,
     });
