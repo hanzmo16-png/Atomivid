@@ -42,9 +42,11 @@ jobs:
       - name: Actual component and production CSS at 390, 412 and desktop
         env:
           YOUTUBE_QA_DEPS: /tmp/youtube-qa
+          YOUTUBE_QA_OUT: youtube-studio-evidence
         run: node scripts/youtube-studio/qa.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: youtube-studio-fixture-evidence
-          path: .youtube-qa/
+          path: youtube-studio-evidence/
+          if-no-files-found: error
