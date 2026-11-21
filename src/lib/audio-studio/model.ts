@@ -430,8 +430,13 @@ export function readinessIssues(p: AudioProject, e: Estimate): string[] {
   if (p.voiceCount === 2 && e.perVoiceCharacters[1] === 0) issues.push("Con dos voces, marca las intervenciones de la segunda con «Voz 2:».");
   if (!e.withinBudget) issues.push(`El costo estimado (USD ${e.estimatedUsd.toFixed(2)}) supera el tope (USD ${p.budgetUsd.toFixed(2)}).`);
   if (Math.abs(e.durationGapMinutes) > Math.max(2, p.targetMinutes * 0.2)) issues.push(`La duración estimada (${e.estimatedMinutes} min) se aleja del objetivo (${p.targetMinutes} min).`);
+  if (hasOutlineCues(p.script)) issues.push("El guion todavía tiene pautas de la estructura inicial (por ejemplo «Reemplaza esta pauta…»): sustitúyelas por tu texto para que no se narren.");
   return issues;
 }
+
+/** Frases de las pautas de draftOutline(): si quedan en el guion, se narrarían (y se pagarían) como texto del episodio. */
+const OUTLINE_CUES = [/\(Reemplaza esta pauta por unas \d+ palabras\.\)/i, /Responde, pregunta o añade un matiz\./i, /Replace this outline with your English script\./i, /Add a question or another perspective\./i];
+export const hasOutlineCues = (script: string) => OUTLINE_CUES.some((r) => r.test(script));
 
 /**
  * Estructura inicial de guion (sin IA ni costo): secciones con pautas que la persona reemplaza por su texto.

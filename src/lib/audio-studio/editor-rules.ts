@@ -37,3 +37,14 @@ export function voiceReplacements(voices: string[], language: StudioLanguage, av
   }
   return changed ? next : null;
 }
+
+/**
+ * Duración real del MP3 frente a la elegida. El control previo (estimación por palabras, ±20 %) no garantiza la real:
+ * depende del ritmo de cada voz. Si la diferencia supera el 20 % (mínimo 1 min), el editor lo dice junto al resultado.
+ */
+export function durationVerdict(seconds: number, targetMinutes: number): { realMinutes: number; ok: boolean; message: string | null } {
+  const realMinutes = Math.round((seconds / 60) * 10) / 10;
+  const gap = Math.abs(realMinutes - targetMinutes);
+  const ok = !(seconds > 0) || targetMinutes <= 0 || gap <= Math.max(1, targetMinutes * 0.2);
+  return { realMinutes, ok, message: ok ? null : `El audio dura ${realMinutes.toLocaleString("es")} min y elegiste ${targetMinutes} min: ${realMinutes < targetMinutes ? "alarga" : "acorta"} el guion o ajusta la duración antes de volver a generar.` };
+}
