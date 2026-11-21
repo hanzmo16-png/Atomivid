@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AudioGenerationProgress } from "./AudioGenerationProgress";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -30,6 +31,9 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
   const [state, setState] = useState<"idle" | "saving" | "error" | "conflict">("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState<null | "listo" | "generar" | "archivar" | "restaurar" | "remezclar" | "reanudar" | "respaldo">(null);
+  const [monitorError, setMonitorError] = useState(false);
+  const [uncertain, setUncertain] = useState(false);
+  const productionRef = useRef<HTMLDivElement>(null);
   const [catalog, setCatalog] = useState<StudioCatalogVoice[] | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [catalogReload, setCatalogReload] = useState(0);
@@ -53,7 +57,12 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
   const archived = !!saved.archivedAt;
   const g = saved.generation;
   const running = generationActive(g, clock);
-  const locked = archived || running;
+  const submitting = busy === "generar" || busy === "reanudar" || busy === "remezclar";
+  const checking = uncertain || monitorError;
+  const locked = archived || running || submitting || checking;
+  useEffect(() => {
+    if (submitting) productionRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [submitting]);
   const savingRef = useRef(false);
 
   // Tarifa del modelo elegido en el borrador (el servidor manda la de cada modelo; nunca se asume un descuento).
@@ -68,7 +77,7 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
     savingRef.current = true;
     setState("saving"); setMessage(null);
     try {
-      const res = await fetch(`/api/audio-studio/projects/${saved.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision: saved.revision, ...draft }) });
+      const res = await fetch(`/api/audio-studio/projects/${saved.id}`, { signal: AbortSignal.timeout(25000), method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision: saved.revision, ...draft }) });
       const body = await res.json().catch(() => null);
       if (res.status === 409) { setState("conflict"); setMessage(body?.error ?? "El proyecto cambió en otro lugar."); return null; }
       if (!res.ok) { setState("error"); setMessage(body?.error ?? "No se pudo guardar."); return null; }
@@ -89,21 +98,31 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
 
   // Mientras se genera: consulta el estado cada 3 s (el editor queda bloqueado hasta que termine).
   useEffect(() => {
-    if (g.status !== "en_cola" && g.status !== "generando") return;
+    if (g.status !== "en_cola" && g.status !== "generando" && !uncertain) return;
     // «alive»: una respuesta que llega después de terminar la consulta se descarta; si no, podía pisar lo que la
     // persona empezó a escribir al terminar la generación (el editor perdía el cambio y «Guardar» quedaba inactivo).
     let alive = true;
+    let inFlight = false;
     const t = setInterval(async () => {
-      setClock(Date.now());
-      const res = await fetch(`/api/audio-studio/projects/${saved.id}`, { cache: "no-store" }).catch(() => null);
-      if (!alive || !res?.ok) return;
-      const body = await res.json().catch(() => null);
-      if (!alive || !body) return;
-      setSaved(body);
-      if (body.generation.status !== "en_cola" && body.generation.status !== "generando") setDraft(draftOf(body));
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const res = await fetch(`/api/audio-studio/projects/${saved.id}`, { cache: "no-store", signal: AbortSignal.timeout(10000) }).catch(() => null);
+        if (!alive) return;
+        const body = res?.ok ? await res.json().catch(() => null) : null;
+        if (!alive) return;
+        if (!body?.generation) { setMonitorError(true); return; }
+        setMonitorError(false);
+        // After an ambiguous POST, an unchanged pre-request snapshot is not confirmation of failure.
+        if (uncertain && JSON.stringify(body.generation) === JSON.stringify(g)) return;
+        setUncertain(false);
+        setClock(Date.now());
+        setSaved(body);
+        if (body.generation.status !== "en_cola" && body.generation.status !== "generando") setDraft(draftOf(body));
+      } finally { inFlight = false; }
     }, 3000);
     return () => { alive = false; clearInterval(t); };
-  }, [g.status, saved.id]);
+  }, [g, saved.id, uncertain]);
 
   // Aviso del navegador si se cierra con cambios sin guardar.
   useEffect(() => {
@@ -119,16 +138,27 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
     if (actionRef.current) return;
     actionRef.current = true;
     setBusy(a); setMessage(null);
+    const produces = a === "generar" || a === "reanudar" || a === "remezclar";
+    let sent = false;
     try {
       let current = saved;
       if (dirty && a !== "restaurar" && a !== "reanudar") { const s = await save(); if (!s) return; current = s; }
       const payload: Record<string, unknown> = { action: a, revision: current.revision };
       if (a === "generar") payload.confirmUsd = current.estimate.estimatedUsd;
-      const res = await fetch(`/api/audio-studio/projects/${saved.id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      sent = true;
+      const res = await fetch(`/api/audio-studio/projects/${saved.id}`, { signal: AbortSignal.timeout(25000), method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const body = await res.json().catch(() => null);
-      if (res.ok) { setSaved(body); setDraft(draftOf(body)); setClock(Date.now()); if (a === "generar") setAuthorizedFor(null); }
-      else setMessage(body?.error ?? "No se pudo completar la acción.");
-    } catch { setMessage("Sin conexión. Vuelve a intentar."); }
+      if (!body || (res.ok && !body.generation)) throw new Error("Respuesta incompleta");
+      if (res.ok) { setMonitorError(false); setUncertain(false); setSaved(body); setDraft(draftOf(body)); setClock(Date.now()); if (a === "generar") setAuthorizedFor(null); }
+      else {
+        if (body.current?.generation) { setSaved(body.current); setDraft(draftOf(body.current)); }
+        if (produces && res.status >= 500) setUncertain(true);
+        setMessage(body.error ?? "No se pudo completar la acción.");
+      }
+    } catch {
+      if (produces && sent) { setUncertain(true); setMessage("No pudimos confirmar la respuesta. Estamos comprobando si el episodio comenzó; no vuelvas a generar."); }
+      else setMessage("Sin conexión. No se pudo completar la acción.");
+    }
     finally { setBusy(null); actionRef.current = false; }
   }
 
@@ -320,7 +350,7 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-semibold text-ink">Producción</h2>
           <Badge tone={g.status === "terminada" ? "success" : g.status === "fallida" ? "danger" : running ? "info" : "neutral"}>
-            <span data-testid="audio-generation-status">{running || g.status !== "generando" ? GENERATION_LABEL[g.status] : "Interrumpida"}</span>
+            <span data-testid="audio-generation-status">{submitting ? "Enviando solicitud…" : checking ? "Comprobando estado…" : (g.status === "generando" || g.status === "en_cola") && !running ? "Interrumpida" : GENERATION_LABEL[g.status]}</span>
           </Badge>
         </div>
         {inactive && (
@@ -341,14 +371,9 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
         ) : (
           <p className="text-sm text-ink-muted" data-testid="audio-readiness-ok">El guion, las voces, la música y el presupuesto están completos.</p>
         )}
-        {running && g.progress && (
-          <div data-testid="audio-progress">
-            <div className="h-2 w-full overflow-hidden rounded bg-surface-raised" role="progressbar" aria-valuemin={0} aria-valuemax={g.progress.total} aria-valuenow={g.progress.done}>
-              <div className="h-2 bg-accent" style={{ width: `${Math.round((g.progress.done / Math.max(1, g.progress.total)) * 100)}%` }} />
-            </div>
-            <p className="mt-1 text-xs text-ink-muted">{g.progress.done} de {g.progress.total} intervenciones con voz · luego mezcla y máster</p>
-          </div>
-        )}
+        <div ref={productionRef}>
+          <AudioGenerationProgress generation={g} now={clock} submitting={submitting} connectionError={monitorError} uncertain={uncertain} />
+        </div>
         {g.error && !running && <p role="alert" className="text-sm text-danger" data-testid="audio-generation-error">{g.error}</p>}
         {saved.audio && (
           <div className="space-y-2 rounded-md border border-border p-3" data-testid="audio-result">
@@ -360,7 +385,7 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
             <a href={`/api/audio-studio/projects/${saved.id}/audio?descargar=1`} className="inline-flex min-h-11 items-center text-sm font-medium text-accent underline" data-testid="audio-download">Descargar MP3</a>
           </div>
         )}
-        {canPay && !archived && !running && g.status !== "fallida" && (
+        {canPay && !archived && !running && !checking && (g.status === "inactiva" || g.status === "terminada") && (
           <label className="flex min-h-11 items-start gap-2 text-sm text-ink">
             <input type="checkbox" className="mt-1" data-testid="audio-authorize" checked={authorized} disabled={issues.length > 0 || !!busy} onChange={(e) => setAuthorizedFor(e.target.checked ? consentKey : null)} />
             {demo ? (
@@ -374,10 +399,10 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
           {!locked && saved.status !== "listo_para_autorizar" && (
             <Button variant="secondary" className="min-h-11" data-testid="audio-ready" disabled={issues.length > 0 || !!busy} loading={busy === "listo"} onClick={() => void action("listo")}>Marcar listo para autorizar</Button>
           )}
-          {canPay && !archived && !running && g.status !== "fallida" && (
+          {canPay && !archived && !running && !checking && (g.status === "inactiva" || g.status === "terminada") && (
             <Button className="min-h-11" data-testid="audio-generate" disabled={!authorized || !catalogReady || issues.length > 0 || !!busy} loading={busy === "generar"} onClick={() => void action("generar")}>{demo ? "Generar MP3 de demostración" : "Generar MP3"}</Button>
           )}
-          {canPay && !archived && !running && g.status !== "fallida" && !busy && (issues.length > 0 || !authorized || !catalogReady) && (
+          {canPay && !archived && !running && !checking && (g.status === "inactiva" || g.status === "terminada") && !busy && (issues.length > 0 || !authorized || !catalogReady) && (
             <p role="status" className="w-full text-sm text-ink-muted" data-testid="audio-generate-why">
               {issues.length > 0 ? `No se puede generar todavía: ${issues[0]}`
                 : catalog === null ? (catalogError ? "No se pudo cargar el catálogo de voces: pulsa «Reintentar» junto a las voces." : "Cargando el catálogo de voces…")
@@ -387,21 +412,21 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
               {catalog !== null && !catalogReady && replacementVoices && <> <button type="button" className="underline" data-testid="audio-generate-fix-voices" onClick={() => set("voices", replacementVoices)}>Usar {replacementVoices.filter((id, i) => id !== draft.voices[i]).map((id) => VOICE_PRESETS.find((p) => p.id === id)?.label ?? id).join(" y ")}</button></>}
             </p>
           )}
-          {canPay && !archived && !running && (g.status === "fallida" || g.status === "generando" || g.status === "en_cola") && (
+          {canPay && !archived && !running && !checking && (g.status === "fallida" || g.status === "generando" || g.status === "en_cola") && (
             <Button className="min-h-11" data-testid="audio-resume" disabled={!!busy} loading={busy === "reanudar"} onClick={() => void action("reanudar")}>Reanudar</Button>
           )}
-          {!archived && !running && g.status === "fallida" && saved.ttsModel !== FALLBACK_TTS_MODEL && (
+          {!archived && !running && !checking && g.status === "fallida" && saved.ttsModel !== FALLBACK_TTS_MODEL && (
             <Button variant="secondary" className="min-h-11" data-testid="audio-fallback" disabled={!!busy} loading={busy === "respaldo"} onClick={() => void action("respaldo")}>
               Cambiar a {ttsModel(FALLBACK_TTS_MODEL)!.label.split(" (")[0]} (respaldo)
             </Button>
           )}
-          {!archived && !running && saved.audio && (
+          {!archived && !running && !checking && saved.audio && (
             <Button variant="secondary" className="min-h-11" data-testid="audio-remix" disabled={!!busy} loading={busy === "remezclar"} onClick={() => void action("remezclar")}>Remezclar música (sin costo)</Button>
           )}
           {archived ? (
             <Button variant="ghost" className="min-h-11" data-testid="audio-restore" disabled={!!busy} onClick={() => void action("restaurar")}>Restaurar</Button>
           ) : (
-            <Button variant="ghost" className="min-h-11" data-testid="audio-archive" disabled={!!busy || running} onClick={() => void action("archivar")}>Archivar</Button>
+            <Button variant="ghost" className="min-h-11" data-testid="audio-archive" disabled={!!busy || running || checking} onClick={() => void action("archivar")}>Archivar</Button>
           )}
         </div>
         <p className="text-xs text-ink-muted">

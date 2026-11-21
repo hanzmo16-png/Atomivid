@@ -69,6 +69,11 @@ jobs:
           AUDIO_STUDIO_WORKER: inline
           AUDIO_STUDIO_FIXTURE_FAIL_MARK: "[[falla-proveedor]]"
         run: bash scripts/harness/e2e/podcast/start.sh
+      - name: Progreso visible y respuesta perdida (390x844 y 1440x844, API simulada)
+        run: |
+          . "$E2E_HOME/paths.env"
+          E2E_CHROME="$CHROME" PLAYWRIGHT_MODULE="$E2E_HOME/deps/node_modules/playwright" \
+            node scripts/harness/e2e/audio-studio/progress-e2e.cjs
       - name: Recorrido E2E del estudio (390x844 y 1440x900)
         run: |
           set -o pipefail
