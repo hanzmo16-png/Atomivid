@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ONBOARDING_STEPS, clampStep } from "./steps";
+import { ONBOARDING_STEPS, clampStep, shouldAutoOpenOnboarding } from "./steps";
 
 test("ONBOARDING_STEPS tiene exactamente 5 pasos (máximo pedido)", () => {
   assert.equal(ONBOARDING_STEPS.length, 5);
@@ -32,4 +32,18 @@ test("clampStep deja pasar índices válidos sin cambiarlos", () => {
 test("clampStep maneja longitud 0 sin lanzar", () => {
   assert.equal(clampStep(0, 0), 0);
   assert.equal(clampStep(3, 0), 0);
+});
+
+test("shouldAutoOpenOnboarding: en Audio Studio el recorrido de video no se abre solo (tapaba el editor en el teléfono)", () => {
+  assert.equal(shouldAutoOpenOnboarding("/dashboard/audio-studio"), false);
+  assert.equal(shouldAutoOpenOnboarding("/dashboard/audio-studio/"), false);
+  assert.equal(shouldAutoOpenOnboarding("/dashboard/audio-studio/abc-123"), false);
+});
+
+test("shouldAutoOpenOnboarding: el resto del dashboard conserva la primera visita", () => {
+  for (const p of ["/dashboard", "/dashboard/new", "/dashboard/podcast", "/dashboard/audio-studiox", "/dashboard/historial"]) {
+    assert.equal(shouldAutoOpenOnboarding(p), true, p);
+  }
+  assert.equal(shouldAutoOpenOnboarding(null), true);
+  assert.equal(shouldAutoOpenOnboarding(undefined), true);
 });
