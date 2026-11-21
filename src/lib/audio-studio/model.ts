@@ -66,6 +66,23 @@ export const VOICE_PRESETS: readonly VoicePreset[] = [
   { id: "en-us-f-sarah", label: "Sarah", gender: "femenina", accent: "American", style: "Reassuring, confident", language: "en" },
   { id: "en-us-f-callie", label: "Callie", gender: "femenina", accent: "American", style: "Playful, friendly", language: "en" },
   { id: "en-us-f-matilda", label: "Matilda", gender: "femenina", accent: "American", style: "Knowledgeable, professional", language: "en" },
+  // Perfiles adicionales: los IDs de proveedor se configuran por separado y se validan antes de generar con ElevenLabs.
+  { id: "es-extra-m-nicolas", label: "Nicolás", gender: "masculina", accent: "Latinoamericano", style: "Narración serena", language: "es" },
+  { id: "es-extra-m-gabriel", label: "Gabriel", gender: "masculina", accent: "Latinoamericano", style: "Documental", language: "es" },
+  { id: "es-extra-m-andres", label: "Andrés", gender: "masculina", accent: "Latinoamericano", style: "Conversacional", language: "es" },
+  { id: "es-extra-m-diego", label: "Diego", gender: "masculina", accent: "Latinoamericano", style: "Enérgica", language: "es" },
+  { id: "es-extra-f-lucia", label: "Lucía", gender: "femenina", accent: "Latinoamericano", style: "Narración cálida", language: "es" },
+  { id: "es-extra-f-valeria", label: "Valeria", gender: "femenina", accent: "Latinoamericano", style: "Documental", language: "es" },
+  { id: "es-extra-f-camila", label: "Camila", gender: "femenina", accent: "Latinoamericano", style: "Conversacional", language: "es" },
+  { id: "es-extra-f-elena", label: "Elena", gender: "femenina", accent: "Latinoamericano", style: "Serena", language: "es" },
+  { id: "en-extra-m-daniel", label: "Daniel", gender: "masculina", accent: "English", style: "Narrative", language: "en" },
+  { id: "en-extra-m-brian", label: "Brian", gender: "masculina", accent: "English", style: "Documentary", language: "en" },
+  { id: "en-extra-m-george", label: "George", gender: "masculina", accent: "English", style: "Warm", language: "en" },
+  { id: "en-extra-m-liam", label: "Liam", gender: "masculina", accent: "English", style: "Conversational", language: "en" },
+  { id: "en-extra-m-will", label: "Will", gender: "masculina", accent: "English", style: "Energetic", language: "en" },
+  { id: "en-extra-f-jessica", label: "Jessica", gender: "femenina", accent: "English", style: "Narrative", language: "en" },
+  { id: "en-extra-f-laura", label: "Laura", gender: "femenina", accent: "English", style: "Conversational", language: "en" },
+  { id: "en-extra-f-alice", label: "Alice", gender: "femenina", accent: "English", style: "Documentary", language: "en" },
 ];
 export const voicePreset = (id: string) => VOICE_PRESETS.find((v) => v.id === id) ?? null;
 
