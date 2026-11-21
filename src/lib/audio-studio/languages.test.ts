@@ -34,7 +34,7 @@ test("language edit changes revision and readiness, English dialogue parses two 
   assert.match(draftOutline("A new beginning", 5, 2, "en"), /Voice 2:/);
   for (const language of ["es", "en"]) {
     for (const gender of ["masculina", "femenina"]) {
-      assert.equal(VOICE_PRESETS.filter(v => v.language === language && v.gender === gender).length, 6);
+      assert.ok(VOICE_PRESETS.filter(v => v.language === language && v.gender === gender).length >= 6);
     }
   }
 });

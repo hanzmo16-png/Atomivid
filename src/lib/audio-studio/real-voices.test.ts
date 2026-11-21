@@ -17,7 +17,7 @@ test("existing production configuration resolves distinct real voices for both w
     assert.equal(worker.voice.voiceIdFor(p.id), p.providerVoiceId);
   }
   const spanish = VOICE_PRESETS.filter(p => p.language === "es");
-  assert.equal(new Set(spanish.map(p => map[p.id])).size, 12);
+  assert.equal(new Set(spanish.map(p => map[p.id])).size, spanish.length);
   assert.equal(map["es-latam-m-profesional"], "TbvhqFC7AApJv7hnNvmY");
   assert.equal(parseVoiceMap(`${LEGACY},es-public-m-brian=Override123`)!["es-public-m-brian"], "Override123");
   assert.equal(parseVoiceMap(undefined), null);

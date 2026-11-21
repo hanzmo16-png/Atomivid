@@ -83,6 +83,7 @@ export const VOICE_PRESETS: readonly VoicePreset[] = [
   { id: "en-public-f-jessica", label: "Jessica", gender: "femenina", accent: "American", style: "Bright and warm", language: "en", providerVoiceId: "cgSgspJ2msm6clMCkdW9" },
   { id: "en-public-f-laura", label: "Laura", gender: "femenina", accent: "American", style: "Enthusiastic", language: "en", providerVoiceId: "FGY2WhTYpPnrIDTdsKH5" },
   { id: "en-public-f-alice", label: "Alice", gender: "femenina", accent: "British", style: "Clear educator", language: "en", providerVoiceId: "Xb7hH8MSUJpSbSDYk0k2" },
+  { id: "es-public-m-will", label: "Will", gender: "masculina", accent: "Multilingüe · base inglesa", style: "Relajada", language: "es", providerVoiceId: "bIHbv24MWmeRgasZH58o" },
 ];
 export const voicePreset = (id: string) => VOICE_PRESETS.find((v) => v.id === id) ?? null;
 

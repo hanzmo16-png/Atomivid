@@ -28,8 +28,23 @@ const modelsResponse = await fetch('https://api.elevenlabs.io/v1/models', {
 });
 if (!modelsResponse.ok) throw new Error(`Models HTTP ${modelsResponse.status}`);
 const models = await modelsResponse.json();
-console.log('TTS_MODELS', JSON.stringify(models.filter(m => m.can_do_text_to_speech).map(m => ({
-  id: m.model_id, languages: m.languages?.map(l => l.language_id),
-}))));
+for (const model of ['eleven_multilingual_v2', 'eleven_v4_turbo']) {
+  const liveModel = models.find(m => m.model_id === model && m.can_do_text_to_speech);
+  if (!liveModel || !['es', 'en'].every(l => liveModel.languages?.some(v => v.language_id === l))) throw new Error(`Model unavailable: ${model}`);
+  for (const language of ['es', 'en']) for (const gender of ['masculina', 'femenina']) {
+    const ready = VOICE_PRESETS.filter(p => p.language === language && p.gender === gender && catalog.some(v => v.id === p.id && v.models.includes(model)));
+    console.log('MODEL_READY', model, language, gender, ready.length);
+    if (ready.length < 6) incomplete = true;
+  }
+}
+for (const id of ['es-public-m-brian', 'es-public-f-alice']) {
+  const preview = catalog.find(v => v.id === id)?.previewUrl;
+  if (!preview) throw new Error(`No preview for ${id}`);
+  const r = await fetch(preview, { headers: { Range: 'bytes=0-1023' }, signal: AbortSignal.timeout(20000) });
+  const first = await r.body?.getReader().read();
+  if (!r.ok || !first?.value?.length) throw new Error(`Preview unavailable: ${id}`);
+  console.log('PREVIEW_OK', id, r.status, r.headers.get('content-type'));
+}
+
 
 if (incomplete) throw new Error('Incomplete real voice catalog');
