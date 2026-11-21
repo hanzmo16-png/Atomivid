@@ -15,10 +15,11 @@ browser=await chromium.launch({headless:true,executablePath:process.env.E2E_CHRO
 for(const width of [390,1440]) {
  const page=await browser.newPage({viewport:{width,height:844}});
  const browserErrors=[]; page.on("pageerror",error=>{browserErrors.push(error.message);console.error("Browser error:",error.message);});
- let project,posts=0,release,failGet=false;
+ let project,posts=0,release,releaseSave,failGet=false;
  await page.route('**/api/audio-studio/**',async route=>{
   const req=route.request();
   if(req.url().endsWith('/voices')) {const voices=await page.evaluate(()=>window.catalog);return route.fulfill({json:{voices,synthesis:'real'}});}
+  if(req.method()==='PUT') {await new Promise(r=>releaseSave=r);project={...project,...req.postDataJSON(),revision:project.revision+1};return route.fulfill({json:project});}
   if(req.method()==='POST') {posts++;await new Promise(r=>release=r);project.generation={...project.generation,status:'en_cola',heartbeatAt:new Date().toISOString()};return route.fulfill({status:202,json:project});}
   if(failGet) return route.abort();
   return route.fulfill({json:project});
@@ -26,6 +27,14 @@ for(const width of [390,1440]) {
  await page.goto(base);
  project=await page.evaluate(()=>window.fixture);
  assert(project, "Fixture must load before exercising the editor: " + browserErrors.join("; "));
+ const saveRequest=page.waitForRequest(r=>r.method()==='PUT');
+ await page.getByTestId('audio-title').fill('Islas Flannan — revisión');
+ await saveRequest;
+ await page.getByTestId('audio-generate').getByText('Guardando cambios…',{exact:true}).waitFor();
+ assert(await page.getByTestId('audio-generate').isDisabled());assert.equal(posts,0);
+ releaseSave();
+ await page.getByTestId('audio-save-state').getByText('Guardado',{exact:true}).waitFor();
+ console.log('PASS',width,'autosave visibly blocks generation until the saved revision is available');
  await page.getByTestId('audio-authorize').check();
  await page.getByTestId('audio-generate').click();
  await page.getByTestId('audio-progress').getByText('Enviando solicitud de generación…',{exact:true}).waitFor();

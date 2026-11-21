@@ -137,6 +137,10 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
   const actionRef = useRef(false);
   async function action(a: "listo" | "generar" | "archivar" | "restaurar" | "remezclar" | "reanudar" | "respaldo") {
     if (actionRef.current) return;
+    if (savingRef.current && (a === "generar" || a === "reanudar" || a === "remezclar")) {
+      setMessage("Estamos guardando tus cambios. Espera a que termine el guardado antes de generar.");
+      return;
+    }
     actionRef.current = true;
     setBusy(a); setMessage(null);
     const produces = a === "generar" || a === "reanudar" || a === "remezclar";
@@ -402,11 +406,11 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
             <Button variant="secondary" className="min-h-11" data-testid="audio-ready" disabled={issues.length > 0 || !!busy} loading={busy === "listo"} onClick={() => void action("listo")}>Marcar listo para autorizar</Button>
           )}
           {canPay && !archived && !running && !checking && (g.status === "inactiva" || g.status === "terminada") && (
-            <Button className="min-h-11" data-testid="audio-generate" disabled={!authorized || !catalogReady || issues.length > 0 || !!busy} loading={busy === "generar"} onClick={() => void action("generar")}>{demo ? "Generar MP3 de demostración" : "Generar MP3"}</Button>
+            <Button className="min-h-11" data-testid="audio-generate" disabled={!authorized || !catalogReady || issues.length > 0 || !!busy || state === "saving"} loading={busy === "generar"} onClick={() => void action("generar")}>{state === "saving" ? "Guardando cambios…" : demo ? "Generar MP3 de demostración" : "Generar MP3"}</Button>
           )}
-          {canPay && !archived && !running && !checking && (g.status === "inactiva" || g.status === "terminada") && !busy && (issues.length > 0 || !authorized || !catalogReady) && (
+          {canPay && !archived && !running && !checking && (g.status === "inactiva" || g.status === "terminada") && !busy && (state === "saving" || issues.length > 0 || !authorized || !catalogReady) && (
             <p role="status" className="w-full text-sm text-ink-muted" data-testid="audio-generate-why">
-              {issues.length > 0 ? `No se puede generar todavía: ${issues[0]}`
+              {state === "saving" ? "Guardando los cambios antes de generar…" : issues.length > 0 ? `No se puede generar todavía: ${issues[0]}`
                 : catalog === null ? (catalogError ? "No se pudo cargar el catálogo de voces: pulsa «Reintentar» junto a las voces." : "Cargando el catálogo de voces…")
                 : !catalogReady ? `No se puede generar: ${unavailableVoices.map((id) => VOICE_PRESETS.find((p) => p.id === id)?.label ?? id).join(" y ")} no ${unavailableVoices.length > 1 ? "están disponibles" : "está disponible"} con el modelo ${TTS_MODELS.find((m) => m.id === draft.ttsModel)?.label ?? draft.ttsModel}. ${replacementVoices ? "Cámbiala por una voz disponible:" : "Elige otro modelo de voz arriba."}`
                 : "Marca la autorización del monto para habilitar «Generar»."}
