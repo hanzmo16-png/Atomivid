@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { buildPodcastMontage, readySignal } from "./video-montage";
-import { requestPodcastVideo, narrationRunsInBackground, DISPATCH_UNCONFIRMED } from "./video-jobs";
+import { requestPodcastVideo, narrationRunsInBackground, VIDEO_DISPATCH_UNCONFIRMED } from "./video-jobs";
 import { isStalledVideo, PODCAST_VIDEO_STALE_MS, type PodcastEpisode } from "./episode";
 
 const AUDIO = { path: "audio/episode.m4a", size: 100, sha256: "a".repeat(64) };
@@ -43,16 +43,16 @@ function fakeService(rowsMatched = 1) {
   return { service: { from: () => self } as never, updates, filters };
 }
 
-test("video request: queues once, fenced by status/attempts, increments attempts; dispatch failure leaves a retryable message", async () => {
+test("video request: queues once, fenced by status/attempts, increments attempts; unconfirmed dispatch preserves the queued claim", async () => {
   const saved = { ...process.env };
   try {
     delete process.env.GH_WORKER_TOKEN; delete process.env.GH_WORKER_REPO;
     const f = fakeService();
     const out = await requestPodcastVideo(f.service, episode());
-    assert.deepEqual(out, { error: DISPATCH_UNCONFIRMED, status: 503 });
+    assert.deepEqual(out, { error: VIDEO_DISPATCH_UNCONFIRMED, status: 503 });
     assert.equal(f.updates[0].video_status, "queued");
     assert.equal(f.updates[0].video_attempts, 1);
-    assert.equal(f.updates[1].video_status, "failed");
+    assert.equal(f.updates.length, 1, "unconfirmed dispatch must not undo admission");
     assert.ok(f.filters.some((x) => x.startsWith("in:") && x.includes("none")), "only from a non-running state");
   } finally { process.env = saved; }
 });
@@ -91,4 +91,99 @@ test("worker: delivers only an editor-verified video, stores it privately, never
   assert.match(mf, /query\.eq\("video_run_token", token\)/);
   assert.match(mf, /\.in\("video_status", \["queued", "running"\]\)/);
   assert.equal(wf.match(/PODCAST_TOKEN_FILE: \$\{\{ runner\.temp \}\}\/podcast-run-token/g)?.length, 2, "worker and mark-failed share the file");
+});
+
+/** Real request function with stateful CAS semantics; no real GitHub/provider access. */
+function dispatchFixture(options: { claimError?: boolean; claimThrows?: boolean } = {}) {
+  const row = episode();
+  const writes: Record<string, unknown>[] = [];
+  const service = { from: () => {
+    let patch: Record<string, unknown>;
+    const filters: Array<() => boolean> = [];
+    const execute = () => {
+      writes.push(patch);
+      if (options.claimThrows) throw new Error("private-db");
+      if (options.claimError) return { data: null, error: { message: "private-db" } };
+      const matches = filters.every(f => f());
+      if (matches) Object.assign(row, patch);
+      return { data: matches ? [{ id: row.id }] : [], error: null };
+    };
+    const q = {
+      update: (p: Record<string, unknown>) => { patch = p; return q; },
+      eq: (key: string, value: unknown) => { filters.push(() => row[key as keyof PodcastEpisode] === value); return q; },
+      in: (key: string, values: unknown[]) => { filters.push(() => values.includes(row[key as keyof PodcastEpisode])); return q; },
+      select: async () => execute(),
+      then: (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) => Promise.resolve().then(execute).then(resolve, reject),
+    };
+    return q;
+  } } as unknown as Parameters<typeof requestPodcastVideo>[0];
+  return { row, writes, service };
+}
+
+async function withFakeDispatch(fetcher: typeof fetch, run: () => Promise<void>) {
+  const originalFetch = globalThis.fetch;
+  const originalToken = process.env.GH_WORKER_TOKEN, originalRepo = process.env.GH_WORKER_REPO;
+  globalThis.fetch = fetcher;
+  process.env.GH_WORKER_TOKEN = "fixture-only-not-a-real-token";
+  process.env.GH_WORKER_REPO = "fixture/repository";
+  try { await run(); } finally {
+    globalThis.fetch = originalFetch;
+    if (originalToken === undefined) delete process.env.GH_WORKER_TOKEN; else process.env.GH_WORKER_TOKEN = originalToken;
+    if (originalRepo === undefined) delete process.env.GH_WORKER_REPO; else process.env.GH_WORKER_REPO = originalRepo;
+  }
+}
+
+test("dispatch uncertainty: accepted request with lost response stays queued and blocks immediate duplicate", async () => {
+  const f = dispatchFixture(); let calls = 0;
+  await withFakeDispatch(async () => { calls++; throw new Error("response lost after acceptance"); }, async () => {
+    const result = await requestPodcastVideo(f.service, { ...f.row });
+    assert.ok("error" in result && result.status === 503);
+    if ("error" in result) assert.doesNotMatch(result.error, /Pulsa.*Reintentar|no se cobra nada dos veces/i);
+    assert.equal(f.row.video_status, "queued");
+    assert.equal(f.writes.length, 1, "no terminal write on an ambiguous network response");
+    const duplicate = await requestPodcastVideo(f.service, { ...f.row });
+    assert.ok("error" in duplicate && duplicate.status === 409);
+    assert.equal(calls, 1);
+  });
+});
+for (const status of ["queued", "running", "ready"] as const) test(`dispatch uncertainty: delayed response cannot change a newer ${status} attempt`, async () => {
+  const f = dispatchFixture();
+  await withFakeDispatch(async () => {
+    Object.assign(f.row, { video_run_token: "new-token", user_id: "new-owner", video_status: status, video_error: "new-state" });
+    throw new Error("old response failed");
+  }, async () => {
+    await requestPodcastVideo(f.service, { ...f.row });
+    assert.equal(f.row.video_status, status);
+    assert.equal(f.row.video_run_token, "new-token");
+    assert.equal(f.row.video_error, "new-state");
+    assert.equal(f.writes.length, 1);
+  });
+});
+for (const options of [{ claimError: true }, { claimThrows: true }]) test("dispatch uncertainty: failed claim never dispatches or mislabels a database error as competition", async () => {
+  const f = dispatchFixture(options); let calls = 0;
+  await withFakeDispatch(async () => { calls++; return new Response(null, { status: 204 }); }, async () => {
+    const out = await requestPodcastVideo(f.service, { ...f.row });
+    assert.ok("error" in out && out.status === 500);
+    assert.doesNotMatch(JSON.stringify(out), /private-db/);
+    assert.equal(calls, 0);
+  });
+});
+test("dispatch uncertainty: HTTP 503 also preserves the admitted attempt", async () => {
+  const f = dispatchFixture();
+  await withFakeDispatch(async () => new Response(null, { status: 503 }), async () => {
+    const out = await requestPodcastVideo(f.service, { ...f.row });
+    assert.ok("error" in out && out.status === 503);
+    assert.equal(f.row.video_status, "queued");
+    assert.equal(f.writes.length, 1);
+  });
+});
+test("dispatch uncertainty: two simultaneous admissions dispatch exactly once", async () => {
+  const f = dispatchFixture(); const snapshot = { ...f.row }; let calls = 0;
+  await withFakeDispatch(async () => { calls++; return new Response(null, { status: 204 }); }, async () => {
+    const out = await Promise.all([requestPodcastVideo(f.service, snapshot), requestPodcastVideo(f.service, snapshot)]);
+    assert.equal(out.filter(x => "ok" in x).length, 1);
+    assert.equal(out.filter(x => "error" in x && x.status === 409).length, 1);
+    assert.equal(calls, 1);
+    assert.equal(f.row.video_attempts, 1);
+  });
 });
