@@ -9,7 +9,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { advanceLongScript, assembleLongScript, dropRepeatedTurns, MAX_ATTEMPTS_PER_STEP, newLongScript, segmentCount, segmentPrompt, extensionPrompt,
   type LlmStepFn, type LongInput, type LongScriptState, type StepReplayFn } from "./long-script";
-import { nextLocalMidnight, nextLocalMonthStart, supplyBlockMessage } from "./supply-message";
+import { localDate, nextLocalMidnight, nextLocalMonthStart, supplyBlockMessage } from "./supply-message";
 import { describeLlmFailure, studioAction, type ApiDeps } from "./api";
 import { parseLabeledScript } from "./script";
 
@@ -147,6 +147,19 @@ test("tope de gasto (proveedor o global): no se sabe si es diario o mensual → 
   assert.match(supplyBlockMessage("provider funded spend ceiling", null, now).error, /de este proveedor de IA/);
   // La cuota diaria de llamadas sí conserva su medianoche exacta y verificable.
   assert.equal(supplyBlockMessage("daily request quota", { maxDailyCalls: 20, timezone: "America/Cancun" }, new Date("2026-11-02T06:50:00Z")).resetAt, "2026-11-03T05:00:00.000Z");
+});
+
+test("tope mensual: la fecha del mensaje es la LOCAL de la zona de la política, también en zonas UTC+ (P2 de Grok en #273)", () => {
+  const now = new Date("2026-11-02T04:30:00Z");
+  // Tokio (UTC+9): el 1 de diciembre a las 00:00 locales es el 30 de noviembre a las 15:00 UTC; antes se mostraba «2026-11-30».
+  const tokyo = nextLocalMonthStart("Asia/Tokyo", now);
+  assert.equal(tokyo.toISOString(), "2026-11-30T15:00:00.000Z");
+  assert.equal(localDate("Asia/Tokyo", tokyo), "2026-12-01");
+  const m = supplyBlockMessage("global funded spend ceiling", { maxDailyCalls: 20, timezone: "Asia/Tokyo" }, now);
+  assert.match(m.error, /si es el mensual, el 2026-12-01 a las 00:00 hora de Asia\/Tokyo/); assert.doesNotMatch(m.error, /2026-11-30/); assert.equal(m.resetAt, null);
+  // Cancún (UTC−5) y UTC siguen igual.
+  assert.match(supplyBlockMessage("provider funded spend ceiling", { maxDailyCalls: 20, timezone: "America/Cancun" }, now).error, /si es el mensual, el 2026-12-01 a las 00:00 hora de Cancún/);
+  assert.match(supplyBlockMessage("provider funded spend ceiling", { maxDailyCalls: 20, timezone: "UTC" }, now).error, /si es el mensual, el 2026-12-01 a las 00:00 hora de UTC/);
 });
 
 test("API: un bloqueo por cuota responde con la política real y resetAt; el trabajo guardado se devuelve intacto", async () => {
