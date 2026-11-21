@@ -81,6 +81,9 @@ export const StudioSpec = z.object({
     recreations: z.boolean().default(true),
     /** Proveedor visual elegido: nunca se sustituye en silencio (ver studio.ts). «pexels» solo para leer episodios anteriores. */
     provider: z.enum(["pexels", "recraft", "solo_set"]).default("recraft"),
+    /** Tope de llamadas de avatar (clips + preparación de foto) que la persona aceptó al adaptar el episodio al límite
+     *  diario disponible (incidente 4290175a). Las apariciones que sobran pasan a imagen; la voz y la duración no cambian. */
+    avatar_max_calls: z.number().int().min(1).max(500).optional(),
   }),
   music: z.object({
     enabled: z.boolean().default(true),
@@ -98,6 +101,14 @@ export const StudioSpec = z.object({
   /** Entrega: «video» (MP4 + audio) o «audio» (solo el archivo de audio; no se renderiza video ni se buscan imágenes). Solo audio exige modo narración. */
   output: z.enum(["video", "audio"]).default("video"),
   budget_usd: z.number().min(0).max(500),
+  /** Registro de la adaptación al límite disponible (aditivo: guion, participantes y el resto de la configuración no
+   *  cambian; `previous_max_calls` permite deshacerla). */
+  adaptation: z.object({
+    at: z.string(), reason: z.literal("avatar_daily_quota"),
+    calls_before: z.number().int().min(0), calls_after: z.number().int().min(0),
+    avatar_shots_before: z.number().int().min(0), avatar_shots_after: z.number().int().min(0),
+    previous_max_calls: z.number().int().min(1).nullable(),
+  }).optional(),
 });
 export type StudioSpec = z.infer<typeof StudioSpec>;
 

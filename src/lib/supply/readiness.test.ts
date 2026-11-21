@@ -165,7 +165,8 @@ test("daily call quota: a job that would run out of calls halfway is refused bef
   const demand = { provider: "elevenlabs", unit: "character" as const, units: 9000, usd: 0.9 };
   const busy = fakeSupply(structuredClone(fresh), { todayCalls: { elevenlabs: 8 } }) as unknown as SupabaseClient;
   const refused = await ensureJobSupplyReady(busy, [{ ...demand, calls: 14 }], { refresh: false, now: () => NOW });
-  assert.deepEqual(refused.failure, { provider: "elevenlabs", reason: "daily request quota" });
+  assert.deepEqual({ ...refused.failure, quota: { ...refused.failure!.quota!, timezone: "tz" } }, { provider: "elevenlabs", reason: "daily request quota", quota: { max: 14, today: 8, calls: 14, timezone: "tz" } });
+  assert.ok(refused.failure!.quota!.timezone, "la cuota lleva la zona de la política para decir cuándo se restablece");
   const fits = await ensureJobSupplyReady(busy, [{ ...demand, calls: 6 }], { refresh: false, now: () => NOW });
   assert.equal(fits.ready, true, "8 + 6 = 14 calls fit a quota of 14");
   const noCount = await ensureJobSupplyReady(busy, [demand], { refresh: false, now: () => NOW });

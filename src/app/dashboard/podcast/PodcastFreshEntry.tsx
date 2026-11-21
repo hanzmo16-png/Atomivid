@@ -1,12 +1,25 @@
 "use client";
 
-import { useState, useSyncExternalStore, type ReactNode } from "react";
+import { createContext, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import {
   WIZARD_RECOVERY_KEY, applyFreshHomeEntry, cleanEntryIdea, entryScreenLabel, recoveryList, restorePreviousDraft,
-  type FreshEntryParams, type ParkedDraft,
+  type DraftStore, type FreshEntryParams, type ParkedDraft,
 } from "@/lib/podcast/v3/wizard";
+
+/**
+ * T-20261108-0415: `true` solo en el montaje en que esta URL acaba de crear la configuración nueva (`started`). El
+ * asistente no la anuncia entonces como «borrador retomado» ni ofrece «Empezar uno nuevo» (lo que aparcaría la recién
+ * creada). Recargar el mismo enlace o recuperar una configuración anterior vuelve a `false`.
+ */
+export const FreshEntryContext = createContext(false);
+
+/** Aplica la entrada (idempotente por token) y lee la lista recuperable. `fresh` = esta lectura creó la configuración. */
+export function freshEntrySnapshot(store: DraftStore, params: FreshEntryParams): { fresh: boolean; parked: ParkedDraft[] } {
+  const fresh = applyFreshHomeEntry(store, params).started;
+  return { fresh, parked: recoveryList(store.getItem(WIZARD_RECOVERY_KEY)) };
+}
 
 function parkedTitle(raw: string): string {
   try {
@@ -15,8 +28,8 @@ function parkedTitle(raw: string): string {
   } catch { return ""; }
 }
 
-type EntrySnap = { ready: boolean; parked: ParkedDraft[]; idea: string | null };
-const SERVER_SNAP: EntrySnap = { ready: false, parked: [], idea: null };
+type EntrySnap = { ready: boolean; parked: ParkedDraft[]; idea: string | null; fresh: boolean };
+const SERVER_SNAP: EntrySnap = { ready: false, parked: [], idea: null, fresh: false };
 const listeners = new Set<() => void>();
 let cache: { sig: string; snap: EntrySnap } | null = null;
 
@@ -37,14 +50,15 @@ function publish(sig: string, snap: EntrySnap) {
 function readClient(sig: string, params: FreshEntryParams): EntrySnap {
   if (cache?.sig === sig) return cache.snap;
   let parked: ParkedDraft[] = [];
+  let fresh = false;
   try {
-    applyFreshHomeEntry(window.localStorage, params);
-    parked = recoveryList(window.localStorage.getItem(WIZARD_RECOVERY_KEY));
+    ({ fresh, parked } = freshEntrySnapshot(window.localStorage, params));
   } catch { /* almacenamiento bloqueado: el asistente se muestra igual y no se borra nada */ }
   const snap: EntrySnap = {
     ready: true,
     parked,
     idea: params.modo === "personalizado" ? cleanEntryIdea(params.idea) || null : null,
+    fresh,
   };
   cache = { sig, snap };
   return snap;
@@ -79,7 +93,7 @@ export function PodcastFreshEntry({ modo, entrada, idea, children }: FreshEntryP
                   onClick={() => {
                     const result = restorePreviousDraft(window.localStorage, { index });
                     if (!result.restored) return;
-                    publish(sig, { ready: true, parked: recoveryList(window.localStorage.getItem(WIZARD_RECOVERY_KEY)), idea: null });
+                    publish(sig, { ready: true, parked: recoveryList(window.localStorage.getItem(WIZARD_RECOVERY_KEY)), idea: null, fresh: false });
                     setEpoch((n) => n + 1);
                     router.replace("/dashboard/podcast", { scroll: false });
                   }}>
@@ -90,7 +104,7 @@ export function PodcastFreshEntry({ modo, entrada, idea, children }: FreshEntryP
           </div>
         </div>
       )}
-      <div key={`${epoch}:${entrada ?? ""}`}>{children}</div>
+      <FreshEntryContext.Provider value={snap.fresh}><div key={`${epoch}:${entrada ?? ""}`}>{children}</div></FreshEntryContext.Provider>
     </>
   );
 }

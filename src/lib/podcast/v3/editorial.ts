@@ -31,6 +31,9 @@ export type PlanInput = {
   introSeconds?: number;
   /** Términos del tema: un turno sin imagen propia usa una imagen NO usada del tema antes que un plano vacío. */
   topicTerms?: string[];
+  /** Tope de apariciones del avatar (clips de pago) del episodio: las que sobran pasan a su imagen/ilustración o al
+   *  estudio con los anfitriones; la voz y la duración no cambian. Sin él, sin tope. */
+  avatarMaxShots?: number;
 };
 export type EditorialPlan = { shots: Shot[]; issues: string[]; avatarSeconds: { A: number; B: number }; assetsUsed: string[] };
 
@@ -59,6 +62,46 @@ export function pickAsset(text: string, assets: VisualAsset[], used: Set<string>
   return scored[0] ?? null;
 }
 
+/** Turnos que la frecuencia elegida pone a cámara (mismo acumulador determinista que planEpisode). */
+export function avatarTurnIds(input: Pick<PlanInput, "mode" | "turns" | "avatarFrequency" | "hasAvatar">): string[] {
+  if (input.mode === "narracion" || !(input.avatarFrequency > 0)) return [];
+  const acc = { A: 1 - input.avatarFrequency, B: 1 - input.avatarFrequency };
+  const out: string[] = [];
+  for (const turn of input.turns) {
+    acc[turn.speaker] += input.avatarFrequency;
+    if (acc[turn.speaker] >= 1 - 1e-9 && input.hasAvatar[turn.speaker]) { acc[turn.speaker] -= 1; out.push(turn.id); }
+  }
+  return out;
+}
+
+/**
+ * Apariciones del avatar que pasan a imagen para no superar `max` (incidente 4290175a: 48 clips pedidos, límite 40).
+ * Se conservan la apertura, el cierre y la primera y la última aparición de cada participante (quien habla sigue
+ * presentándose y despidiéndose a cámara); las demás se retiran repartidas de forma uniforme por el episodio, nunca en
+ * bloque. Determinista: el plan preliminar y el definitivo (duraciones reales) retiran los mismos turnos.
+ */
+export function avatarDemotions(turns: Pick<Turn, "id" | "speaker" | "kind">[], onCamera: string[], max: number): Set<string> {
+  const excess = onCamera.length - Math.max(0, Math.floor(max));
+  if (excess <= 0) return new Set();
+  const byId = new Map(turns.map((t) => [t.id, t]));
+  const keep = new Set<string>();
+  for (const sp of ["A", "B"] as const) {
+    const mine = onCamera.filter((id) => byId.get(id)?.speaker === sp);
+    if (mine.length) { keep.add(mine[0]); keep.add(mine[mine.length - 1]); }
+  }
+  for (const id of onCamera) { const k = byId.get(id)?.kind; if (k === "apertura" || k === "cierre") keep.add(id); }
+  const pick = (pool: string[], n: number) => {
+    const out: string[] = [];
+    for (let j = 0; j < n && pool.length; j++) out.push(pool[Math.min(pool.length - 1, Math.floor(((j + 0.5) * pool.length) / n))]);
+    return [...new Set(out)];
+  };
+  const candidates = onCamera.filter((id) => !keep.has(id));
+  const out = new Set(pick(candidates, Math.min(excess, candidates.length)));
+  // Tope menor que lo protegido: también se retiran protegidas (desde el centro), nunca más de lo necesario.
+  if (out.size < excess) for (const id of pick(onCamera.filter((x) => !out.has(x)), excess - out.size)) out.add(id);
+  return out;
+}
+
 export function planEpisode(input: PlanInput): EditorialPlan {
   const shots: Shot[] = [];
   const issues: string[] = [];
@@ -79,13 +122,15 @@ export function planEpisode(input: PlanInput): EditorialPlan {
   const still = (why: string) => input.mode !== "narracion" && seated.length
     ? { kind: "estudio_quieto" as const, people: [...seated], reason: `${why}: los anfitriones en el estudio (plano fijo, sin costo de avatar).` }
     : { kind: "transicion" as const, reason: `${why}: transición.` };
+  const demoted = input.avatarMaxShots === undefined ? new Set<string>() : avatarDemotions(input.turns, avatarTurnIds(input), input.avatarMaxShots);
   input.turns.forEach((turn, i) => {
     const dur = turn.seconds ?? estimateSeconds(turn.text);
     const start = t, end = t + dur;
     acc[turn.speaker] += input.avatarFrequency;
     // Frecuencia 0 = sin avatar (el acumulador arranca en 1 y daba igualmente el primer turno).
-    const wantsAvatar = input.mode !== "narracion" && input.avatarFrequency > 0 && acc[turn.speaker] >= 1 - 1e-9 && input.hasAvatar[turn.speaker];
-    if (wantsAvatar) acc[turn.speaker] -= 1;
+    const scheduled = input.mode !== "narracion" && input.avatarFrequency > 0 && acc[turn.speaker] >= 1 - 1e-9 && input.hasAvatar[turn.speaker];
+    if (scheduled) acc[turn.speaker] -= 1;
+    const wantsAvatar = scheduled && !demoted.has(turn.id);
     const visual = () => {
       // Ilustración propia del turno (Recraft): describe ESTA intervención; nunca se reparte entre turnos.
       const own = input.assets.find((a) => a.forTurn === turn.id && !used.has(a.id));
@@ -132,6 +177,9 @@ export function planEpisode(input: PlanInput): EditorialPlan {
       }
       avatarSeconds[turn.speaker] += dur;
       if (shot.kind === "two_shot") avatarSeconds[turn.speaker === "A" ? "B" : "A"] += dur;
+    } else if (scheduled) {
+      const v = visual();
+      shot = v ? { ...v, reason: `Adaptado al límite de apariciones del avatar: ${v.reason}` } : still("Adaptado al límite de apariciones del avatar");
     } else {
       shot = visual() ?? still("Sin imagen relacionada sin repetir (no se fuerza otra aparición de pago)");
     }

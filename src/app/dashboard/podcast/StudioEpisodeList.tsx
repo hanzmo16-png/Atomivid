@@ -6,11 +6,14 @@ import { safeParseJsonResponse } from "@/lib/http/safe-json";
 import { progressView, type LedgerActivity } from "@/lib/podcast/v3/progress";
 import { AtomProgress } from "@/components/podcast/AtomProgress";
 import { LibraryArchiveButton } from "./LibraryArchiveButton";
+import { AdaptLimitPanel, isAvatarQuotaError } from "./AdaptLimitPanel";
 
 export type StudioListEpisode = { id: string; title: string; status: string; mode: string; cost_usd: number | null;
   /** Biblioteca limpia: archivado por el dueño; `autoNote` = agrupado solo en «Archivados» (con error, de prueba o
    *  sin terminar hace más de 7 días), sin escribir nada: se explica y no ofrece archivar/restaurar a mano. */
-  archived?: boolean; autoNote?: string | null };
+  archived?: boolean; autoNote?: string | null;
+  /** Archivado a mano que seguirá agrupado solo al quitar el archivo (ver `restoreNote` en library.ts). */
+  restoreNote?: string | null };
 
 const STATUS: Record<string, string> = { draft: "Borrador", authorized: "Autorizado", generating: "Generando", ready: "Listo", failed: "Con error" };
 const MODE: Record<string, string> = { narracion: "narración", avatar: "avatar", dialogo: "conversación" };
@@ -96,13 +99,15 @@ export function StudioEpisodeCard({ episode, canArchive }: { episode: StudioList
         onRedispatch={() => void redispatch()}
       />
       {(status === "authorized" || status === "generating") && <div className="mt-2"><AtomProgress compact view={progressView({ status, progress: media?.progress, updated_at: media?.updatedAt, output: media?.output, audio_path: media?.audioPath }, undefined, media?.activity)} /></div>}
+      {/* Incidente 4290175a: bloqueado por el límite diario del avatar → la persona lo adapta y reintenta aquí mismo. */}
+      {status === "failed" && isAvatarQuotaError(media?.error) && <AdaptLimitPanel episodeId={episode.id} onStarted={() => setMedia((m) => (m ? { ...m, status: "authorized", error: null } : m))} />}
       {/* Duración entregada frente a la pedida (registrada por el generador): visible, nunca silenciosa. */}
       {media?.durationNote && <p className="mt-1 rounded border border-border p-2 text-xs text-ink" data-testid={`studio-duracion-${episode.id}`}>{media.durationNote}</p>}
       {note && <p className="mt-1 text-xs text-ink-muted">{note}</p>}
       {episode.autoNote && <p className="mt-1 text-xs text-ink-muted">{episode.autoNote}</p>}
       {closedByDefault && !opened && <Button type="button" variant="secondary" size="sm" className="mt-2" data-testid={`studio-abrir-${episode.id}`} onClick={() => setOpened(true)}>Ver episodio</Button>}
       {closedByDefault && opened && <p className="mt-1 text-xs text-ink-muted" data-testid={`studio-abierto-${episode.id}`}>{openError ?? `Estado actual: ${STATUS[status] ?? status}. Abrirlo no lo saca de «Archivados» ni cambia nada.`}</p>}
-      {canArchive && !episode.autoNote && status !== "authorized" && status !== "generating" && <LibraryArchiveButton kind="studio" id={episode.id} title={episode.title} archived={!!episode.archived} />}
+      {canArchive && !episode.autoNote && status !== "authorized" && status !== "generating" && <LibraryArchiveButton kind="studio" id={episode.id} title={episode.title} archived={!!episode.archived} restoreNote={episode.restoreNote ?? null} />}
     </li>
   );
 }
