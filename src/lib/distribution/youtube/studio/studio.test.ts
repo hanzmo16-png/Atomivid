@@ -21,7 +21,7 @@ test("foreign, pending and revoked channels fail owner gate before token resolut
 test("saved UTC schedule restores local editable value without changing the instant",()=>{const iso="2026-12-01T14:30:00.000Z";assert.equal(new Date(localDateInput(iso)).getTime(),Date.parse(iso));assert.equal(localDateInput("broken"),"");});
 
 // Synthetic refresh transport: never uses a Google account or production store.
-import { studioAccessToken } from "./access";
+import { studioAccessToken, studioOAuthConfigured } from "./access";
 import { memoryYouTubeOAuthStore } from "../oauth-store";
 import { encryptToken } from "../oauth";
 const env={GOOGLE_OAUTH_CLIENT_ID:"fixture-client",GOOGLE_OAUTH_REDIRECT_URI:"https://example.invalid/callback",GOOGLE_OAUTH_CLIENT_SECRET:"fixture-secret",YOUTUBE_TOKEN_ENC_KEY:Buffer.alloc(32,7).toString("base64")};
@@ -46,4 +46,9 @@ test("successful refresh stays server-side and does not change stored consent",a
  const store=await fixtureStore(),before=await store.getConnection("fixture-connection");let calls=0;
  assert.equal(await studioAccessToken({store,env,fetch:async()=>{calls++;return call({access_token:"fixture-short-lived"});}},"fixture-connection"),"fixture-short-lived");
  assert.equal(calls,1);assert.deepEqual(await store.getConnection("fixture-connection"),before);
+});
+
+test("OAuth readiness reveals only presence, requires all four fields and never claims validity",()=>{
+ assert.equal(studioOAuthConfigured(env),true);assert.equal(studioOAuthConfigured({}),false);
+ for(const field of Object.keys(env)){assert.equal(studioOAuthConfigured({...env,[field]:undefined}),false);assert.equal(studioOAuthConfigured({...env,[field]:"  "}),false);}
 });

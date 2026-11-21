@@ -9,7 +9,7 @@ Base productiva reconciliada: `4e5959bdce1c87ae5823288298968932ab1b4bae`. HEAD r
 | Capacidad | Estado y alcance de evidencia |
 | --- | --- |
 | Selección de videos, metadata, privacidad y fecha deseadas, miniatura, guardado/reload, exportación y preview | FUNCIONAL en navegador con HTTP fixtures y componente real; no acredita la sesión productiva del propietario |
-| Conexiones propias almacenadas, foto/nombre, biblioteca YouTube, métricas y renovación | PREPARADO; requiere verificación autenticada real. Una fila guardada no acredita vigencia del token |
+| Conexiones propias almacenadas, foto/nombre, biblioteca YouTube, métricas y renovación | PREPARADO en código; BLOQUEADO en Preview por configuración OAuth ausente, además del gate autenticado. Una fila guardada no acredita vigencia del token |
 | Shorts | PREPARADO como candidatos por duración; clasificación definitiva exige aspecto/metadatos |
 | Desconexión, upload, publicación y programación efectiva | BLOQUEADO por autorización/permisos; no hay handlers ejecutables |
 | Disponibilidad en producción | BLOQUEADO hasta merge/despliegue autorizados; Preview existe pero tiene protección de acceso |
@@ -26,6 +26,12 @@ Al abrir se leen conexiones guardadas y videos terminados; **no se consulta Goog
 
 El access token nunca se persiste ni vuelve al browser; refresh token sólo en la infraestructura cifrada existente. No se registran respuestas de tokens, encabezados ni errores originales. Errores públicos enumerados. Permisos insuficientes mantienen HTTP403; cuota agotada usa HTTP429. No se clasifica un error de permisos como cuota. Headers private,no-store y Vary Cookie; timeouts de transporte; cero reintentos. No hay handler de escritura, import de upload ni scheduler ejecutable.
 
+## Gate de configuración encontrado durante el cierre
+
+Una lectura de metadatos Vercel sin descifrado (21nov2026) confirmó que GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, GOOGLE_OAUTH_REDIRECT_URI y YOUTUBE_TOKEN_ENC_KEY sólo tienen target production. El Preview de esta rama no tiene esos bindings. No se leyeron valores ni se modificaron secretos. Supabase tiene bindings Preview existentes, por lo que no se debe recomendar reconectar contra un almacenamiento compartido.
+
+La API devuelve únicamente un booleano googleReadConfigured de presencia; no acredita que las credenciales sean válidas. Si falta configuración, la interfaz bloquea conexión y consultas Google y explica el motivo. Los borradores locales siguen funcionando. Una petición manual de lectura sin configuración falla503 antes de recuperar el envelope. El Preview actual queda **BLOQUEADO para Google real**, además del gate de sesión propietaria. Habilitar configuración existente para un Preview aislado de esta rama requiere autorización específica; no se hace en esta misión. Producción no cambia.
+
 ## Borradores
 
 Preparar título, descripción, tags, privacidad, miniatura y fecha no publica ni programa. Guardado explícito por UUID de usuario en localStorage, esquema versionado, importación allowlist al recuperar, errores de corrupción y espacio visibles. Mismo botón reescribe el mismo borrador: no crea trabajos repetidos. Exportación JSON para continuidad. **Sólo este navegador/teléfono, sin sincronización ni durabilidad externa automática**. No almacenar secretos en el borrador. Un dispositivo compartido no es un almacén privado contra otros usuarios del mismo perfil del navegador.
@@ -40,7 +46,7 @@ Un futuro worker de publicación necesita consentimiento por operación, scopes 
 
 ## QA y límites de evidencia
 
-- 34 pruebas directas node/tsx: Studio14, OAuth8, conexión Command Center7, paquete5. Cuatro regresiones nuevas cubren refresh/errores de configuración, cifrado, transporte y respuestas inválidas; las pruebas previas se conservan. Además, 27 regresiones de Long Form/Reels/Biblioteca (57 antes, 61 después, sin contar repeticiones). Sin llamadas Google. Conservar el primer FAIL (el test legado prohibía enlaces en el botón; el enlace se movió al contenedor sin alterar el botón ni la prueba).
+- 35 pruebas directas node/tsx: Studio15, OAuth8, conexión Command Center7, paquete5. Cinco regresiones nuevas cubren refresh/errores de configuración, cifrado, transporte y respuestas inválidas; las pruebas previas se conservan. Además, 27 regresiones de Long Form/Reels/Biblioteca (57 antes, 62 después, sin contar repeticiones). Sin llamadas Google. Conservar el primer FAIL (el test legado prohibía enlaces en el botón; el enlace se movió al contenedor sin alterar el botón ni la prueba).
 - TypeScript y ESLint de archivos tocados aprobados. next typegen requerido antes de typecheck por LayoutProps generado. Build de producción con Webpack aprobado; default Turbopack no pudo resolver el symlink local de node_modules (fuera del root). No se cambia configuración global por ello.
 - `scripts/youtube-studio/qa.mjs`: componente cliente real, CSS productivo, React y Chromium reales. HTTP reemplazado por fixtures explícitos, sin backend Supabase/Google real. 390×844, 412×915,1440×900, guardado/reload, previsualización, filtros, Analytics fixture, errores de cuota, botones de escritura deshabilitados. Axe WCAG2/2.1 AA, cero serious/critical y cero overflow. Se preservan FAIL de labels y contraste previos; contraste del botón reutilizado corregido sólo dentro del Studio, sin editar componente compartido.
 - Esta prueba NO es E2E autenticado de Next→Supabase→Google ni una sesión física Samsung. Falta una sesión owner autorizada para esa verificación. El Preview anterior está READY y ligado a 7dbe4ee; debe verificarse otro Preview del SHA final después del push. Su protección SSO no es evidencia de OAuth de ATOMIVID. Producción sin sesión responde redirect de login: eso no acredita el módulo desplegado.

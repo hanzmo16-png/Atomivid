@@ -23,13 +23,13 @@ const browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_PATH
 const report={source:'SYNTHETIC HTTP FIXTURES · actual component and production CSS · NOT Google/OAuth/Next authenticated E2E',cases:[],blockedExternal:[],errors:[]};
 try{
  for(const viewport of [{width:390,height:844},{width:412,height:915},{width:1440,height:900}]){
-  const context=await browser.newContext({viewport,locale:"es-MX"});const page=await context.newPage();let quota=false;
+  const context=await browser.newContext({viewport,locale:"es-MX"});const page=await context.newPage();let quota=false,configured=true,googleRequests=0;
   page.on('pageerror',e=>report.errors.push(e.message));
   await page.route('**/*',async route=>{
    const u=new URL(route.request().url());if(u.origin!==origin){report.blockedExternal.push(u.origin+u.pathname);return route.abort();}
    if(u.pathname==='/api/distribution/youtube/studio'){
-    if(!u.search){return route.fulfill({json:{owner:'fixture-owner',channels:[{id:'UC'+'a'.repeat(22),title:'Canal FIXTURE',status:'connected'}],ready:[{id:'done',title:'Video terminado FIXTURE',mode:'long_form'}]}});}
-    if(quota)return route.fulfill({status:429,json:{error:'quota'}});
+    if(!u.search){return route.fulfill({json:{googleReadConfigured:configured,owner:'fixture-owner',channels:[{id:'UC'+'a'.repeat(22),title:'Canal FIXTURE',status:'connected'}],ready:[{id:'done',title:'Video terminado FIXTURE',mode:'long_form'}]}});}
+    googleRequests++;if(quota)return route.fulfill({status:429,json:{error:'quota'}});
     return route.fulfill({json:{source:'google-live',fetchedAt:'2026-11-21T00:00:00Z',channel:{id:'UC'+'a'.repeat(22),title:'Canal FIXTURE',statistics:{viewCount:'35',subscriberCount:'8'}},videos:[{id:'abcdefghijk',title:'Largo FIXTURE',duration:'PT5M',privacy:'private',publishedAt:'2026-11-01T00:00:00Z',statistics:{viewCount:'25'}},{id:'abcdefghijx',title:'Corto FIXTURE',duration:'PT30S',privacy:'public',publishedAt:'2026-11-02T00:00:00Z',statistics:{viewCount:'10'}}],analytics:{available:u.searchParams.has('analytics'),columns:['day','views'],rows:[['2026-11-01',35]]}}});
    }
    if(u.pathname.startsWith('/api/'))throw new Error('Unexpected API attempt: '+u.pathname);
@@ -68,7 +68,16 @@ try{
   // Fixing a local thumbnail must not hide a concurrent Google quota error.
   assert.equal(await page.getByRole('alert').filter({hasText:'cuota'}).count(),1);
   const unchanged=await page.evaluate(()=>JSON.parse(localStorage.getItem('atomivid.youtube.draft.v1:fixture-owner')));assert.equal(unchanged.thumbnail.sha256,stored.thumbnail.sha256);
-  report.cases.push({viewport,draftReload:true,preview:true,libraryFilter:true,analyticsFixture:true,writeActionsDisabled:true,quotaError:true,readinessLabels:true,thumbnailErrorRecovery:true,quotaErrorPreserved:true,validThumbnailAndHash:true,invalidThumbnailRejected:true,exportDownloadMatchesStored:true,horizontalOverflow:false,seriousOrCritical:serious.length,allAxeViolations:accessibility.violations.map(v=>({id:v.id,impact:v.impact}))});await context.close();
+  configured=false;await page.reload();
+  await page.getByText('BLOQUEADO EN ESTE ENTORNO: no está disponible la configuración OAuth de lectura.',{exact:false}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Conectar YouTube (solo lectura)',exact:true}).isDisabled(),true);
+  assert.equal(await page.getByRole('button',{name:'Consultar canal y videos',exact:true}).isDisabled(),true);
+  assert.equal(await page.getByRole('button',{name:'Consultar estadísticas de 28 días',exact:true}).isDisabled(),true);
+  const before=googleRequests;
+  await page.getByRole('button',{name:'Guardar borrador',exact:true}).click();await page.getByText('Borrador guardado en este teléfono.',{exact:false}).waitFor();
+  assert.equal(googleRequests,before);assert.equal(googleRequests,3);
+  await page.screenshot({path:out+`/configuration-blocked-${viewport.width}.png`,fullPage:true});
+  report.cases.push({viewport,draftReload:true,preview:true,libraryFilter:true,analyticsFixture:true,writeActionsDisabled:true,quotaError:true,readinessLabels:true,missingConfigBlocksConnectAndGoogle:true,draftsWorkWithoutGoogleConfig:true,thumbnailErrorRecovery:true,quotaErrorPreserved:true,validThumbnailAndHash:true,invalidThumbnailRejected:true,exportDownloadMatchesStored:true,horizontalOverflow:false,seriousOrCritical:serious.length,allAxeViolations:accessibility.violations.map(v=>({id:v.id,impact:v.impact}))});await context.close();
  }
  assert.deepEqual(report.errors,[]);assert.deepEqual(report.blockedExternal,[]);
 }finally{writeFileSync(out+'/mobile-desktop.json',JSON.stringify(report,null,2));await browser.close();server.close();}

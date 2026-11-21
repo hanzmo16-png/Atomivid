@@ -2,6 +2,11 @@ import { tokenForConnection } from "../connect-flow";
 import type { YouTubeOAuthStore } from "../oauth-store";
 import { StudioReadError } from "./read";
 
+/** Presence only: never returns values or claims that credentials are valid. */
+export function studioOAuthConfigured(env: Record<string, string | undefined>): boolean {
+ return ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_REDIRECT_URI", "YOUTUBE_TOKEN_ENC_KEY"].every(key => !!env[key]?.trim());
+}
+
 /** Only an explicit invalid_grant proves refresh consent is no longer usable.
  * Configuration, decryption, transport and malformed responses must not suggest
  * a new consent flow. No provider body or original error leaves the server. */
