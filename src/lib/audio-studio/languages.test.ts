@@ -32,8 +32,11 @@ test("language edit changes revision and readiness, English dialogue parses two 
   assert.ok(readinessIssues(edited, estimate(edited)).includes("Elige voces del idioma seleccionado."));
   assert.deepEqual(scriptLines("## Welcome\nVoice 1: Hello there.\nVoice 2: Good morning.", 2).map(l => [l.voice, l.text]), [[0, "Hello there."], [1, "Good morning."]]);
   assert.match(draftOutline("A new beginning", 5, 2, "en"), /Voice 2:/);
-  assert.equal(VOICE_PRESETS.filter(v => v.language === "en").length, 4);
-  assert.equal(VOICE_PRESETS.filter(v => v.language === "es").length, 4);
+  for (const language of ["es", "en"]) {
+    for (const gender of ["masculina", "femenina"]) {
+      assert.equal(VOICE_PRESETS.filter(v => v.language === language && v.gender === gender).length, 6);
+    }
+  }
 });
 
 test("catalog excludes private clones, absent voices and untrained model options", () => {

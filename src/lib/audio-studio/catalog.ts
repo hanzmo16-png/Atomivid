@@ -1,7 +1,7 @@
 import { VOICE_PRESETS, ValidationError, type AudioProject, type TtsModelId } from "./model";
 
 export type StudioCatalogVoice = { id: string; name: string; previewUrl: string | null; models: TtsModelId[] };
-type RawVoice = { voice_id: string; name: string; category?: string; is_owner?: boolean; preview_url?: string; high_quality_base_model_ids?: string[]; fine_tuning?: { state?: Record<string, string> } };
+type RawVoice = { voice_id: string; name: string; category?: string; is_owner?: boolean; preview_url?: string; verified_languages?: { language?: string; preview_url?: string }[]; high_quality_base_model_ids?: string[]; fine_tuning?: { state?: Record<string, string> } };
 
 /** Only configured public voices. Private clones are never exposed by this module. */
 export function catalogFrom(voices: RawVoice[], map: Record<string, string>): StudioCatalogVoice[] {
@@ -10,7 +10,8 @@ export function catalogFrom(voices: RawVoice[], map: Record<string, string>): St
     if (!v || v.category === "cloned" || (v.category !== "premade" && v.is_owner === true)) return [];
     const models = (["eleven_multilingual_v2", "eleven_v4_turbo"] as const).filter(m =>
       v.category === "premade" || v.high_quality_base_model_ids?.includes(m) || v.fine_tuning?.state?.[m] === "fine_tuned");
-    return [{ id: p.id, name: v.name, previewUrl: v.preview_url?.startsWith("https://") ? v.preview_url : null, models }];
+    const preview = v.verified_languages?.find(l => l.language === p.language && l.preview_url?.startsWith("https://"))?.preview_url ?? v.preview_url;
+    return [{ id: p.id, name: v.name, previewUrl: preview?.startsWith("https://") ? preview : null, models }];
   });
 }
 
