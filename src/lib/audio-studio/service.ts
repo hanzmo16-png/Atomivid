@@ -183,15 +183,47 @@ export function seedId(ownerId: string): string {
   return `${s.slice(0, 8)}-${s.slice(8, 12)}-${s.slice(12, 16)}-${s.slice(16, 20)}-${s.slice(20, 32)}`;
 }
 
-/** Carga el primer episodio como proyecto editable si la cuenta aún no lo tiene (ni archivado). Idempotente. */
-export async function ensureSeed(d: Deps, ownerId: string): Promise<"created" | "exists"> {
-  const id = seedId(ownerId);
-  if (await d.store.get(ownerId, id)) return "exists";
-  const now = nowOf(d);
-  const base = newProject({ id, ownerId, now, title: SEED_EPISODE.title, voiceCount: 1 });
+/** El episodio inicial tal como se crea (revisión 1). Puro: no lee ni escribe nada. */
+export function seedProject(ownerId: string, now: string): AudioProject {
+  const base = newProject({ id: seedId(ownerId), ownerId, now, title: SEED_EPISODE.title, voiceCount: 1 });
   const p = applyInput(base, {
     voices: [SEED_EPISODE.voice], targetMinutes: SEED_EPISODE.targetMinutes, script: SEED_EPISODE.script, notes: SEED_EPISODE.notes,
     music: SEED_EPISODE.music, budgetUsd: SEED_EPISODE.budgetUsd,
   }, now);
-  return (await d.store.create({ ...p, revision: 1 })) ? "created" : "exists";
+  return { ...p, revision: 1 };
+}
+
+/** Carga el primer episodio como proyecto editable si la cuenta aún no lo tiene (ni archivado). Idempotente. */
+export async function ensureSeed(d: Deps, ownerId: string): Promise<"created" | "exists"> {
+  if (await d.store.get(ownerId, seedId(ownerId))) return "exists";
+  return (await d.store.create(seedProject(ownerId, nowOf(d)))) ? "created" : "exists";
+}
+
+/**
+ * LECTURAS SIN ESCRITURAS (T-30). La cuenta dueña ve su episodio inicial aunque todavía no esté guardado: se muestra
+ * VIRTUAL, con su id estable y revisión 1, sin crear nada en Storage. Si ya existe un objeto con ese id (editado o
+ * archivado), manda el objeto guardado: nunca se duplica ni se resucita.
+ */
+type SeedAccess = { owner: boolean };
+
+export const readLibrary = (d: Deps, ownerId: string, who: SeedAccess) => guard(async () => {
+  const all = await d.store.list(ownerId);
+  const virtual = who.owner && !all.some((p) => p.id === seedId(ownerId)) ? [seedProject(ownerId, nowOf(d))] : [];
+  return { ok: true, status: 200, body: { projects: [...virtual, ...all].map((p) => view(p, d.env, d.voice)) } };
+});
+
+export const readProject = (d: Deps, ownerId: string, id: string, who: SeedAccess) => guard(async () => {
+  const p = isUuid(id) ? await d.store.get(ownerId, id) : null;
+  if (p) return { ok: true, status: 200, body: view(p, d.env, d.voice) };
+  return who.owner && id === seedId(ownerId) ? { ok: true, status: 200, body: view(seedProject(ownerId, nowOf(d)), d.env, d.voice) } : NOT_FOUND();
+});
+
+/**
+ * Persistencia EXPLÍCITA del episodio inicial: se llama solo antes de una acción de la persona (guardar, archivar,
+ * marcar listo, generar…). `create` es condicional, así que dos pestañas a la vez lo crean una sola vez; si ya existe
+ * (incluso archivado) no se toca.
+ */
+export async function materializeSeed(d: Deps, ownerId: string, id: string, who: SeedAccess): Promise<"created" | "exists" | "no_seed"> {
+  if (!who.owner || id !== seedId(ownerId)) return "no_seed";
+  return ensureSeed(d, ownerId);
 }
