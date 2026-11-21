@@ -70,8 +70,19 @@ export function fixtureVoice(opts: { fail?: (text: string, model: TtsModelId) =>
 export { DEMO_VOICE_LABEL };
 /** Nombre del proveedor en la clave de caché: distinto de «elevenlabs» y de «fixture-espeak» (nunca se mezclan). */
 export const DEMO_PROVIDER_NAME = "demo-espeak";
-const DEMO_PROFILES = [["-v", "es-419", "-p", "28"], ["-v", "es+f3", "-p", "65"], ["-v", "es", "-p", "45"]];
-const DEMO_PROFILES_EN = [["-v", "en-us", "-p", "30"], ["-v", "en-us+f3", "-p", "62"], ["-v", "en-gb", "-p", "45"]];
+/** Variaciones audibles gratuitas para el catálogo demo; NO son voces reales de ElevenLabs. */
+function demoProfileArgs(preset: string): string[] {
+  const selected = voicePreset(preset);
+  if (!selected) return ["-v", "es-419", "-p", "40", "-s", "160"];
+  const same = VOICE_PRESETS.filter(v => v.language === selected.language && v.gender === selected.gender);
+  const idx = Math.max(0, same.findIndex(v => v.id === preset));
+  const pitches = selected.gender === "femenina" ? [51, 58, 65, 72, 79, 86] : [20, 28, 36, 44, 52, 60];
+  const speeds = [146, 154, 162, 170, 150, 178];
+  const voice = selected.language === "en"
+    ? (selected.gender === "femenina" ? "en-us+f3" : "en-us")
+    : (selected.gender === "femenina" ? "es+f3" : "es-419");
+  return ["-v", voice, "-p", String(pitches[idx % pitches.length]), "-s", String(speeds[idx % speeds.length])];
+}
 const run = promisify(execFile);
 
 /**
@@ -89,13 +100,13 @@ export function demoVoice(opts: { bin?: string } = {}): StudioVoice {
       name: DEMO_PROVIDER_NAME, label: "mock", model, usdFor: () => 0,
       async synth(text, voiceId, dest) {
         const preset = voiceId.replace(/^demo-/, "");
-        const profiles = voicePreset(preset)?.language === "en" ? DEMO_PROFILES_EN : DEMO_PROFILES;
+        const profileArgs = demoProfileArgs(preset);
         const dir = await mkdtemp(path.join(tmpdir(), "aps-demo-"));
         try {
           const raw = path.join(dir, "r.wav"), txt = path.join(dir, "t.txt");
           // El texto va por archivo (-f), nunca como argumento: una línea que empiece con «-» no se lee como opción.
           await writeFile(txt, text, "utf8");
-          await run(bin, [...profiles[fixtureProfile(preset) % profiles.length], "-s", "160", "-w", raw, "-f", txt], { timeout: TTS_TIMEOUT_MS });
+          await run(bin, [...profileArgs, "-w", raw, "-f", txt], { timeout: TTS_TIMEOUT_MS });
           await run("ffmpeg", ["-y", "-v", "error", "-i", raw, "-ar", "48000", "-ac", "1", dest], { timeout: TTS_TIMEOUT_MS });
         } finally { await rm(dir, { recursive: true, force: true }); }
         return { actualUsd: 0 };
@@ -172,7 +183,10 @@ export function parseVoiceMap(raw: string | undefined): Record<string, string> |
     const [k, v] = pair.split("=").map((x) => x?.trim());
     if (k && v && voicePreset(k) && /^[A-Za-z0-9]{8,64}$/.test(v)) out[k] = v;
   }
-  return VOICE_PRESETS.filter(p => p.language === "es").every((p) => out[p.id]) ? out : null;
+  // Conserva el requisito de los cuatro perfiles españoles originales. Los adicionales son opcionales
+  // y solo se ofrecen en modo real si el proveedor confirma su disponibilidad.
+  const legacySpanish = ["es-latam-m-profesional", "es-latam-m-calida", "es-latam-f-profesional", "es-latam-f-energica"];
+  return legacySpanish.every((id) => out[id]) ? out : null;
 }
 
 /**
