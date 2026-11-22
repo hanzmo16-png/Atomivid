@@ -117,6 +117,9 @@ let browser;
   check("[A] el MP4 y director.json se subieron una sola vez, en el mismo intento, con el hash almacenado", mp4Up.length === 1 && djUp.length === 1 && mp4Up[0].sha256 === sha(mp4) && djUp[0].sha256 === sha(dj), { mp4Up, djUp });
   const pr = ffprobe(mp4); const vs = pr.streams.find((s) => s.codec_type === "video"), as = pr.streams.find((s) => s.codec_type === "audio"); const dur = Number(pr.format.duration);
   check("[A] MP4 H.264 1080x1920 + AAC, duración coherente con 30 s pedidos (±25 %)", vs?.codec_name === "h264" && vs.width === 1080 && vs.height === 1920 && as?.codec_name === "aac" && dur >= 22.5 && dur <= 37.5, { v: vs && [vs.codec_name, vs.width, vs.height], a: as?.codec_name, dur });
+  // T-VIDEO-GO-20261122: un Reel de 30 s son EXACTAMENTE 900 fotogramas a 30 fps (se cuentan decodificando, no por metadatos).
+  const counted = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-count_frames", "-select_streams", "v:0", "-show_entries", "stream=nb_read_frames,r_frame_rate", "-of", "json", mp4]).toString()).streams?.[0] ?? {};
+  check("[A] Reel 30 s exacto: 900 fotogramas decodificados a 30 fps", Number(counted.nb_read_frames) === 900 && counted.r_frame_rate === "30/1", counted);
   // Reproducción y descarga desde la UI
   await A.p.goto(`${BASE}/dashboard/videos/${idA}`); await skipTour(A.p);
   const video = A.p.locator("video").first(); await video.waitFor();

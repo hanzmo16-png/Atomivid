@@ -20,6 +20,8 @@ import { loadDirectorApplied, loadDirectorRequested } from "@/lib/video/director
 import { DirectorAppliedPanel } from "@/components/video/DirectorAppliedPanel";
 import { ReconfigureAfterMaterialGap } from "@/components/video/ReconfigureAfterMaterialGap";
 import { isMaterialUnavailableFailure } from "@/lib/video/long-form/reconfigure-production";
+import { parseYoutubeMetadata, youtubeMetadataPath, type YoutubeMetadata } from "@/lib/delivery/youtube-package";
+import { YoutubeMetadataPanel } from "@/components/video/YoutubeMetadataPanel";
 
 export default async function VideoResultPage({
   params,
@@ -86,12 +88,18 @@ export default async function VideoResultPage({
   const service = createServiceClient();
   const ttl = request.mode === "long_form" ? 6 * 3600 : 3600;
   // A documentary can be ~0.5 GB: give a slow phone time to watch or download it before the link expires.
-  const [videoUrl, delivery, thumbnailUrl] = await Promise.all([
+  // T-VIDEO-GO: datos para YouTube guardados por el worker junto al documental (ausentes en videos anteriores → sin panel).
+  const readYoutubeMetadata = async (): Promise<YoutubeMetadata | null> => {
+    const { data } = await service.storage.from("videos").download(youtubeMetadataPath(request.id));
+    return data ? parseYoutubeMetadata(JSON.parse(await data.text())) : null;
+  };
+  const [videoUrl, delivery, thumbnailUrl, youtube] = await Promise.all([
     request.status === "completed" && request.video_path ? getSignedVideoUrl(request.video_path, ttl) : Promise.resolve(null),
     request.mode === "long_form" && request.status === "completed"
       ? readLongFormDeliveryFacts(service.storage.from("videos"), request).catch(() => ({ deliveredDurationSeconds: null, subtitlePath: null }))
       : Promise.resolve({ deliveredDurationSeconds: null, subtitlePath: null }),
     thumbnailRequested && request.status === "completed" ? getSignedVideoUrl(canonicalThumbnailPath(request.id), ttl) : Promise.resolve(null),
+    request.mode === "long_form" && request.status === "completed" ? readYoutubeMetadata().catch(() => null) : Promise.resolve(null),
   ]);
   const subtitleUrl = delivery.subtitlePath ? await getSignedVideoUrl(delivery.subtitlePath, ttl) : null;
 
@@ -121,6 +129,7 @@ export default async function VideoResultPage({
           supportRequired={request.status === "failed" && Boolean(request.error_message) && describeStoredFailure(request.error_message!).action === "support"} />
         <ResultView request={request} videoUrl={videoUrl} thumbnailUrl={thumbnailUrl} thumbnailRequested={thumbnailRequested} nowMs={nowMs} avatarRecovery={avatarRecovery} deliveredDurationSeconds={delivery.deliveredDurationSeconds} subtitleUrl={subtitleUrl} />
       </StartOutcomeProvider>
+      {youtube && <YoutubeMetadataPanel metadata={youtube} />}
       {/* Long Form stopped for missing material before any spend: offer Configure again (the server re-checks spend). */}
       {request.mode === "long_form" && request.status === "failed" && isMaterialUnavailableFailure(request.error_message) && (
         <ReconfigureAfterMaterialGap requestId={request.id} />

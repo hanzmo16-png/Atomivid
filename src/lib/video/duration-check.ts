@@ -59,6 +59,27 @@ export function needsNarrationEdit(error: unknown, mode: string): boolean {
   return mode === "visual" && error instanceof NarrationDurationError;
 }
 
+/**
+ * Reel de duración exacta (T-VIDEO-GO-20261122): un Reel de 30 s debe salir con 900 fotogramas a 30 fps, no 904 ni 846.
+ * La narración nunca se estira ni se recorta. Si, con la cola, no cabe en el objetivo, se pide UNA corrección de ritmo
+ * (la misma segunda llamada de voz que ya existía para ±10 %) apuntando a `objetivo − cola`.
+ */
+export function reelSpeedToFit(targetSeconds: number, voiceSeconds: number, tailSeconds: number): number | null {
+  const room = targetSeconds - tailSeconds;
+  if (!(room > 0) || !(voiceSeconds > 0) || voiceSeconds <= room) return null;
+  return voiceSeconds / room;
+}
+
+/**
+ * Duración final del Reel: exactamente el objetivo cuando la narración (más la cola) cabe, sosteniendo el último plano
+ * con la música; si aun corregida no cabe, la duración real (nunca se corta la voz). Sin objetivo, la de siempre.
+ */
+export function reelFinalDurationSeconds(targetSeconds: number | undefined, voiceSeconds: number, tailSeconds: number): number {
+  const natural = voiceSeconds + tailSeconds;
+  if (targetSeconds === undefined || !Number.isFinite(targetSeconds) || targetSeconds <= 0) return natural;
+  return natural <= targetSeconds ? targetSeconds : natural;
+}
+
 /** Stops before footage/render; never stretches audio or silently regenerates TTS. */
 export function assertNarrationDuration(targetSeconds: number, actualSeconds: number): void {
   if (!Number.isFinite(targetSeconds) || targetSeconds <= 0 || !Number.isFinite(actualSeconds) || actualSeconds <= 0) throw new Error("Duración de narración inválida.");

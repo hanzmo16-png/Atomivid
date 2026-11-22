@@ -50,6 +50,7 @@ import { buildLongFormTimeline, type BeatSynthesizer } from "./timeline";
 import { shotsForSpan } from "./shots";
 import { assertOpeningValid, CoverValidationError, renderLongFormDoc, renderLongFormThumbnail, type RenderLongFormDocInput } from "./render";
 import { canonicalSubtitlePath, canonicalThumbnailPath, toCoverSpec } from "./packaging";
+import { youtubeMetadata, youtubeMetadataPath } from "@/lib/delivery/youtube-package";
 import { probeOutput } from "./output-media";
 import { assertNarrationCoversRequestedDuration, assertScriptCoversRequestedDuration, LongFormRenderedDurationError, renderedDurationMismatch } from "./duration-shortfall";
 import { attachLongFormSubtitles } from "./subtitle-track";
@@ -909,6 +910,17 @@ export async function generateLongFormVideoFromScript({
     } catch (err) {
       console.warn(`[atomivid:long-form:produce] ${requestId} — no se pudo generar la miniatura:`, err instanceof Error ? err.message : err);
     }
+  }
+
+  // T-VIDEO-GO-20261122: título, descripción y capítulos para YouTube desde los tiempos REALES medidos de la
+  // narración. Texto derivado, gratuito y opcional: un fallo aquí nunca afecta al video ya entregado.
+  try {
+    const meta = youtubeMetadata({ topic, language, beats: timeline.beats.map((b) => ({ text: b.narration, startSeconds: b.startTargetSec, endSeconds: b.endTargetSec })) });
+    const buffer = Buffer.from(JSON.stringify(meta, null, 2));
+    await uploadArtifact(youtubeMetadataPath(requestId), buffer, "application/json");
+    storageBytes += buffer.byteLength;
+  } catch (err) {
+    console.warn(`[atomivid:long-form:produce] ${requestId} — no se pudieron guardar los datos para YouTube:`, err instanceof Error ? err.message : err);
   }
 
   console.log(
