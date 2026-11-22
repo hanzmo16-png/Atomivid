@@ -85,6 +85,37 @@ export function describe(input: { topic: string; beats: PkgBeat[]; chapters: { s
   ].filter((l, i, a) => !(l === "" && a[i - 1] === "")).join("\n").trim();
   return { title, description };
 }
+/**
+ * Datos para publicar en YouTube que el cliente ve y copia junto al MP4 (T-VIDEO-GO-20261122). Solo se deriva de lo que
+ * existe: el tema, la narración y los tiempos REALES medidos de cada bloque. No afirma nada sobre fuentes ni licencias:
+ * esa línea queda fuera porque el worker no tiene el inventario completo aquí. Nunca publica nada.
+ */
+export type YoutubeMetadata = { version: 1; title: string; description: string; chapters: { start: number; title: string }[]; tags: string[] };
+
+export function youtubeMetadata(input: { topic: string; language?: string | null; beats: { text: string; startSeconds: number; endSeconds: number }[] }): YoutubeMetadata {
+  const beats = input.beats.map((b, index) => ({ index, text: b.text }));
+  const segs = input.beats.map((b, index) => ({ beatIndex: index, startSeconds: b.startSeconds, endSeconds: b.endSeconds }));
+  const ch = chapters(beats, segs);
+  const en = input.language === "en";
+  const intro = firstSentenceFull(input.beats[0]?.text ?? "");
+  const description = [intro, ch.length ? `${en ? "Chapters" : "Capítulos"}:\n${ch.map((c) => `${mmss(c.start)} ${c.title}`).join("\n")}` : ""]
+    .filter(Boolean).join("\n\n").slice(0, 5000);
+  const tags = [...new Set(suggestTitle(input.topic, 100).toLocaleLowerCase(en ? "en" : "es").split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 4))].slice(0, 8);
+  return { version: 1, title: suggestTitle(input.topic, 100), description, chapters: ch, tags };
+}
+
+/** Lectura tolerante del JSON guardado: cualquier forma inesperada se descarta (el panel no se muestra). */
+export function parseYoutubeMetadata(raw: unknown): YoutubeMetadata | null {
+  if (!raw || typeof raw !== "object") return null;
+  const m = raw as Partial<YoutubeMetadata>;
+  if (m.version !== 1 || typeof m.title !== "string" || !m.title.trim() || typeof m.description !== "string") return null;
+  const chapters = Array.isArray(m.chapters) ? m.chapters.filter((c) => c && typeof c.start === "number" && typeof c.title === "string") : [];
+  const tags = Array.isArray(m.tags) ? m.tags.filter((t): t is string => typeof t === "string") : [];
+  return { version: 1, title: m.title.slice(0, 100), description: m.description.slice(0, 5000), chapters, tags };
+}
+
+export const youtubeMetadataPath = (requestId: string) => `${requestId}/output/youtube.json`;
+
 function firstSentenceFull(t: string): string {
   return (t.replace(/\s+/g, " ").trim().match(/^.*?[.!?](\s|$)/)?.[0] ?? t).trim().slice(0, 300);
 }

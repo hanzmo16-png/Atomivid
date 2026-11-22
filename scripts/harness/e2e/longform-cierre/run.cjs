@@ -228,6 +228,16 @@ function reviewScript(script) {
     const dl = await Promise.all([pg2.waitForEvent("download", { timeout: 300000 }), pg2.getByText("Descargar video").first().click()]).then(([d]) => d).catch((x) => { log("descarga falló", String(x)); return null; });
     if (dl) { const f = path.join(OUT, `descargado-${kind}.mp4`); await dl.saveAs(f); files[kind] = f; }
     check(`[${tag}] descarga del MP4 desde la página`, !!files[kind] && fs.statSync(files[kind]).size > 100000, files[kind] ? fs.statSync(files[kind]).size : null);
+    // T-VIDEO-GO: título, descripción y capítulos para YouTube (guardados por el worker con los tiempos reales), en cada teléfono.
+    {
+      const ytFile = path.join(STORAGE, R, "output/youtube.json"); const yt = fs.existsSync(ytFile) ? JSON.parse(fs.readFileSync(ytFile, "utf8")) : null;
+      // innerText no incluye el valor de <input>/<textarea>: se leen sus valores aparte.
+      const panel = await pg2.getByTestId("youtube-metadata").innerText().catch(() => "")
+        + "\n" + await pg2.locator("#yt-title").inputValue().catch(() => "") + "\n" + await pg2.locator("#yt-description").inputValue().catch(() => "");
+      await pg2.getByTestId("youtube-metadata").screenshot({ path: path.join(OUT, `youtube-datos-${kind}.png`) }).catch(() => {});
+      check(`[${tag}] datos para YouTube: título, descripción y capítulos desde 0:00 visibles y copiables`, !!yt && yt.title.length > 3 && /Capítulos:\n0:00 /.test(yt.description) && yt.chapters.length >= 3
+        && panel.includes(yt.title) && /Copiar título/.test(panel) && /Copiar descripción/.test(panel), { title: yt?.title, chapters: yt?.chapters?.length, panel: panel.slice(0, 200) });
+    }
     if (kind !== "desktop") await ctx2.b.close();
   }
   // Aislamiento: otra cuenta no ve el video.

@@ -25,7 +25,7 @@ import { computeNarrationGaps, type NarrationGap } from "../../../remotion/audio
 import { recordVideoGeneration } from "@/lib/billing/usage";
 import { splitIntoBeats } from "@/lib/video/scene-beats";
 import { createFootageSelectionState, selectFootageForScene } from "@/lib/video/footage-select";
-import { checkDuration, assertNarrationDuration } from "@/lib/video/duration-check";
+import { checkDuration, assertNarrationDuration, reelFinalDurationSeconds, reelSpeedToFit } from "@/lib/video/duration-check";
 import { LOUDNESS_TARGET, masterAudioLoudness } from "@/lib/video/audio-master";
 import { buildEmphasisSet } from "@/lib/video/caption-emphasis";
 import { getAccentColor, reelEndCardText, shouldShowLogo } from "@/lib/video/brand";
@@ -242,12 +242,19 @@ export async function generateVideoFromScript({
   let durationWithinTolerance = true;
   if (targetDurationSeconds !== undefined) {
     let durationResult = checkDuration(targetDurationSeconds, voice.durationSeconds);
-    if (!durationResult.withinTolerance) {
-      const correctedSpeed = voice.durationSeconds / targetDurationSeconds;
+    // T-VIDEO-GO-20261122: además de ±10 %, una narración que con la cola NO cabe en el objetivo (p. ej. 29.6 s + 0.5 en
+    // un Reel de 30 s = 904 fotogramas) usa la MISMA única corrección de ritmo, apuntando a objetivo − cola, para que el
+    // Reel salga exacto (30 s = 900 fotogramas) sin cortar la voz. Si esa corrección empeorase la tolerancia, se
+    // conserva la narración original (que ya era válida) y el video dura lo que dura.
+    const fitSpeed = durationResult.withinTolerance ? reelSpeedToFit(targetDurationSeconds, voice.durationSeconds, VIDEO_TAIL_SECONDS) : null;
+    if (!durationResult.withinTolerance || fitSpeed !== null) {
+      const correctedSpeed = fitSpeed ?? voice.durationSeconds / targetDurationSeconds;
       const correctedVoice = await synthesizeCounted(fullText, correctedSpeed);
       const correctedResult = checkDuration(targetDurationSeconds, correctedVoice.durationSeconds);
-      voice = correctedVoice;
-      durationResult = correctedResult;
+      if (fitSpeed === null || correctedResult.withinTolerance) {
+        voice = correctedVoice;
+        durationResult = correctedResult;
+      }
     }
     durationWithinTolerance = durationResult.withinTolerance;
     if (!durationResult.withinTolerance) {
@@ -601,7 +608,9 @@ export async function generateVideoFromScript({
   // razón claramente en logs y en el registro de costo, nunca en silencio
   // absoluto (ver Fase 4/6 de la especificación de esta etapa).
   await onProgress?.("music");
-  const finalDurationSeconds = voice.durationSeconds + VIDEO_TAIL_SECONDS;
+  // T-VIDEO-GO-20261122: exactamente la duración pedida cuando la narración cabe (30 s = 900 fotogramas a 30 fps); el
+  // último plano y la música cubren el final. Si aun corregida no cabe, la real: nunca se recorta la voz.
+  const finalDurationSeconds = reelFinalDurationSeconds(targetDurationSeconds, voice.durationSeconds, VIDEO_TAIL_SECONDS);
   let music: MusicResult | null = null;
   let musicFallbackReason: string | null = null;
   try {
