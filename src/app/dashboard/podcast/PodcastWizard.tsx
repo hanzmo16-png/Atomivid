@@ -108,7 +108,10 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
     if (!out.ok) throw Object.assign(new Error(out.error), { status: out.status });
     return out.data;
   }
-  async function run(fn: () => Promise<void>) { if (busy) return; setBusy(true); setError(null); try { await fn(); } catch (e) { setError(classifyClientFetchError(e)); } finally { setBusy(false); } }
+  // Candado síncrono (PVS3 23-11): `busy` es estado de React y no se ve hasta el siguiente pintado, así que un doble toque
+  // en «Generar episodio» creaba y autorizaba DOS episodios (dos generaciones, dos cargos). El ref se cierra en el acto.
+  const lock = useRef(false);
+  async function run(fn: () => Promise<void>) { if (busy || lock.current) return; lock.current = true; setBusy(true); setError(null); try { await fn(); } catch (e) { setError(classifyClientFetchError(e)); } finally { lock.current = false; setBusy(false); } }
   // Navegación por pantallas (Participantes · Contenido · Estilo · Producir); errores de toda la pantalla, en español.
   const go = (to: number) => { setError(null); set({ step: screenStart(to) }); };
   const next = () => { if (errs.length) { setError(errs.slice(0, 3).join(" ")); return; } if (screen + 1 === SCREENS.length - 1) void loadEstimate(); go(screen + 1); };
@@ -125,7 +128,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
    * después escribe en el borrador. Nunca se sustituye por la plantilla: esa solo se usa si se elige expresamente.
    */
   async function generateScript(fresh = false) {
-    if (busy) return;
+    if (busy || lock.current) return;
     // Un trabajo a medias de OTRA configuración nunca se sustituye por uno nuevo sin elegirlo (Grok, CORRECCION-2,
     // defecto 4): el botón no se muestra y el aviso «trabajo-distinto» ofrece volver a esa configuración o empezar otro.
     if (staleJob(d.scriptJob, scriptAsk()) && !fresh) return;
@@ -138,7 +141,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
       try { if (parkDraft(localStorage, ownedRaw(d))) setRecoverable(true); } catch { /* sin almacenamiento: se sigue igual */ }
       initial = null;
     }
-    setBusy(true); setError(null); setResumed(null);
+    lock.current = true; setBusy(true); setError(null); setResumed(null);
     try {
       const r = await runScriptGeneration(scriptAsk(), initial, {
         fetchImpl: (input, init) => fetch(input, init), sleep: (ms) => new Promise((res) => setTimeout(res, ms)), signal: ctl.signal,
@@ -155,7 +158,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
       }
       else if (r.reason !== "cancelado") setError(r.message);
     } finally {
-      if (scriptSeq.current === id) { scriptRun.current = null; setBusy(false); setScriptProgress(null); }
+      if (scriptSeq.current === id) { scriptRun.current = null; lock.current = false; setBusy(false); setScriptProgress(null); }
     }
   }
   /**
@@ -169,7 +172,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
       if (parkDraft(localStorage, localStorage.getItem(WIZARD_STORAGE_KEY))) setRecoverable(true);
       localStorage.removeItem(WIZARD_STORAGE_KEY);
     } catch { /* almacenamiento no disponible: el borrador en memoria se reinicia igual */ }
-    setRawState(defaultDraft()); setEstimate(null); setStatus(null); setNote(null); setError(null); setScriptProgress(null); setResumed(null); setBusy(false);
+    setRawState(defaultDraft()); setEstimate(null); setStatus(null); setNote(null); setError(null); setScriptProgress(null); setResumed(null); lock.current = false; setBusy(false);
     router.refresh();
   }
   /** Recupera el borrador aparcado más reciente (explícito); el actual, si tenía trabajo, queda aparcado en su lugar. */
@@ -180,7 +183,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
     scriptRun.current?.ctl.abort(); scriptSeq.current++; scriptRun.current = null;
     setRecoverable(hasParkedSafe(ownerRef.current));
     const draft = loadDraft(raw);
-    setRawState(draft); setEstimate(null); setStatus(null); setNote(null); setError(null); setScriptProgress(null); setBusy(false);
+    setRawState(draft); setEstimate(null); setStatus(null); setNote(null); setError(null); setScriptProgress(null); lock.current = false; setBusy(false);
     setResumed(resumedDraft(draft));
   }
   /** «Volver a esa configuración»: el tema, la duración y los participantes del trabajo a medias vuelven al borrador. */

@@ -542,10 +542,23 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     }
     await snap("paso04b-vista-previa");
     await W().getByLabel("Autorizo el cargo").check(); await snap("paso04c-autorizar");
-    await W().getByRole("button", { name: "Generar episodio" }).click();
+    const gen0 = (await db.query("select count(*)::int n from podcast_studio_episodes where user_id=$1 and title=$2", [OWNER.id, m.title])).rows[0].n;
+    if (opts.doubleClick) {
+      // PVS3 (23-11): doble toque en «Generar episodio». Primero un doble clic real (dos eventos de puntero) y, más duro,
+      // dos clics en la MISMA tarea de JS (antes de que React vuelva a pintar el botón como ocupado).
+      await W().getByRole("button", { name: "Generar episodio" }).evaluate((b) => { b.click(); b.click(); });
+      await W().getByRole("button", { name: "Generar episodio" }).dblclick({ timeout: 1500 }).catch(() => {});
+    } else await W().getByRole("button", { name: "Generar episodio" }).click();
     await W().getByTestId("wizard-progress").waitFor(); await snap("paso04d-progreso");
     let row0; for (let i = 0; i < 40; i++) { row0 = (await db.query("select * from podcast_studio_episodes where user_id=$1 and title=$2 order by created_at desc limit 1", [OWNER.id, m.title])).rows[0]; if (row0?.status === "authorized") break; await S.p.waitForTimeout(500); }
     ok(`${tag}: episodio autorizado y trabajo despachado`, row0?.status === "authorized" && fs.readFileSync(path.join(E2E, "logs/dispatch.jsonl"), "utf8").slice(disp0).includes(row0.id), row0?.status);
+    if (opts.doubleClick) {
+      await S.p.waitForTimeout(3000);
+      const made = (await db.query("select count(*)::int n from podcast_studio_episodes where user_id=$1 and title=$2", [OWNER.id, m.title])).rows[0].n - gen0;
+      const disp = fs.readFileSync(path.join(E2E, "logs/dispatch.jsonl"), "utf8").slice(disp0).split("\n").filter((l) => l.includes(row0.id)).length;
+      const auths = (await db.query("select count(*)::int n from podcast_studio_episodes where user_id=$1 and title=$2 and status <> 'draft'", [OWNER.id, m.title])).rows[0].n;
+      ok(`${tag}: doble toque en «Generar episodio» → un solo episodio, una sola autorización y un solo despacho`, made === 1 && auths === 1 && disp === 1, `creados=${made} autorizados=${auths} despachos=${disp}`);
+    }
     // Recuperación: recargar a mitad de la generación vuelve al paso Generación con el mismo episodio.
     await S.p.reload(); await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor(); await W().getByTestId("wizard-progress").waitFor({ timeout: 20000 }).catch(() => {}); ok(`${tag}: recarga durante la generación conserva el episodio y el paso`, /Paso 4/.test(await stepTitle()) && await W().getByTestId("wizard-progress").isVisible());
     if (opts.failTtsCall) {
@@ -727,6 +740,14 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     ok("c11-samsung: portada 390×844 sin desbordamiento horizontal", smOverflow <= 1, `${smOverflow}px`);
     await studioFlow(Sm, "c11-samsung", { ...MODES.find((x) => x.tag === "c10d"), title: "E2E samsung 390x844", voices: [DURO, LEO] }, { secondEpisode: true });
     await Sm.ctx.close();
+    // Galaxy S26 Ultra (412×915, el teléfono de Hans): flujo MP4 completo con doble toque en «Generar episodio».
+    const S26 = { viewport: { width: 412, height: 915 }, deviceScaleFactor: 3.5, isMobile: true, hasTouch: true, userAgent: "Mozilla/5.0 (Linux; Android 16; SM-S948B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Mobile Safari/537.36" };
+    const Su = await session(OWNER, "c11-s26ultra", S26);
+    await Su.p.goto(`${BASE}/dashboard/podcast`);
+    const suOverflow = await Su.p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    ok("c11-s26ultra: portada 412×915 sin desbordamiento horizontal", suOverflow <= 1, `${suOverflow}px`);
+    await studioFlow(Su, "c11-s26ultra", { ...MODES.find((x) => x.tag === "c10d"), title: "E2E S26 Ultra 412x915", voices: [DURO, LEO] }, { doubleClick: true });
+    await Su.ctx.close();
     const So = await session(OTHER, "c11-samsung-otra", SAMSUNG);
     await So.p.goto(`${BASE}/dashboard/podcast`); await So.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
     await So.p.evaluate(() => localStorage.setItem("atomivid.podcast.asistente.v2", JSON.stringify({ step: 3, modality: "audio", mode: "narracion", count: 1 })));
