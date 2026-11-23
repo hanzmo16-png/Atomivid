@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { INPUT_CLASS } from "@/components/ui/Field";
-import { commitTargetMinutes, parseTargetMinutes, voiceReplacements } from "@/lib/audio-studio/editor-rules";
+import { commitTargetMinutes, durationVerdict, parseTargetMinutes, voiceReplacements } from "@/lib/audio-studio/editor-rules";
 import {
   LANGUAGES, defaultSecondVoice, draftOutline, estimate, GENERATION_LABEL, generationActive, MAX_BUDGET_USD, MAX_SCRIPT, MAX_TARGET_MINUTES, MAX_TITLE, MIN_TARGET_MINUTES, MOOD_LABEL, MUSIC_MOODS,
   audioProviderNote, DEMO_VOICE_LABEL, FALLBACK_TTS_MODEL, musicPlan, readinessIssues, STATUS_LABEL, TTS_MODELS, ttsModel, VOICE_PRESETS, voicePreset, type StudioLanguage, type AudioProject, type MusicConfig, type MusicMood, type TtsModelId,
@@ -388,6 +388,7 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
               {Math.floor(saved.audio.durationSeconds / 60)} min {Math.round(saved.audio.durationSeconds % 60)} s · {saved.audio.lufs} LUFS · pico {saved.audio.truePeak} dBTP · {(saved.audio.bytes / 1e6).toFixed(1)} MB
               {audioProviderNote(saved.audio.provider)}{saved.audio.revision !== saved.revision ? " · de una versión anterior del guion" : ""}
             </p>
+            {(() => { const d = durationVerdict(saved.audio.durationSeconds, saved.targetMinutes); return d.message ? <p className="text-sm text-warning" data-testid="audio-duration-check">{d.message}</p> : null; })()}
             <a href={`/api/audio-studio/projects/${saved.id}/audio?descargar=1`} className="inline-flex min-h-11 items-center text-sm font-medium text-accent underline" data-testid="audio-download">Descargar MP3</a>
           </div>
         )}
