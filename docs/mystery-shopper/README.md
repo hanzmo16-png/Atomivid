@@ -48,6 +48,8 @@ Cuando el CI está verde y el Preview está listo, las misiones automáticas se 
 - que el despliegue es un Preview en estado `success`, y que su URL es un Preview de este proyecto;
 - que el SHA tiene 40 caracteres hexadecimales y que todas sus comprobaciones de CI terminaron sin fallo.
 
+El script espera a que termine el CI del SHA, hasta 30 minutos, porque Vercel avisa del Preview antes. Como crea trabajos en el Storage de producción, este disparo solo corre si Hans activa la variable del repositorio `MYSTERY_SHOPPER_AUTO=1`; sin ella el job se omite.
+
 Después crea un trabajo por cada misión con `auto: true`. El id sale del SHA y de la misión (`ms-ci-<sha12>-<misión>`), de modo que el mismo evento repetido no lanza otro trabajo.
 
 ## Misiones reales (catálogo)

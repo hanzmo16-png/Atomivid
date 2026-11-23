@@ -28,15 +28,21 @@ async function main() {
   const url = (env.MS_EVENT_URL ?? "").replace(/\/+$/, "");
   if (!/^https:\/\/atomivid-[a-z0-9-]+-atomivid\.vercel\.app$/.test(url)) fail("la URL no es un Preview de este proyecto");
 
-  // CI aprobado: todas las comprobaciones del SHA terminadas y ninguna fallida (menos este workflow).
-  const res = await fetch(`https://api.github.com/repos/${repo}/commits/${sha}/check-runs?per_page=100`, { headers: { Authorization: `Bearer ${env.GITHUB_TOKEN}`, Accept: "application/vnd.github+json" } });
-  if (!res.ok) fail(`no se pudo leer el CI (HTTP ${res.status})`);
-  const runs = ((await res.json()) as { check_runs: { name: string; status: string; conclusion: string | null }[] }).check_runs.filter((r) => !/mystery shopper|cliente misterioso|^gratuito$|^evaluar$/i.test(r.name));
-  const pending = runs.filter((r) => r.status !== "completed");
-  const bad = runs.filter((r) => r.status === "completed" && !["success", "skipped", "neutral"].includes(r.conclusion ?? ""));
-  if (bad.length) fail(`CI con fallos: ${bad.map((r) => r.name).join(", ")}`);
-  if (pending.length) fail(`CI sin terminar: ${pending.map((r) => r.name).join(", ")} (se evaluará en el próximo despliegue listo)`);
-  if (!runs.length) fail("el SHA no tiene comprobaciones de CI");
+  // CI aprobado: Vercel avisa del Preview antes de que el CI termine, así que se espera (gratis, en este runner) hasta
+  // que todas las comprobaciones del SHA terminen (máx. MS_CI_WAIT_MIN minutos) y ninguna haya fallado.
+  const deadline = Date.now() + Number(env.MS_CI_WAIT_MIN || 30) * 60_000;
+  for (;;) {
+    const res = await fetch(`https://api.github.com/repos/${repo}/commits/${sha}/check-runs?per_page=100`, { headers: { Authorization: `Bearer ${env.GITHUB_TOKEN}`, Accept: "application/vnd.github+json" } });
+    if (!res.ok) fail(`no se pudo leer el CI (HTTP ${res.status})`);
+    const runs = ((await res.json()) as { check_runs: { name: string; status: string; conclusion: string | null }[] }).check_runs.filter((r) => !/^(evaluar|automatico|pruebas)$/i.test(r.name));
+    const bad = runs.filter((r) => r.status === "completed" && !["success", "skipped", "neutral"].includes(r.conclusion ?? ""));
+    if (bad.length) fail(`CI con fallos: ${bad.map((r) => r.name).join(", ")}`);
+    const pending = runs.filter((r) => r.status !== "completed");
+    if (runs.length && !pending.length) break;
+    if (Date.now() > deadline) fail(`CI sin terminar tras la espera: ${pending.map((r) => r.name).join(", ") || "sin comprobaciones"}`);
+    console.log(`[mystery-shopper:ci] esperando al CI: ${pending.length} comprobación(es) en curso`);
+    await new Promise((r) => setTimeout(r, 60_000));
+  }
 
   const key = env.SUPABASE_SERVICE_ROLE_KEY, sb = env.NEXT_PUBLIC_SUPABASE_URL || env.SUPABASE_URL;
   if (!key || !sb) fail("faltan los secretos de Supabase del worker");

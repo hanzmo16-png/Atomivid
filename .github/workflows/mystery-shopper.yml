@@ -69,9 +69,11 @@ jobs:
 
   # CI aprobado + Preview listo → misiones automáticas (gratuitas) contra ese Preview.
   automatico:
-    if: github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success'
+    # Crea trabajos en el Storage de producción: solo corre si Hans activa la variable del repositorio
+    # MYSTERY_SHOPPER_AUTO=1 (Settings → Variables). Sin ella, este job se omite.
+    if: github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success' && vars.MYSTERY_SHOPPER_AUTO == '1'
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 75
     concurrency:
       group: mystery-shopper-auto-${{ github.event.deployment.sha }}
       cancel-in-progress: false
