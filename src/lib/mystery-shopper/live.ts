@@ -146,7 +146,10 @@ export function findingsFrom(product: ProductId, profile: ProfileId, pages: Page
   for (const m of media) {
     if (m.durationConformity === "FAIL") out.push({ severity: "P0", product, screen: "resultado", fact: m.notes[0] ?? "La duración no corresponde a lo pedido.", interpretation: "El cliente pidió un contenido y recibió otro mucho más corto o largo.", recommendation: "No marcar como terminado un archivo que no cumple la duración; avisar antes de cobrar.", evidence: m.file });
   }
-  return out;
+  // Una pantalla visitada varias veces no repite el mismo hallazgo (los ids de la ruta no cuentan como pantalla distinta).
+  const seen = new Set<string>();
+  return out.map((f) => ({ ...f, screen: f.screen.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, ":id") }))
+    .filter((f) => { const k = `${f.severity}|${f.screen}|${f.fact.replace(/\d+/g, "#")}`; if (seen.has(k)) return false; seen.add(k); return true; });
 }
 
 /** Nota 0–100 solo con misión cumplida; un bloqueo crítico o un P0 anulan la nota. */

@@ -149,3 +149,9 @@ test("el worker no escribe secretos y abre un contexto nuevo", async () => {
   assert.doesNotMatch(w, /password\s*[:=]\s*["'][^"']+["']/i);
   assert.match(w, /blockedbyclient/);
 });
+
+test("un hallazgo repetido en la misma pantalla cuenta una vez", () => {
+  const base: PageMetrics = { url: "https://atomivid.vercel.app/dashboard/audio-studio/d8e199a9-d60d-4642-bc53-64c8b1f22f7b", viewport: { width: 390, height: 844 }, horizontalOverflowPx: 0, smallTargets: 9, unlabeledFields: 0, technicalTerms: [], costVisible: true, errorsVisible: [], consoleErrors: 0, loadMs: 900, httpStatus: 200 };
+  const f = findingsFrom("audio-podcast", "impaciente", [base, { ...base, smallTargets: 8 }, { ...base, url: base.url.replace("d8e199a9", "aaaaaaaa") }], [], []);
+  assert.equal(f.length, 1); assert.equal(f[0].screen, "/dashboard/audio-studio/:id");
+});
