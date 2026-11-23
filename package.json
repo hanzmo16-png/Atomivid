@@ -19,7 +19,8 @@
     "simulate:ui": "tsx scripts/simulator/ui-server.ts",
     "test:simulator": "node --experimental-test-module-mocks --import tsx --test scripts/simulator/lib/subtitles.test.ts scripts/simulator/ui-server.test.ts scripts/simulator/avatar-duration-journey.test.ts",
     "podcast:sim": "tsx scripts/podcast-2-0/render.ts",
-    "test:rescate": "node --import tsx --test src/lib/video/long-form/editorial-rescue.test.ts src/lib/video/long-form/editorial-rescue-audit.test.ts src/lib/video/long-form/editorial-rescue-real-jobs.test.ts src/lib/video/long-form/editorial-rescue-repro.test.ts src/lib/video/long-form/editorial-opening-repair.test.ts"
+    "test:rescate": "node --import tsx --test src/lib/video/long-form/editorial-rescue.test.ts src/lib/video/long-form/editorial-rescue-audit.test.ts src/lib/video/long-form/editorial-rescue-real-jobs.test.ts src/lib/video/long-form/editorial-rescue-repro.test.ts src/lib/video/long-form/editorial-opening-repair.test.ts",
+    "test:mystery-shopper": "node --import tsx --test --test-concurrency=1 src/lib/mystery-shopper/*.test.ts src/app/dashboard/command-center/mystery-shopper/*.test.tsx"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

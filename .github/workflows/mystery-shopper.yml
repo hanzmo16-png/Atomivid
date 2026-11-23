@@ -1,0 +1,180 @@
+# Mystery Shopper 2.0 — el worker real. Playwright corre aquí (GitHub Actions), nunca en Vercel serverless.
+# Solo modo gratuito: el navegador no pulsa nada facturable y además bloquea las peticiones a proveedores de pago.
+#
+#  - repository_dispatch «mystery-shopper-run»: lo envía el panel (Command Center) al crear una evaluación.
+#  - deployment_status: Vercel avisa de un Preview listo; si el CI del SHA está verde, corren las misiones automáticas.
+#  - workflow_dispatch: repetir a mano un trabajo existente por su id.
+#  - pull_request: pruebas del módulo y E2E autenticado en el arnés local (cuenta QA local, USD 0).
+name: Mystery Shopper AI
+on:
+  repository_dispatch:
+    types: [mystery-shopper-run]
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: Id de una evaluación ya creada (ms-...). Vacío = crear una nueva con la misión y el perfil de abajo.
+        required: false
+        default: ""
+      mission:
+        description: Misión (solo si job_id está vacío)
+        required: false
+        default: cuenta-navegacion
+      profile:
+        description: Perfil (principiante, impaciente, creador, profesional)
+        required: false
+        default: principiante
+  pull_request:
+    paths:
+      - src/lib/mystery-shopper/**
+      - src/app/dashboard/command-center/**
+      - src/app/api/admin/mystery-shopper/**
+      - scripts/mystery-shopper/**
+      - scripts/harness/e2e/mystery-shopper/**
+      - scripts/harness/e2e/infra/gateway.mjs
+      - .github/workflows/mystery-shopper.yml
+permissions:
+  contents: read
+  checks: read
+  statuses: read
+jobs:
+  # Un trabajo pedido desde el panel o a mano. El claim atómico del trabajo evita dobles ejecuciones;
+  # la concurrencia por id además serializa dos despachos del mismo trabajo.
+  evaluar:
+    if: github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    concurrency:
+      group: mystery-shopper-${{ github.event.client_payload.jobId || inputs.job_id || github.run_id }}
+      cancel-in-progress: false
+    steps:
+      - name: Id de trabajo válido
+        env:
+          JOB: ${{ github.event.client_payload.jobId || inputs.job_id }}
+        run: '[[ -z "$JOB" || "$JOB" =~ ^ms-[a-z0-9][a-z0-9-]{7,90}$ ]] || { echo "::error::id no válido"; exit 1; }'
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Crear o reutilizar la evaluación (reserva atómica)
+        id: trabajo
+        env:
+          MS_JOB_ID: ${{ github.event.client_payload.jobId || inputs.job_id }}
+          MS_MISSION: ${{ inputs.mission || 'cuenta-navegacion' }}
+          MS_PROFILE: ${{ inputs.profile || 'principiante' }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npx tsx scripts/mystery-shopper/manual-start.ts
+      - run: npx playwright install --with-deps chromium
+      - name: Recorrido con navegador nuevo
+        env:
+          MS_JOB_ID: ${{ steps.trabajo.outputs.job }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          MYSTERY_SHOPPER_QA_EMAIL: ${{ secrets.MYSTERY_SHOPPER_QA_EMAIL }}
+          MYSTERY_SHOPPER_QA_PASSWORD: ${{ secrets.MYSTERY_SHOPPER_QA_PASSWORD }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          MS_WORKER_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          MS_OUT_DIR: ${{ runner.temp }}/ms
+        run: npx tsx scripts/mystery-shopper/worker.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mystery-shopper-${{ steps.trabajo.outputs.job || github.run_id }}
+          retention-days: 30
+          path: ${{ runner.temp }}/ms
+          if-no-files-found: ignore
+
+  # CI aprobado + Preview listo → misiones automáticas (gratuitas) contra ese Preview.
+  automatico:
+    # Crea trabajos en el Storage de producción: solo corre si Hans activa la variable del repositorio
+    # MYSTERY_SHOPPER_AUTO=1 (Settings → Variables). Sin ella, este job se omite.
+    if: github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success' && vars.MYSTERY_SHOPPER_AUTO == '1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    concurrency:
+      group: mystery-shopper-auto-${{ github.event.deployment.sha }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Validar el evento y crear los trabajos
+        id: crear
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          MS_EVENT_REPO: ${{ github.event.repository.full_name }}
+          MS_EVENT_STATE: ${{ github.event.deployment_status.state }}
+          MS_EVENT_ENVIRONMENT: ${{ github.event.deployment.environment }}
+          MS_EVENT_SHA: ${{ github.event.deployment.sha }}
+          MS_EVENT_URL: ${{ github.event.deployment_status.environment_url || github.event.deployment_status.target_url }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          MYSTERY_SHOPPER_AUTO: ${{ vars.MYSTERY_SHOPPER_AUTO }}
+        run: npx tsx scripts/mystery-shopper/ci-start.ts
+      - if: steps.crear.outputs.jobs != '' && steps.crear.outputs.jobs != '[]'
+        run: npx playwright install --with-deps chromium
+      - name: Recorridos
+        if: steps.crear.outputs.jobs != '' && steps.crear.outputs.jobs != '[]'
+        env:
+          JOBS: ${{ steps.crear.outputs.jobs }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          MYSTERY_SHOPPER_QA_EMAIL: ${{ secrets.MYSTERY_SHOPPER_QA_EMAIL }}
+          MYSTERY_SHOPPER_QA_PASSWORD: ${{ secrets.MYSTERY_SHOPPER_QA_PASSWORD }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          MS_WORKER_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          MS_OUT_DIR: ${{ runner.temp }}/ms
+        run: |
+          for id in $(node -e 'for (const j of JSON.parse(process.env.JOBS)) console.log(j)'); do
+            MS_JOB_ID="$id" npx tsx scripts/mystery-shopper/worker.ts || echo "::warning::$id terminó con error"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mystery-shopper-auto-${{ github.event.deployment.sha }}
+          retention-days: 30
+          path: ${{ runner.temp }}/ms
+          if-no-files-found: ignore
+
+  # Pruebas del módulo + E2E autenticado en el arnés local (ATOMIVID de este SHA, cuenta QA local, USD 0).
+  pruebas:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      E2E_HOME: ${{ github.workspace }}/.e2e-local
+      E2E_PGPORT: "55532"
+      CI: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - name: Dependencias del sistema
+        run: |
+          sudo apt-get -o Acquire::Retries=3 update -q
+          sudo apt-get install -yq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -yq postgresql-17 ffmpeg xz-utils
+          sudo systemctl stop postgresql || true
+          echo "PG_BIN=/usr/lib/postgresql/17/bin" >> "$GITHUB_ENV"
+      - run: npm ci --no-audit --no-fund
+      - name: Pruebas unitarias del módulo
+        run: node --import tsx --test --test-concurrency=1 src/lib/mystery-shopper/ms2.test.ts src/lib/mystery-shopper/mystery-shopper.test.ts src/lib/mystery-shopper/media.test.ts src/app/dashboard/command-center/mystery-shopper/panel.test.tsx
+      - name: Arnés local
+        run: bash scripts/harness/e2e/infra/setup.sh
+      - name: E2E autenticado (panel → trabajo → worker → informe)
+        run: |
+          set -o pipefail
+          bash scripts/harness/e2e/mystery-shopper/run.sh ci 2>&1 | tee ms-e2e.log
+          grep -Eq '^RESULTADO ([0-9]+)/\1 PASS$' ms-e2e.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mystery-shopper-e2e
+          retention-days: 14
+          path: |
+            ms-e2e.log
+            .e2e-local/out/mystery-shopper
+          if-no-files-found: ignore

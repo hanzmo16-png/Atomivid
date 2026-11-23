@@ -1,0 +1,482 @@
+{
+  "version": "mystery-shopper-1.0",
+  "id": "fixture-4a14b36e83e4-audio-flannan",
+  "idempotencyKey": "fixture-4a14b36e83e4-audio-flannan",
+  "mode": "fixture",
+  "fixtureLabeled": true,
+  "status": "TERMINADA",
+  "stage": "Informe listo",
+  "sha": "4a14b36e83e4e9aca9c9f9511f7dc6bbd5c817e8",
+  "environment": "harness-local",
+  "product": "audio-podcast",
+  "profile": "principiante",
+  "missionId": "audio-flannan",
+  "instructions": "Islas Flannan, en español, 10 minutos, 2 voces y música ambiental.",
+  "startedAt": "2026-11-23T16:30:12.844Z",
+  "finishedAt": "2026-11-23T16:30:12.844Z",
+  "elapsedMs": 0,
+  "spendUsd": 0,
+  "maxBudgetUsd": 0,
+  "steps": [
+    {
+      "step": 1,
+      "name": "Acceder al entorno",
+      "status": "ok",
+      "screen": "Arnés",
+      "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center ¿Qué quieres crear hoy? Elige un producto en el menú principal. Todo lo que hay aquí es FIXTURE.",
+      "detail": "Se abrió el arnés local marcado FIXTURE.",
+      "clicks": 1,
+      "fields": 0,
+      "decisions": 0
+    },
+    {
+      "step": 2,
+      "name": "Iniciar sesión",
+      "status": "ok",
+      "screen": "Iniciar sesión",
+      "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Iniciar sesión Cuenta de prueba del arnés, marcada como fixture. No sirve en ATOMIVID real. Correo o contraseña incorrect",
+      "detail": "Primero falló la clave y después entró la cuenta fixture.",
+      "clicks": 1,
+      "fields": 0,
+      "decisions": 0
+    },
+    {
+      "step": 3,
+      "name": "Entrar desde el menú y encontrar el producto",
+      "status": "ok",
+      "screen": "Menú principal",
+      "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Studio Podcast solo audio. Una o dos voces, música ambiental y presupuesto visible. Nada se cobra en este f",
+      "detail": "Audio Podcast está en el menú principal.",
+      "clicks": 1,
+      "fields": 0,
+      "decisions": 0
+    },
+    {
+      "step": 4,
+      "name": "Crear un proyecto desde cero",
+      "status": "ok",
+      "screen": "Audio Podcast Studio",
+      "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flann",
+      "detail": "El episodio se creó una sola vez.",
+      "clicks": 1,
+      "fields": 0,
+      "decisions": 0
+    },
+    {
+      "step": 5,
+      "name": "Escribir las instrucciones",
+      "status": "ok",
+      "screen": "Audio Podcast Studio",
+      "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flann",
+      "detail": "Las instrucciones de Islas Flannan quedaron visibles.",
+      "clicks": 1,
+      "fields": 0,
+      "decisions": 0
+    },
+    {
+      "step": 6,
+      "name": "Elegir la configuración",
+      "status": "ok",
+      "screen": "Audio Podcast Studio",
+      "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flann",
+      "detail": "Español, dos voces y música ambiental.",
+      "clicks": 1,
+      "fields": 0,
+      "decisions": 0
+    },
+    {
+      "step": 7,
+      "name": "Validar el presupuesto",
+      "status": "ok",
+      "screen": "Audio Podcast Studio",
+      "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flann",
+      "detail": "El cliente ve USD 0.00.",
+      "clicks": 1,
+      "fields": 0,
+      "decisions": 0
+    },
+    {
+      "step": 8,
+      "name": "Generar",
+      "status": "ok",
+      "screen": "Audio Podcast Studio",
+      "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flann",
+      "detail": "No se pulsó el proveedor. Se usó el MP3 fixture ya generado.",
+      "clicks": 1,
+      "fields": 0,
+      "decisions": 0
+    },
+    {
+      "step": 9,
+      "name": "Observar el progreso",
+      "status": "ok",
+      "screen": "Audio Podcast Studio",
+      "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flann",
+      "detail": "El estado visible dice que el archivo de prueba está listo.",
+      "clicks": 1,
+      "fields": 0,
+      "decisions": 0
+    },
+    {
+      "step": 10,
+      "name": "Esperar a que termine o falle",
+      "status": "ok",
+      "screen": "Audio Podcast Studio",
+      "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flann",
+      "detail": "El archivo fixture ya estaba terminado.",
+      "clicks": 1,
+      "fields": 0,
+      "decisions": 0
+    },
+    {
+      "step": 11,
+      "name": "Inspeccionar el resultado",
+      "status": "ok",
+      "screen": "Audio Podcast Studio",
+      "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flann",
+      "detail": "Descarga ofrecida: flannan-fixture.mp3",
+      "clicks": 1,
+      "fields": 0,
+      "decisions": 0
+    },
+    {
+      "step": 12,
+      "name": "Reproducirlo",
+      "status": "ok",
+      "screen": "Audio Podcast Studio",
+      "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flann",
+      "detail": "Hay un reproductor de audio visible.",
+      "clicks": 1,
+      "fields": 0,
+      "decisions": 0
+    },
+    {
+      "step": 13,
+      "name": "Descargarlo",
+      "status": "ok",
+      "screen": "Audio Podcast Studio",
+      "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flann",
+      "detail": "flannan-fixture.mp3",
+      "clicks": 1,
+      "fields": 0,
+      "decisions": 0
+    },
+    {
+      "step": 14,
+      "name": "Verificar su integridad",
+      "status": "ok",
+      "screen": "Archivo",
+      "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flann",
+      "detail": "La verificación ffprobe la hace el worker sobre el archivo descargado.",
+      "clicks": 1,
+      "fields": 0,
+      "decisions": 0
+    },
+    {
+      "step": 15,
+      "name": "Guardar y recuperar el proyecto",
+      "status": "ok",
+      "screen": "Biblioteca",
+      "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Biblioteca Proyectos de esta sesión fixture. No se borró nada de una biblioteca real. Islas Flannan FIXTURE · Descargar M",
+      "detail": "El episodio sigue en la biblioteca.",
+      "clicks": 1,
+      "fields": 0,
+      "decisions": 0
+    },
+    {
+      "step": 16,
+      "name": "Evaluar la experiencia",
+      "status": "ok",
+      "screen": "Audio Podcast Studio",
+      "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flann",
+      "detail": "El recorrido fixture terminó.",
+      "clicks": 1,
+      "fields": 0,
+      "decisions": 0
+    }
+  ],
+  "findings": [
+    {
+      "product": "audio-podcast",
+      "screen": "Audio Podcast Studio",
+      "profile": "principiante",
+      "evidence": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flannan FIXTURE. FIXTURE. Instrucciones: Islas Flannan, en español, 10 minutos, 2 voces y música ambienta",
+      "problem": "Aparecen términos técnicos (MP3) en una pantalla que el principiante tiene que usar para obtener el video.",
+      "severity": "P2",
+      "proposal": "Sustituir cada término por lo que la persona obtiene, y dejar el detalle técnico en un texto secundario.",
+      "benefit": "El principiante puede terminar sin saber qué es un códec o un contenedor.",
+      "complexity": "baja",
+      "fact": "En «Audio Podcast Studio» el texto visible incluye: MP3.",
+      "interpretation": "Quien solo quiere poner un tema y obtener un video puede frenarse en esa pantalla.",
+      "recommendation": "Reescribir esas etiquetas en lenguaje de resultado.",
+      "id": "audio-podcast-P2-1",
+      "state": "abierto"
+    },
+    {
+      "product": "audio-podcast",
+      "screen": "Audio Podcast Studio",
+      "profile": "impaciente",
+      "evidence": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flannan FIXTURE. FIXTURE. Instrucciones: Islas Flannan, en español, 10 minutos, 2 voces y música ambienta",
+      "problem": "En el ancho del celular hay contenido cortado o controles que no se pueden pulsar.",
+      "severity": "P1",
+      "proposal": "Apilar el contenido en una columna y mantener los botones a 44 px.",
+      "benefit": "El recorrido se puede terminar con una mano.",
+      "complexity": "media",
+      "fact": "En «Audio Podcast Studio» el recorrido móvil marcó la pantalla como no usable.",
+      "interpretation": "Quien cambia de pantalla en el teléfono abandona si el control queda fuera.",
+      "recommendation": "Revisar esta pantalla a 390 px y a 412 px.",
+      "id": "audio-podcast-P1-2",
+      "state": "abierto"
+    },
+    {
+      "product": "audio-podcast",
+      "screen": "Audio Podcast Studio en el celular",
+      "profile": "impaciente",
+      "evidence": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flannan FIXTURE. FIXTURE. Instrucciones: Islas Flannan, en español, 10 minutos, 2 voces y música ambienta",
+      "problem": "En el ancho del celular hay contenido cortado o controles que no se pueden pulsar.",
+      "severity": "P1",
+      "proposal": "Apilar el contenido en una columna y mantener los botones a 44 px.",
+      "benefit": "El recorrido se puede terminar con una mano.",
+      "complexity": "media",
+      "fact": "En «Audio Podcast Studio en el celular» el recorrido móvil marcó la pantalla como no usable.",
+      "interpretation": "Quien cambia de pantalla en el teléfono abandona si el control queda fuera.",
+      "recommendation": "Revisar esta pantalla a 390 px y a 412 px.",
+      "id": "audio-podcast-P1-3",
+      "state": "abierto"
+    },
+    {
+      "product": "audio-podcast",
+      "screen": "Audio Podcast Studio",
+      "profile": "impaciente",
+      "evidence": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flannan FIXTURE. FIXTURE. Instrucciones: Islas Flannan, en español, 10 minutos, 2 voces y música ambienta",
+      "problem": "En el ancho del celular hay contenido cortado o controles que no se pueden pulsar.",
+      "severity": "P1",
+      "proposal": "Apilar el contenido en una columna y mantener los botones a 44 px.",
+      "benefit": "El recorrido se puede terminar con una mano.",
+      "complexity": "media",
+      "fact": "En «Audio Podcast Studio» el recorrido móvil marcó la pantalla como no usable.",
+      "interpretation": "Quien cambia de pantalla en el teléfono abandona si el control queda fuera.",
+      "recommendation": "Revisar esta pantalla a 390 px y a 412 px.",
+      "id": "audio-podcast-P1-4",
+      "state": "abierto"
+    },
+    {
+      "product": "library",
+      "screen": "Biblioteca",
+      "profile": "impaciente",
+      "evidence": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Biblioteca Proyectos de esta sesión fixture. No se borró nada de una biblioteca real. Islas Flannan FIXTURE · Descargar MP3 Islas Flannan FIXTURE FIXTURE El episodio de prueba sigue aquí después de salir y volver.",
+      "problem": "En el ancho del celular hay contenido cortado o controles que no se pueden pulsar.",
+      "severity": "P1",
+      "proposal": "Apilar el contenido en una columna y mantener los botones a 44 px.",
+      "benefit": "El recorrido se puede terminar con una mano.",
+      "complexity": "media",
+      "fact": "En «Biblioteca» el recorrido móvil marcó la pantalla como no usable.",
+      "interpretation": "Quien cambia de pantalla en el teléfono abandona si el control queda fuera.",
+      "recommendation": "Revisar esta pantalla a 390 px y a 412 px.",
+      "id": "library-P1-5",
+      "state": "abierto"
+    },
+    {
+      "product": "account-nav",
+      "screen": "Facturación",
+      "profile": "impaciente",
+      "evidence": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Facturación Presupuesto de esta evaluación: USD 0.00. No hay un cobro en curso. La cuenta fixture no tiene suscripción real.",
+      "problem": "En el ancho del celular hay contenido cortado o controles que no se pueden pulsar.",
+      "severity": "P1",
+      "proposal": "Apilar el contenido en una columna y mantener los botones a 44 px.",
+      "benefit": "El recorrido se puede terminar con una mano.",
+      "complexity": "media",
+      "fact": "En «Facturación» el recorrido móvil marcó la pantalla como no usable.",
+      "interpretation": "Quien cambia de pantalla en el teléfono abandona si el control queda fuera.",
+      "recommendation": "Revisar esta pantalla a 390 px y a 412 px.",
+      "id": "account-nav-P1-6",
+      "state": "abierto"
+    }
+  ],
+  "scores": [
+    {
+      "product": "audio-podcast",
+      "ease": 95,
+      "functionality": 100,
+      "quality": 100,
+      "costTransparency": 100,
+      "mobile": 30,
+      "weighted": 91.5,
+      "criticalBlock": null
+    },
+    {
+      "product": "video-podcast",
+      "ease": 100,
+      "functionality": 100,
+      "quality": 100,
+      "costTransparency": 100,
+      "mobile": 30,
+      "weighted": 93,
+      "criticalBlock": null
+    },
+    {
+      "product": "reels",
+      "ease": 100,
+      "functionality": 100,
+      "quality": 100,
+      "costTransparency": 100,
+      "mobile": 30,
+      "weighted": 93,
+      "criticalBlock": null
+    },
+    {
+      "product": "long-form",
+      "ease": 100,
+      "functionality": 100,
+      "quality": 100,
+      "costTransparency": 100,
+      "mobile": 30,
+      "weighted": 93,
+      "criticalBlock": null
+    },
+    {
+      "product": "youtube",
+      "ease": 100,
+      "functionality": 100,
+      "quality": 100,
+      "costTransparency": 100,
+      "mobile": 30,
+      "weighted": 93,
+      "criticalBlock": null
+    },
+    {
+      "product": "library",
+      "ease": 100,
+      "functionality": 100,
+      "quality": null,
+      "costTransparency": 100,
+      "mobile": 30,
+      "weighted": null,
+      "criticalBlock": null
+    },
+    {
+      "product": "account-nav",
+      "ease": 100,
+      "functionality": 100,
+      "quality": null,
+      "costTransparency": 100,
+      "mobile": 30,
+      "weighted": null,
+      "criticalBlock": null
+    },
+    {
+      "product": "command-center",
+      "ease": 100,
+      "functionality": 100,
+      "quality": null,
+      "costTransparency": 100,
+      "mobile": 30,
+      "weighted": null,
+      "criticalBlock": null
+    }
+  ],
+  "classifications": [
+    {
+      "product": "audio-podcast",
+      "availability": "CON_LIMITACIONES",
+      "evidence": "El MP3 es fixture y no dura 10 minutos. No se llamó a un proveedor de voz. En el celular un control quedó por debajo de 44 px o la página se desborda."
+    },
+    {
+      "product": "video-podcast",
+      "availability": "CON_LIMITACIONES",
+      "evidence": "Archivo fixture corto. No es un episodio de 5 minutos. La sincronización labial no se aprueba: no hay método medible. En el celular un control quedó por debajo de 44 px o la página se desborda."
+    },
+    {
+      "product": "reels",
+      "availability": "CON_LIMITACIONES",
+      "evidence": "Archivo fixture vertical de prueba. No dura 30 segundos de misión. En el celular un control quedó por debajo de 44 px o la página se desborda."
+    },
+    {
+      "product": "long-form",
+      "availability": "CON_LIMITACIONES",
+      "evidence": "Archivo fixture horizontal. No incluye capítulos reales ni 15 minutos. En el celular un control quedó por debajo de 44 px o la página se desborda."
+    },
+    {
+      "product": "youtube",
+      "availability": "CON_LIMITACIONES",
+      "evidence": "Solo borrador. Publicar y programar están deshabilitados. No hay subida. En el celular un control quedó por debajo de 44 px o la página se desborda."
+    },
+    {
+      "product": "library",
+      "availability": "CON_LIMITACIONES",
+      "evidence": "La biblioteca del arnés no es la Biblioteca de ATOMIVID. En el celular un control quedó por debajo de 44 px o la página se desborda."
+    },
+    {
+      "product": "command-center",
+      "availability": "CON_LIMITACIONES",
+      "evidence": "Esta pantalla no es el Command Center de ATOMIVID ni muestra datos reales. En el celular un control quedó por debajo de 44 px o la página se desborda."
+    },
+    {
+      "product": "account-nav",
+      "availability": "CON_LIMITACIONES",
+      "evidence": "La cuenta es fixture y local. No hay sesión real. En el celular un control quedó por debajo de 44 px o la página se desborda."
+    }
+  ],
+  "media": {
+    "path": "/tmp/mystery-shopper-1795451410328/flannan-fixture.mp3",
+    "labeledFixture": true,
+    "exists": true,
+    "container": "mp3",
+    "videoCodec": null,
+    "audioCodec": "mp3",
+    "durationSeconds": 2.16,
+    "width": null,
+    "height": null,
+    "aspect": null,
+    "fps": null,
+    "audioTracks": 1,
+    "silenceRanges": [],
+    "blackRanges": [],
+    "meanVolumeDb": -17.7,
+    "maxVolumeDb": -13.1,
+    "decodeErrors": [],
+    "frameSample": {
+      "extracted": false,
+      "bytes": 0,
+      "reason": "no aplica: el archivo no tiene video"
+    },
+    "lipSync": {
+      "approved": false,
+      "method": null,
+      "reason": "No hay un método medible de sincronización labial en Mystery Shopper 1.0. No se aprueba."
+    },
+    "technicalVerdict": "PASS",
+    "technicalNotes": [],
+    "subjective": "no evaluado"
+  },
+  "errors": [],
+  "recommendations": [
+    "Reescribir esas etiquetas en lenguaje de resultado.",
+    "Revisar esta pantalla a 390 px y a 412 px."
+  ],
+  "evidence": [
+    {
+      "label": "recuperación",
+      "note": "La contraseña incorrecta se rechazó y la sesión no se creó."
+    },
+    {
+      "label": "audio-390.png",
+      "note": "audio-390.png"
+    },
+    {
+      "label": "biblioteca",
+      "note": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Biblioteca Proyectos de esta sesión fixture. No se borró nada"
+    }
+  ],
+  "scope": "fixture-harness",
+  "realMode": {
+    "executed": false,
+    "code": "fixture",
+    "reason": "Modo gratuito. Gasto USD 0."
+  },
+  "liveProbe": {
+    "url": "https://atomivid.vercel.app/login",
+    "reached": true,
+    "detail": "HTTP 200. Se ve el inicio de sesión. No se escribió ninguna contraseña. Texto: Atomicvid Inicia sesión en tu cuenta Correo electrónico Contraseña ¿Olvidaste tu contraseña? Iniciar sesión ¿No tienes cuenta? Regístrate"
+  }
+}

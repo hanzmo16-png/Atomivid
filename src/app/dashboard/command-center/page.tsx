@@ -17,6 +17,8 @@ import { CommandCenterView } from "./CommandCenterView";
 import { SupplyAlertsView } from "./SupplyAlertsView";
 import { loadSupplyInbox } from "@/lib/command-center/supply-alerts";
 import { ConnectDrivePanel } from "./ConnectDrivePanel";
+import { MysteryShopperPanel } from "./mystery-shopper/MysteryShopperPanel";
+import { defaultCatalog } from "@/lib/mystery-shopper/catalog";
 import { driveConnectionStatus, driveWebConfig, supabaseDriveConnectionStore } from "@/lib/orchestrator/drive-web-connect";
 
 // OWNER/ADMIN only (same gate as the API). A normal user gets 404 so the page's existence is
@@ -41,5 +43,5 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
     driveConnectionStatus(supabaseDriveConnectionStore(client)),
   ]);
   const vm = buildViewModel({ data: overview.data as Parameters<typeof buildViewModel>[0]["data"], window, generatedAt: overview.generatedAt, youtubeConfigured: youtubeConfigured(process.env), pwaReady: fs.existsSync("public/icons/icon-192.png") });
-  return <CommandCenterView vm={vm} alerts={<><ConnectDrivePanel configured={driveConfigured(process.env)} connected={drive.connected} connectedAt={drive.connectedAt} result={typeof sp.drive === "string" ? sp.drive : undefined} /><ScriptConfigPanel config={scriptConfigSummary(process.env)} /><SupplyAlertsView inbox={inbox} window={window} /><SupplyPanel data={supply} /><FinancePanel data={obligations} /></>} />;
+  return <CommandCenterView vm={vm} alerts={<><MysteryShopperPanel catalog={defaultCatalog()} sha={process.env.VERCEL_GIT_COMMIT_SHA || "desconocido"} environment={process.env.VERCEL_ENV ? `vercel:${process.env.VERCEL_ENV}` : "local"} /><ConnectDrivePanel configured={driveConfigured(process.env)} connected={drive.connected} connectedAt={drive.connectedAt} result={typeof sp.drive === "string" ? sp.drive : undefined} /><ScriptConfigPanel config={scriptConfigSummary(process.env)} /><SupplyAlertsView inbox={inbox} window={window} /><SupplyPanel data={supply} /><FinancePanel data={obligations} /></>} />;
 }
