@@ -1,0 +1,2334 @@
+{
+  "journeys": [
+    {
+      "scope": "fixture-harness",
+      "missionId": "audio-flannan",
+      "sha": "94b6e82cba90c831d0ce878943087e1c32513e86",
+      "environment": "harness-local",
+      "baseUrl": "http://127.0.0.1:44737",
+      "steps": [
+        {
+          "step": 1,
+          "name": "Acceder al entorno",
+          "status": "ok",
+          "screen": "Arnés",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center ¿Qué quieres crear hoy? Elige un producto en el menú principal. Todo lo que hay aquí es FIXTURE.",
+          "detail": "Se abrió el arnés local marcado FIXTURE.",
+          "clicks": 1,
+          "fields": 0,
+          "decisions": 0
+        },
+        {
+          "step": 2,
+          "name": "Iniciar sesión",
+          "status": "ok",
+          "screen": "Iniciar sesión",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Iniciar sesión Cuenta de prueba del arnés, marcada como fixture. No sirve en ATOMIVID real. Correo o contraseña incorrect",
+          "detail": "Primero falló la clave y después entró la cuenta fixture.",
+          "clicks": 1,
+          "fields": 0,
+          "decisions": 0
+        },
+        {
+          "step": 3,
+          "name": "Entrar desde el menú y encontrar el producto",
+          "status": "ok",
+          "screen": "Menú principal",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Studio Podcast solo audio. Una o dos voces, música ambiental y presupuesto visible. Nada se cobra en este f",
+          "detail": "Audio Podcast está en el menú principal.",
+          "clicks": 1,
+          "fields": 0,
+          "decisions": 0
+        },
+        {
+          "step": 4,
+          "name": "Crear un proyecto desde cero",
+          "status": "ok",
+          "screen": "Audio Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flann",
+          "detail": "El episodio se creó una sola vez.",
+          "clicks": 1,
+          "fields": 0,
+          "decisions": 0
+        },
+        {
+          "step": 5,
+          "name": "Escribir las instrucciones",
+          "status": "ok",
+          "screen": "Audio Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flann",
+          "detail": "Las instrucciones de Islas Flannan quedaron visibles.",
+          "clicks": 1,
+          "fields": 0,
+          "decisions": 0
+        },
+        {
+          "step": 6,
+          "name": "Elegir la configuración",
+          "status": "ok",
+          "screen": "Audio Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flann",
+          "detail": "Español, dos voces y música ambiental.",
+          "clicks": 1,
+          "fields": 0,
+          "decisions": 0
+        },
+        {
+          "step": 7,
+          "name": "Validar el presupuesto",
+          "status": "ok",
+          "screen": "Audio Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flann",
+          "detail": "El cliente ve USD 0.00.",
+          "clicks": 1,
+          "fields": 0,
+          "decisions": 0
+        },
+        {
+          "step": 8,
+          "name": "Generar",
+          "status": "ok",
+          "screen": "Audio Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flann",
+          "detail": "No se pulsó el proveedor. Se usó el MP3 fixture ya generado.",
+          "clicks": 1,
+          "fields": 0,
+          "decisions": 0
+        },
+        {
+          "step": 9,
+          "name": "Observar el progreso",
+          "status": "ok",
+          "screen": "Audio Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flann",
+          "detail": "El estado visible dice que el archivo de prueba está listo.",
+          "clicks": 1,
+          "fields": 0,
+          "decisions": 0
+        },
+        {
+          "step": 10,
+          "name": "Esperar a que termine o falle",
+          "status": "ok",
+          "screen": "Audio Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flann",
+          "detail": "El archivo fixture ya estaba terminado.",
+          "clicks": 1,
+          "fields": 0,
+          "decisions": 0
+        },
+        {
+          "step": 11,
+          "name": "Inspeccionar el resultado",
+          "status": "ok",
+          "screen": "Audio Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flann",
+          "detail": "Descarga ofrecida: flannan-fixture.mp3",
+          "clicks": 1,
+          "fields": 0,
+          "decisions": 0
+        },
+        {
+          "step": 12,
+          "name": "Reproducirlo",
+          "status": "ok",
+          "screen": "Audio Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flann",
+          "detail": "Hay un reproductor de audio visible.",
+          "clicks": 1,
+          "fields": 0,
+          "decisions": 0
+        },
+        {
+          "step": 13,
+          "name": "Descargarlo",
+          "status": "ok",
+          "screen": "Audio Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flann",
+          "detail": "flannan-fixture.mp3",
+          "clicks": 1,
+          "fields": 0,
+          "decisions": 0
+        },
+        {
+          "step": 14,
+          "name": "Verificar su integridad",
+          "status": "ok",
+          "screen": "Archivo",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flann",
+          "detail": "La verificación ffprobe la hace el worker sobre el archivo descargado.",
+          "clicks": 1,
+          "fields": 0,
+          "decisions": 0
+        },
+        {
+          "step": 15,
+          "name": "Guardar y recuperar el proyecto",
+          "status": "ok",
+          "screen": "Biblioteca",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Biblioteca Proyectos de esta sesión fixture. No se borró nada de una biblioteca real. Islas Flannan FIXTURE · Descargar M",
+          "detail": "El episodio sigue en la biblioteca.",
+          "clicks": 1,
+          "fields": 0,
+          "decisions": 0
+        },
+        {
+          "step": 16,
+          "name": "Evaluar la experiencia",
+          "status": "ok",
+          "screen": "Audio Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flann",
+          "detail": "El recorrido fixture terminó.",
+          "clicks": 1,
+          "fields": 0,
+          "decisions": 0
+        }
+      ],
+      "screens": [
+        {
+          "clicks": 5,
+          "fields": 4,
+          "decisions": 3,
+          "costVisible": true,
+          "costLabel": "USD 0.00",
+          "technicalTerms": [
+            "MP3"
+          ],
+          "progressVisible": true,
+          "couldGenerate": true,
+          "couldSave": true,
+          "couldDownload": true,
+          "couldPlay": true,
+          "doubleClickSafe": true,
+          "mobileUsable": false,
+          "fixtureBadge": true,
+          "errorVisible": null,
+          "publishControl": null,
+          "scheduleControl": null,
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flannan FIXTURE. FIXTURE. Instrucciones: Islas Flannan, en español, 10 minutos, 2 voces y música ambiental. Presupuesto máximo: USD 0.00. No se cobra. Voces: dos. Música ambiental: incluida en el archivo de prueba. El MP3 ya está listo. El botón de generación real está apagado. El archivo de prueba se puede oír y descargar. Generar con proveedor Descargar MP3 Ver en la biblioteca Crear el mismo episodio otra vez",
+          "screen": "Audio Podcast Studio",
+          "product": "audio-podcast",
+          "profile": "principiante"
+        },
+        {
+          "clicks": 5,
+          "fields": 4,
+          "decisions": 3,
+          "costVisible": true,
+          "costLabel": "USD 0.00",
+          "technicalTerms": [],
+          "progressVisible": true,
+          "couldGenerate": true,
+          "couldSave": true,
+          "couldDownload": true,
+          "couldPlay": true,
+          "doubleClickSafe": true,
+          "mobileUsable": false,
+          "fixtureBadge": true,
+          "errorVisible": null,
+          "publishControl": null,
+          "scheduleControl": null,
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flannan FIXTURE. FIXTURE. Instrucciones: Islas Flannan, en español, 10 minutos, 2 voces y música ambiental. Presupuesto máximo: USD 0.00. No se cobra. Voces: dos. Música ambiental: incluida en el archivo de prueba. El MP3 ya está listo. El botón de generación real está apagado. El archivo de prueba se puede oír y descargar. Generar con proveedor Descargar MP3 Ver en la biblioteca Crear el mismo episodio otra vez",
+          "screen": "Audio Podcast Studio en el celular",
+          "product": "audio-podcast",
+          "profile": "impaciente"
+        },
+        {
+          "clicks": 5,
+          "fields": 4,
+          "decisions": 3,
+          "costVisible": true,
+          "costLabel": "USD 0.00",
+          "technicalTerms": [],
+          "progressVisible": true,
+          "couldGenerate": true,
+          "couldSave": true,
+          "couldDownload": true,
+          "couldPlay": true,
+          "doubleClickSafe": true,
+          "mobileUsable": false,
+          "fixtureBadge": true,
+          "errorVisible": null,
+          "publishControl": null,
+          "scheduleControl": null,
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Audio Podcast Archivo de prueba listo. FIXTURE. USD 0.00. Ya estaba creado. No se duplicó. Episodio guardado: Islas Flannan FIXTURE. FIXTURE. Instrucciones: Islas Flannan, en español, 10 minutos, 2 voces y música ambiental. Presupuesto máximo: USD 0.00. No se cobra. Voces: dos. Música ambiental: incluida en el archivo de prueba. El MP3 ya está listo. El botón de generación real está apagado. El archivo de prueba se puede oír y descargar. Generar con proveedor Descargar MP3 Ver en la biblioteca Crear el mismo episodio otra vez",
+          "screen": "Audio Podcast Studio",
+          "product": "audio-podcast",
+          "profile": "creador"
+        },
+        {
+          "clicks": 0,
+          "fields": 3,
+          "decisions": 2,
+          "costVisible": true,
+          "costLabel": "USD 0.00",
+          "technicalTerms": [],
+          "progressVisible": true,
+          "couldGenerate": true,
+          "couldSave": null,
+          "couldDownload": true,
+          "couldPlay": true,
+          "doubleClickSafe": true,
+          "mobileUsable": false,
+          "fixtureBadge": true,
+          "errorVisible": null,
+          "publishControl": "ausente",
+          "scheduleControl": "ausente",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Video Podcast Studio Océano profundo, en español, 5 minutos, 2 presentadores, estilo documental. Presupuesto máximo: USD 0.00. Archivo de prueba listo. FIXTURE. Generar con un proveedor está apagado. Este archivo no afirma cumplir la duración de la misión. Generar con proveedor Descargar oceano-fixture.mp4 Ver en la biblioteca",
+          "screen": "Video Podcast Studio",
+          "product": "video-podcast",
+          "profile": "profesional"
+        },
+        {
+          "clicks": 0,
+          "fields": 3,
+          "decisions": 2,
+          "costVisible": true,
+          "costLabel": "USD 0.00",
+          "technicalTerms": [],
+          "progressVisible": true,
+          "couldGenerate": true,
+          "couldSave": null,
+          "couldDownload": true,
+          "couldPlay": true,
+          "doubleClickSafe": true,
+          "mobileUsable": false,
+          "fixtureBadge": true,
+          "errorVisible": null,
+          "publishControl": "ausente",
+          "scheduleControl": "ausente",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Reels Studio Tres misterios del universo, en inglés, 30 segundos, vertical 9:16. Presupuesto máximo: USD 0.00. Archivo de prueba listo. FIXTURE. Generar con un proveedor está apagado. Este archivo no afirma cumplir la duración de la misión. Generar con proveedor Descargar reel-universo-fixture.mp4 Ver en la biblioteca",
+          "screen": "Reels Studio",
+          "product": "reels",
+          "profile": "creador"
+        },
+        {
+          "clicks": 0,
+          "fields": 3,
+          "decisions": 2,
+          "costVisible": true,
+          "costLabel": "USD 0.00",
+          "technicalTerms": [],
+          "progressVisible": true,
+          "couldGenerate": true,
+          "couldSave": null,
+          "couldDownload": true,
+          "couldPlay": true,
+          "doubleClickSafe": true,
+          "mobileUsable": false,
+          "fixtureBadge": true,
+          "errorVisible": null,
+          "publishControl": "ausente",
+          "scheduleControl": "ausente",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Long Form Studio Líneas de Nazca, en español, 15 minutos, horizontal 16:9, con capítulos y metadatos. Presupuesto máximo: USD 0.00. Archivo de prueba listo. FIXTURE. Generar con un proveedor está apagado. Este archivo no afirma cumplir la duración de la misión. Generar con proveedor Descargar nazca-fixture.mp4 Ver en la biblioteca",
+          "screen": "Long Form Studio",
+          "product": "long-form",
+          "profile": "profesional"
+        },
+        {
+          "clicks": 0,
+          "fields": 3,
+          "decisions": 2,
+          "costVisible": true,
+          "costLabel": "USD 0.00",
+          "technicalTerms": [],
+          "progressVisible": true,
+          "couldGenerate": true,
+          "couldSave": true,
+          "couldDownload": null,
+          "couldPlay": null,
+          "doubleClickSafe": true,
+          "mobileUsable": false,
+          "fixtureBadge": true,
+          "errorVisible": null,
+          "publishControl": "deshabilitado",
+          "scheduleControl": "deshabilitado",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center YouTube Studio Usa un video ATOMIVID ya autorizado. Esta evaluación no publica ni programa. Video Video autorizado FIXTURE Título Descripción Etiquetas Miniatura: vista previa del fotograma fixture. No se sube nada. Privacidad Privado Vista previa del borrador. Sigue en privado. Prohibido publicar o programar en esta evaluación. Publicar Programar",
+          "screen": "YouTube Studio",
+          "product": "youtube",
+          "profile": "profesional"
+        },
+        {
+          "clicks": 0,
+          "fields": 3,
+          "decisions": 2,
+          "costVisible": true,
+          "costLabel": "USD 0.00",
+          "technicalTerms": [],
+          "progressVisible": true,
+          "couldGenerate": null,
+          "couldSave": true,
+          "couldDownload": true,
+          "couldPlay": null,
+          "doubleClickSafe": true,
+          "mobileUsable": false,
+          "fixtureBadge": true,
+          "errorVisible": null,
+          "publishControl": "ausente",
+          "scheduleControl": "ausente",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Biblioteca Proyectos de esta sesión fixture. No se borró nada de una biblioteca real. Islas Flannan FIXTURE · Descargar MP3 Islas Flannan FIXTURE FIXTURE El episodio de prueba sigue aquí después de salir y volver.",
+          "screen": "Biblioteca",
+          "product": "library",
+          "profile": "creador"
+        },
+        {
+          "clicks": 0,
+          "fields": 3,
+          "decisions": 2,
+          "costVisible": true,
+          "costLabel": "USD 0.00",
+          "technicalTerms": [],
+          "progressVisible": true,
+          "couldGenerate": null,
+          "couldSave": null,
+          "couldDownload": null,
+          "couldPlay": null,
+          "doubleClickSafe": true,
+          "mobileUsable": false,
+          "fixtureBadge": true,
+          "errorVisible": null,
+          "publishControl": "ausente",
+          "scheduleControl": "ausente",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Facturación Presupuesto de esta evaluación: USD 0.00. No hay un cobro en curso. La cuenta fixture no tiene suscripción real.",
+          "screen": "Facturación",
+          "product": "account-nav",
+          "profile": "principiante"
+        },
+        {
+          "clicks": 0,
+          "fields": 3,
+          "decisions": 2,
+          "costVisible": true,
+          "costLabel": "USD 0.00",
+          "technicalTerms": [],
+          "progressVisible": true,
+          "couldGenerate": null,
+          "couldSave": null,
+          "couldDownload": null,
+          "couldPlay": null,
+          "doubleClickSafe": true,
+          "mobileUsable": false,
+          "fixtureBadge": true,
+          "errorVisible": null,
+          "publishControl": "ausente",
+          "scheduleControl": "ausente",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Command Center FIXTURE. El Command Center de ATOMIVID solo lo abre el dueño. Esta pantalla no muestra saldos, proyectos ni el ledger reales. Mystery Shopper AI vive en el Command Center real, no en este arnés.",
+          "screen": "Command Center",
+          "product": "command-center",
+          "profile": "profesional"
+        }
+      ],
+      "products": [
+        {
+          "product": "audio-podcast",
+          "seenInMenu": true,
+          "opened": true,
+          "menuLabel": "Audio Podcast Studio",
+          "limitations": [
+            "El MP3 es fixture y no dura 10 minutos.",
+            "No se llamó a un proveedor de voz.",
+            "En el celular un control quedó por debajo de 44 px o la página se desborda."
+          ],
+          "blockedReason": null,
+          "completedFreeFlow": true
+        },
+        {
+          "product": "video-podcast",
+          "seenInMenu": true,
+          "opened": true,
+          "menuLabel": "Video Podcast Studio",
+          "limitations": [
+            "Archivo fixture corto. No es un episodio de 5 minutos.",
+            "La sincronización labial no se aprueba: no hay método medible.",
+            "En el celular un control quedó por debajo de 44 px o la página se desborda."
+          ],
+          "blockedReason": null,
+          "completedFreeFlow": true
+        },
+        {
+          "product": "reels",
+          "seenInMenu": true,
+          "opened": true,
+          "menuLabel": "Reels Studio",
+          "limitations": [
+            "Archivo fixture vertical de prueba. No dura 30 segundos de misión.",
+            "En el celular un control quedó por debajo de 44 px o la página se desborda."
+          ],
+          "blockedReason": null,
+          "completedFreeFlow": true
+        },
+        {
+          "product": "long-form",
+          "seenInMenu": true,
+          "opened": true,
+          "menuLabel": "Long Form Studio",
+          "limitations": [
+            "Archivo fixture horizontal. No incluye capítulos reales ni 15 minutos.",
+            "En el celular un control quedó por debajo de 44 px o la página se desborda."
+          ],
+          "blockedReason": null,
+          "completedFreeFlow": true
+        },
+        {
+          "product": "youtube",
+          "seenInMenu": true,
+          "opened": true,
+          "menuLabel": "YouTube Studio",
+          "limitations": [
+            "Solo borrador. Publicar y programar están deshabilitados. No hay subida.",
+            "En el celular un control quedó por debajo de 44 px o la página se desborda."
+          ],
+          "blockedReason": null,
+          "completedFreeFlow": true
+        },
+        {
+          "product": "library",
+          "seenInMenu": true,
+          "opened": true,
+          "menuLabel": "Biblioteca",
+          "limitations": [
+            "La biblioteca del arnés no es la Biblioteca de ATOMIVID.",
+            "En el celular un control quedó por debajo de 44 px o la página se desborda."
+          ],
+          "blockedReason": null,
+          "completedFreeFlow": true
+        },
+        {
+          "product": "account-nav",
+          "seenInMenu": true,
+          "opened": true,
+          "menuLabel": "Facturación",
+          "limitations": [
+            "La cuenta es fixture y local. No hay sesión real.",
+            "En el celular un control quedó por debajo de 44 px o la página se desborda."
+          ],
+          "blockedReason": null,
+          "completedFreeFlow": true
+        },
+        {
+          "product": "command-center",
+          "seenInMenu": true,
+          "opened": true,
+          "menuLabel": "Command Center",
+          "limitations": [
+            "Esta pantalla no es el Command Center de ATOMIVID ni muestra datos reales.",
+            "En el celular un control quedó por debajo de 44 px o la página se desborda."
+          ],
+          "blockedReason": null,
+          "completedFreeFlow": true
+        }
+      ],
+      "media": {
+        "path": "/tmp/mystery-shopper-1795451339484/flannan-fixture.mp3",
+        "labeledFixture": true,
+        "exists": true,
+        "container": "mp3",
+        "videoCodec": null,
+        "audioCodec": "mp3",
+        "durationSeconds": 2.16,
+        "width": null,
+        "height": null,
+        "aspect": null,
+        "fps": null,
+        "audioTracks": 1,
+        "silenceRanges": [],
+        "blackRanges": [],
+        "meanVolumeDb": -17.7,
+        "maxVolumeDb": -13.1,
+        "decodeErrors": [],
+        "frameSample": {
+          "extracted": false,
+          "bytes": 0,
+          "reason": "no aplica: el archivo no tiene video"
+        },
+        "lipSync": {
+          "approved": false,
+          "method": null,
+          "reason": "No hay un método medible de sincronización labial en Mystery Shopper 1.0. No se aprueba."
+        },
+        "technicalVerdict": "PASS",
+        "technicalNotes": [],
+        "subjective": "no evaluado"
+      },
+      "mediaByProduct": {
+        "audio-podcast": {
+          "path": "/tmp/mystery-shopper-1795451339484/flannan-fixture.mp3",
+          "labeledFixture": true,
+          "exists": true,
+          "container": "mp3",
+          "videoCodec": null,
+          "audioCodec": "mp3",
+          "durationSeconds": 2.16,
+          "width": null,
+          "height": null,
+          "aspect": null,
+          "fps": null,
+          "audioTracks": 1,
+          "silenceRanges": [],
+          "blackRanges": [],
+          "meanVolumeDb": -17.7,
+          "maxVolumeDb": -13.1,
+          "decodeErrors": [],
+          "frameSample": {
+            "extracted": false,
+            "bytes": 0,
+            "reason": "no aplica: el archivo no tiene video"
+          },
+          "lipSync": {
+            "approved": false,
+            "method": null,
+            "reason": "No hay un método medible de sincronización labial en Mystery Shopper 1.0. No se aprueba."
+          },
+          "technicalVerdict": "PASS",
+          "technicalNotes": [],
+          "subjective": "no evaluado"
+        },
+        "video-podcast": {
+          "path": "/tmp/mystery-shopper-1795451339484/oceano-fixture.mp4",
+          "labeledFixture": true,
+          "exists": true,
+          "container": "mov,mp4,m4a,3gp,3g2,mj2",
+          "videoCodec": "h264",
+          "audioCodec": "aac",
+          "durationSeconds": 2,
+          "width": 320,
+          "height": 180,
+          "aspect": "16:9",
+          "fps": 10,
+          "audioTracks": 1,
+          "silenceRanges": [],
+          "blackRanges": [],
+          "meanVolumeDb": -17.9,
+          "maxVolumeDb": -14.7,
+          "decodeErrors": [],
+          "frameSample": {
+            "extracted": true,
+            "bytes": 630,
+            "reason": null
+          },
+          "lipSync": {
+            "approved": false,
+            "method": null,
+            "reason": "No hay un método medible de sincronización labial en Mystery Shopper 1.0. No se aprueba."
+          },
+          "technicalVerdict": "PASS",
+          "technicalNotes": [],
+          "subjective": "no evaluado"
+        },
+        "reels": {
+          "path": "/tmp/mystery-shopper-1795451339484/reel-fixture.mp4",
+          "labeledFixture": true,
+          "exists": true,
+          "container": "mov,mp4,m4a,3gp,3g2,mj2",
+          "videoCodec": "h264",
+          "audioCodec": "aac",
+          "durationSeconds": 2,
+          "width": 180,
+          "height": 320,
+          "aspect": "9:16",
+          "fps": 10,
+          "audioTracks": 1,
+          "silenceRanges": [],
+          "blackRanges": [],
+          "meanVolumeDb": -17.9,
+          "maxVolumeDb": -14.7,
+          "decodeErrors": [],
+          "frameSample": {
+            "extracted": true,
+            "bytes": 833,
+            "reason": null
+          },
+          "lipSync": {
+            "approved": false,
+            "method": null,
+            "reason": "No hay un método medible de sincronización labial en Mystery Shopper 1.0. No se aprueba."
+          },
+          "technicalVerdict": "PASS",
+          "technicalNotes": [],
+          "subjective": "no evaluado"
+        },
+        "long-form": {
+          "path": "/tmp/mystery-shopper-1795451339484/nazca-fixture.mp4",
+          "labeledFixture": true,
+          "exists": true,
+          "container": "mov,mp4,m4a,3gp,3g2,mj2",
+          "videoCodec": "h264",
+          "audioCodec": "aac",
+          "durationSeconds": 2,
+          "width": 320,
+          "height": 180,
+          "aspect": "16:9",
+          "fps": 10,
+          "audioTracks": 1,
+          "silenceRanges": [],
+          "blackRanges": [],
+          "meanVolumeDb": -17.9,
+          "maxVolumeDb": -14.7,
+          "decodeErrors": [],
+          "frameSample": {
+            "extracted": true,
+            "bytes": 630,
+            "reason": null
+          },
+          "lipSync": {
+            "approved": false,
+            "method": null,
+            "reason": "No hay un método medible de sincronización labial en Mystery Shopper 1.0. No se aprueba."
+          },
+          "technicalVerdict": "PASS",
+          "technicalNotes": [],
+          "subjective": "no evaluado"
+        }
+      },
+      "spendUsd": 0,
+      "evidence": [
+        {
+          "label": "recuperación",
+          "note": "La contraseña incorrecta se rechazó y la sesión no se creó."
+        },
+        {
+          "label": "audio-390.png",
+          "note": "audio-390.png"
+        },
+        {
+          "label": "biblioteca",
+          "note": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Biblioteca Proyectos de esta sesión fixture. No se borró nada"
+        }
+      ],
+      "errors": [],
+      "liveProbe": {
+        "url": "https://atomivid.vercel.app/login",
+        "reached": true,
+        "detail": "HTTP 200. Se ve el inicio de sesión. No se escribió ninguna contraseña. Texto: Atomicvid Inicia sesión en tu cuenta Correo electrónico Contraseña ¿Olvidaste tu contraseña? Iniciar sesión ¿No tienes cuenta? Regístrate"
+      }
+    },
+    {
+      "scope": "fixture-harness",
+      "missionId": "video-oceano",
+      "sha": "94b6e82cba90c831d0ce878943087e1c32513e86",
+      "environment": "harness-local",
+      "baseUrl": "http://127.0.0.1:44737",
+      "steps": [
+        {
+          "step": 1,
+          "name": "Acceder al entorno",
+          "status": "ok",
+          "screen": "Video Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Video Podcast Studio Océano profundo, en español, 5 minutos, 2 presentadores, estilo documental. Presupuesto máximo: USD ",
+          "detail": "Recorrido fixture del video. Sin proveedor.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 2,
+          "name": "Iniciar sesión",
+          "status": "ok",
+          "screen": "Video Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Video Podcast Studio Océano profundo, en español, 5 minutos, 2 presentadores, estilo documental. Presupuesto máximo: USD ",
+          "detail": "Recorrido fixture del video. Sin proveedor.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 3,
+          "name": "Entrar desde el menú y encontrar el producto",
+          "status": "ok",
+          "screen": "Video Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Video Podcast Studio Océano profundo, en español, 5 minutos, 2 presentadores, estilo documental. Presupuesto máximo: USD ",
+          "detail": "Recorrido fixture del video. Sin proveedor.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 4,
+          "name": "Crear un proyecto desde cero",
+          "status": "ok",
+          "screen": "Video Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Video Podcast Studio Océano profundo, en español, 5 minutos, 2 presentadores, estilo documental. Presupuesto máximo: USD ",
+          "detail": "Recorrido fixture del video. Sin proveedor.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 5,
+          "name": "Escribir las instrucciones",
+          "status": "ok",
+          "screen": "Video Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Video Podcast Studio Océano profundo, en español, 5 minutos, 2 presentadores, estilo documental. Presupuesto máximo: USD ",
+          "detail": "Recorrido fixture del video. Sin proveedor.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 6,
+          "name": "Elegir la configuración",
+          "status": "ok",
+          "screen": "Video Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Video Podcast Studio Océano profundo, en español, 5 minutos, 2 presentadores, estilo documental. Presupuesto máximo: USD ",
+          "detail": "Recorrido fixture del video. Sin proveedor.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 7,
+          "name": "Validar el presupuesto",
+          "status": "ok",
+          "screen": "Video Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Video Podcast Studio Océano profundo, en español, 5 minutos, 2 presentadores, estilo documental. Presupuesto máximo: USD ",
+          "detail": "Recorrido fixture del video. Sin proveedor.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 8,
+          "name": "Generar",
+          "status": "ok",
+          "screen": "Video Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Video Podcast Studio Océano profundo, en español, 5 minutos, 2 presentadores, estilo documental. Presupuesto máximo: USD ",
+          "detail": "Recorrido fixture del video. Sin proveedor.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 9,
+          "name": "Observar el progreso",
+          "status": "ok",
+          "screen": "Video Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Video Podcast Studio Océano profundo, en español, 5 minutos, 2 presentadores, estilo documental. Presupuesto máximo: USD ",
+          "detail": "Recorrido fixture del video. Sin proveedor.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 10,
+          "name": "Esperar a que termine o falle",
+          "status": "ok",
+          "screen": "Video Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Video Podcast Studio Océano profundo, en español, 5 minutos, 2 presentadores, estilo documental. Presupuesto máximo: USD ",
+          "detail": "Recorrido fixture del video. Sin proveedor.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 11,
+          "name": "Inspeccionar el resultado",
+          "status": "ok",
+          "screen": "Video Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Video Podcast Studio Océano profundo, en español, 5 minutos, 2 presentadores, estilo documental. Presupuesto máximo: USD ",
+          "detail": "Recorrido fixture del video. Sin proveedor.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 12,
+          "name": "Reproducirlo",
+          "status": "ok",
+          "screen": "Video Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Video Podcast Studio Océano profundo, en español, 5 minutos, 2 presentadores, estilo documental. Presupuesto máximo: USD ",
+          "detail": "Recorrido fixture del video. Sin proveedor.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 13,
+          "name": "Descargarlo",
+          "status": "ok",
+          "screen": "Video Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Video Podcast Studio Océano profundo, en español, 5 minutos, 2 presentadores, estilo documental. Presupuesto máximo: USD ",
+          "detail": "Recorrido fixture del video. Sin proveedor.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 14,
+          "name": "Verificar su integridad",
+          "status": "ok",
+          "screen": "Video Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Video Podcast Studio Océano profundo, en español, 5 minutos, 2 presentadores, estilo documental. Presupuesto máximo: USD ",
+          "detail": "Recorrido fixture del video. Sin proveedor.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 15,
+          "name": "Guardar y recuperar el proyecto",
+          "status": "ok",
+          "screen": "Video Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Video Podcast Studio Océano profundo, en español, 5 minutos, 2 presentadores, estilo documental. Presupuesto máximo: USD ",
+          "detail": "Recorrido fixture del video. Sin proveedor.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 16,
+          "name": "Evaluar la experiencia",
+          "status": "ok",
+          "screen": "Video Podcast Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Video Podcast Studio Océano profundo, en español, 5 minutos, 2 presentadores, estilo documental. Presupuesto máximo: USD ",
+          "detail": "Recorrido fixture del video. Sin proveedor.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        }
+      ],
+      "screens": [
+        {
+          "clicks": 0,
+          "fields": 3,
+          "decisions": 2,
+          "costVisible": true,
+          "costLabel": "USD 0.00",
+          "technicalTerms": [],
+          "progressVisible": true,
+          "couldGenerate": true,
+          "couldSave": null,
+          "couldDownload": true,
+          "couldPlay": true,
+          "doubleClickSafe": true,
+          "mobileUsable": false,
+          "fixtureBadge": true,
+          "errorVisible": null,
+          "publishControl": "ausente",
+          "scheduleControl": "ausente",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Video Podcast Studio Océano profundo, en español, 5 minutos, 2 presentadores, estilo documental. Presupuesto máximo: USD 0.00. Archivo de prueba listo. FIXTURE. Generar con un proveedor está apagado. Este archivo no afirma cumplir la duración de la misión. Generar con proveedor Descargar oceano-fixture.mp4 Ver en la biblioteca",
+          "screen": "Video Podcast Studio",
+          "product": "video-podcast",
+          "profile": "profesional"
+        }
+      ],
+      "products": [
+        {
+          "product": "video-podcast",
+          "seenInMenu": true,
+          "opened": true,
+          "menuLabel": "Video Podcast Studio",
+          "limitations": [
+            "Archivo fixture. Sincronización labial no aprobada.",
+            "En el celular un control quedó por debajo de 44 px o la página se desborda."
+          ],
+          "blockedReason": null,
+          "completedFreeFlow": true
+        }
+      ],
+      "media": {
+        "path": "/tmp/mystery-shopper-1795451339484/oceano-fixture.mp4",
+        "labeledFixture": true,
+        "exists": true,
+        "container": "mov,mp4,m4a,3gp,3g2,mj2",
+        "videoCodec": "h264",
+        "audioCodec": "aac",
+        "durationSeconds": 2,
+        "width": 320,
+        "height": 180,
+        "aspect": "16:9",
+        "fps": 10,
+        "audioTracks": 1,
+        "silenceRanges": [],
+        "blackRanges": [],
+        "meanVolumeDb": -17.9,
+        "maxVolumeDb": -14.7,
+        "decodeErrors": [],
+        "frameSample": {
+          "extracted": true,
+          "bytes": 630,
+          "reason": null
+        },
+        "lipSync": {
+          "approved": false,
+          "method": null,
+          "reason": "No hay un método medible de sincronización labial en Mystery Shopper 1.0. No se aprueba."
+        },
+        "technicalVerdict": "PASS",
+        "technicalNotes": [],
+        "subjective": "no evaluado"
+      },
+      "mediaByProduct": {
+        "audio-podcast": {
+          "path": "/tmp/mystery-shopper-1795451339484/flannan-fixture.mp3",
+          "labeledFixture": true,
+          "exists": true,
+          "container": "mp3",
+          "videoCodec": null,
+          "audioCodec": "mp3",
+          "durationSeconds": 2.16,
+          "width": null,
+          "height": null,
+          "aspect": null,
+          "fps": null,
+          "audioTracks": 1,
+          "silenceRanges": [],
+          "blackRanges": [],
+          "meanVolumeDb": -17.7,
+          "maxVolumeDb": -13.1,
+          "decodeErrors": [],
+          "frameSample": {
+            "extracted": false,
+            "bytes": 0,
+            "reason": "no aplica: el archivo no tiene video"
+          },
+          "lipSync": {
+            "approved": false,
+            "method": null,
+            "reason": "No hay un método medible de sincronización labial en Mystery Shopper 1.0. No se aprueba."
+          },
+          "technicalVerdict": "PASS",
+          "technicalNotes": [],
+          "subjective": "no evaluado"
+        },
+        "video-podcast": {
+          "path": "/tmp/mystery-shopper-1795451339484/oceano-fixture.mp4",
+          "labeledFixture": true,
+          "exists": true,
+          "container": "mov,mp4,m4a,3gp,3g2,mj2",
+          "videoCodec": "h264",
+          "audioCodec": "aac",
+          "durationSeconds": 2,
+          "width": 320,
+          "height": 180,
+          "aspect": "16:9",
+          "fps": 10,
+          "audioTracks": 1,
+          "silenceRanges": [],
+          "blackRanges": [],
+          "meanVolumeDb": -17.9,
+          "maxVolumeDb": -14.7,
+          "decodeErrors": [],
+          "frameSample": {
+            "extracted": true,
+            "bytes": 630,
+            "reason": null
+          },
+          "lipSync": {
+            "approved": false,
+            "method": null,
+            "reason": "No hay un método medible de sincronización labial en Mystery Shopper 1.0. No se aprueba."
+          },
+          "technicalVerdict": "PASS",
+          "technicalNotes": [],
+          "subjective": "no evaluado"
+        },
+        "reels": {
+          "path": "/tmp/mystery-shopper-1795451339484/reel-fixture.mp4",
+          "labeledFixture": true,
+          "exists": true,
+          "container": "mov,mp4,m4a,3gp,3g2,mj2",
+          "videoCodec": "h264",
+          "audioCodec": "aac",
+          "durationSeconds": 2,
+          "width": 180,
+          "height": 320,
+          "aspect": "9:16",
+          "fps": 10,
+          "audioTracks": 1,
+          "silenceRanges": [],
+          "blackRanges": [],
+          "meanVolumeDb": -17.9,
+          "maxVolumeDb": -14.7,
+          "decodeErrors": [],
+          "frameSample": {
+            "extracted": true,
+            "bytes": 833,
+            "reason": null
+          },
+          "lipSync": {
+            "approved": false,
+            "method": null,
+            "reason": "No hay un método medible de sincronización labial en Mystery Shopper 1.0. No se aprueba."
+          },
+          "technicalVerdict": "PASS",
+          "technicalNotes": [],
+          "subjective": "no evaluado"
+        },
+        "long-form": {
+          "path": "/tmp/mystery-shopper-1795451339484/nazca-fixture.mp4",
+          "labeledFixture": true,
+          "exists": true,
+          "container": "mov,mp4,m4a,3gp,3g2,mj2",
+          "videoCodec": "h264",
+          "audioCodec": "aac",
+          "durationSeconds": 2,
+          "width": 320,
+          "height": 180,
+          "aspect": "16:9",
+          "fps": 10,
+          "audioTracks": 1,
+          "silenceRanges": [],
+          "blackRanges": [],
+          "meanVolumeDb": -17.9,
+          "maxVolumeDb": -14.7,
+          "decodeErrors": [],
+          "frameSample": {
+            "extracted": true,
+            "bytes": 630,
+            "reason": null
+          },
+          "lipSync": {
+            "approved": false,
+            "method": null,
+            "reason": "No hay un método medible de sincronización labial en Mystery Shopper 1.0. No se aprueba."
+          },
+          "technicalVerdict": "PASS",
+          "technicalNotes": [],
+          "subjective": "no evaluado"
+        }
+      },
+      "spendUsd": 0,
+      "evidence": [
+        {
+          "label": "recuperación",
+          "note": "La contraseña incorrecta se rechazó y la sesión no se creó."
+        },
+        {
+          "label": "audio-390.png",
+          "note": "audio-390.png"
+        },
+        {
+          "label": "biblioteca",
+          "note": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Biblioteca Proyectos de esta sesión fixture. No se borró nada"
+        }
+      ],
+      "errors": [],
+      "liveProbe": {
+        "url": "https://atomivid.vercel.app/login",
+        "reached": true,
+        "detail": "HTTP 200. Se ve el inicio de sesión. No se escribió ninguna contraseña. Texto: Atomicvid Inicia sesión en tu cuenta Correo electrónico Contraseña ¿Olvidaste tu contraseña? Iniciar sesión ¿No tienes cuenta? Regístrate"
+      }
+    },
+    {
+      "scope": "fixture-harness",
+      "missionId": "reel-universo",
+      "sha": "94b6e82cba90c831d0ce878943087e1c32513e86",
+      "environment": "harness-local",
+      "baseUrl": "http://127.0.0.1:44737",
+      "steps": [
+        {
+          "step": 1,
+          "name": "Acceder al entorno",
+          "status": "ok",
+          "screen": "Reels Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Reels Studio Tres misterios del universo, en inglés, 30 segundos, vertical 9:16. Presupuesto máximo: USD 0.00. Archivo de",
+          "detail": "Recorrido fixture del reel.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 2,
+          "name": "Iniciar sesión",
+          "status": "ok",
+          "screen": "Reels Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Reels Studio Tres misterios del universo, en inglés, 30 segundos, vertical 9:16. Presupuesto máximo: USD 0.00. Archivo de",
+          "detail": "Recorrido fixture del reel.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 3,
+          "name": "Entrar desde el menú y encontrar el producto",
+          "status": "ok",
+          "screen": "Reels Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Reels Studio Tres misterios del universo, en inglés, 30 segundos, vertical 9:16. Presupuesto máximo: USD 0.00. Archivo de",
+          "detail": "Recorrido fixture del reel.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 4,
+          "name": "Crear un proyecto desde cero",
+          "status": "ok",
+          "screen": "Reels Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Reels Studio Tres misterios del universo, en inglés, 30 segundos, vertical 9:16. Presupuesto máximo: USD 0.00. Archivo de",
+          "detail": "Recorrido fixture del reel.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 5,
+          "name": "Escribir las instrucciones",
+          "status": "ok",
+          "screen": "Reels Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Reels Studio Tres misterios del universo, en inglés, 30 segundos, vertical 9:16. Presupuesto máximo: USD 0.00. Archivo de",
+          "detail": "Recorrido fixture del reel.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 6,
+          "name": "Elegir la configuración",
+          "status": "ok",
+          "screen": "Reels Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Reels Studio Tres misterios del universo, en inglés, 30 segundos, vertical 9:16. Presupuesto máximo: USD 0.00. Archivo de",
+          "detail": "Recorrido fixture del reel.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 7,
+          "name": "Validar el presupuesto",
+          "status": "ok",
+          "screen": "Reels Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Reels Studio Tres misterios del universo, en inglés, 30 segundos, vertical 9:16. Presupuesto máximo: USD 0.00. Archivo de",
+          "detail": "Recorrido fixture del reel.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 8,
+          "name": "Generar",
+          "status": "ok",
+          "screen": "Reels Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Reels Studio Tres misterios del universo, en inglés, 30 segundos, vertical 9:16. Presupuesto máximo: USD 0.00. Archivo de",
+          "detail": "Recorrido fixture del reel.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 9,
+          "name": "Observar el progreso",
+          "status": "ok",
+          "screen": "Reels Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Reels Studio Tres misterios del universo, en inglés, 30 segundos, vertical 9:16. Presupuesto máximo: USD 0.00. Archivo de",
+          "detail": "Recorrido fixture del reel.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 10,
+          "name": "Esperar a que termine o falle",
+          "status": "ok",
+          "screen": "Reels Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Reels Studio Tres misterios del universo, en inglés, 30 segundos, vertical 9:16. Presupuesto máximo: USD 0.00. Archivo de",
+          "detail": "Recorrido fixture del reel.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 11,
+          "name": "Inspeccionar el resultado",
+          "status": "ok",
+          "screen": "Reels Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Reels Studio Tres misterios del universo, en inglés, 30 segundos, vertical 9:16. Presupuesto máximo: USD 0.00. Archivo de",
+          "detail": "Recorrido fixture del reel.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 12,
+          "name": "Reproducirlo",
+          "status": "ok",
+          "screen": "Reels Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Reels Studio Tres misterios del universo, en inglés, 30 segundos, vertical 9:16. Presupuesto máximo: USD 0.00. Archivo de",
+          "detail": "Recorrido fixture del reel.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 13,
+          "name": "Descargarlo",
+          "status": "ok",
+          "screen": "Reels Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Reels Studio Tres misterios del universo, en inglés, 30 segundos, vertical 9:16. Presupuesto máximo: USD 0.00. Archivo de",
+          "detail": "Recorrido fixture del reel.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 14,
+          "name": "Verificar su integridad",
+          "status": "ok",
+          "screen": "Reels Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Reels Studio Tres misterios del universo, en inglés, 30 segundos, vertical 9:16. Presupuesto máximo: USD 0.00. Archivo de",
+          "detail": "Recorrido fixture del reel.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 15,
+          "name": "Guardar y recuperar el proyecto",
+          "status": "ok",
+          "screen": "Reels Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Reels Studio Tres misterios del universo, en inglés, 30 segundos, vertical 9:16. Presupuesto máximo: USD 0.00. Archivo de",
+          "detail": "Recorrido fixture del reel.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 16,
+          "name": "Evaluar la experiencia",
+          "status": "ok",
+          "screen": "Reels Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Reels Studio Tres misterios del universo, en inglés, 30 segundos, vertical 9:16. Presupuesto máximo: USD 0.00. Archivo de",
+          "detail": "Recorrido fixture del reel.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        }
+      ],
+      "screens": [
+        {
+          "clicks": 0,
+          "fields": 3,
+          "decisions": 2,
+          "costVisible": true,
+          "costLabel": "USD 0.00",
+          "technicalTerms": [],
+          "progressVisible": true,
+          "couldGenerate": true,
+          "couldSave": null,
+          "couldDownload": true,
+          "couldPlay": true,
+          "doubleClickSafe": true,
+          "mobileUsable": false,
+          "fixtureBadge": true,
+          "errorVisible": null,
+          "publishControl": "ausente",
+          "scheduleControl": "ausente",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Reels Studio Tres misterios del universo, en inglés, 30 segundos, vertical 9:16. Presupuesto máximo: USD 0.00. Archivo de prueba listo. FIXTURE. Generar con un proveedor está apagado. Este archivo no afirma cumplir la duración de la misión. Generar con proveedor Descargar reel-universo-fixture.mp4 Ver en la biblioteca",
+          "screen": "Reels Studio",
+          "product": "reels",
+          "profile": "creador"
+        }
+      ],
+      "products": [
+        {
+          "product": "reels",
+          "seenInMenu": true,
+          "opened": true,
+          "menuLabel": "Reels Studio",
+          "limitations": [
+            "Archivo fixture vertical.",
+            "En el celular un control quedó por debajo de 44 px o la página se desborda."
+          ],
+          "blockedReason": null,
+          "completedFreeFlow": true
+        }
+      ],
+      "media": {
+        "path": "/tmp/mystery-shopper-1795451339484/reel-fixture.mp4",
+        "labeledFixture": true,
+        "exists": true,
+        "container": "mov,mp4,m4a,3gp,3g2,mj2",
+        "videoCodec": "h264",
+        "audioCodec": "aac",
+        "durationSeconds": 2,
+        "width": 180,
+        "height": 320,
+        "aspect": "9:16",
+        "fps": 10,
+        "audioTracks": 1,
+        "silenceRanges": [],
+        "blackRanges": [],
+        "meanVolumeDb": -17.9,
+        "maxVolumeDb": -14.7,
+        "decodeErrors": [],
+        "frameSample": {
+          "extracted": true,
+          "bytes": 833,
+          "reason": null
+        },
+        "lipSync": {
+          "approved": false,
+          "method": null,
+          "reason": "No hay un método medible de sincronización labial en Mystery Shopper 1.0. No se aprueba."
+        },
+        "technicalVerdict": "PASS",
+        "technicalNotes": [],
+        "subjective": "no evaluado"
+      },
+      "mediaByProduct": {
+        "audio-podcast": {
+          "path": "/tmp/mystery-shopper-1795451339484/flannan-fixture.mp3",
+          "labeledFixture": true,
+          "exists": true,
+          "container": "mp3",
+          "videoCodec": null,
+          "audioCodec": "mp3",
+          "durationSeconds": 2.16,
+          "width": null,
+          "height": null,
+          "aspect": null,
+          "fps": null,
+          "audioTracks": 1,
+          "silenceRanges": [],
+          "blackRanges": [],
+          "meanVolumeDb": -17.7,
+          "maxVolumeDb": -13.1,
+          "decodeErrors": [],
+          "frameSample": {
+            "extracted": false,
+            "bytes": 0,
+            "reason": "no aplica: el archivo no tiene video"
+          },
+          "lipSync": {
+            "approved": false,
+            "method": null,
+            "reason": "No hay un método medible de sincronización labial en Mystery Shopper 1.0. No se aprueba."
+          },
+          "technicalVerdict": "PASS",
+          "technicalNotes": [],
+          "subjective": "no evaluado"
+        },
+        "video-podcast": {
+          "path": "/tmp/mystery-shopper-1795451339484/oceano-fixture.mp4",
+          "labeledFixture": true,
+          "exists": true,
+          "container": "mov,mp4,m4a,3gp,3g2,mj2",
+          "videoCodec": "h264",
+          "audioCodec": "aac",
+          "durationSeconds": 2,
+          "width": 320,
+          "height": 180,
+          "aspect": "16:9",
+          "fps": 10,
+          "audioTracks": 1,
+          "silenceRanges": [],
+          "blackRanges": [],
+          "meanVolumeDb": -17.9,
+          "maxVolumeDb": -14.7,
+          "decodeErrors": [],
+          "frameSample": {
+            "extracted": true,
+            "bytes": 630,
+            "reason": null
+          },
+          "lipSync": {
+            "approved": false,
+            "method": null,
+            "reason": "No hay un método medible de sincronización labial en Mystery Shopper 1.0. No se aprueba."
+          },
+          "technicalVerdict": "PASS",
+          "technicalNotes": [],
+          "subjective": "no evaluado"
+        },
+        "reels": {
+          "path": "/tmp/mystery-shopper-1795451339484/reel-fixture.mp4",
+          "labeledFixture": true,
+          "exists": true,
+          "container": "mov,mp4,m4a,3gp,3g2,mj2",
+          "videoCodec": "h264",
+          "audioCodec": "aac",
+          "durationSeconds": 2,
+          "width": 180,
+          "height": 320,
+          "aspect": "9:16",
+          "fps": 10,
+          "audioTracks": 1,
+          "silenceRanges": [],
+          "blackRanges": [],
+          "meanVolumeDb": -17.9,
+          "maxVolumeDb": -14.7,
+          "decodeErrors": [],
+          "frameSample": {
+            "extracted": true,
+            "bytes": 833,
+            "reason": null
+          },
+          "lipSync": {
+            "approved": false,
+            "method": null,
+            "reason": "No hay un método medible de sincronización labial en Mystery Shopper 1.0. No se aprueba."
+          },
+          "technicalVerdict": "PASS",
+          "technicalNotes": [],
+          "subjective": "no evaluado"
+        },
+        "long-form": {
+          "path": "/tmp/mystery-shopper-1795451339484/nazca-fixture.mp4",
+          "labeledFixture": true,
+          "exists": true,
+          "container": "mov,mp4,m4a,3gp,3g2,mj2",
+          "videoCodec": "h264",
+          "audioCodec": "aac",
+          "durationSeconds": 2,
+          "width": 320,
+          "height": 180,
+          "aspect": "16:9",
+          "fps": 10,
+          "audioTracks": 1,
+          "silenceRanges": [],
+          "blackRanges": [],
+          "meanVolumeDb": -17.9,
+          "maxVolumeDb": -14.7,
+          "decodeErrors": [],
+          "frameSample": {
+            "extracted": true,
+            "bytes": 630,
+            "reason": null
+          },
+          "lipSync": {
+            "approved": false,
+            "method": null,
+            "reason": "No hay un método medible de sincronización labial en Mystery Shopper 1.0. No se aprueba."
+          },
+          "technicalVerdict": "PASS",
+          "technicalNotes": [],
+          "subjective": "no evaluado"
+        }
+      },
+      "spendUsd": 0,
+      "evidence": [
+        {
+          "label": "recuperación",
+          "note": "La contraseña incorrecta se rechazó y la sesión no se creó."
+        },
+        {
+          "label": "audio-390.png",
+          "note": "audio-390.png"
+        },
+        {
+          "label": "biblioteca",
+          "note": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Biblioteca Proyectos de esta sesión fixture. No se borró nada"
+        }
+      ],
+      "errors": [],
+      "liveProbe": {
+        "url": "https://atomivid.vercel.app/login",
+        "reached": true,
+        "detail": "HTTP 200. Se ve el inicio de sesión. No se escribió ninguna contraseña. Texto: Atomicvid Inicia sesión en tu cuenta Correo electrónico Contraseña ¿Olvidaste tu contraseña? Iniciar sesión ¿No tienes cuenta? Regístrate"
+      }
+    },
+    {
+      "scope": "fixture-harness",
+      "missionId": "longform-nazca",
+      "sha": "94b6e82cba90c831d0ce878943087e1c32513e86",
+      "environment": "harness-local",
+      "baseUrl": "http://127.0.0.1:44737",
+      "steps": [
+        {
+          "step": 1,
+          "name": "Acceder al entorno",
+          "status": "ok",
+          "screen": "Long Form Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Long Form Studio Líneas de Nazca, en español, 15 minutos, horizontal 16:9, con capítulos y metadatos. Presupuesto máximo:",
+          "detail": "Recorrido fixture de long form.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 2,
+          "name": "Iniciar sesión",
+          "status": "ok",
+          "screen": "Long Form Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Long Form Studio Líneas de Nazca, en español, 15 minutos, horizontal 16:9, con capítulos y metadatos. Presupuesto máximo:",
+          "detail": "Recorrido fixture de long form.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 3,
+          "name": "Entrar desde el menú y encontrar el producto",
+          "status": "ok",
+          "screen": "Long Form Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Long Form Studio Líneas de Nazca, en español, 15 minutos, horizontal 16:9, con capítulos y metadatos. Presupuesto máximo:",
+          "detail": "Recorrido fixture de long form.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 4,
+          "name": "Crear un proyecto desde cero",
+          "status": "ok",
+          "screen": "Long Form Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Long Form Studio Líneas de Nazca, en español, 15 minutos, horizontal 16:9, con capítulos y metadatos. Presupuesto máximo:",
+          "detail": "Recorrido fixture de long form.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 5,
+          "name": "Escribir las instrucciones",
+          "status": "ok",
+          "screen": "Long Form Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Long Form Studio Líneas de Nazca, en español, 15 minutos, horizontal 16:9, con capítulos y metadatos. Presupuesto máximo:",
+          "detail": "Recorrido fixture de long form.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 6,
+          "name": "Elegir la configuración",
+          "status": "ok",
+          "screen": "Long Form Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Long Form Studio Líneas de Nazca, en español, 15 minutos, horizontal 16:9, con capítulos y metadatos. Presupuesto máximo:",
+          "detail": "Recorrido fixture de long form.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 7,
+          "name": "Validar el presupuesto",
+          "status": "ok",
+          "screen": "Long Form Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Long Form Studio Líneas de Nazca, en español, 15 minutos, horizontal 16:9, con capítulos y metadatos. Presupuesto máximo:",
+          "detail": "Recorrido fixture de long form.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 8,
+          "name": "Generar",
+          "status": "ok",
+          "screen": "Long Form Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Long Form Studio Líneas de Nazca, en español, 15 minutos, horizontal 16:9, con capítulos y metadatos. Presupuesto máximo:",
+          "detail": "Recorrido fixture de long form.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 9,
+          "name": "Observar el progreso",
+          "status": "ok",
+          "screen": "Long Form Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Long Form Studio Líneas de Nazca, en español, 15 minutos, horizontal 16:9, con capítulos y metadatos. Presupuesto máximo:",
+          "detail": "Recorrido fixture de long form.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 10,
+          "name": "Esperar a que termine o falle",
+          "status": "ok",
+          "screen": "Long Form Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Long Form Studio Líneas de Nazca, en español, 15 minutos, horizontal 16:9, con capítulos y metadatos. Presupuesto máximo:",
+          "detail": "Recorrido fixture de long form.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 11,
+          "name": "Inspeccionar el resultado",
+          "status": "ok",
+          "screen": "Long Form Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Long Form Studio Líneas de Nazca, en español, 15 minutos, horizontal 16:9, con capítulos y metadatos. Presupuesto máximo:",
+          "detail": "Recorrido fixture de long form.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 12,
+          "name": "Reproducirlo",
+          "status": "ok",
+          "screen": "Long Form Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Long Form Studio Líneas de Nazca, en español, 15 minutos, horizontal 16:9, con capítulos y metadatos. Presupuesto máximo:",
+          "detail": "Recorrido fixture de long form.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 13,
+          "name": "Descargarlo",
+          "status": "ok",
+          "screen": "Long Form Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Long Form Studio Líneas de Nazca, en español, 15 minutos, horizontal 16:9, con capítulos y metadatos. Presupuesto máximo:",
+          "detail": "Recorrido fixture de long form.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 14,
+          "name": "Verificar su integridad",
+          "status": "ok",
+          "screen": "Long Form Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Long Form Studio Líneas de Nazca, en español, 15 minutos, horizontal 16:9, con capítulos y metadatos. Presupuesto máximo:",
+          "detail": "Recorrido fixture de long form.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 15,
+          "name": "Guardar y recuperar el proyecto",
+          "status": "ok",
+          "screen": "Long Form Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Long Form Studio Líneas de Nazca, en español, 15 minutos, horizontal 16:9, con capítulos y metadatos. Presupuesto máximo:",
+          "detail": "Recorrido fixture de long form.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 16,
+          "name": "Evaluar la experiencia",
+          "status": "ok",
+          "screen": "Long Form Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Long Form Studio Líneas de Nazca, en español, 15 minutos, horizontal 16:9, con capítulos y metadatos. Presupuesto máximo:",
+          "detail": "Recorrido fixture de long form.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        }
+      ],
+      "screens": [
+        {
+          "clicks": 0,
+          "fields": 3,
+          "decisions": 2,
+          "costVisible": true,
+          "costLabel": "USD 0.00",
+          "technicalTerms": [],
+          "progressVisible": true,
+          "couldGenerate": true,
+          "couldSave": null,
+          "couldDownload": true,
+          "couldPlay": true,
+          "doubleClickSafe": true,
+          "mobileUsable": false,
+          "fixtureBadge": true,
+          "errorVisible": null,
+          "publishControl": "ausente",
+          "scheduleControl": "ausente",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Long Form Studio Líneas de Nazca, en español, 15 minutos, horizontal 16:9, con capítulos y metadatos. Presupuesto máximo: USD 0.00. Archivo de prueba listo. FIXTURE. Generar con un proveedor está apagado. Este archivo no afirma cumplir la duración de la misión. Generar con proveedor Descargar nazca-fixture.mp4 Ver en la biblioteca",
+          "screen": "Long Form Studio",
+          "product": "long-form",
+          "profile": "profesional"
+        }
+      ],
+      "products": [
+        {
+          "product": "long-form",
+          "seenInMenu": true,
+          "opened": true,
+          "menuLabel": "Long Form Studio",
+          "limitations": [
+            "Archivo fixture horizontal, sin capítulos reales.",
+            "En el celular un control quedó por debajo de 44 px o la página se desborda."
+          ],
+          "blockedReason": null,
+          "completedFreeFlow": true
+        }
+      ],
+      "media": {
+        "path": "/tmp/mystery-shopper-1795451339484/nazca-fixture.mp4",
+        "labeledFixture": true,
+        "exists": true,
+        "container": "mov,mp4,m4a,3gp,3g2,mj2",
+        "videoCodec": "h264",
+        "audioCodec": "aac",
+        "durationSeconds": 2,
+        "width": 320,
+        "height": 180,
+        "aspect": "16:9",
+        "fps": 10,
+        "audioTracks": 1,
+        "silenceRanges": [],
+        "blackRanges": [],
+        "meanVolumeDb": -17.9,
+        "maxVolumeDb": -14.7,
+        "decodeErrors": [],
+        "frameSample": {
+          "extracted": true,
+          "bytes": 630,
+          "reason": null
+        },
+        "lipSync": {
+          "approved": false,
+          "method": null,
+          "reason": "No hay un método medible de sincronización labial en Mystery Shopper 1.0. No se aprueba."
+        },
+        "technicalVerdict": "PASS",
+        "technicalNotes": [],
+        "subjective": "no evaluado"
+      },
+      "mediaByProduct": {
+        "audio-podcast": {
+          "path": "/tmp/mystery-shopper-1795451339484/flannan-fixture.mp3",
+          "labeledFixture": true,
+          "exists": true,
+          "container": "mp3",
+          "videoCodec": null,
+          "audioCodec": "mp3",
+          "durationSeconds": 2.16,
+          "width": null,
+          "height": null,
+          "aspect": null,
+          "fps": null,
+          "audioTracks": 1,
+          "silenceRanges": [],
+          "blackRanges": [],
+          "meanVolumeDb": -17.7,
+          "maxVolumeDb": -13.1,
+          "decodeErrors": [],
+          "frameSample": {
+            "extracted": false,
+            "bytes": 0,
+            "reason": "no aplica: el archivo no tiene video"
+          },
+          "lipSync": {
+            "approved": false,
+            "method": null,
+            "reason": "No hay un método medible de sincronización labial en Mystery Shopper 1.0. No se aprueba."
+          },
+          "technicalVerdict": "PASS",
+          "technicalNotes": [],
+          "subjective": "no evaluado"
+        },
+        "video-podcast": {
+          "path": "/tmp/mystery-shopper-1795451339484/oceano-fixture.mp4",
+          "labeledFixture": true,
+          "exists": true,
+          "container": "mov,mp4,m4a,3gp,3g2,mj2",
+          "videoCodec": "h264",
+          "audioCodec": "aac",
+          "durationSeconds": 2,
+          "width": 320,
+          "height": 180,
+          "aspect": "16:9",
+          "fps": 10,
+          "audioTracks": 1,
+          "silenceRanges": [],
+          "blackRanges": [],
+          "meanVolumeDb": -17.9,
+          "maxVolumeDb": -14.7,
+          "decodeErrors": [],
+          "frameSample": {
+            "extracted": true,
+            "bytes": 630,
+            "reason": null
+          },
+          "lipSync": {
+            "approved": false,
+            "method": null,
+            "reason": "No hay un método medible de sincronización labial en Mystery Shopper 1.0. No se aprueba."
+          },
+          "technicalVerdict": "PASS",
+          "technicalNotes": [],
+          "subjective": "no evaluado"
+        },
+        "reels": {
+          "path": "/tmp/mystery-shopper-1795451339484/reel-fixture.mp4",
+          "labeledFixture": true,
+          "exists": true,
+          "container": "mov,mp4,m4a,3gp,3g2,mj2",
+          "videoCodec": "h264",
+          "audioCodec": "aac",
+          "durationSeconds": 2,
+          "width": 180,
+          "height": 320,
+          "aspect": "9:16",
+          "fps": 10,
+          "audioTracks": 1,
+          "silenceRanges": [],
+          "blackRanges": [],
+          "meanVolumeDb": -17.9,
+          "maxVolumeDb": -14.7,
+          "decodeErrors": [],
+          "frameSample": {
+            "extracted": true,
+            "bytes": 833,
+            "reason": null
+          },
+          "lipSync": {
+            "approved": false,
+            "method": null,
+            "reason": "No hay un método medible de sincronización labial en Mystery Shopper 1.0. No se aprueba."
+          },
+          "technicalVerdict": "PASS",
+          "technicalNotes": [],
+          "subjective": "no evaluado"
+        },
+        "long-form": {
+          "path": "/tmp/mystery-shopper-1795451339484/nazca-fixture.mp4",
+          "labeledFixture": true,
+          "exists": true,
+          "container": "mov,mp4,m4a,3gp,3g2,mj2",
+          "videoCodec": "h264",
+          "audioCodec": "aac",
+          "durationSeconds": 2,
+          "width": 320,
+          "height": 180,
+          "aspect": "16:9",
+          "fps": 10,
+          "audioTracks": 1,
+          "silenceRanges": [],
+          "blackRanges": [],
+          "meanVolumeDb": -17.9,
+          "maxVolumeDb": -14.7,
+          "decodeErrors": [],
+          "frameSample": {
+            "extracted": true,
+            "bytes": 630,
+            "reason": null
+          },
+          "lipSync": {
+            "approved": false,
+            "method": null,
+            "reason": "No hay un método medible de sincronización labial en Mystery Shopper 1.0. No se aprueba."
+          },
+          "technicalVerdict": "PASS",
+          "technicalNotes": [],
+          "subjective": "no evaluado"
+        }
+      },
+      "spendUsd": 0,
+      "evidence": [
+        {
+          "label": "recuperación",
+          "note": "La contraseña incorrecta se rechazó y la sesión no se creó."
+        },
+        {
+          "label": "audio-390.png",
+          "note": "audio-390.png"
+        },
+        {
+          "label": "biblioteca",
+          "note": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Biblioteca Proyectos de esta sesión fixture. No se borró nada"
+        }
+      ],
+      "errors": [],
+      "liveProbe": {
+        "url": "https://atomivid.vercel.app/login",
+        "reached": true,
+        "detail": "HTTP 200. Se ve el inicio de sesión. No se escribió ninguna contraseña. Texto: Atomicvid Inicia sesión en tu cuenta Correo electrónico Contraseña ¿Olvidaste tu contraseña? Iniciar sesión ¿No tienes cuenta? Regístrate"
+      }
+    },
+    {
+      "scope": "fixture-harness",
+      "missionId": "youtube-borrador",
+      "sha": "94b6e82cba90c831d0ce878943087e1c32513e86",
+      "environment": "harness-local",
+      "baseUrl": "http://127.0.0.1:44737",
+      "steps": [
+        {
+          "step": 1,
+          "name": "Acceder al entorno",
+          "status": "ok",
+          "screen": "YouTube Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center YouTube Studio Usa un video ATOMIVID ya autorizado. Esta evaluación no publica ni programa. Video Video autorizado FIXTUR",
+          "detail": "Se revisó el borrador. No se publicó ni se programó.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 2,
+          "name": "Iniciar sesión",
+          "status": "ok",
+          "screen": "YouTube Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center YouTube Studio Usa un video ATOMIVID ya autorizado. Esta evaluación no publica ni programa. Video Video autorizado FIXTUR",
+          "detail": "Se revisó el borrador. No se publicó ni se programó.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 3,
+          "name": "Entrar desde el menú y encontrar el producto",
+          "status": "ok",
+          "screen": "YouTube Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center YouTube Studio Usa un video ATOMIVID ya autorizado. Esta evaluación no publica ni programa. Video Video autorizado FIXTUR",
+          "detail": "Se revisó el borrador. No se publicó ni se programó.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 4,
+          "name": "Crear un proyecto desde cero",
+          "status": "ok",
+          "screen": "YouTube Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center YouTube Studio Usa un video ATOMIVID ya autorizado. Esta evaluación no publica ni programa. Video Video autorizado FIXTUR",
+          "detail": "Se revisó el borrador. No se publicó ni se programó.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 5,
+          "name": "Escribir las instrucciones",
+          "status": "ok",
+          "screen": "YouTube Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center YouTube Studio Usa un video ATOMIVID ya autorizado. Esta evaluación no publica ni programa. Video Video autorizado FIXTUR",
+          "detail": "Se revisó el borrador. No se publicó ni se programó.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 6,
+          "name": "Elegir la configuración",
+          "status": "ok",
+          "screen": "YouTube Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center YouTube Studio Usa un video ATOMIVID ya autorizado. Esta evaluación no publica ni programa. Video Video autorizado FIXTUR",
+          "detail": "Se revisó el borrador. No se publicó ni se programó.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 7,
+          "name": "Validar el presupuesto",
+          "status": "ok",
+          "screen": "YouTube Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center YouTube Studio Usa un video ATOMIVID ya autorizado. Esta evaluación no publica ni programa. Video Video autorizado FIXTUR",
+          "detail": "Se revisó el borrador. No se publicó ni se programó.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 8,
+          "name": "Generar",
+          "status": "ok",
+          "screen": "YouTube Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center YouTube Studio Usa un video ATOMIVID ya autorizado. Esta evaluación no publica ni programa. Video Video autorizado FIXTUR",
+          "detail": "Se revisó el borrador. No se publicó ni se programó.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 9,
+          "name": "Observar el progreso",
+          "status": "ok",
+          "screen": "YouTube Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center YouTube Studio Usa un video ATOMIVID ya autorizado. Esta evaluación no publica ni programa. Video Video autorizado FIXTUR",
+          "detail": "Se revisó el borrador. No se publicó ni se programó.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 10,
+          "name": "Esperar a que termine o falle",
+          "status": "ok",
+          "screen": "YouTube Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center YouTube Studio Usa un video ATOMIVID ya autorizado. Esta evaluación no publica ni programa. Video Video autorizado FIXTUR",
+          "detail": "Se revisó el borrador. No se publicó ni se programó.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 11,
+          "name": "Inspeccionar el resultado",
+          "status": "ok",
+          "screen": "YouTube Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center YouTube Studio Usa un video ATOMIVID ya autorizado. Esta evaluación no publica ni programa. Video Video autorizado FIXTUR",
+          "detail": "Se revisó el borrador. No se publicó ni se programó.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 12,
+          "name": "Reproducirlo",
+          "status": "ok",
+          "screen": "YouTube Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center YouTube Studio Usa un video ATOMIVID ya autorizado. Esta evaluación no publica ni programa. Video Video autorizado FIXTUR",
+          "detail": "Se revisó el borrador. No se publicó ni se programó.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 13,
+          "name": "Descargarlo",
+          "status": "ok",
+          "screen": "YouTube Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center YouTube Studio Usa un video ATOMIVID ya autorizado. Esta evaluación no publica ni programa. Video Video autorizado FIXTUR",
+          "detail": "Se revisó el borrador. No se publicó ni se programó.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 14,
+          "name": "Verificar su integridad",
+          "status": "ok",
+          "screen": "YouTube Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center YouTube Studio Usa un video ATOMIVID ya autorizado. Esta evaluación no publica ni programa. Video Video autorizado FIXTUR",
+          "detail": "Se revisó el borrador. No se publicó ni se programó.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 15,
+          "name": "Guardar y recuperar el proyecto",
+          "status": "ok",
+          "screen": "YouTube Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center YouTube Studio Usa un video ATOMIVID ya autorizado. Esta evaluación no publica ni programa. Video Video autorizado FIXTUR",
+          "detail": "Se revisó el borrador. No se publicó ni se programó.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        },
+        {
+          "step": 16,
+          "name": "Evaluar la experiencia",
+          "status": "ok",
+          "screen": "YouTube Studio",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center YouTube Studio Usa un video ATOMIVID ya autorizado. Esta evaluación no publica ni programa. Video Video autorizado FIXTUR",
+          "detail": "Se revisó el borrador. No se publicó ni se programó.",
+          "clicks": 1,
+          "fields": 3,
+          "decisions": 2
+        }
+      ],
+      "screens": [
+        {
+          "clicks": 0,
+          "fields": 3,
+          "decisions": 2,
+          "costVisible": true,
+          "costLabel": "USD 0.00",
+          "technicalTerms": [],
+          "progressVisible": true,
+          "couldGenerate": true,
+          "couldSave": true,
+          "couldDownload": null,
+          "couldPlay": null,
+          "doubleClickSafe": true,
+          "mobileUsable": false,
+          "fixtureBadge": true,
+          "errorVisible": null,
+          "publishControl": "deshabilitado",
+          "scheduleControl": "deshabilitado",
+          "visibleText": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center YouTube Studio Usa un video ATOMIVID ya autorizado. Esta evaluación no publica ni programa. Video Video autorizado FIXTURE Título Descripción Etiquetas Miniatura: vista previa del fotograma fixture. No se sube nada. Privacidad Privado Vista previa del borrador. Sigue en privado. Prohibido publicar o programar en esta evaluación. Publicar Programar",
+          "screen": "YouTube Studio",
+          "product": "youtube",
+          "profile": "profesional"
+        }
+      ],
+      "products": [
+        {
+          "product": "youtube",
+          "seenInMenu": true,
+          "opened": true,
+          "menuLabel": "YouTube Studio",
+          "limitations": [
+            "Publicar y programar deshabilitados.",
+            "En el celular un control quedó por debajo de 44 px o la página se desborda."
+          ],
+          "blockedReason": null,
+          "completedFreeFlow": true
+        }
+      ],
+      "media": {
+        "path": "/tmp/mystery-shopper-1795451339484/flannan-fixture.mp3",
+        "labeledFixture": true,
+        "exists": true,
+        "container": "mp3",
+        "videoCodec": null,
+        "audioCodec": "mp3",
+        "durationSeconds": 2.16,
+        "width": null,
+        "height": null,
+        "aspect": null,
+        "fps": null,
+        "audioTracks": 1,
+        "silenceRanges": [],
+        "blackRanges": [],
+        "meanVolumeDb": -17.7,
+        "maxVolumeDb": -13.1,
+        "decodeErrors": [],
+        "frameSample": {
+          "extracted": false,
+          "bytes": 0,
+          "reason": "no aplica: el archivo no tiene video"
+        },
+        "lipSync": {
+          "approved": false,
+          "method": null,
+          "reason": "No hay un método medible de sincronización labial en Mystery Shopper 1.0. No se aprueba."
+        },
+        "technicalVerdict": "PASS",
+        "technicalNotes": [],
+        "subjective": "no evaluado"
+      },
+      "mediaByProduct": {
+        "audio-podcast": {
+          "path": "/tmp/mystery-shopper-1795451339484/flannan-fixture.mp3",
+          "labeledFixture": true,
+          "exists": true,
+          "container": "mp3",
+          "videoCodec": null,
+          "audioCodec": "mp3",
+          "durationSeconds": 2.16,
+          "width": null,
+          "height": null,
+          "aspect": null,
+          "fps": null,
+          "audioTracks": 1,
+          "silenceRanges": [],
+          "blackRanges": [],
+          "meanVolumeDb": -17.7,
+          "maxVolumeDb": -13.1,
+          "decodeErrors": [],
+          "frameSample": {
+            "extracted": false,
+            "bytes": 0,
+            "reason": "no aplica: el archivo no tiene video"
+          },
+          "lipSync": {
+            "approved": false,
+            "method": null,
+            "reason": "No hay un método medible de sincronización labial en Mystery Shopper 1.0. No se aprueba."
+          },
+          "technicalVerdict": "PASS",
+          "technicalNotes": [],
+          "subjective": "no evaluado"
+        },
+        "video-podcast": {
+          "path": "/tmp/mystery-shopper-1795451339484/oceano-fixture.mp4",
+          "labeledFixture": true,
+          "exists": true,
+          "container": "mov,mp4,m4a,3gp,3g2,mj2",
+          "videoCodec": "h264",
+          "audioCodec": "aac",
+          "durationSeconds": 2,
+          "width": 320,
+          "height": 180,
+          "aspect": "16:9",
+          "fps": 10,
+          "audioTracks": 1,
+          "silenceRanges": [],
+          "blackRanges": [],
+          "meanVolumeDb": -17.9,
+          "maxVolumeDb": -14.7,
+          "decodeErrors": [],
+          "frameSample": {
+            "extracted": true,
+            "bytes": 630,
+            "reason": null
+          },
+          "lipSync": {
+            "approved": false,
+            "method": null,
+            "reason": "No hay un método medible de sincronización labial en Mystery Shopper 1.0. No se aprueba."
+          },
+          "technicalVerdict": "PASS",
+          "technicalNotes": [],
+          "subjective": "no evaluado"
+        },
+        "reels": {
+          "path": "/tmp/mystery-shopper-1795451339484/reel-fixture.mp4",
+          "labeledFixture": true,
+          "exists": true,
+          "container": "mov,mp4,m4a,3gp,3g2,mj2",
+          "videoCodec": "h264",
+          "audioCodec": "aac",
+          "durationSeconds": 2,
+          "width": 180,
+          "height": 320,
+          "aspect": "9:16",
+          "fps": 10,
+          "audioTracks": 1,
+          "silenceRanges": [],
+          "blackRanges": [],
+          "meanVolumeDb": -17.9,
+          "maxVolumeDb": -14.7,
+          "decodeErrors": [],
+          "frameSample": {
+            "extracted": true,
+            "bytes": 833,
+            "reason": null
+          },
+          "lipSync": {
+            "approved": false,
+            "method": null,
+            "reason": "No hay un método medible de sincronización labial en Mystery Shopper 1.0. No se aprueba."
+          },
+          "technicalVerdict": "PASS",
+          "technicalNotes": [],
+          "subjective": "no evaluado"
+        },
+        "long-form": {
+          "path": "/tmp/mystery-shopper-1795451339484/nazca-fixture.mp4",
+          "labeledFixture": true,
+          "exists": true,
+          "container": "mov,mp4,m4a,3gp,3g2,mj2",
+          "videoCodec": "h264",
+          "audioCodec": "aac",
+          "durationSeconds": 2,
+          "width": 320,
+          "height": 180,
+          "aspect": "16:9",
+          "fps": 10,
+          "audioTracks": 1,
+          "silenceRanges": [],
+          "blackRanges": [],
+          "meanVolumeDb": -17.9,
+          "maxVolumeDb": -14.7,
+          "decodeErrors": [],
+          "frameSample": {
+            "extracted": true,
+            "bytes": 630,
+            "reason": null
+          },
+          "lipSync": {
+            "approved": false,
+            "method": null,
+            "reason": "No hay un método medible de sincronización labial en Mystery Shopper 1.0. No se aprueba."
+          },
+          "technicalVerdict": "PASS",
+          "technicalNotes": [],
+          "subjective": "no evaluado"
+        }
+      },
+      "spendUsd": 0,
+      "evidence": [
+        {
+          "label": "recuperación",
+          "note": "La contraseña incorrecta se rechazó y la sesión no se creó."
+        },
+        {
+          "label": "audio-390.png",
+          "note": "audio-390.png"
+        },
+        {
+          "label": "biblioteca",
+          "note": "FIXTURE · no es ATOMIVID en producción · USD 0.00 · no se llama a ningún proveedor Inicio Audio Podcast Video Podcast Reel Long Form YouTube Biblioteca Facturación Command Center Biblioteca Proyectos de esta sesión fixture. No se borró nada"
+        }
+      ],
+      "errors": [],
+      "liveProbe": {
+        "url": "https://atomivid.vercel.app/login",
+        "reached": true,
+        "detail": "HTTP 200. Se ve el inicio de sesión. No se escribió ninguna contraseña. Texto: Atomicvid Inicia sesión en tu cuenta Correo electrónico Contraseña ¿Olvidaste tu contraseña? Iniciar sesión ¿No tienes cuenta? Regístrate"
+      }
+    }
+  ]
+}

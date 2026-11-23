@@ -1,0 +1,69 @@
+# Mystery Shopper AI — solo modo gratuito. Playwright corre aquí, no en Vercel serverless.
+# Nada facturable: si el evento pide modo real, el job se detiene antes del navegador.
+name: Mystery Shopper AI
+on:
+  workflow_dispatch:
+    inputs:
+      mission:
+        description: Misión fixture
+        default: audio-flannan
+        required: false
+      mode:
+        description: Solo fixture. real se rechaza.
+        default: fixture
+        required: false
+  pull_request:
+    paths:
+      - src/lib/mystery-shopper/**
+      - src/app/dashboard/command-center/mystery-shopper/**
+      - src/app/dashboard/command-center/page.tsx
+      - src/app/api/admin/mystery-shopper/**
+      - scripts/mystery-shopper/**
+      - .github/workflows/mystery-shopper.yml
+      - docs/mystery-shopper/**
+  repository_dispatch:
+    types: [mystery-shopper-preview-ready]
+permissions:
+  contents: read
+concurrency:
+  group: mystery-shopper-${{ github.event.client_payload.executionId || github.run_id }}
+  cancel-in-progress: false
+jobs:
+  gratuito:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Aceptar solo un evento gratuito
+        env:
+          MS_EVENT_SOURCE: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.source || 'github' }}
+          MS_EVENT_SHA: ${{ github.event.client_payload.sha || github.sha }}
+          MS_EVENT_PREVIEW: ${{ github.event.client_payload.preview }}
+          MS_EVENT_CONCLUSION: success
+          MS_EVENT_MODE: ${{ github.event.inputs.mode || github.event.client_payload.mode || 'fixture' }}
+          MS_EVENT_BILLABLE: ${{ github.event.client_payload.billable || 'false' }}
+          MS_EXECUTION_ID: ${{ github.event.client_payload.executionId || format('github:{0}:{1}', github.run_id, github.sha) }}
+          MS_MISSION: ${{ github.event.inputs.mission || github.event.client_payload.missionId || 'audio-flannan' }}
+        run: node --import tsx scripts/mystery-shopper/accept-ci.ts
+      - run: npm install --no-save --no-audit --no-fund playwright@1.49.1
+      - run: npx playwright install --with-deps chromium
+      - name: Pruebas y recorrido fixture
+        env:
+          MS_PUBLIC_URL: https://atomivid.vercel.app/login
+          MS_MODE: fixture
+        run: npm run test:mystery-shopper
+      - name: El informe no gastó
+        if: always()
+        run: |
+          node -e 'const fs=require("fs"); const p="artifacts/mystery-shopper/informe-audio.json"; if(!fs.existsSync(p)) process.exit(0); const r=JSON.parse(fs.readFileSync(p,"utf8")); if(r.spendUsd!==0 || r.realMode.executed!==false) { console.error("gasto no permitido"); process.exit(1); }'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mystery-shopper-fixture
+          retention-days: 14
+          path: |
+            artifacts/mystery-shopper
+            src/lib/mystery-shopper/recorded/journeys.json
