@@ -17,7 +17,10 @@ export type LongFormBudget = {
 };
 
 export const DEFAULT_LONG_FORM_BUDGET: LongFormBudget = {
-  maxTotalUsd: 12,
+  // Techo total por producción, aplicado en el servidor (confirmar y worker leen este mismo valor; LONG_FORM_MAX_TOTAL_USD
+  // lo sobrescribe). 12 → 20 autorizado por Hans el 23-11-2026: el documental de Nazca (20 min) estima 12,22 y con 12 no
+  // podía confirmarse. Es un tope, no un gasto: la autorización de cada pedido sigue siendo subtotal + contingencia ≤ 20.
+  maxTotalUsd: 20,
   maxLlmUsd: 3,
   maxTtsUsd: 6,
   maxImageUsd: 2,

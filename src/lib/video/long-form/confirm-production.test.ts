@@ -193,13 +193,13 @@ test("el estimado de proveedores cabe y el worker no: guion ya gastado + render 
     const fake = fakeService(baseRow());
     const result = await confirmLongFormProduction(fake.client, {
       requestId: "req-1", userId: "user-1", strategy: "economical",
-      budgetFacts: { scriptSpentUsd: 11, observed: {} },
+      budgetFacts: { scriptSpentUsd: 19, observed: {} },
     });
     assert.equal(result.ok, false);
     if (!result.ok) {
       assert.equal(result.status, 409);
       assert.match(result.error, /supera el tope/);
-      assert.match(result.error, /guion ya gastado \$11\.00/);
+      assert.match(result.error, /guion ya gastado \$19\.00/);
       assert.match(result.error, /No se confirmó ni se cobró nada/);
     }
     assert.equal(fake.appliedUpdates(), 0);

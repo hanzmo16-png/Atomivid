@@ -238,7 +238,7 @@ function reviewScript(script) {
       check(`[${tag}] datos para YouTube: título, descripción y capítulos desde 0:00 visibles y copiables`, !!yt && yt.title.length > 3 && /Capítulos:\n0:00 /.test(yt.description) && yt.chapters.length >= 3
         && panel.includes(yt.title) && /Copiar título/.test(panel) && /Copiar descripción/.test(panel), { title: yt?.title, chapters: yt?.chapters?.length, panel: panel.slice(0, 200) });
     }
-    if (kind !== "desktop") await ctx2.b.close();
+    if (kind !== UI) await ctx2.b.close();
   }
   // Aislamiento: otra cuenta no ve el video.
   { const o3 = await browserCtx("desktop"); await login(o3.p, OTHER.email, OTHER.password); const res = await o3.p.goto(`${BASE}/dashboard/videos/${R}`);
