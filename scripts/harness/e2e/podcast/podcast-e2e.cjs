@@ -542,7 +542,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     }
     await snap("paso04b-vista-previa");
     await W().getByLabel("Autorizo el cargo").check(); await snap("paso04c-autorizar");
-    const gen0 = (await db.query("select count(*)::int n from podcast_studio_episodes where user_id=$1 and title=$2", [OWNER.id, m.title])).rows[0].n;
+    const gen0 = (await db.query("select count(*)::int n, now() t from podcast_studio_episodes where user_id=$1 and title=$2", [OWNER.id, m.title])).rows[0];
     if (opts.doubleClick) {
       // PVS3 (23-11): doble toque en «Generar episodio». Primero un doble clic real (dos eventos de puntero) y, más duro,
       // dos clics en la MISMA tarea de JS (antes de que React vuelva a pintar el botón como ocupado).
@@ -554,9 +554,10 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     ok(`${tag}: episodio autorizado y trabajo despachado`, row0?.status === "authorized" && fs.readFileSync(path.join(E2E, "logs/dispatch.jsonl"), "utf8").slice(disp0).includes(row0.id), row0?.status);
     if (opts.doubleClick) {
       await S.p.waitForTimeout(3000);
-      const made = (await db.query("select count(*)::int n from podcast_studio_episodes where user_id=$1 and title=$2", [OWNER.id, m.title])).rows[0].n - gen0;
-      const disp = fs.readFileSync(path.join(E2E, "logs/dispatch.jsonl"), "utf8").slice(disp0).split("\n").filter((l) => l.includes(row0.id)).length;
-      const auths = (await db.query("select count(*)::int n from podcast_studio_episodes where user_id=$1 and title=$2 and status <> 'draft'", [OWNER.id, m.title])).rows[0].n;
+      // Solo las filas creadas desde este toque (la base local conserva las de ejecuciones anteriores con el mismo título).
+      const fresh = (await db.query("select id, status from podcast_studio_episodes where user_id=$1 and title=$2 and created_at >= $3", [OWNER.id, m.title, gen0.t])).rows;
+      const made = fresh.length, auths = fresh.filter((r) => r.status !== "draft").length;
+      const disp = fs.readFileSync(path.join(E2E, "logs/dispatch.jsonl"), "utf8").slice(disp0).split("\n").filter((l) => fresh.some((r) => l.includes(r.id))).length;
       ok(`${tag}: doble toque en «Generar episodio» → un solo episodio, una sola autorización y un solo despacho`, made === 1 && auths === 1 && disp === 1, `creados=${made} autorizados=${auths} despachos=${disp}`);
     }
     // Recuperación: recargar a mitad de la generación vuelve al paso Generación con el mismo episodio.
