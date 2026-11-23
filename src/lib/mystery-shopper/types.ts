@@ -209,6 +209,14 @@ export type Mission = {
   expected: string;
   /** YouTube: publicar y programar están prohibidos. */
   publishForbidden: boolean;
+  /** 2.0: qué cuenta como éxito verificable en la interfaz real (cada uno se comprueba o queda sin comprobar). */
+  criteria?: string[];
+  /** 2.0: qué cuenta como fracaso. */
+  failure?: string[];
+  /** 2.0: duración pedida en segundos, para juzgar el archivo entregado. */
+  requestedSeconds?: number;
+  /** 2.0: la misión puede correr sola tras CI verde + Preview listo (siempre gratuita). */
+  auto?: boolean;
 };
 
 export type RunMode = "fixture" | "real";

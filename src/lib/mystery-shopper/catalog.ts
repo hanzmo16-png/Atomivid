@@ -12,6 +12,7 @@ export const DEFAULT_MISSIONS: Mission[] = [
     instructions: "Islas Flannan, en español, 10 minutos, 2 voces y música ambiental.",
     expected: "MP3",
     publishForbidden: false,
+    requestedSeconds: 600,
   },
   {
     id: "video-oceano",
@@ -20,6 +21,7 @@ export const DEFAULT_MISSIONS: Mission[] = [
     instructions: "Océano profundo, en español, 5 minutos, 2 presentadores, estilo documental.",
     expected: "MP4 con labios sincronizados",
     publishForbidden: false,
+    requestedSeconds: 300,
   },
   {
     id: "reel-universo",
@@ -28,6 +30,7 @@ export const DEFAULT_MISSIONS: Mission[] = [
     instructions: "Tres misterios del universo, en inglés, 30 segundos, vertical 9:16.",
     expected: "MP4 vertical 9:16",
     publishForbidden: false,
+    requestedSeconds: 30,
   },
   {
     id: "longform-nazca",
@@ -36,6 +39,7 @@ export const DEFAULT_MISSIONS: Mission[] = [
     instructions: "Líneas de Nazca, en español, 15 minutos, horizontal 16:9, con capítulos y metadatos.",
     expected: "MP4 16:9 con capítulos y metadatos",
     publishForbidden: false,
+    requestedSeconds: 900,
   },
   {
     id: "youtube-borrador",
@@ -47,10 +51,38 @@ export const DEFAULT_MISSIONS: Mission[] = [
   },
 ];
 
+/**
+ * Misiones 2.0 que el worker real sabe recorrer en ATOMIVID. Gratuitas: el cliente llega hasta el costo y no pulsa
+ * nada facturable. Cada criterio se comprueba en pantalla o queda sin comprobar (y entonces el producto no se califica).
+ */
+export const LIVE_MISSIONS: Mission[] = [
+  { id: "cuenta-navegacion", product: "account-nav", title: "Cuenta y navegación", instructions: "Entrar, recorrer el menú principal en el celular, cerrar sesión y volver a entrar.", expected: "Sesión estable y menú completo", publishForbidden: false, auto: true,
+    criteria: ["Inicia sesión con la cuenta QA", "El menú muestra los productos", "Cada enlace principal abre sin error", "Sin desbordamiento horizontal en el celular", "Cerrar sesión funciona", "Volver a entrar recupera el panel"],
+    failure: ["No se puede entrar", "Un enlace principal da error", "La sesión no se cierra"] },
+  { id: "audio-proyecto-prueba", product: "audio-podcast", title: "Audio Podcast: guardar y recuperar un proyecto", instructions: "Crear un episodio de prueba con título y guion, guardarlo y recuperarlo desde la biblioteca. Sin generar voz.", expected: "Proyecto guardado y recuperable", publishForbidden: false, auto: true,
+    criteria: ["Encuentra Audio Podcast desde el menú", "Crea un episodio con título", "Escribe y guarda el guion", "El presupuesto o costo se ve antes de generar", "El episodio aparece en la biblioteca", "Tras recargar, el guion sigue guardado"],
+    failure: ["No se puede crear", "El guion se pierde al recargar", "No aparece en la biblioteca"] },
+  { id: "video-podcast-costo", product: "video-podcast", title: "Video Podcast: configurar hasta el costo", instructions: "Configurar un episodio de 2 presentadores hasta ver el costo por proveedor, sin autorizar el cargo.", expected: "Costo por proveedor antes de autorizar", publishForbidden: false,
+    criteria: ["Encuentra Podcast desde el menú", "El asistente avanza por sus pasos", "Recargar conserva el borrador", "Se ve el costo por proveedor antes de autorizar", "Sin autorización no se puede generar"],
+    failure: ["El asistente se bloquea", "El borrador se pierde", "Se puede generar sin autorizar"] },
+  { id: "reel-formulario", product: "reels", title: "Reel: formulario hasta el costo", instructions: "Abrir Nuevo video, elegir Reel y llenar la idea sin crear la solicitud.", expected: "Formulario claro con límites visibles", publishForbidden: false,
+    criteria: ["Encuentra Nuevo video", "Se puede elegir Reel", "El campo de idea acepta texto", "Se informa el costo o el límite antes de crear"],
+    failure: ["No se encuentra el formulario", "No se informa el costo"] },
+  { id: "longform-formulario", product: "long-form", title: "Long Form: formulario hasta el costo", instructions: "Abrir Nuevo video de YouTube y llenar el tema sin generar el guion.", expected: "Formulario claro con costo visible", publishForbidden: false,
+    criteria: ["Encuentra el video de YouTube", "El formulario acepta tema y duración", "Se informa el costo antes de generar"],
+    failure: ["No se encuentra el formulario", "No se informa el costo"] },
+  { id: "biblioteca-recuperar", product: "library", title: "Biblioteca: encontrar y abrir proyectos", instructions: "Abrir Mis proyectos, abrir un proyecto existente y comprobar reproducción y descarga si hay un archivo.", expected: "Proyectos visibles y recuperables", publishForbidden: false, auto: true,
+    criteria: ["Se ve la lista de proyectos", "Se puede abrir un proyecto", "Si hay archivo, se reproduce", "Si hay archivo, se descarga"],
+    failure: ["La biblioteca no carga", "Un proyecto no abre"] },
+  { id: "command-center-panel", product: "command-center", title: "Command Center: panel carga", instructions: "Abrir el Command Center con la cuenta QA y comprobar que carga o que niega el acceso con claridad.", expected: "Panel o negación clara", publishForbidden: false,
+    criteria: ["La página responde sin error", "Muestra el panel o un mensaje de acceso claro"],
+    failure: ["Error del servidor"] },
+];
+
 export type Catalog = { missions: Mission[] };
 
 export function defaultCatalog(): Catalog {
-  return { missions: DEFAULT_MISSIONS.map((m) => ({ ...m })) };
+  return { missions: [...LIVE_MISSIONS, ...DEFAULT_MISSIONS].map((m) => ({ ...m })) };
 }
 
 export class CatalogError extends Error {
@@ -112,6 +144,10 @@ export function parseCatalog(raw: unknown): Catalog {
       instructions: String(m.instructions ?? ""),
       expected: String(m.expected ?? ""),
       publishForbidden: m.product === "youtube" ? true : Boolean(m.publishForbidden),
+      ...(Array.isArray(m.criteria) ? { criteria: m.criteria.map(String).slice(0, 12) } : {}),
+      ...(Array.isArray(m.failure) ? { failure: m.failure.map(String).slice(0, 12) } : {}),
+      ...(typeof m.requestedSeconds === "number" ? { requestedSeconds: m.requestedSeconds } : {}),
+      ...(m.auto === true ? { auto: true } : {}),
     };
     assertMission(mission);
     return mission;
