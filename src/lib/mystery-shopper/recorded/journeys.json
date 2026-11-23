@@ -3,9 +3,9 @@
     {
       "scope": "fixture-harness",
       "missionId": "audio-flannan",
-      "sha": "94b6e82cba90c831d0ce878943087e1c32513e86",
+      "sha": "4a14b36e83e4e9aca9c9f9511f7dc6bbd5c817e8",
       "environment": "harness-local",
-      "baseUrl": "http://127.0.0.1:44737",
+      "baseUrl": "http://127.0.0.1:41953",
       "steps": [
         {
           "step": 1,
@@ -519,7 +519,7 @@
         }
       ],
       "media": {
-        "path": "/tmp/mystery-shopper-1795451339484/flannan-fixture.mp3",
+        "path": "/tmp/mystery-shopper-1795451410328/flannan-fixture.mp3",
         "labeledFixture": true,
         "exists": true,
         "container": "mp3",
@@ -552,7 +552,7 @@
       },
       "mediaByProduct": {
         "audio-podcast": {
-          "path": "/tmp/mystery-shopper-1795451339484/flannan-fixture.mp3",
+          "path": "/tmp/mystery-shopper-1795451410328/flannan-fixture.mp3",
           "labeledFixture": true,
           "exists": true,
           "container": "mp3",
@@ -584,7 +584,7 @@
           "subjective": "no evaluado"
         },
         "video-podcast": {
-          "path": "/tmp/mystery-shopper-1795451339484/oceano-fixture.mp4",
+          "path": "/tmp/mystery-shopper-1795451410328/oceano-fixture.mp4",
           "labeledFixture": true,
           "exists": true,
           "container": "mov,mp4,m4a,3gp,3g2,mj2",
@@ -616,7 +616,7 @@
           "subjective": "no evaluado"
         },
         "reels": {
-          "path": "/tmp/mystery-shopper-1795451339484/reel-fixture.mp4",
+          "path": "/tmp/mystery-shopper-1795451410328/reel-fixture.mp4",
           "labeledFixture": true,
           "exists": true,
           "container": "mov,mp4,m4a,3gp,3g2,mj2",
@@ -648,7 +648,7 @@
           "subjective": "no evaluado"
         },
         "long-form": {
-          "path": "/tmp/mystery-shopper-1795451339484/nazca-fixture.mp4",
+          "path": "/tmp/mystery-shopper-1795451410328/nazca-fixture.mp4",
           "labeledFixture": true,
           "exists": true,
           "container": "mov,mp4,m4a,3gp,3g2,mj2",
@@ -705,9 +705,9 @@
     {
       "scope": "fixture-harness",
       "missionId": "video-oceano",
-      "sha": "94b6e82cba90c831d0ce878943087e1c32513e86",
+      "sha": "4a14b36e83e4e9aca9c9f9511f7dc6bbd5c817e8",
       "environment": "harness-local",
-      "baseUrl": "http://127.0.0.1:44737",
+      "baseUrl": "http://127.0.0.1:41953",
       "steps": [
         {
           "step": 1,
@@ -926,7 +926,7 @@
         }
       ],
       "media": {
-        "path": "/tmp/mystery-shopper-1795451339484/oceano-fixture.mp4",
+        "path": "/tmp/mystery-shopper-1795451410328/oceano-fixture.mp4",
         "labeledFixture": true,
         "exists": true,
         "container": "mov,mp4,m4a,3gp,3g2,mj2",
@@ -959,7 +959,7 @@
       },
       "mediaByProduct": {
         "audio-podcast": {
-          "path": "/tmp/mystery-shopper-1795451339484/flannan-fixture.mp3",
+          "path": "/tmp/mystery-shopper-1795451410328/flannan-fixture.mp3",
           "labeledFixture": true,
           "exists": true,
           "container": "mp3",
@@ -991,7 +991,7 @@
           "subjective": "no evaluado"
         },
         "video-podcast": {
-          "path": "/tmp/mystery-shopper-1795451339484/oceano-fixture.mp4",
+          "path": "/tmp/mystery-shopper-1795451410328/oceano-fixture.mp4",
           "labeledFixture": true,
           "exists": true,
           "container": "mov,mp4,m4a,3gp,3g2,mj2",
@@ -1023,7 +1023,7 @@
           "subjective": "no evaluado"
         },
         "reels": {
-          "path": "/tmp/mystery-shopper-1795451339484/reel-fixture.mp4",
+          "path": "/tmp/mystery-shopper-1795451410328/reel-fixture.mp4",
           "labeledFixture": true,
           "exists": true,
           "container": "mov,mp4,m4a,3gp,3g2,mj2",
@@ -1055,7 +1055,7 @@
           "subjective": "no evaluado"
         },
         "long-form": {
-          "path": "/tmp/mystery-shopper-1795451339484/nazca-fixture.mp4",
+          "path": "/tmp/mystery-shopper-1795451410328/nazca-fixture.mp4",
           "labeledFixture": true,
           "exists": true,
           "container": "mov,mp4,m4a,3gp,3g2,mj2",
@@ -1112,9 +1112,9 @@
     {
       "scope": "fixture-harness",
       "missionId": "reel-universo",
-      "sha": "94b6e82cba90c831d0ce878943087e1c32513e86",
+      "sha": "4a14b36e83e4e9aca9c9f9511f7dc6bbd5c817e8",
       "environment": "harness-local",
-      "baseUrl": "http://127.0.0.1:44737",
+      "baseUrl": "http://127.0.0.1:41953",
       "steps": [
         {
           "step": 1,
@@ -1333,7 +1333,7 @@
         }
       ],
       "media": {
-        "path": "/tmp/mystery-shopper-1795451339484/reel-fixture.mp4",
+        "path": "/tmp/mystery-shopper-1795451410328/reel-fixture.mp4",
         "labeledFixture": true,
         "exists": true,
         "container": "mov,mp4,m4a,3gp,3g2,mj2",
@@ -1366,7 +1366,7 @@
       },
       "mediaByProduct": {
         "audio-podcast": {
-          "path": "/tmp/mystery-shopper-1795451339484/flannan-fixture.mp3",
+          "path": "/tmp/mystery-shopper-1795451410328/flannan-fixture.mp3",
           "labeledFixture": true,
           "exists": true,
           "container": "mp3",
@@ -1398,7 +1398,7 @@
           "subjective": "no evaluado"
         },
         "video-podcast": {
-          "path": "/tmp/mystery-shopper-1795451339484/oceano-fixture.mp4",
+          "path": "/tmp/mystery-shopper-1795451410328/oceano-fixture.mp4",
           "labeledFixture": true,
           "exists": true,
           "container": "mov,mp4,m4a,3gp,3g2,mj2",
@@ -1430,7 +1430,7 @@
           "subjective": "no evaluado"
         },
         "reels": {
-          "path": "/tmp/mystery-shopper-1795451339484/reel-fixture.mp4",
+          "path": "/tmp/mystery-shopper-1795451410328/reel-fixture.mp4",
           "labeledFixture": true,
           "exists": true,
           "container": "mov,mp4,m4a,3gp,3g2,mj2",
@@ -1462,7 +1462,7 @@
           "subjective": "no evaluado"
         },
         "long-form": {
-          "path": "/tmp/mystery-shopper-1795451339484/nazca-fixture.mp4",
+          "path": "/tmp/mystery-shopper-1795451410328/nazca-fixture.mp4",
           "labeledFixture": true,
           "exists": true,
           "container": "mov,mp4,m4a,3gp,3g2,mj2",
@@ -1519,9 +1519,9 @@
     {
       "scope": "fixture-harness",
       "missionId": "longform-nazca",
-      "sha": "94b6e82cba90c831d0ce878943087e1c32513e86",
+      "sha": "4a14b36e83e4e9aca9c9f9511f7dc6bbd5c817e8",
       "environment": "harness-local",
-      "baseUrl": "http://127.0.0.1:44737",
+      "baseUrl": "http://127.0.0.1:41953",
       "steps": [
         {
           "step": 1,
@@ -1740,7 +1740,7 @@
         }
       ],
       "media": {
-        "path": "/tmp/mystery-shopper-1795451339484/nazca-fixture.mp4",
+        "path": "/tmp/mystery-shopper-1795451410328/nazca-fixture.mp4",
         "labeledFixture": true,
         "exists": true,
         "container": "mov,mp4,m4a,3gp,3g2,mj2",
@@ -1773,7 +1773,7 @@
       },
       "mediaByProduct": {
         "audio-podcast": {
-          "path": "/tmp/mystery-shopper-1795451339484/flannan-fixture.mp3",
+          "path": "/tmp/mystery-shopper-1795451410328/flannan-fixture.mp3",
           "labeledFixture": true,
           "exists": true,
           "container": "mp3",
@@ -1805,7 +1805,7 @@
           "subjective": "no evaluado"
         },
         "video-podcast": {
-          "path": "/tmp/mystery-shopper-1795451339484/oceano-fixture.mp4",
+          "path": "/tmp/mystery-shopper-1795451410328/oceano-fixture.mp4",
           "labeledFixture": true,
           "exists": true,
           "container": "mov,mp4,m4a,3gp,3g2,mj2",
@@ -1837,7 +1837,7 @@
           "subjective": "no evaluado"
         },
         "reels": {
-          "path": "/tmp/mystery-shopper-1795451339484/reel-fixture.mp4",
+          "path": "/tmp/mystery-shopper-1795451410328/reel-fixture.mp4",
           "labeledFixture": true,
           "exists": true,
           "container": "mov,mp4,m4a,3gp,3g2,mj2",
@@ -1869,7 +1869,7 @@
           "subjective": "no evaluado"
         },
         "long-form": {
-          "path": "/tmp/mystery-shopper-1795451339484/nazca-fixture.mp4",
+          "path": "/tmp/mystery-shopper-1795451410328/nazca-fixture.mp4",
           "labeledFixture": true,
           "exists": true,
           "container": "mov,mp4,m4a,3gp,3g2,mj2",
@@ -1926,9 +1926,9 @@
     {
       "scope": "fixture-harness",
       "missionId": "youtube-borrador",
-      "sha": "94b6e82cba90c831d0ce878943087e1c32513e86",
+      "sha": "4a14b36e83e4e9aca9c9f9511f7dc6bbd5c817e8",
       "environment": "harness-local",
-      "baseUrl": "http://127.0.0.1:44737",
+      "baseUrl": "http://127.0.0.1:41953",
       "steps": [
         {
           "step": 1,
@@ -2147,7 +2147,7 @@
         }
       ],
       "media": {
-        "path": "/tmp/mystery-shopper-1795451339484/flannan-fixture.mp3",
+        "path": "/tmp/mystery-shopper-1795451410328/flannan-fixture.mp3",
         "labeledFixture": true,
         "exists": true,
         "container": "mp3",
@@ -2180,7 +2180,7 @@
       },
       "mediaByProduct": {
         "audio-podcast": {
-          "path": "/tmp/mystery-shopper-1795451339484/flannan-fixture.mp3",
+          "path": "/tmp/mystery-shopper-1795451410328/flannan-fixture.mp3",
           "labeledFixture": true,
           "exists": true,
           "container": "mp3",
@@ -2212,7 +2212,7 @@
           "subjective": "no evaluado"
         },
         "video-podcast": {
-          "path": "/tmp/mystery-shopper-1795451339484/oceano-fixture.mp4",
+          "path": "/tmp/mystery-shopper-1795451410328/oceano-fixture.mp4",
           "labeledFixture": true,
           "exists": true,
           "container": "mov,mp4,m4a,3gp,3g2,mj2",
@@ -2244,7 +2244,7 @@
           "subjective": "no evaluado"
         },
         "reels": {
-          "path": "/tmp/mystery-shopper-1795451339484/reel-fixture.mp4",
+          "path": "/tmp/mystery-shopper-1795451410328/reel-fixture.mp4",
           "labeledFixture": true,
           "exists": true,
           "container": "mov,mp4,m4a,3gp,3g2,mj2",
@@ -2276,7 +2276,7 @@
           "subjective": "no evaluado"
         },
         "long-form": {
-          "path": "/tmp/mystery-shopper-1795451339484/nazca-fixture.mp4",
+          "path": "/tmp/mystery-shopper-1795451410328/nazca-fixture.mp4",
           "labeledFixture": true,
           "exists": true,
           "container": "mov,mp4,m4a,3gp,3g2,mj2",
