@@ -54,7 +54,9 @@ export function MysteryShopperPanel({ catalog, sha, environment }: { catalog: Ca
   }, []);
   // Primera carga en una tarea aparte (no dentro del cuerpo del efecto).
   useEffect(() => { const t = setTimeout(() => { void loadList(); }, 0); return () => clearTimeout(t); }, [loadList]);
-  const running = current && (current.view.status.state === "en_cola" || current.view.status.state === "en_proceso");
+  const running = !!current && (current.view.status.state === "en_cola" || current.view.status.state === "en_proceso");
+  const runningRef = useRef(false);
+  useEffect(() => { runningRef.current = running; }, [running]);
   useEffect(() => {
     if (!current || !running) return;
     const t = setInterval(() => { void loadOne(current.view.job.id); void loadList(); }, POLL_MS);
@@ -63,6 +65,8 @@ export function MysteryShopperPanel({ catalog, sha, environment }: { catalog: Ca
 
   async function start(again?: JobView) {
     if (lock.current) return;
+    // Con una evaluación en cola o en curso, el botón principal no crea otra (un segundo toque llega tarde a veces).
+    if (!again && runningRef.current) { setMessage("Ya hay una evaluación en curso: se muestra abajo. Para otra, usa «Repetir»."); return; }
     lock.current = true; setBusy(true); setError(null); setMessage(null);
     // El id se fija ANTES de enviar: si la respuesta se pierde y se reintenta, es la misma evaluación.
     const id = pendingId.current ?? newId();
@@ -76,6 +80,7 @@ export function MysteryShopperPanel({ catalog, sha, environment }: { catalog: Ca
       if (!res.ok || !b?.view) { setError(b?.error ?? "No se pudo iniciar la evaluación."); return; }
       pendingId.current = null;
       setMessage(b.message ?? null);
+      runningRef.current = b.view.status.state === "en_cola" || b.view.status.state === "en_proceso";
       setCurrent({ view: b.view, report: null, evidence: [] });
       void loadList();
     } catch {
@@ -96,9 +101,9 @@ export function MysteryShopperPanel({ catalog, sha, environment }: { catalog: Ca
       <h2 id="mystery-shopper-title" className="text-xl font-semibold text-ink">Cliente misterioso</h2>
       <p className="mt-1 text-sm text-ink-muted">Un navegador nuevo entra a ATOMIVID como un cliente, recorre la misión y te dice qué funcionó, qué falló y qué simplificar.</p>
 
-      <button type="button" data-testid="ms-probar" onClick={() => void start()} disabled={busy}
+      <button type="button" data-testid="ms-probar" onClick={() => void start()} disabled={busy || running}
         className="mt-4 min-h-14 w-full rounded-xl bg-accent px-4 text-lg font-semibold text-accent-ink disabled:opacity-60">
-        {busy ? "Iniciando…" : "PROBAR MI PLATAFORMA"}
+        {busy ? "Iniciando…" : running ? "Evaluación en curso…" : "PROBAR MI PLATAFORMA"}
       </button>
 
       <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm" data-testid="ms-resumen">

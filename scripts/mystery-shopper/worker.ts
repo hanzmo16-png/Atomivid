@@ -93,7 +93,8 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
   const vp = VIEWPORT[job.profile];
 
   const pwMod = await import(env.PLAYWRIGHT_MODULE || "playwright");
-  const pw = (pwMod.chromium ? pwMod : pwMod.default) as typeof import("playwright");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- playwright no es dependencia de la app; el worker lo instala aparte.
+  const pw = (pwMod.chromium ? pwMod : pwMod.default) as any;
   const browser = await pw.chromium.launch({ headless: true, executablePath: env.MS_CHROME || undefined });
   const headers: Record<string, string> = {};
   if (job.target.kind === "preview") {
@@ -157,9 +158,23 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
     const t0 = Date.now();
     const res = await page.goto(`${job.target.url}${p}`, { waitUntil: "domcontentloaded", timeout: 45_000 });
     await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
-    return metrics(res?.status() ?? null, Date.now() - t0);
+    const m = await metrics(res?.status() ?? null, Date.now() - t0);
+    await dismissOverlays();
+    return m;
   };
   const impatient = job.profile === "impaciente";
+  /** Como un cliente: si un recorrido de bienvenida tapa la pantalla, lo omite. Se registra como hallazgo medido. */
+  const overlayNotes: { url: string; text: string }[] = [];
+  const dismissOverlays = async () => {
+    const skip = page.getByRole("button", { name: "Omitir" }).first();
+    if (await skip.isVisible().catch(() => false)) {
+      const text = ((await page.locator('[role="dialog"]').first().innerText().catch(() => "")) || "").replace(/\s+/g, " ").slice(0, 120);
+      overlayNotes.push({ url: page.url(), text });
+      act("ventana", `recorrido de bienvenida visible («${text}»): se pulsa «Omitir»`);
+      await skip.click().catch(() => {});
+      await page.waitForTimeout(400);
+    }
+  };
 
   try {
     // 1. Acceso
@@ -183,7 +198,9 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
       await step("Iniciar sesión con la cuenta QA", async () => {
         if (!email || !password) { humanGate = "Falta la cuenta QA: crear un usuario de prueba en ATOMIVID y guardar MYSTERY_SHOPPER_QA_EMAIL y MYSTERY_SHOPPER_QA_PASSWORD como secretos del repositorio."; return { state: "BLOCKED", detail: "No hay cuenta QA configurada. No se inventa una sesión." }; }
         await doLogin(); authenticated = true;
+        await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
         await metrics(200, 0);
+        await dismissOverlays();
         return { state: "PASS", detail: "Sesión iniciada; panel visible." };
       });
     }
@@ -237,7 +254,7 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
         const title = `QA cliente misterioso ${jobId.slice(-6)}`;
         await step("Encontrar Audio Podcast en el menú", async () => {
           await goto("/dashboard");
-          const link = page.locator('a[href="/dashboard/audio-studio"]').first();
+          const link = page.locator('a[href="/dashboard/audio-studio"]:visible').first();
           const visible = await link.isVisible().catch(() => false);
           mark(cIdx(/Encuentra Audio/), visible, visible ? "Enlace visible en el menú." : "No hay enlace visible a Audio Podcast.");
           if (!visible) return { state: "FAIL", detail: "No se ve «Audio Podcast» en el menú." };
@@ -288,7 +305,7 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
       case "video-podcast-costo": {
         await step("Encontrar Podcast en el menú", async () => {
           await goto("/dashboard");
-          const link = page.locator('a[href="/dashboard/podcast"]').first();
+          const link = page.locator('a[href="/dashboard/podcast"]:visible').first();
           const ok = await link.isVisible().catch(() => false);
           mark(cIdx(/Encuentra Podcast/), ok, ok ? "Enlace visible." : "Sin enlace a Podcast.");
           if (!ok) return { state: "FAIL", detail: "No se ve «Podcast» en el menú." };
@@ -430,6 +447,11 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
   act("navegador", "cerrado");
 
   const findings = findingsFrom(mission.product, job.profile, pages, steps, media);
+  if (overlayNotes.length) findings.push({ severity: "P2", product: mission.product, screen: new URL(overlayNotes[0].url).pathname,
+    fact: `Un recorrido de bienvenida cubre toda la pantalla (también «Salir» y el menú) y no deja pulsar nada hasta omitirlo; apareció ${overlayNotes.length} vez/veces.`,
+    interpretation: "Un cliente que solo quiere salir o ir a otro producto queda atrapado; parece que la página no responde.",
+    recommendation: "Dejar la cabecera (menú y «Salir») utilizable mientras se muestra el recorrido, o mostrarlo como un aviso que no bloquee.",
+    evidence: steps.find((x) => x.screenshot)?.screenshot ?? null });
   const verdict = verdictFor(mission.product, criteria, findings, critical);
   const worked = steps.filter((s) => s.state === "PASS").map((s) => s.name);
   const failed = steps.filter((s) => s.state === "FAIL").map((s) => `${s.name}: ${s.detail}`);

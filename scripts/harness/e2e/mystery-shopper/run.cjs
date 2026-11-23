@@ -13,7 +13,7 @@ const DISPATCH = path.join(E2E, "logs/dispatch.jsonl");
 const results = []; const ok = (name, cond, detail = "") => { results.push(!!cond); console.log(`${cond ? "PASS" : "FAIL"} ${name}${detail ? ` ${String(detail).slice(0, 300)}` : ""}`); };
 const env = Object.fromEntries(fs.readFileSync(path.join(E2E, "secrets/podcast-worker.env"), "utf8").trim().split("\n").map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]));
 const workerEnv = (jobId) => ({ ...process.env, NEXT_PUBLIC_SUPABASE_URL: env.NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY: env.SUPABASE_SERVICE_ROLE_KEY, NODE_OPTIONS: "", MS_JOB_ID: jobId,
-  MYSTERY_SHOPPER_QA_EMAIL: QA.email, MYSTERY_SHOPPER_QA_PASSWORD: QA.password, PLAYWRIGHT_MODULE: process.env.PLAYWRIGHT_MODULE, MS_OUT_DIR: path.join(OUT, "worker"), MS_WORKER_RUN_URL: "local" });
+  MYSTERY_SHOPPER_QA_EMAIL: QA.email, MYSTERY_SHOPPER_QA_PASSWORD: QA.password, PLAYWRIGHT_MODULE: process.env.PLAYWRIGHT_MODULE, MS_CHROME: process.env.E2E_CHROME || "", MS_OUT_DIR: path.join(OUT, "worker"), MS_WORKER_RUN_URL: "local" });
 const worker = (jobId, extra = {}) => new Promise((res) => {
   const p = spawn("npx", ["tsx", "scripts/mystery-shopper/worker.ts"], { cwd: REPO, env: { ...workerEnv(jobId), ...extra }, detached: true });
   let log = ""; p.stdout.on("data", (d) => { log += d; }); p.stderr.on("data", (d) => { log += d; });
@@ -33,6 +33,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const p = await ctx.newPage();
     await p.goto(`${BASE}/login`); await p.getByLabel("Correo electrónico").fill(user.email); await p.getByLabel("Contraseña").fill(user.password);
     await p.getByRole("button", { name: "Iniciar sesión" }).click(); await p.waitForURL(/\/dashboard/, { timeout: 60000 });
+    await p.waitForLoadState("networkidle").catch(() => {});
+    const skip = p.getByRole("button", { name: "Omitir" }).first();
+    if (await skip.isVisible().catch(() => false)) await skip.click();
     return { ctx, p };
   };
   const panel = async (p) => { await p.goto(`${BASE}/dashboard/command-center#mystery-shopper`, { timeout: 120000 }); await p.getByTestId("ms-probar").waitFor({ timeout: 120000 }); };
@@ -72,6 +75,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   ok("worker 1: termina y guarda el informe en Storage", w1.code === 0 && !!r1 && s1?.state === "terminada", `code=${w1.code} state=${s1?.state}`);
   ok("worker 1: navegador NUEVO (contexto sin cookies) con id de sesión y versión", r1?.browser?.freshContext === true && /^[0-9a-f-]{36}$/.test(r1?.browser?.sessionId ?? "") && !!r1?.browser?.version, JSON.stringify(r1?.browser));
   ok("worker 1: sesión autenticada real con la cuenta QA", r1?.authenticated === true && r1.steps.some((s) => /Iniciar sesión/.test(s.name) && s.state === "PASS"));
+  ok("worker 1: hallazgo medido del recorrido de bienvenida que tapa «Salir» (si apareció), con hecho/interpretación/recomendación", (r1?.findings ?? []).some((f) => /recorrido de bienvenida/.test(f.fact)) || !/ventana/.test(w1.log));
   ok("worker 1: cierre de sesión y vuelta a entrar", r1?.steps.some((s) => /Cerrar sesión/.test(s.name) && s.state === "PASS") && r1?.steps.some((s) => /Volver a entrar/.test(s.name) && s.state === "PASS"), JSON.stringify(r1?.steps.map((s) => `${s.name}:${s.state}`)));
   const ev1 = fs.existsSync(path.join(RUNS, job1, "evidence")) ? fs.readdirSync(path.join(RUNS, job1, "evidence")) : [];
   ok("worker 1: capturas por paso y registro de acciones en Storage", ev1.filter((n) => n.endsWith(".png")).length >= 3 && ev1.includes("actions.log"), ev1.join(","));
