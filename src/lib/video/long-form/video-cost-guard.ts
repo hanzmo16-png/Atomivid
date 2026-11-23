@@ -1,7 +1,7 @@
 /**
  * Barrera técnica de costo ESPECÍFICA para un video concreto (hoy: VIDEO
  * #001, Göbekli Tepe) — capa adicional sobre el presupuesto genérico de
- * Long Form (cost.ts, LONG_FORM_MAX_TOTAL_USD=$12, aplicable a cualquier
+ * Long Form (cost.ts, LONG_FORM_MAX_TOTAL_USD=$20 por defecto, aplicable a cualquier
  * video). Esta capa existe porque el usuario autorizó topes MÁS
  * ESTRICTOS y específicos para este primer documental concreto:
  *   - Visual Test V2 (3 imágenes de prueba): máximo $0.50 USD.
