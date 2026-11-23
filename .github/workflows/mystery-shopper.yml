@@ -65,7 +65,8 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: npx tsx scripts/mystery-shopper/manual-start.ts
-      - run: npx playwright install --with-deps chromium
+      # playwright no es dependencia de la app: se instala aquí (sin tocar package.json) antes del navegador.
+      - run: npm install --no-save --no-audit --no-fund playwright@1.49.1 && npx playwright install --with-deps chromium
       - name: Recorrido con navegador nuevo
         env:
           MS_JOB_ID: ${{ steps.trabajo.outputs.job }}
@@ -114,7 +115,7 @@ jobs:
           MYSTERY_SHOPPER_AUTO: ${{ vars.MYSTERY_SHOPPER_AUTO }}
         run: npx tsx scripts/mystery-shopper/ci-start.ts
       - if: steps.crear.outputs.jobs != '' && steps.crear.outputs.jobs != '[]'
-        run: npx playwright install --with-deps chromium
+        run: npm install --no-save --no-audit --no-fund playwright@1.49.1 && npx playwright install --with-deps chromium
       - name: Recorridos
         if: steps.crear.outputs.jobs != '' && steps.crear.outputs.jobs != '[]'
         env:
