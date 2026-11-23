@@ -91,7 +91,10 @@ http.createServer(async (req, res) => {
       if (fs.existsSync(f) && req.method === "POST" && req.headers["x-upsert"] !== "true") return json(res, 400, { statusCode: "409", error: "Duplicate", message: "The resource already exists" });
       let b = await body(req); const ct = req.headers["content-type"] ?? "";
       if (ct.startsWith("multipart/form-data")) { const bd = "--" + ct.split("boundary=")[1]; const s = b.indexOf("\r\n\r\n") + 4; const e = b.lastIndexOf(Buffer.from("\r\n" + bd)); b = b.subarray(s, e); }
-      fs.mkdirSync(path.dirname(f), { recursive: true }); writeAtomic(f, b); log({ kind: "upload", key, bytes: b.length, sha256: crypto.createHash("sha256").update(b).digest("hex") });
+      fs.mkdirSync(path.dirname(f), { recursive: true });
+      // Como storage.objects (índice único): sin upsert, la creación es exclusiva también entre subidas simultáneas.
+      if (req.method === "POST" && req.headers["x-upsert"] !== "true") { try { fs.writeFileSync(f, b, { flag: "wx" }); } catch (e) { if (e.code === "EEXIST") return json(res, 400, { statusCode: "409", error: "Duplicate", message: "The resource already exists" }); throw e; } }
+      else writeAtomic(f, b); log({ kind: "upload", key, bytes: b.length, sha256: crypto.createHash("sha256").update(b).digest("hex") });
       return json(res, 200, { Key: key, Id: key });
     }
     if ((m = p.match(/^\/storage\/v1\/object\/([^/]+)$/)) && req.method === "DELETE") { if (claims(req)?.role !== "service_role") return json(res, 403, {}); const b = JSON.parse((await body(req)).toString() || "{}"); for (const x of b.prefixes ?? []) fs.rmSync(path.join(STORE, m[1], x), { force: true }); log({ kind: "delete", bucket: m[1], n: (b.prefixes ?? []).length }); return json(res, 200, []); }

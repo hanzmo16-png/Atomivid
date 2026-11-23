@@ -78,13 +78,15 @@ export async function startEvaluation(input: StartInput, deps: { store: JobStore
   const ds = await deps.store.dispatchState(input.id);
   // Doble clic, respuesta perdida o reintento de red: si ya hay un despacho confirmado y el worker no murió, no se
   // vuelve a encolar. Solo se repite si el anterior falló o si el worker quedó sin latido.
-  if (ds.ok > 0 && !stale) return { http: 200, view, created, dispatched: false, message: "Esta evaluación ya está en cola: no se lanza otra." };
+  // Un despacho en vuelo (pedido, sin confirmar ni fallar) cuenta como pedido: dos solicitudes simultáneas no encolan dos.
+  if (ds.count > ds.failed && !stale) return { http: 200, view, created, dispatched: false, message: "Esta evaluación ya está en cola: no se lanza otra." };
   const n = ds.count + 1;
   if (n > MAX_DISPATCHES) return { http: 200, view, created, dispatched: false, message: `Ya se pidió el worker ${MAX_DISPATCHES} veces para esta evaluación. Revisa el worker antes de repetir.` };
   const recorded = await deps.store.recordDispatch(input.id, n, { at: now.toISOString(), source: input.source, stale });
   if (!recorded) return { http: 200, view, created, dispatched: false, message: "Otra solicitud ya pidió el worker para esta evaluación." };
   const d = await deps.dispatch({ jobId: input.id, attempt: n });
   if (d.ok) await deps.store.markDispatchOk(input.id, n).catch(() => false);
+  else await deps.store.markDispatchFailed(input.id, n, d.detail).catch(() => false);
   return { http: created ? 201 : 200, view, created, dispatched: d.ok, message: d.ok ? "Evaluación en cola: el worker abrirá un navegador nuevo." : `La evaluación quedó guardada, pero no se pudo avisar al worker: ${d.detail}` };
 }
 

@@ -52,7 +52,8 @@ export function MysteryShopperPanel({ catalog, sha, environment }: { catalog: Ca
     const b = r && r.ok ? await r.json().catch(() => null) as Detail | null : null;
     if (b) setCurrent(b);
   }, []);
-  useEffect(() => { void loadList(); }, [loadList]);
+  // Primera carga en una tarea aparte (no dentro del cuerpo del efecto).
+  useEffect(() => { const t = setTimeout(() => { void loadList(); }, 0); return () => clearTimeout(t); }, [loadList]);
   const running = current && (current.view.status.state === "en_cola" || current.view.status.state === "en_proceso");
   useEffect(() => {
     if (!current || !running) return;

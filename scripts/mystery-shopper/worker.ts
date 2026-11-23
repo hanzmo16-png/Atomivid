@@ -58,6 +58,19 @@ async function main(): Promise<number> {
   const view = (await store.get(jobId))!;
   const job = view.job;
   const mission: Mission = missionById(defaultCatalog(), job.missionId);
+  try {
+    return await evaluate(store, view, mission, claim.attempt);
+  } catch (e) {
+    const msg = redact(e instanceof Error ? e.message.split("\n")[0] : String(e)).slice(0, 300);
+    console.error("[mystery-shopper] fallo del worker", msg);
+    await store.setStatus(jobId, runnerId, { ...view.status, state: "error", stage: "El worker falló", attempt: claim.attempt, runnerId, error: msg, finishedAt: nowIso(), heartbeatAt: nowIso(), updatedAt: nowIso() }).catch(() => {});
+    return 1;
+  }
+}
+
+async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Awaited<ReturnType<ReturnType<typeof jobStore>["get"]>>>, mission: Mission, attempt: number): Promise<number> {
+  const job = view.job;
+  const claim = { attempt };
   const startedAt = nowIso();
   let status: JobStatus = { ...view.status, state: "en_proceso", stage: "Abriendo un navegador nuevo", attempt: claim.attempt, runnerId, heartbeatAt: startedAt, startedAt, finishedAt: null, workerRunUrl: env.MS_WORKER_RUN_URL || null, error: null, updatedAt: startedAt };
   const save = async (patch: Partial<JobStatus>) => { status = { ...status, ...patch, heartbeatAt: nowIso(), updatedAt: nowIso() }; await store.setStatus(jobId, runnerId, status); };
@@ -79,7 +92,8 @@ async function main(): Promise<number> {
   let observedSha: string | null = null;
   const vp = VIEWPORT[job.profile];
 
-  const pw = await import(env.PLAYWRIGHT_MODULE || "playwright");
+  const pwMod = await import(env.PLAYWRIGHT_MODULE || "playwright");
+  const pw = (pwMod.chromium ? pwMod : pwMod.default) as typeof import("playwright");
   const browser = await pw.chromium.launch({ headless: true, executablePath: env.MS_CHROME || undefined });
   const headers: Record<string, string> = {};
   if (job.target.kind === "preview") {

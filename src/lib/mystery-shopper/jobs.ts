@@ -197,9 +197,17 @@ export function jobStore(bucket: StorageApi) {
     async markDispatchOk(id: string, n: number): Promise<boolean> {
       return createOnly(`${dir(id)}/dispatch-${n}-ok.json`, JSON.stringify({ ok: true }));
     },
-    async dispatchState(id: string): Promise<{ count: number; ok: number }> {
+    async markDispatchFailed(id: string, n: number, detail: string): Promise<boolean> {
+      return createOnly(`${dir(id)}/dispatch-${n}-fail.json`, JSON.stringify({ ok: false, detail }));
+    },
+    /** count = despachos pedidos; ok = confirmados; failed = fallidos de forma explícita (los demás siguen en vuelo). */
+    async dispatchState(id: string): Promise<{ count: number; ok: number; failed: number }> {
       const files = await names(dir(id));
-      return { count: files.filter((n) => /^dispatch-\d+\.json$/.test(n)).length, ok: files.filter((n) => /^dispatch-\d+-ok\.json$/.test(n)).length };
+      return {
+        count: files.filter((n) => /^dispatch-\d+\.json$/.test(n)).length,
+        ok: files.filter((n) => /^dispatch-\d+-ok\.json$/.test(n)).length,
+        failed: files.filter((n) => /^dispatch-\d+-fail\.json$/.test(n)).length,
+      };
     },
   };
   return store;

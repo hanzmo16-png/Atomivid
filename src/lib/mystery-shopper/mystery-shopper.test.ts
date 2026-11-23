@@ -43,7 +43,7 @@ const deps = (recorded?: Journey) => ({ env: {} as Record<string, string | undef
 
 test("el catálogo se edita sin permitir publicar en YouTube", () => {
   const edited = editMission(defaultCatalog(), "audio-flannan", { instructions: "Islas Flannan, versión de prueba más corta, en español." });
-  assert.match(edited.missions[0].instructions, /versión de prueba/);
+  assert.match(edited.missions.find((m) => m.id === "audio-flannan")?.instructions ?? "", /versión de prueba/);
   assert.throws(() => editMission(defaultCatalog(), "youtube-borrador", { instructions: "Programar publicación mañana." }));
   const parsed = parseCatalog(edited);
   assert.equal(parsed.missions.find((m) => m.id === "youtube-borrador")?.publishForbidden, true);
