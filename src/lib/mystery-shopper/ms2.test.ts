@@ -155,3 +155,25 @@ test("un hallazgo repetido en la misma pantalla cuenta una vez", () => {
   const f = findingsFrom("audio-podcast", "impaciente", [base, { ...base, smallTargets: 8 }, { ...base, url: base.url.replace("d8e199a9", "aaaaaaaa") }], [], []);
   assert.equal(f.length, 1); assert.equal(f[0].screen, "/dashboard/audio-studio/:id");
 });
+
+test("disparo automático: apagado sin MYSTERY_SHOPPER_AUTO; activado (controlado, sin gasto) espera al CI, valida y no duplica", async () => {
+  const { ciStart } = await import("./ci");
+  const { store } = setup();
+  let calls = 0; const states = [[{ name: "e2e", status: "in_progress", conclusion: null }], [{ name: "e2e", status: "completed", conclusion: "success" }, { name: "automatico", status: "in_progress", conclusion: null }]];
+  const fetchImpl = (async () => { const runs = states[Math.min(calls++, states.length - 1)]; return new Response(JSON.stringify({ check_runs: runs }), { status: 200 }); }) as unknown as typeof fetch;
+  let t = T0.getTime(); const deps = { store, fetchImpl, sleep: async (ms: number) => { t += ms; }, now: () => new Date(t), env: {} };
+  const ev = { repo: "o/r", eventRepo: "o/r", state: "success", environment: "Preview", sha: "a".repeat(40), url: "https://atomivid-abc123-atomivid.vercel.app", githubToken: "x" };
+  const off = await ciStart({ ...ev }, deps);
+  assert.equal(off.accepted, false); assert.match(off.reason, /MYSTERY_SHOPPER_AUTO/); assert.equal(calls, 0); assert.equal((await store.list()).length, 0);
+  const on = await ciStart({ ...ev, autoFlag: "1" }, deps);
+  assert.equal(on.accepted, true, on.reason); assert.equal(calls, 2, "esperó a que el CI terminara");
+  assert.deepEqual(on.created.sort(), on.jobs.sort()); assert.equal(on.jobs.length, 3);
+  const again = await ciStart({ ...ev, autoFlag: "1" }, deps);
+  assert.equal(again.created.length, 0, "el mismo evento no crea trabajos nuevos"); assert.equal((await store.list()).length, 3);
+  for (const bad of [{ eventRepo: "x/y" }, { environment: "Production" }, { url: "https://evil.example.com" }, { sha: "123" }, { state: "failure" }]) {
+    const r = await ciStart({ ...ev, autoFlag: "1", ...bad }, deps); assert.equal(r.accepted, false, JSON.stringify(bad));
+  }
+  calls = 0; states.splice(0, states.length, [{ name: "e2e", status: "completed", conclusion: "failure" }]);
+  const red = await ciStart({ ...ev, sha: "b".repeat(40), autoFlag: "1" }, deps);
+  assert.equal(red.accepted, false); assert.match(red.reason, /CI con fallos: e2e/); assert.equal((await store.list()).length, 3);
+});

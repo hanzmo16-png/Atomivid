@@ -13,8 +13,17 @@ on:
   workflow_dispatch:
     inputs:
       job_id:
-        description: Id de una evaluación ya creada (ms-...)
-        required: true
+        description: Id de una evaluación ya creada (ms-...). Vacío = crear una nueva con la misión y el perfil de abajo.
+        required: false
+        default: ""
+      mission:
+        description: Misión (solo si job_id está vacío)
+        required: false
+        default: cuenta-navegacion
+      profile:
+        description: Perfil (principiante, impaciente, creador, profesional)
+        required: false
+        default: principiante
   pull_request:
     paths:
       - src/lib/mystery-shopper/**
@@ -36,21 +45,30 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     concurrency:
-      group: mystery-shopper-${{ github.event.client_payload.jobId || inputs.job_id }}
+      group: mystery-shopper-${{ github.event.client_payload.jobId || inputs.job_id || github.run_id }}
       cancel-in-progress: false
     steps:
       - name: Id de trabajo válido
         env:
           JOB: ${{ github.event.client_payload.jobId || inputs.job_id }}
-        run: '[[ "$JOB" =~ ^ms-[a-z0-9][a-z0-9-]{7,90}$ ]] || { echo "::error::id no válido"; exit 1; }'
+        run: '[[ -z "$JOB" || "$JOB" =~ ^ms-[a-z0-9][a-z0-9-]{7,90}$ ]] || { echo "::error::id no válido"; exit 1; }'
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci --no-audit --no-fund
+      - name: Crear o reutilizar la evaluación (reserva atómica)
+        id: trabajo
+        env:
+          MS_JOB_ID: ${{ github.event.client_payload.jobId || inputs.job_id }}
+          MS_MISSION: ${{ inputs.mission || 'cuenta-navegacion' }}
+          MS_PROFILE: ${{ inputs.profile || 'principiante' }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npx tsx scripts/mystery-shopper/manual-start.ts
       - run: npx playwright install --with-deps chromium
       - name: Recorrido con navegador nuevo
         env:
-          MS_JOB_ID: ${{ github.event.client_payload.jobId || inputs.job_id }}
+          MS_JOB_ID: ${{ steps.trabajo.outputs.job }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           MYSTERY_SHOPPER_QA_EMAIL: ${{ secrets.MYSTERY_SHOPPER_QA_EMAIL }}
@@ -62,7 +80,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: mystery-shopper-${{ github.event.client_payload.jobId || inputs.job_id }}
+          name: mystery-shopper-${{ steps.trabajo.outputs.job || github.run_id }}
           retention-days: 30
           path: ${{ runner.temp }}/ms
           if-no-files-found: ignore
@@ -93,6 +111,7 @@ jobs:
           MS_EVENT_URL: ${{ github.event.deployment_status.environment_url || github.event.deployment_status.target_url }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          MYSTERY_SHOPPER_AUTO: ${{ vars.MYSTERY_SHOPPER_AUTO }}
         run: npx tsx scripts/mystery-shopper/ci-start.ts
       - if: steps.crear.outputs.jobs != '' && steps.crear.outputs.jobs != '[]'
         run: npx playwright install --with-deps chromium
