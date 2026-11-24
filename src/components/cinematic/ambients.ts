@@ -4,8 +4,10 @@
  * Cada ambiente declara su material. Solo se reproduce un ambiente a la vez y solo si tiene material propio publicado
  * en /public/cinematic: un ambiente sin material NO finge video, se queda en su degradado de respaldo.
  *
- * COSMOS es una producción propia de ATOMIVID (escena determinista en scripts/cinematic/cosmos-scene.html, renderizada
- * con scripts/cinematic/render-ambient.cjs: Chromium + ffmpeg, USD 0, sin material de terceros ni proveedores de pago).
+ * COSMOS es una producción propia de ATOMIVID: «VANGUARD», escena 3D real (scripts/cinematic/vanguard-scene.html, Three.js
+ * PBR + bloom) con una fragata espacial, un gigante gaseoso anillado, nebulosa y polvo en movimiento y cámara orbital;
+ * renderizada fotograma a fotograma con scripts/cinematic/render-ambient.cjs (Chromium + ffmpeg). USD 0, sin material
+ * de terceros ni proveedores de pago. Bucle exacto de 10 s.
  * Los otros cuatro quedan preparados para recibir fragmentos propios autorizados (Ocean Deep, Thermopylae…); hoy no
  * tienen archivo y por eso `media` es null.
  */
@@ -52,7 +54,7 @@ export const AMBIENTS: readonly Ambient[] = [
     name: "COSMOS",
     theme: "Universo y exploración espacial",
     fallback: "radial-gradient(120% 90% at 35% 35%, #1b2550 0%, #070b1c 55%, #02030a 100%)",
-    media: own("cosmos", 8, "Producción propia ATOMIVID: escena procedural renderizada con Chromium + ffmpeg (USD 0)."),
+    media: own("cosmos", 10, "Producción propia ATOMIVID: escena 3D «VANGUARD» (nave, planeta anillado, nebulosa) renderizada con Three.js + Chromium + ffmpeg (USD 0)."),
   },
   { id: "epic-history", name: "EPIC HISTORY", theme: "Civilizaciones, imperios e historia", fallback: "radial-gradient(120% 90% at 40% 30%, #3a2a14 0%, #150e07 55%, #050302 100%)", media: null },
   { id: "ocean-deep", name: "OCEAN DEEP", theme: "Océanos y naturaleza", fallback: "radial-gradient(120% 90% at 50% 20%, #0d3a4f 0%, #061722 55%, #01060a 100%)", media: null },

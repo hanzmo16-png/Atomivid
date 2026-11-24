@@ -42,18 +42,26 @@ Solo cambia la capa de presentación y navegación. No toca autenticación, susc
 
 ## Material audiovisual
 
-**COSMOS es producción propia, con gasto USD 0 y sin material de terceros.** La escena es determinista: `scripts/cinematic/cosmos-scene.html` dibuja cada fotograma solo en función del tiempo, y todo el movimiento es periódico en 8 s, así que el bucle no tiene corte. Se renderiza con Chromium y se codifica con ffmpeg:
+**COSMOS «VANGUARD» es producción propia, con gasto USD 0 y sin material de terceros.** Es una escena 3D real (`scripts/cinematic/vanguard-scene.html`, Three.js con materiales PBR y bloom):
+- una fragata espacial con cubierta escalonada, cientos de ventanas iluminadas, luces de navegación y tres motores de iones con estela;
+- un gigante gaseoso con anillos que reciben su sombra, una nebulosa procedural y polvo que pasa a velocidad;
+- una cámara que orbita lentamente en tres cuartos frontal.
+
+Todo el movimiento es periódico en 10 s, así que el bucle no tiene corte. Se renderiza fotograma a fotograma con Chromium y se codifica con ffmpeg:
 
 ```bash
-node scripts/cinematic/render-ambient.cjs cosmos public/cinematic
+npm i --prefix /tmp/three three@0.169.0        # solo para el render; three no es dependencia de la app
+THREE_DIR=/tmp/three/node_modules/three node scripts/cinematic/render-ambient.cjs vanguard public/cinematic cosmos
 ```
 
 | Archivo | Tamaño |
 |---|---|
-| `cosmos-landscape.mp4` (1280×720, H.264, 8 s) | 1,28 MB |
-| `cosmos-portrait.mp4` (720×1280) | 1,12 MB |
-| `.webm` (VP9) | 0,53–0,57 MB |
-| Pósteres JPEG | ≈ 32 KB |
+| `cosmos-landscape.mp4` (1280×720, H.264, 10 s) | 1,61 MB |
+| `cosmos-portrait.mp4` (720×1280) | 1,31 MB |
+| `.webm` (VP9) | 1,09–1,11 MB |
+| Pósteres JPEG | 58–76 KB |
+
+En horizontal, la nave ocupa la mitad derecha y deja libre el lado del titular. En vertical, nave y planeta ocupan la mitad superior y dejan libre la inferior para el texto.
 
 **Fotos de los estudios.** `studio-moderno.jpg` y `studio-calido.jpg` son copias reducidas (≈ 45 KB) de las fotos propias de `public/podcast/estudios`.
 

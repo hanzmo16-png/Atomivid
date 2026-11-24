@@ -28,8 +28,8 @@ export function MobileDock() {
   if (!dockVisibleOn(pathname)) return null;
   return (
     <nav aria-label="Navegación principal" data-testid="mobile-dock"
-      className="sticky bottom-0 z-30 mt-6 px-4 sm:hidden" style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}>
-      <ul className="glass-strong mx-auto flex max-w-md items-center justify-between rounded-[28px] px-2 py-1.5 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.85)]">
+      className="sticky bottom-0 z-30 mt-6 px-4 max-[359px]:px-2 sm:hidden" style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}>
+      <ul className="glass-strong mx-auto flex max-w-md items-center justify-between rounded-[28px] px-2 py-1.5 max-[359px]:px-1 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.85)]">
         {ITEMS.map((it, i) => it === null ? (
           <li key="crear" className="-mt-7">
             <Link href="/dashboard#crear" aria-label="Crear" data-testid="dock-crear"
@@ -43,7 +43,7 @@ export function MobileDock() {
               const active = it.href === "/dashboard" ? pathname === "/dashboard" : !it.href.includes("#") && pathname.startsWith(it.href);
               return (
                 <Link href={it.href} aria-current={active ? "page" : undefined}
-                  className={`flex min-h-12 min-w-14 flex-col items-center justify-center gap-0.5 rounded-2xl px-2 text-[11px] font-medium transition-colors ${active ? "text-champagne" : "text-ink-muted active:text-ink"}`}>
+                  className={`flex min-h-12 min-w-14 flex-col items-center justify-center gap-0.5 rounded-2xl px-2 text-[11px] max-[359px]:min-w-12 max-[359px]:px-1 font-medium transition-colors ${active ? "text-champagne" : "text-ink-muted active:text-ink"}`}>
                   <svg width="22" height="22" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" clipRule="evenodd" d={it.d} /></svg>
                   {it.label}
                 </Link>

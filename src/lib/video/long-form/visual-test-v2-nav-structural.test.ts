@@ -49,6 +49,12 @@ test("el enlace aparece una sola vez, condicionado por showLongFormDryRun, y nun
   assert.ok(LAYOUT_SOURCE.includes("<MobileDock />"));
   assert.equal(DOCK_SOURCE.includes("visual-test-v2"), false);
   assert.equal(DOCK_SOURCE.includes("Dry Run Long Form"), false);
+  // Ni en la fila de estudios (< lg) de la cabecera.
+  const stripStart = LAYOUT_SOURCE.indexOf('data-testid="studio-strip"');
+  const strip = LAYOUT_SOURCE.slice(stripStart, LAYOUT_SOURCE.indexOf("</header>", stripStart));
+  assert.ok(stripStart !== -1 && strip.length > 0);
+  assert.equal(strip.includes("visual-test-v2"), false);
+  assert.equal(strip.includes("Dry Run Long Form"), false);
 });
 
 test("layout.tsx no importa ni referencia ningún proveedor real de imagen/voz/footage ni process.env directamente", () => {

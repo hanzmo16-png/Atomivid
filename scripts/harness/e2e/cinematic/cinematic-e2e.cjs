@@ -18,6 +18,7 @@ const OUT = path.resolve(process.env.E2E_OUT ?? "cinematic-out"); fs.mkdirSync(O
 const OWNER = { email: "pilot-owner@local.test", password: "local-pass-owner-1" };
 const ANDROID_UA = "Mozilla/5.0 (Linux; Android 16; SM-S948B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36";
 const DEVICES = {
+  "galaxy-s9plus-320x658": { viewport: { width: 320, height: 658 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, userAgent: ANDROID_UA },
   "android-360x800": { viewport: { width: 360, height: 800 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, userAgent: ANDROID_UA },
   "samsung-390x844": { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, userAgent: ANDROID_UA },
   "s26ultra-412x915": { viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, userAgent: ANDROID_UA },
@@ -88,7 +89,7 @@ async function login(p) {
     const vOut = await videoInfo(p);
     check(`[${dev}] fondo se pausa al salir de la portada`, vOut.paused === true, vOut);
     // Estudios
-    const studios = await p.$$eval("[data-testid^=studio-]", (els) => els.map((e) => ({ id: e.dataset.testid, available: e.dataset.available, href: e.querySelector("a")?.getAttribute("href") ?? null })));
+    const studios = await p.$$eval("[data-testid^=studio-]:not([data-testid=studio-strip])", (els) => els.map((e) => ({ id: e.dataset.testid, available: e.dataset.available, href: e.querySelector("a")?.getAttribute("href") ?? null })));
     check(`[${dev}] estudios con rutas reales (${studios.map((s) => s.id.replace("studio-", "")).join(", ")})`, studios.length >= 4 && studios.every((s) => s.available === "1" ? !!s.href && s.href.startsWith("/dashboard/") : s.href === null), studios);
     await p.screenshot({ path: path.join(OUT, `${dev}-3-estudios.png`) });
     // Galería
@@ -128,11 +129,15 @@ async function login(p) {
     } else check(`[${dev}] sin dock en pantallas grandes`, !dockVisible);
 
     // Cabecera: ningún enlace partido en dos líneas ni fuera de la pantalla.
+    // Solo nodos de texto (el icono SVG del logo no cuenta como «otra línea»); la tira de estudios se desplaza en horizontal
+    // dentro de sí misma, así que se comprueba el contenedor y no cada enlace.
     const hdr = await p.evaluate(() => [...document.querySelectorAll("header a, header button")].filter((a) => a.getBoundingClientRect().width > 0).map((a) => {
-      const r = a.getBoundingClientRect(); const rg = document.createRange(); rg.selectNodeContents(a);
-      const tops = new Set([...rg.getClientRects()].filter((c) => c.width > 1).map((c) => Math.round(c.top / 4)));
-      return { t: a.innerText.trim(), right: Math.round(r.right), lines: a.innerText.trim() ? tops.size : 1 }; }));
-    check(`[${dev}] cabecera en una línea y dentro de la pantalla`, hdr.every((a) => a.lines <= 1 && a.right <= opts.viewport.width), hdr);
+      const r = a.getBoundingClientRect(); const tops = new Set();
+      const w = document.createTreeWalker(a, NodeFilter.SHOW_TEXT); let n;
+      while ((n = w.nextNode())) { if (!n.textContent.trim()) continue; const rg = document.createRange(); rg.selectNodeContents(n); for (const c of rg.getClientRects()) if (c.width > 1) tops.add(Math.round(c.top / 4)); }
+      return { t: a.innerText.trim(), strip: !!a.closest("[data-testid=studio-strip]"), right: Math.round(r.right), lines: Math.max(1, tops.size) }; }));
+    const strip = await p.evaluate(() => { const s = document.querySelector("[data-testid=studio-strip]"); if (!s || !s.getBoundingClientRect().width) return null; const r = s.getBoundingClientRect(); return { right: Math.round(r.right), docW: document.documentElement.scrollWidth }; });
+    check(`[${dev}] cabecera en una línea y dentro de la pantalla`, hdr.every((a) => a.lines <= 1 && (a.strip || a.right <= opts.viewport.width)) && (!strip || (strip.right <= opts.viewport.width && strip.docW <= opts.viewport.width)), { hdr, strip });
     // Desbordamiento, consola, POST, CLS/LCP
     const ov = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     check(`[${dev}] sin desbordamiento horizontal`, ov <= 0, ov);
