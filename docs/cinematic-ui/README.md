@@ -42,31 +42,26 @@ Solo cambia la capa de presentación y navegación. No toca autenticación, susc
 
 ## Material audiovisual
 
-**COSMOS «VANGUARD» es producción propia, con gasto USD 0 y sin material de terceros.** Es una escena 3D real (`scripts/cinematic/vanguard-scene.html`, Three.js con materiales PBR y bloom):
-- una fragata espacial con cubierta escalonada, cientos de ventanas iluminadas, luces de navegación y tres motores de iones con estela;
-- un gigante gaseoso con anillos que reciben su sombra, una nebulosa procedural y polvo que pasa a velocidad;
-- una cámara que orbita lentamente en tres cuartos frontal.
-
-Todo el movimiento es periódico en 10 s, así que el bucle no tiene corte. Se renderiza fotograma a fotograma con Chromium y se codifica con ffmpeg:
-
-```bash
-npm i --prefix /tmp/three three@0.169.0        # solo para el render; three no es dependencia de la app
-THREE_DIR=/tmp/three/node_modules/three node scripts/cinematic/render-ambient.cjs vanguard public/cinematic cosmos
-```
+**COSMOS es producción propia de ATOMIVID generada con IA**, autorizada por Hans el 2026-11-24 («si necesitas un proveedor de pago … tienes mi autorización»). Gasto total: **USD 5,34**.
+- **Imágenes clave:** FLUX 1.1 Pro Ultra (fal.ai), 9 candidatas (USD 0,54). Elegidas: `kf-land-d` (horizontal: nave de frente, nebulosa, planeta anillado a la derecha) y `kf-port-a` (vertical: planeta arriba, nave en el centro, espacio libre abajo). Se descartaron las que tenían texto en el casco, barras negras o el planeta detrás del titular.
+- **Animación:** Veo 3.1 Fast vía fal.ai, 1080p, 8 s, sin audio. Por orientación, un clip con movimiento libre de cámara (image-to-video) y uno de bucle exacto (primer y último fotograma = imagen clave). 4 clips, USD 4,80. La clave directa de Google ya no ofrece modelos Veo (404 / ListModels vacío, sin cobro).
+- **Montaje** (`scripts/cinematic/encode-ambient.sh`): clip libre completo + fundido de 1,5 s hacia el tramo 3–8 s del clip de bucle, que acaba en la imagen clave = primer fotograma ⇒ **bucle de 11,5 s sin salto** (PSNR de la costura 28,7 dB en horizontal, igual o mejor que entre fotogramas consecutivos).
+- **Clips maestros** (Veo 1080p, 4 × 8 s, ~25 MB): fuera del árbol para no engordar el repositorio; están en el historial de esta rama (commit `6ef9eb02`, `ops/cinematic-bg/out/vid-*.mp4`).
+- **Reproducible:** `ops/cinematic-bg/job.json` + `.github/workflows/cinematic-bg-paid.yml` (solo corre al cambiar el job en esta rama, con tope de gasto y sin reintentos) + `scripts/cinematic/paid-ambient.mjs`. Los informes con identificadores de petición están en `ops/cinematic-bg/out/report-*.json`.
 
 | Archivo | Tamaño |
 |---|---|
-| `cosmos-landscape.mp4` (1280×720, H.264, 10 s) | 1,61 MB |
-| `cosmos-portrait.mp4` (720×1280) | 1,31 MB |
-| `.webm` (VP9) | 1,09–1,11 MB |
-| Pósteres JPEG | 58–76 KB |
+| `cosmos-landscape.mp4` (1280×720, H.264, 11,5 s) | 2,67 MB |
+| `cosmos-portrait.mp4` (720×1280) | 2,20 MB |
+| `cosmos-landscape.webm` / `cosmos-portrait.webm` (VP9, los que usa Chrome) | 1,75 / 1,46 MB |
+| Pósteres JPEG | 74–94 KB |
 
-En horizontal, la nave ocupa la mitad derecha y deja libre el lado del titular. En vertical, nave y planeta ocupan la mitad superior y dejan libre la inferior para el texto.
+La escena 3D propia «VANGUARD» (`scripts/cinematic/vanguard-scene.html` + `render-ambient.cjs`, USD 0) queda como alternativa sin coste.
 
 **Fotos de los estudios.** `studio-moderno.jpg` y `studio-calido.jpg` son copias reducidas (≈ 45 KB) de las fotos propias de `public/podcast/estudios`.
 
 **Añadir un ambiente** (Ocean Deep, Thermopylae u otro fragmento propio autorizado):
-1. Recorta 6–10 s.
+1. Recorta 6–12 s.
 2. Genera `<id>-landscape.(mp4|webm)`, `<id>-portrait.(mp4|webm)` y los dos pósteres en `public/cinematic`.
 3. En `ambients.ts`, cambia `media: null` por `own("<id>", segundos, "procedencia")`.
 

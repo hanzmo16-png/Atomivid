@@ -23,7 +23,7 @@ test("cinco ambientes; solo los que tienen material propio declaran video, y ese
       assert.ok(existsSync(pub(a.media!.posters[o])));
       assert.ok(statSync(pub(a.media!.posters[o])).size < 150_000, "póster ligero");
     }
-    assert.ok(a.media!.loopSeconds >= 6 && a.media!.loopSeconds <= 10);
+    assert.ok(a.media!.loopSeconds >= 6 && a.media!.loopSeconds <= 12);
     assert.match(a.media!.provenance, /Producción propia/);
   }
 });
