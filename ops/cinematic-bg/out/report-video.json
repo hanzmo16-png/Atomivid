@@ -1,0 +1,78 @@
+{
+  "stage": "video",
+  "startedAt": "2026-11-24T16:32:21.443Z",
+  "items": [
+    {
+      "id": "vid-land-loop",
+      "model": "veo-3.1-fast-generate-preview",
+      "aspect": "16:9",
+      "image": "ops/cinematic-bg/out/kf-land-d.jpg",
+      "loop": true,
+      "error": {
+        "status": 404,
+        "body": {
+          "error": {
+            "code": 404,
+            "message": "models/veo-3.1-fast-generate-preview is not found for API version v1beta, or is not supported for predictLongRunning. Call ModelService.ListModels to see the list of available models and their supported methods.",
+            "status": "NOT_FOUND"
+          }
+        }
+      }
+    },
+    {
+      "id": "vid-port-loop",
+      "model": "veo-3.1-fast-generate-preview",
+      "aspect": "9:16",
+      "image": "ops/cinematic-bg/out/kf-port-a.jpg",
+      "loop": true,
+      "error": {
+        "status": 404,
+        "body": {
+          "error": {
+            "code": 404,
+            "message": "models/veo-3.1-fast-generate-preview is not found for API version v1beta, or is not supported for predictLongRunning. Call ModelService.ListModels to see the list of available models and their supported methods.",
+            "status": "NOT_FOUND"
+          }
+        }
+      }
+    },
+    {
+      "id": "vid-land-free",
+      "model": "veo-3.1-fast-generate-preview",
+      "aspect": "16:9",
+      "image": "ops/cinematic-bg/out/kf-land-d.jpg",
+      "loop": false,
+      "error": {
+        "status": 404,
+        "body": {
+          "error": {
+            "code": 404,
+            "message": "models/veo-3.1-fast-generate-preview is not found for API version v1beta, or is not supported for predictLongRunning. Call ModelService.ListModels to see the list of available models and their supported methods.",
+            "status": "NOT_FOUND"
+          }
+        }
+      }
+    },
+    {
+      "id": "vid-port-free",
+      "model": "veo-3.1-fast-generate-preview",
+      "aspect": "9:16",
+      "image": "ops/cinematic-bg/out/kf-port-a.jpg",
+      "loop": false,
+      "error": {
+        "status": 404,
+        "body": {
+          "error": {
+            "code": 404,
+            "message": "models/veo-3.1-fast-generate-preview is not found for API version v1beta, or is not supported for predictLongRunning. Call ModelService.ListModels to see the list of available models and their supported methods.",
+            "status": "NOT_FOUND"
+          }
+        }
+      }
+    }
+  ],
+  "estimatedMaxUsd": 3.84,
+  "capUsd": 5,
+  "finishedAt": "2026-11-24T16:32:22.558Z",
+  "spentUsd": 0
+}
