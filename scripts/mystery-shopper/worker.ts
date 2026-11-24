@@ -19,6 +19,9 @@ import path from "node:path";
 import os from "node:os";
 import { createClient } from "@supabase/supabase-js";
 import { classifyAuth, type AuthOutcome } from "../../src/lib/mystery-shopper/v3/auth-outcome";
+import { ledgerStore } from "../../src/lib/mystery-shopper/v3/ledger";
+import { AUDIO_VARIANTS, runAudioReal, runYoutubeReal, type RealCtx } from "./real-missions";
+import type { Incident } from "../../src/lib/mystery-shopper/v3/detect";
 import { defaultCatalog, missionById } from "../../src/lib/mystery-shopper/catalog";
 import { jobStore, MS_BUCKET, type JobStatus, type StorageApi } from "../../src/lib/mystery-shopper/jobs";
 import { findingsFrom, mediaCheck, technicalTerms, verdictFor, LIVE_VERSION, type ActionLog, type LiveReport, type LiveStep, type MediaCheck, type PageMetrics } from "../../src/lib/mystery-shopper/live";
@@ -88,6 +91,10 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
   const criteria = (mission.criteria ?? []).map((text) => ({ text, met: null as boolean | null, evidence: "" }));
   const mark = (i: number, met: boolean, evidence: string) => { if (criteria[i]) criteria[i] = { ...criteria[i], met, evidence: redact(evidence).slice(0, 240) }; };
   let critical: string | null = null;
+  // 3.0: gasto real solo con modo real + interruptor + presupuesto del trabajo > 0 (el libro acumulado hace cumplir USD 8.50).
+  const realAllowed = job.mode === "real" && env.MYSTERY_SHOPPER_REAL_ENABLED === "1" && job.maxBudgetUsd > 0;
+  let spendUsd = 0;
+  const v3Incidents: Incident[] = [];
   let authenticated = false;
   let humanGate: string | null = null;
   let observedSha: string | null = null;
@@ -418,6 +425,17 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
         });
         break;
       }
+      case "audio-real-es":
+      case "audio-real-en":
+      case "youtube-real": {
+        const realCtx: RealCtx = {
+          page, jobId, baseUrl: job.target.url, out, real: realAllowed, step, goto, metrics, mark, cIdx, act, probe, media, incidents: v3Incidents,
+          setCritical: (x) => { critical = critical ?? x; }, setHumanGate: (x) => { humanGate = humanGate ?? x; }, addSpend: (usd) => { spendUsd = Math.round((spendUsd + usd) * 100) / 100; },
+          ledger: realAllowed ? ledgerStore(bucket()) : null,
+        };
+        if (mission.id === "youtube-real") await runYoutubeReal(realCtx); else await runAudioReal(realCtx, AUDIO_VARIANTS[mission.id]);
+        break;
+      }
       case "command-center-panel": {
         await step("Abrir el Command Center", async () => {
           const m = await goto("/dashboard/command-center");
@@ -466,13 +484,14 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
     interpretation: "Un cliente que solo quiere salir o ir a otro producto queda atrapado; parece que la página no responde.",
     recommendation: "Dejar la cabecera (menú y «Salir») utilizable mientras se muestra el recorrido, o mostrarlo como un aviso que no bloquee.",
     evidence: steps.find((x) => x.screenshot)?.screenshot ?? null });
+  for (const i of v3Incidents) findings.push({ severity: i.severity, product: mission.product, screen: i.repro[i.repro.length - 1]?.replace(/^Pantalla: /, "") ?? "", fact: i.title, interpretation: i.evidence.join(" · "), recommendation: i.fixProposal, evidence: i.screenshot });
   const verdict = verdictFor(mission.product, criteria, findings, critical);
   const worked = steps.filter((s) => s.state === "PASS").map((s) => s.name);
   const failed = steps.filter((s) => s.state === "FAIL").map((s) => `${s.name}: ${s.detail}`);
   const report: LiveReport = {
     version: LIVE_VERSION, jobId, scope: "atomivid-real", target: job.target, observedSha, missionId: mission.id, product: mission.product, profile: job.profile, mode: job.mode, authenticated,
     browser: { sessionId, version: browser.version(), freshContext: fresh, viewport: { width: vp.width, height: vp.height } },
-    startedAt, finishedAt: nowIso(), spendUsd: 0, steps, pages, media, findings, verdict,
+    startedAt, finishedAt: nowIso(), spendUsd, steps, pages, media, findings, verdict,
     plain: {
       doing: `Un cliente «${job.profile}» recorrió ${PRODUCT_LABEL[mission.product]} en ${job.target.url} con un navegador nuevo (${vp.width}×${vp.height}).`,
       found: findings.length ? `${findings.length} problema(s): ${findings.filter((f) => f.severity <= "P1").length} importantes.` : verdict.coverage === "EVALUADO" ? "No encontró problemas medibles." : "No pudo completar la misión, así que no califica el producto.",

@@ -88,10 +88,10 @@ test("un trabajo con informe no se vuelve a ejecutar y el informe es inmutable",
   assert.equal(c.ok, false); assert.equal(!c.ok && c.reason, "terminado");
 });
 
-test("bloqueo económico: el modo real con presupuesto aprobado USD 0 no crea nada", async () => {
+test("bloqueo económico: el modo real sin presupuesto o por encima del aprobado (USD 8.50, t899u) no crea nada", async () => {
   const { store, calls, deps } = setup();
   await assert.rejects(startEvaluation(input("ms-20261123t180000z-gggggg", { mode: "real", maxBudgetUsd: 0 }), deps), /presupuesto/);
-  await assert.rejects(startEvaluation(input("ms-20261123t180000z-hhhhhh", { mode: "real", maxBudgetUsd: 5 }), deps), /supera el aprobado/);
+  await assert.rejects(startEvaluation(input("ms-20261123t180000z-hhhhhh", { mode: "real", maxBudgetUsd: 9 }), deps), /supera el aprobado/);
   assert.equal(calls.length, 0); assert.equal((await store.list()).length, 0);
 });
 

@@ -1,5 +1,5 @@
 /**
- * Ejecución manual (workflow_dispatch sin job_id): crea UNA evaluación gratuita con la misma reserva atómica que el
+ * Ejecución manual (workflow_dispatch sin job_id): crea UNA evaluación (gratuita por defecto; real solo con MS_MODE=real y presupuesto ≤ APPROVED_REAL_BUDGET_USD) con la misma reserva atómica que el
  * panel y escribe su id en GITHUB_OUTPUT para que el worker la recorra en este mismo workflow. Con MS_JOB_ID dado,
  * reutiliza ese trabajo (un segundo despacho con el mismo id no crea ni repite nada).
  */
@@ -24,7 +24,7 @@ async function main() {
     return;
   }
   const id = newJobId(new Date(), () => randomBytes(5).toString("hex"));
-  const r = await startEvaluation({ id, missionId: env.MS_MISSION || "cuenta-navegacion", profile: env.MS_PROFILE || "principiante", mode: "gratuito", target: env.MS_TARGET || undefined,
+  const r = await startEvaluation({ id, missionId: env.MS_MISSION || "cuenta-navegacion", profile: env.MS_PROFILE || "principiante", mode: env.MS_MODE === "real" ? "real" : "gratuito", maxBudgetUsd: env.MS_MODE === "real" ? Number(env.MS_MAX_BUDGET_USD || 0) : undefined, target: env.MS_TARGET || undefined,
     source: "panel", requestedBy: "manual", requestedSha: env.GITHUB_SHA || "desconocido" },
     { store, catalog: defaultCatalog(), dispatch: async () => ({ ok: true, detail: "el worker corre en este mismo workflow" }), now: () => new Date(), env });
   console.log(`[mystery-shopper:manual] ${id}: ${r.message} (estado ${r.view.status.state}, informe ${r.view.hasReport ? "sí" : "no"})`);
