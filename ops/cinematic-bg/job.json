@@ -1,7 +1,7 @@
 {
   "stage": "video",
-  "capUsd": 5.0,
-  "note": "Autorizado por Hans 2026-11-24. Fase 2: Veo 3.1 Fast 1080p 8 s, 4 clips.",
+  "capUsd": 8.0,
+  "note": "Autorizado por Hans 2026-11-24. Fase 2: Veo 3.1 Fast 1080p 8 s, 4 clips. Reintento tras 404 del modelo preview (sin cobro): modelo elegido de ListModels; tope USD 8.",
   "videos": [
     {
       "id": "vid-land-loop",
