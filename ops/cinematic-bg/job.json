@@ -1,28 +1,35 @@
 {
-  "stage": "keyframes",
-  "capUsd": 1.0,
-  "note": "Autorizado por Hans 2026-11-24. Ronda 2 horizontal: composición con la izquierda libre para el título.",
-  "keyframes": [
+  "stage": "video",
+  "capUsd": 5.0,
+  "note": "Autorizado por Hans 2026-11-24. Fase 2: Veo 3.1 Fast 1080p 8 s, 4 clips.",
+  "videos": [
     {
-      "id": "kf-land-d",
+      "id": "vid-land-loop",
       "aspect": "16:9",
-      "seed": 4404,
-      "raw": false,
-      "prompt": "Photorealistic cinematic film still, shot on IMAX 65mm, grounded hard science fiction realism, wide 16:9 composition. RIGHT HALF of the frame: a gigantic ringed gas giant with banded amber, cream and ochre storms, partially cropped by the right edge, its wide icy rings sweeping across; in front of it a colossal sleek futuristic starship, long angular dark gunmetal hull with intricate panel detailing, tiny warm window lights and glowing blue ion engines, seen from the side, flying from right to left. LEFT HALF of the frame: deep black space with faint stars and a very subtle teal and violet nebula haze, no planet, no bright objects there (room for a title). Sun rim light from the right edge, immense sense of scale. Anamorphic lens, subtle film grain, muted filmic color grade. Plain hull with no text, no letters, no numbers, no insignia. No logos, no watermark, no people."
+      "image": "ops/cinematic-bg/out/kf-land-d.jpg",
+      "loop": true,
+      "prompt": "Photorealistic cinematic space shot, one continuous seamless loop that ends exactly on the starting composition. The colossal starship drifts gently, its blue ion engines pulsing and running lights blinking along the hull; the ringed gas giant's storm bands swirl slowly; faint space dust floats past the lens; very slight camera breathing. Smooth, calm, epic scale, IMAX film look. Avoid: text, letters, logos, watermark, cuts, scene changes, fast or shaky motion, explosions, people, warp effects."
     },
     {
-      "id": "kf-land-e",
-      "aspect": "16:9",
-      "seed": 5505,
-      "raw": false,
-      "prompt": "Photorealistic cinematic film still, shot on IMAX 65mm, grounded hard science fiction realism, wide 16:9 composition. RIGHT HALF of the frame: a gigantic ringed gas giant with banded amber, cream and ochre storms, partially cropped by the right edge, its wide icy rings sweeping across; in front of it a colossal sleek futuristic starship, long angular dark gunmetal hull with intricate panel detailing, tiny warm window lights and glowing blue ion engines, seen in three-quarter view from slightly below, gliding toward the camera-left. LEFT HALF of the frame: deep black space with faint stars and a very subtle teal and violet nebula haze, no planet, no bright objects there (room for a title). Sun rim light from the right edge, immense sense of scale. Anamorphic lens, subtle film grain, muted filmic color grade. Plain hull with no text, no letters, no numbers, no insignia. No logos, no watermark, no people."
+      "id": "vid-port-loop",
+      "aspect": "9:16",
+      "image": "ops/cinematic-bg/out/kf-port-a.jpg",
+      "loop": true,
+      "prompt": "Photorealistic cinematic space shot, one continuous seamless loop that ends exactly on the starting composition. The colossal starship drifts gently, its blue ion engines pulsing and running lights blinking along the hull; the ringed gas giant's storm bands swirl slowly; faint space dust floats past the lens; very slight camera breathing. Smooth, calm, epic scale, IMAX film look. Avoid: text, letters, logos, watermark, cuts, scene changes, fast or shaky motion, explosions, people, warp effects."
     },
     {
-      "id": "kf-land-f",
+      "id": "vid-land-free",
       "aspect": "16:9",
-      "seed": 6606,
-      "raw": false,
-      "prompt": "Photorealistic cinematic film still, shot on IMAX 65mm, grounded hard science fiction realism, wide 16:9 composition. RIGHT HALF of the frame: a gigantic ringed gas giant with banded amber, cream and ochre storms, partially cropped by the right edge, its wide icy rings sweeping across; in front of it a colossal sleek futuristic starship, long angular dark gunmetal hull with intricate panel detailing, tiny warm window lights and glowing blue ion engines, seen from slightly above and behind, cruising toward the planet. LEFT HALF of the frame: deep black space with faint stars and a very subtle teal and violet nebula haze, no planet, no bright objects there (room for a title). Sun rim light from the right edge, immense sense of scale. Anamorphic lens, subtle film grain, muted filmic color grade. Plain hull with no text, no letters, no numbers, no insignia. No logos, no watermark, no people."
+      "image": "ops/cinematic-bg/out/kf-land-d.jpg",
+      "loop": false,
+      "prompt": "Photorealistic cinematic space shot. The colossal starship glides slowly and majestically forward, its blue ion engines pulsing, tiny running lights blinking along the hull. The camera tracks slowly alongside with a gentle parallax push-in, the ringed gas giant turning almost imperceptibly behind, its storm bands drifting. Faint space dust floats past the lens. Smooth, steady, epic scale, IMAX film look, one continuous shot. Avoid: text, letters, logos, watermark, cuts, scene changes, fast or shaky motion, explosions, people, warp effects."
+    },
+    {
+      "id": "vid-port-free",
+      "aspect": "9:16",
+      "image": "ops/cinematic-bg/out/kf-port-a.jpg",
+      "loop": false,
+      "prompt": "Photorealistic cinematic space shot. The colossal starship glides slowly and majestically forward, its blue ion engines pulsing, tiny running lights blinking along the hull. The camera tracks slowly alongside with a gentle parallax push-in, the ringed gas giant turning almost imperceptibly behind, its storm bands drifting. Faint space dust floats past the lens. Smooth, steady, epic scale, IMAX film look, one continuous shot. Avoid: text, letters, logos, watermark, cuts, scene changes, fast or shaky motion, explosions, people, warp effects."
     }
   ]
 }
