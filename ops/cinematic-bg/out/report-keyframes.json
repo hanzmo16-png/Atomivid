@@ -1,0 +1,82 @@
+{
+  "stage": "keyframes",
+  "startedAt": "2026-11-24T16:28:32.620Z",
+  "items": [
+    {
+      "id": "kf-land-a",
+      "model": "fal-ai/flux-pro/v1.1-ultra",
+      "aspect": "16:9",
+      "seed": 1101,
+      "requestId": "01a20e63-36c6-7b70-8aa1-df54852dc2e5",
+      "ok": true,
+      "width": 2752,
+      "height": 1536,
+      "bytes": 829618,
+      "usd": 0.06
+    },
+    {
+      "id": "kf-land-b",
+      "model": "fal-ai/flux-pro/v1.1-ultra",
+      "aspect": "16:9",
+      "seed": 2202,
+      "requestId": "01a20e63-699b-7f10-9702-96aec01beeb9",
+      "ok": true,
+      "width": 2752,
+      "height": 1536,
+      "bytes": 1031165,
+      "usd": 0.06
+    },
+    {
+      "id": "kf-land-c",
+      "model": "fal-ai/flux-pro/v1.1-ultra",
+      "aspect": "16:9",
+      "seed": 3303,
+      "requestId": "01a20e63-9085-7583-8785-b88ae725537e",
+      "ok": true,
+      "width": 2752,
+      "height": 1536,
+      "bytes": 980652,
+      "usd": 0.06
+    },
+    {
+      "id": "kf-port-a",
+      "model": "fal-ai/flux-pro/v1.1-ultra",
+      "aspect": "9:16",
+      "seed": 1101,
+      "requestId": "01a20e63-c344-7702-b3ef-e5c30f7c73a3",
+      "ok": true,
+      "width": 1536,
+      "height": 2752,
+      "bytes": 962961,
+      "usd": 0.06
+    },
+    {
+      "id": "kf-port-b",
+      "model": "fal-ai/flux-pro/v1.1-ultra",
+      "aspect": "9:16",
+      "seed": 2202,
+      "requestId": "01a20e63-ea52-7522-83b3-3039836369af",
+      "ok": true,
+      "width": 1536,
+      "height": 2752,
+      "bytes": 1231497,
+      "usd": 0.06
+    },
+    {
+      "id": "kf-port-c",
+      "model": "fal-ai/flux-pro/v1.1-ultra",
+      "aspect": "9:16",
+      "seed": 3303,
+      "requestId": "01a20e64-110f-7f81-8bec-25a0e9f3a98d",
+      "ok": true,
+      "width": 1536,
+      "height": 2752,
+      "bytes": 980138,
+      "usd": 0.06
+    }
+  ],
+  "estimatedMaxUsd": 0.36,
+  "capUsd": 1,
+  "finishedAt": "2026-11-24T16:29:44.809Z",
+  "spentUsd": 0.36
+}
