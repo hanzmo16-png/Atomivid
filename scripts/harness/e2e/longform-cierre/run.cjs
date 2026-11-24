@@ -39,7 +39,7 @@ async function login(p, email = OWNER.email, password = OWNER.password) {
   await p.goto(`${BASE}/login`); await p.fill("input[name=email]", email); await p.fill("input[name=password]", password);
   await p.locator("form button[type=submit]").last().click(); await p.waitForURL(/\/dashboard/);
 }
-const skipTour = (p) => p.getByRole("button", { name: "Omitir" }).click({ timeout: 4000 }).catch(() => {});
+const { dismissFirstVisitTour: skipTour } = require("../shared/onboarding.cjs");
 const overflow = (p) => p.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: window.innerWidth }));
 const shot = (p, n) => p.screenshot({ path: path.join(OUT, `${n}.png`), fullPage: true }).catch(() => {});
 

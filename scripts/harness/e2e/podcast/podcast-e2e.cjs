@@ -709,8 +709,8 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     for (const [dev, opt] of Object.entries(DEV)) {
       const M = await session(OWNER, `c11-${dev}`, opt);
       await M.p.goto(`${BASE}/dashboard`); await shot(M.p, `c11-${dev}-00-dashboard`);
-      const link = M.p.locator('header div.sm\\:hidden a[href="/dashboard/podcast"]');
-      ok(`c11-${dev}: menú móvil muestra «Podcast»`, await link.isVisible());
+      const link = M.p.locator('header a[href="/dashboard/podcast"]:visible');
+      ok(`c11-${dev}: menú móvil muestra un enlace visible «Podcast»`, (await link.count()) === 1 && (await link.innerText()).trim() === "Podcast");
       await link.click(); await M.p.waitForURL(/\/dashboard\/podcast$/);
       const overflow = await M.p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       ok(`c11-${dev}: sin desbordamiento horizontal`, overflow <= 1, `${overflow}px`);

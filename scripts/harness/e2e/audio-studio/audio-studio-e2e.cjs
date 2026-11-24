@@ -44,12 +44,9 @@ async function generate(p) {
   await p.waitForFunction((prev) => { const t = document.querySelector('[data-testid="audio-generation-status"]')?.textContent ?? ""; return /En cola|Generando/.test(t) || (/Audio listo/.test(t) && !/Audio listo/.test(prev)); }, before, { timeout: 30000 });
 }
 const apiProject = (p, id) => p.evaluate(async (x) => (await fetch(`/api/audio-studio/projects/${x}`)).json(), id);
-async function downloadMp3(p, id, file) {
-  const r = await p.request.get(`${BASE}/api/audio-studio/projects/${id}/audio?descargar=1`);
-  const body = await r.body();
-  if (file) fs.writeFileSync(file, body);
-  return { status: r.status(), type: r.headers()["content-type"] ?? "", bytes: body.length, mp3: body.length > 1000 && ((body[0] === 0x49 && body[1] === 0x44 && body[2] === 0x33) || (body[0] === 0xff && (body[1] & 0xe0) === 0xe0)) };
-}
+const { downloadMp3: downloadAudio } = require("./download.cjs");
+const downloadMp3 = (p, id, file) => downloadAudio(p.request, `${BASE}/api/audio-studio/projects/${id}/audio?descargar=1`, file);
+
 const egressLines = () => (EGRESS && fs.existsSync(EGRESS) ? fs.readFileSync(EGRESS, "utf8").split("\n").filter(Boolean) : []);
 
 async function login(browser, user, opts) {
@@ -72,6 +69,11 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`), fu
     for (const [dev, opts] of Object.entries(DEVICES).filter(([d]) => !only.length || only.includes(d))) {
       const { ctx, p } = await login(browser, OWNER, opts);
       const paid = []; p.on("request", (r) => { if (/elevenlabs|heygen|openai|anthropic|recraft|fal\.|pexels/i.test(r.url())) paid.push(r.url()); });
+
+      // Fail closed before rendering: exercise the real route and distinguish JSON from Next's HTML404.
+      const probe = await p.request.get(`${BASE}/api/audio-studio/projects/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/audio?descargar=1`, { maxRedirects: 0 });
+      const probeBody = await probe.json().catch(() => null);
+      if (!check(`[${dev}] ruta de descarga autenticada: proyecto inexistente → 404 JSON`, probe.status() === 404 && /application\/json/.test(probe.headers()["content-type"] || "") && probeBody?.error === "Audio no encontrado.", { status: probe.status(), type: probe.headers()["content-type"], path: new URL(probe.url()).pathname })) throw new Error("La ruta de audio no está lista; se detiene antes de generar");
 
       // 1. Enlace en el panel (franja móvil o barra de escritorio).
       await p.goto(`${BASE}/dashboard`);

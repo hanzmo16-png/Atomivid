@@ -10,6 +10,7 @@ on:
     paths:
       - ".github/workflows/qa-m3-movil.yml"
       - "scripts/harness/e2e/qa-aceptacion/**"
+      - "scripts/harness/e2e/shared/**"
       - "scripts/harness/e2e/infra/**"
       - "src/components/onboarding/**"
       - "src/app/page.tsx"
