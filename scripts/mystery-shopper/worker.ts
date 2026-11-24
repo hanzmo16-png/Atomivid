@@ -18,6 +18,7 @@ import { promisify } from "node:util";
 import path from "node:path";
 import os from "node:os";
 import { createClient } from "@supabase/supabase-js";
+import { classifyAuth, type AuthOutcome } from "../../src/lib/mystery-shopper/v3/auth-outcome";
 import { defaultCatalog, missionById } from "../../src/lib/mystery-shopper/catalog";
 import { jobStore, MS_BUCKET, type JobStatus, type StorageApi } from "../../src/lib/mystery-shopper/jobs";
 import { findingsFrom, mediaCheck, technicalTerms, verdictFor, LIVE_VERSION, type ActionLog, type LiveReport, type LiveStep, type MediaCheck, type PageMetrics } from "../../src/lib/mystery-shopper/live";
@@ -113,6 +114,8 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
   const page = await context.newPage();
   let consoleErrors = 0;
   page.on("console", (m: { type(): string }) => { if (m.type() === "error") consoleErrors++; });
+  // 3.0: excepciones sin capturar quedan en el registro de acciones (sanitizado por redact al guardar).
+  page.on("pageerror", (e: Error) => act("js-error", (e?.message ?? String(e)).split("\n")[0].slice(0, 200)));
   page.on("response", (r: { url(): string; headers(): Record<string, string> }) => { const s = r.headers()["x-vercel-git-commit-sha"]; if (s && !observedSha) observedSha = s; });
 
   let n = 0;
@@ -188,16 +191,27 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
     });
     // 2. Autenticación real con la cuenta QA (o bloqueo explícito si no existe)
     const email = env.MYSTERY_SHOPPER_QA_EMAIL, password = env.MYSTERY_SHOPPER_QA_PASSWORD;
-    const doLogin = async () => {
+    /**
+     * 3.0: la acción de login redirige a /login?error=… si Supabase rechaza la cuenta. Se espera lo que
+     * ocurra primero (panel o error) y se clasifica con classifyAuth, en vez de un timeout genérico.
+     */
+    const doLogin = async (): Promise<AuthOutcome> => {
       await page.getByLabel("Correo electrónico").fill(email!);
       await page.getByLabel("Contraseña").fill(password!);
       await page.getByRole("button", { name: "Iniciar sesión" }).click();
-      await page.waitForURL(/\/dashboard/, { timeout: 30_000 });
+      let timedOut = false;
+      await page.waitForURL((u: URL) => /^\/dashboard(\/|$)/.test(u.pathname) || (u.pathname === "/login" && u.searchParams.has("error")), { timeout: 30_000 }).catch(() => { timedOut = true; });
+      const alertText = await page.locator('[role="alert"]').first().innerText({ timeout: 2_000 }).catch(() => null);
+      const outcome = classifyAuth({ hasEmail: true, hasPassword: true, finalUrl: page.url(), alertText, timedOut });
+      act("login", `resultado ${outcome.kind}`);
+      return outcome;
     };
     if (access.state === "PASS") {
       await step("Iniciar sesión con la cuenta QA", async () => {
         if (!email || !password) { humanGate = "Falta la cuenta QA: crear un usuario de prueba en ATOMIVID y guardar MYSTERY_SHOPPER_QA_EMAIL y MYSTERY_SHOPPER_QA_PASSWORD como secretos del repositorio."; return { state: "BLOCKED", detail: "No hay cuenta QA configurada. No se inventa una sesión." }; }
-        await doLogin(); authenticated = true;
+        const outcome = await doLogin();
+        if (outcome.state !== "PASS") { humanGate = outcome.state === "BLOCKED" ? outcome.humanGate : null; if (outcome.state === "FAIL") critical = `No se pudo entrar a ATOMIVID: ${outcome.detail}`; return { state: outcome.state, detail: outcome.detail }; }
+        authenticated = true;
         await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
         await metrics(200, 0);
         await dismissOverlays();
@@ -220,8 +234,8 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
         return outside ? { state: "PASS", detail: "Sesión cerrada: /dashboard vuelve al login." } : { state: "FAIL", detail: `Tras cerrar sesión /dashboard respondió ${back?.status()} sin pedir login.` };
       });
       await step("Volver a entrar (recuperación)", async () => {
-        await goto("/login"); await doLogin();
-        return { state: "PASS", detail: "La cuenta vuelve a entrar y ve su panel." };
+        await goto("/login"); const again = await doLogin();
+        return again.state === "PASS" ? { state: "PASS", detail: "La cuenta vuelve a entrar y ve su panel." } : { state: "FAIL", detail: `No vuelve a entrar: ${again.detail}` };
       });
     }
   } catch (e) {
@@ -477,6 +491,11 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
   await save({ state, stage: state === "bloqueada" ? `Bloqueada: ${humanGate}` : "Informe listo", finishedAt: nowIso(), error: state === "error" ? "El recorrido no llegó a ningún paso." : null,
     result: { verdict: verdict.verdict, score: verdict.score, coverage: verdict.coverage, findings: findings.length, critical: verdict.criticalBlock, humanGate } });
   console.log(`[mystery-shopper] ${jobId}: ${state} · ${verdict.verdict} · nota ${verdict.score ?? "NO EVALUADO"} · ${steps.length} pasos · ${findings.length} hallazgos`);
+  // 3.0: no ocultar fallos. Con MS_FAIL_ON_VERDICT=1 el job de Actions termina en rojo si la evaluación no fue FUNCIONA.
+  if (env.MS_FAIL_ON_VERDICT === "1" && verdict.verdict !== "FUNCIONA") {
+    console.log(`::error title=Mystery Shopper::${jobId} ${verdict.verdict}${humanGate ? ` — ${redact(humanGate)}` : critical ? ` — ${redact(critical)}` : ""}`);
+    return 2;
+  }
   return 0;
 }
 
