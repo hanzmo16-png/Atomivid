@@ -1,49 +1,28 @@
 {
   "stage": "keyframes",
   "capUsd": 1.0,
-  "note": "Autorizado por Hans 2026-11-24 (proveedor de pago para el fondo).",
+  "note": "Autorizado por Hans 2026-11-24. Ronda 2 horizontal: composición con la izquierda libre para el título.",
   "keyframes": [
     {
-      "id": "kf-land-a",
+      "id": "kf-land-d",
       "aspect": "16:9",
-      "seed": 1101,
+      "seed": 4404,
       "raw": false,
-      "prompt": "Photorealistic cinematic film still, shot on IMAX 65mm, grounded hard science fiction realism. A colossal sleek futuristic starship, long angular dark gunmetal hull with intricate panel detailing, hangar bays, tiny warm window lights and glowing blue ion engines, cruising through deep space in the right half of the frame. Behind it a gigantic ringed gas giant with banded amber, cream and ochre storms, wide icy rings catching sunlight and casting a thin shadow across the planet. Volumetric nebula clouds in deep teal and violet, dense star field, strong sun rim light from the upper right, immense sense of scale. The left third of the image is calm dark space with faint stars (room for a title). Anamorphic lens, subtle film grain, muted filmic color grade. No text, no logos, no watermark, no people."
+      "prompt": "Photorealistic cinematic film still, shot on IMAX 65mm, grounded hard science fiction realism, wide 16:9 composition. RIGHT HALF of the frame: a gigantic ringed gas giant with banded amber, cream and ochre storms, partially cropped by the right edge, its wide icy rings sweeping across; in front of it a colossal sleek futuristic starship, long angular dark gunmetal hull with intricate panel detailing, tiny warm window lights and glowing blue ion engines, seen from the side, flying from right to left. LEFT HALF of the frame: deep black space with faint stars and a very subtle teal and violet nebula haze, no planet, no bright objects there (room for a title). Sun rim light from the right edge, immense sense of scale. Anamorphic lens, subtle film grain, muted filmic color grade. Plain hull with no text, no letters, no numbers, no insignia. No logos, no watermark, no people."
     },
     {
-      "id": "kf-land-b",
+      "id": "kf-land-e",
       "aspect": "16:9",
-      "seed": 2202,
-      "raw": true,
-      "prompt": "Photorealistic cinematic film still, shot on IMAX 65mm, grounded hard science fiction realism. A colossal sleek futuristic starship, long angular dark gunmetal hull with intricate panel detailing, hangar bays, tiny warm window lights and glowing blue ion engines, cruising through deep space in the right half of the frame. Behind it a gigantic ringed gas giant with banded amber, cream and ochre storms, wide icy rings catching sunlight and casting a thin shadow across the planet. Volumetric nebula clouds in deep teal and violet, dense star field, strong sun rim light from the upper right, immense sense of scale. The left third of the image is calm dark space with faint stars (room for a title). Anamorphic lens, subtle film grain, muted filmic color grade. No text, no logos, no watermark, no people."
+      "seed": 5505,
+      "raw": false,
+      "prompt": "Photorealistic cinematic film still, shot on IMAX 65mm, grounded hard science fiction realism, wide 16:9 composition. RIGHT HALF of the frame: a gigantic ringed gas giant with banded amber, cream and ochre storms, partially cropped by the right edge, its wide icy rings sweeping across; in front of it a colossal sleek futuristic starship, long angular dark gunmetal hull with intricate panel detailing, tiny warm window lights and glowing blue ion engines, seen in three-quarter view from slightly below, gliding toward the camera-left. LEFT HALF of the frame: deep black space with faint stars and a very subtle teal and violet nebula haze, no planet, no bright objects there (room for a title). Sun rim light from the right edge, immense sense of scale. Anamorphic lens, subtle film grain, muted filmic color grade. Plain hull with no text, no letters, no numbers, no insignia. No logos, no watermark, no people."
     },
     {
-      "id": "kf-land-c",
+      "id": "kf-land-f",
       "aspect": "16:9",
-      "seed": 3303,
+      "seed": 6606,
       "raw": false,
-      "prompt": "Photorealistic cinematic film still, shot on IMAX 65mm, grounded hard science fiction realism. A colossal sleek futuristic starship, long angular dark gunmetal hull with intricate panel detailing, hangar bays, tiny warm window lights and glowing blue ion engines, seen in three-quarter view from slightly above and behind, cruising toward the planet in the right half of the frame. Behind it a gigantic ringed gas giant with banded amber, cream and ochre storms, wide icy rings catching sunlight and casting a thin shadow across the planet. Volumetric nebula clouds in deep teal and violet, dense star field, strong sun rim light from the upper right, immense sense of scale. The left third of the image is calm dark space with faint stars (room for a title). Anamorphic lens, subtle film grain, muted filmic color grade. No text, no logos, no watermark, no people."
-    },
-    {
-      "id": "kf-port-a",
-      "aspect": "9:16",
-      "seed": 1101,
-      "raw": false,
-      "prompt": "Photorealistic cinematic film still, shot on IMAX 65mm, grounded hard science fiction realism, vertical composition. A gigantic ringed gas giant with banded amber, cream and ochre storms fills the upper half of the frame, its wide icy rings sweeping diagonally. A colossal sleek futuristic starship, long angular dark gunmetal hull with intricate panel detailing, tiny warm window lights and glowing blue ion engines, crosses the middle of the frame in front of the rings. Volumetric nebula in deep teal and violet, dense star field, sun rim light, immense sense of scale. The lower 40 percent of the image is calm dark space with faint stars (room for text). Anamorphic lens, subtle film grain, muted filmic color grade. No text, no logos, no watermark, no people."
-    },
-    {
-      "id": "kf-port-b",
-      "aspect": "9:16",
-      "seed": 2202,
-      "raw": true,
-      "prompt": "Photorealistic cinematic film still, shot on IMAX 65mm, grounded hard science fiction realism, vertical composition. A gigantic ringed gas giant with banded amber, cream and ochre storms fills the upper half of the frame, its wide icy rings sweeping diagonally. A colossal sleek futuristic starship, long angular dark gunmetal hull with intricate panel detailing, tiny warm window lights and glowing blue ion engines, crosses the middle of the frame in front of the rings. Volumetric nebula in deep teal and violet, dense star field, sun rim light, immense sense of scale. The lower 40 percent of the image is calm dark space with faint stars (room for text). Anamorphic lens, subtle film grain, muted filmic color grade. No text, no logos, no watermark, no people."
-    },
-    {
-      "id": "kf-port-c",
-      "aspect": "9:16",
-      "seed": 3303,
-      "raw": false,
-      "prompt": "Photorealistic cinematic film still, shot on IMAX 65mm, grounded hard science fiction realism, vertical composition. A gigantic ringed gas giant with banded amber, cream and ochre storms fills the upper half of the frame, its wide icy rings sweeping diagonally. A colossal sleek futuristic starship, long angular dark gunmetal hull with intricate panel detailing, tiny warm window lights and glowing blue ion engines, seen in three-quarter view from slightly above and behind, crosses the middle of the frame in front of the rings. Volumetric nebula in deep teal and violet, dense star field, sun rim light, immense sense of scale. The lower 40 percent of the image is calm dark space with faint stars (room for text). Anamorphic lens, subtle film grain, muted filmic color grade. No text, no logos, no watermark, no people."
+      "prompt": "Photorealistic cinematic film still, shot on IMAX 65mm, grounded hard science fiction realism, wide 16:9 composition. RIGHT HALF of the frame: a gigantic ringed gas giant with banded amber, cream and ochre storms, partially cropped by the right edge, its wide icy rings sweeping across; in front of it a colossal sleek futuristic starship, long angular dark gunmetal hull with intricate panel detailing, tiny warm window lights and glowing blue ion engines, seen from slightly above and behind, cruising toward the planet. LEFT HALF of the frame: deep black space with faint stars and a very subtle teal and violet nebula haze, no planet, no bright objects there (room for a title). Sun rim light from the right edge, immense sense of scale. Anamorphic lens, subtle film grain, muted filmic color grade. Plain hull with no text, no letters, no numbers, no insignia. No logos, no watermark, no people."
     }
   ]
 }
