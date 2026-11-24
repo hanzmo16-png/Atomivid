@@ -129,7 +129,7 @@ async function runScenario(sc: Scenario, chromium: { launch: (o: object) => Prom
 
 const main = async () => {
   mkdirSync(OUT, { recursive: true }); mp4();
-  const { chromium } = await import("playwright");
+  const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || "playwright"); // playwright no es dependencia de la app
   const all = [];
   for (const sc of ["ok", "atasco", "interruptor-apagado", "beta-404", "techo-excede"] as Scenario[]) all.push(await runScenario(sc, chromium as never));
   const summary = all.map((r) => ({ scenario: r.scenario, steps: r.steps.map((s) => `${s.state} ${s.name}`), incidents: r.incidents.map((i) => `${i.severity} ${i.title}`), simulatedLedger: r.simulatedLedger, realSpendUsd: 0 }));
