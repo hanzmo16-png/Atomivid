@@ -432,6 +432,8 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
           page, jobId, baseUrl: job.target.url, out, real: realAllowed, step, goto, metrics, mark, cIdx, act, probe, media, incidents: v3Incidents,
           setCritical: (x) => { critical = critical ?? x; }, setHumanGate: (x) => { humanGate = humanGate ?? x; }, addSpend: (usd) => { spendUsd = Math.round((spendUsd + usd) * 100) / 100; },
           ledger: realAllowed ? ledgerStore(bucket()) : null,
+          killSwitch: () => process.env.MYSTERY_SHOPPER_REAL_ENABLED === "1", runCapUsd: realAllowed ? job.maxBudgetUsd : 0,
+          ffprobe: env.MS_FFPROBE || undefined, ffmpeg: env.MS_FFMPEG || undefined,
         };
         if (mission.id === "youtube-real") await runYoutubeReal(realCtx); else await runAudioReal(realCtx, AUDIO_VARIANTS[mission.id]);
         break;

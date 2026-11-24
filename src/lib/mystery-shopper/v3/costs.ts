@@ -26,7 +26,7 @@ export function costMatrix(): CostLine[] {
   const vpod = 60 * RATES.heygenUsdPerSecond + 800 / 1000 * RATES.elevenLabsUsdPer1kChars + RATES.scriptUsdPerRun;
   return [
     { module: "Audio Podcast Studio", runs: "2 episodios de ~3 min (mínimo que acepta el estudio): ES 2 voces M/F y EN 1 voz, V4 Turbo; tarifa conservadora del estudio USD 0.20/1K", estimateUsd: r2(audio), capUsd: 2, providers: ["ElevenLabs"], cancel },
-    { module: "YouTube Studio", runs: "1 video de ~2 min: guion, 12 imágenes, 1 clip de 5 s, narración, música de biblioteca, MP4", estimateUsd: r2(yt), capUsd: 2, providers: ["ElevenLabs", "Recraft", "Runway", "modelo de guion"], cancel },
+    { module: "YouTube Studio", runs: "1 video de 3 min (mínimo del formulario): guion (reserva USD 0.60) + render con la estrategia visual más barata; se reserva el techo que muestra la app y no se confirma si no cabe en USD 2", estimateUsd: r2(yt), capUsd: 2, providers: ["ElevenLabs", "Recraft", "Runway", "modelo de guion"], cancel },
     { module: "Reels Studio", runs: "1 Reel de 30 s 9:16 con subtítulos y música de biblioteca", estimateUsd: r2(reel), capUsd: 1.5, providers: ["ElevenLabs", "Recraft", "Runway", "modelo de guion"], cancel },
     { module: "Podcast audiovisual", runs: "1 episodio de 60 s con 2 avatares (30 s cada uno), lip-sync", estimateUsd: r2(vpod), capUsd: 3, providers: ["HeyGen", "ElevenLabs", "modelo de guion"], cancel },
     { module: "Biblioteca", runs: "Reutiliza los archivos anteriores (guardar, reabrir, reproducir, descargar, archivar)", estimateUsd: 0, capUsd: 0, providers: [], cancel },

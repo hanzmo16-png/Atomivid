@@ -10,6 +10,7 @@ import path from "node:path";
 import { writeFile } from "node:fs/promises";
 import type { LiveStep, MediaCheck, PageMetrics } from "../../src/lib/mystery-shopper/live";
 import { detectMedia, detectProgress, type Incident } from "../../src/lib/mystery-shopper/v3/detect";
+import { runYoutubeStudio } from "./youtube-mission";
 import { MODULE_CAP_USD, type LedgerState, type Reservation, type Settlement } from "../../src/lib/mystery-shopper/v3/ledger";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- playwright no es dependencia de la app.
@@ -21,8 +22,13 @@ export type RealCtx = {
   mark: (i: number, met: boolean, evidence: string) => void; cIdx: (re: RegExp) => number; act: (a: string, d?: string) => void;
   probe: (file: string, requested: number | null, inLibrary: boolean | null) => Promise<MediaCheck>; media: MediaCheck[];
   incidents: Incident[]; setCritical: (s: string) => void; setHumanGate: (s: string) => void; addSpend: (usd: number) => void;
-  ledger: { state(): Promise<LedgerState>; reserve(r: Reservation): Promise<{ ok: boolean; reason: string }>; settle(s: Settlement): Promise<void> } | null;
+  ledger: { state(): Promise<LedgerState>; reserve(r: Reservation): Promise<{ ok: boolean; reason: string }>; settle(s: Settlement): Promise<void>; stopped?(): Promise<boolean> } | null;
   sleep?: (ms: number) => Promise<void>;
+  /** Interruptor leído en el momento de cada clic que cuesta (MYSTERY_SHOPPER_REAL_ENABLED === "1"). */
+  killSwitch?: () => boolean;
+  /** Tope de gasto de ESTA ejecución (job.maxBudgetUsd); además del acumulado y del módulo. */
+  runCapUsd?: number;
+  ffprobe?: string; ffmpeg?: string;
 };
 
 export const usdOf = (t: string | null | undefined): number | null => { const m = /(\d+(?:[.,]\d{1,2})?)/.exec(String(t ?? "").replace(/\s/g, "")); return m ? Number(m[1].replace(",", ".")) : null; };
@@ -225,20 +231,7 @@ export async function runAudioReal(c: RealCtx, v: AudioVariant): Promise<void> {
   });
 }
 
-/** YouTube Studio (Long Form): acceso, formulario y costo. La beta solo la abre el dueño o el usuario interno. */
+/** YouTube Studio (Long Form): recorrido completo como cliente (ver youtube-mission.ts). */
 export async function runYoutubeReal(c: RealCtx): Promise<void> {
-  const { page } = c;
-  await c.step("Abrir Video de YouTube (Long Form)", async () => {
-    const met = await c.goto("/dashboard/long-form/new");
-    const gate = await betaGate(c, met, /long-form\/new/);
-    if (gate) {
-      c.setHumanGate(`La cuenta QA no tiene acceso a la beta de YouTube/Long Form (${BETA_HINT}).`);
-      c.mark(c.cIdx(/Encuentra el video/), false, gate);
-      return { state: "BLOCKED", detail: `Sin acceso a la beta: ${gate}` };
-    }
-    c.mark(c.cIdx(/Encuentra el video/), true, "Formulario visible.");
-    return { state: "PASS", detail: "Formulario de Long Form abierto." };
-  });
-  if (!/long-form\/new/.test(page.url()) || /no encontramos esa página/i.test(String(await page.locator("h1").first().innerText({ timeout: 2000 }).catch(() => "")))) return;
-  await c.step("Generación real de Long Form", async () => ({ state: "SKIP", detail: "El recorrido de render de Long Form como cliente aún no está implementado en el worker 3.0; queda NO EVALUADO (sin gasto)." }));
+  await runYoutubeStudio(c);
 }

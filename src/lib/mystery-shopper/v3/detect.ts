@@ -10,7 +10,7 @@ export type ModuleId = "youtube" | "audio-podcast" | "video-podcast" | "reels" |
 export type IncidentKind =
   | "dead_button" | "frozen_screen" | "js_error" | "navigation_failure" | "endless_generation"
   | "wrong_progress" | "corrupt_file" | "wrong_duration" | "provider_failure" | "duplicate_charge"
-  | "auth_error" | "mobile_layout" | "regression";
+  | "auth_error" | "mobile_layout" | "regression" | "av_desync";
 
 export type Incident = {
   id: string;
@@ -166,3 +166,23 @@ export function detectRegressions(ctx: Ctx, prev: Record<string, boolean | null>
 
 export const SEVERITY_ORDER: Record<Severity, number> = { P0: 0, P1: 1, P2: 2, P3: 3 };
 export const sortIncidents = (xs: Incident[]) => [...xs].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
+
+/** Pistas de un MP4 medidas con ffprobe: audio presente, A/V alineados (duración e inicio), video con fotogramas. */
+export type AvFacts = {
+  file: string;
+  video: { codec: string | null; durationSeconds: number | null; startSeconds: number | null; frames: number | null; width: number | null; height: number | null } | null;
+  audio: { codec: string | null; durationSeconds: number | null; startSeconds: number | null; channels: number | null } | null;
+};
+export function detectAv(ctx: Ctx, f: AvFacts, limits = { maxDurationGapSeconds: 0.5, maxStartGapSeconds: 0.2 }): Incident[] {
+  const out: Incident[] = [];
+  if (!f.video) out.push(mk(ctx, "corrupt_file", "P0", `${f.file} no tiene pista de video`, ["ffprobe: sin stream de video"], "No marcar como listo un MP4 sin video."));
+  if (!f.audio) out.push(mk(ctx, "av_desync", "P0", `${f.file} no tiene pista de audio`, ["ffprobe: sin stream de audio"], "La narración/música debe mezclarse en el MP4 final; validarlo antes de entregar."));
+  if (f.video && f.video.frames !== null && f.video.frames < 2) out.push(mk(ctx, "corrupt_file", "P0", `${f.file} casi no tiene fotogramas (${f.video.frames})`, ["nb_frames"], "Validar el render antes de entregar."));
+  if (f.video && f.audio) {
+    const vd = f.video.durationSeconds, ad = f.audio.durationSeconds;
+    if (vd !== null && ad !== null && Math.abs(vd - ad) > limits.maxDurationGapSeconds) out.push(mk(ctx, "av_desync", Math.abs(vd - ad) > 3 ? "P1" : "P2", `Audio y video no duran lo mismo (${ad.toFixed(2)} s vs ${vd.toFixed(2)} s)`, [`Diferencia ${Math.abs(vd - ad).toFixed(2)} s (límite ${limits.maxDurationGapSeconds} s).`], "Ajustar la mezcla a la línea de tiempo del video (padding/trim) antes de exportar."));
+    const vs = f.video.startSeconds ?? 0, as = f.audio.startSeconds ?? 0;
+    if (Math.abs(vs - as) > limits.maxStartGapSeconds) out.push(mk(ctx, "av_desync", "P1", `El audio empieza desfasado ${(as - vs).toFixed(2)} s respecto al video`, [`start_time video ${vs} · audio ${as}`], "Exportar con inicio común (sin edit lists desfasadas)."));
+  }
+  return out;
+}

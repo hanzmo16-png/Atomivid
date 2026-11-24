@@ -65,6 +65,12 @@ export function ledgerStore(bucket: StorageApi) {
       if (error) return { ok: false, reason: `No se pudo reservar: ${error.message}` };
       return can;
     },
+    /** Freno de emergencia: un archivo STOP en el prefijo del libro detiene toda generación real (además del interruptor). */
+    async stopped(): Promise<boolean> {
+      const { data, error } = await bucket.list(LEDGER_PREFIX, { limit: 1000 });
+      if (error) return true; // si no se puede leer el libro, se trata como detenido (no se gasta a ciegas)
+      return (data ?? []).some((d) => d.name === "STOP");
+    },
     async settle(x: Settlement): Promise<void> {
       const { error } = await bucket.upload(`${LEDGER_PREFIX}/settle-${x.key}.json`, JSON.stringify(x), { contentType: "application/json", upsert: false });
       if (error && !/exists|duplicate|409/i.test(error.message)) throw new Error(`No se pudo liquidar: ${error.message}`);
