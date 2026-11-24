@@ -60,3 +60,21 @@ test("misiones reales en el catálogo y lectura de montos", () => {
   for (const id of ["audio-real-es", "audio-real-en", "youtube-real"]) { const m = missionById(defaultCatalog(), id); assert.ok(m && !m.auto, id); }
   assert.equal(usdOf("USD 0.56"), 0.56); assert.equal(usdOf("US$ 1,20"), 1.2); assert.equal(usdOf("—"), null);
 });
+
+test("beta privada: un 404 «No encontramos esa página» es BLOQUEO, nunca «Formulario visible» (producción 24-nov)", async () => {
+  const { runYoutubeReal } = await import("../../../../scripts/mystery-shopper/real-missions");
+  const steps: { name: string; state: string; detail: string }[] = []; const gates: string[] = []; const marks: [number, boolean, string][] = [];
+  const page = { url: () => "https://atomicvid.app/dashboard/long-form/new", locator: () => ({ first: () => ({ innerText: async () => "No encontramos esa página" }) }) };
+  const c = {
+    page, jobId: "ms-x", baseUrl: "https://atomicvid.app", out: "/tmp", real: true, media: [], incidents: [], ledger: null,
+    step: async (name: string, fn: () => Promise<{ state: string; detail: string }>) => { const r = await fn(); steps.push({ name, ...r }); return r; },
+    goto: async () => ({ httpStatus: 404 }), metrics: async () => ({}), mark: (i: number, m: boolean, e: string) => { marks.push([i, m, e]); }, cIdx: () => 0, act: () => {},
+    probe: async () => ({}), setCritical: () => {}, setHumanGate: (s: string) => { gates.push(s); }, addSpend: () => {},
+  };
+  await runYoutubeReal(c as never);
+  assert.equal(steps.length, 1);
+  assert.equal(steps[0].state, "BLOCKED");
+  assert.match(steps[0].detail, /404/);
+  assert.equal(marks[0][1], false);
+  assert.match(gates[0], /BETA_QA_USER_IDS/);
+});

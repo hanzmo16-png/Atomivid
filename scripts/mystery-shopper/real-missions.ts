@@ -84,13 +84,30 @@ export const AUDIO_VARIANTS: Record<string, AudioVariant> = {
 };
 
 /** Audio Podcast Studio de punta a punta: crear → configurar → listo → (real) autorizar y generar → progreso → MP3 → biblioteca. */
+/** La beta privada responde 404 («No encontramos esa página») o redirige con ?error a cuentas sin acceso: es BLOQUEO, no PASS. */
+export async function betaGate(c: RealCtx, met: PageMetrics | null, path: RegExp): Promise<string | null> {
+  const u = new URL(c.page.url());
+  const err = u.searchParams.get("error");
+  const h = String(await c.page.locator("h1").first().innerText({ timeout: 3000 }).catch(() => ""));
+  if (met?.httpStatus === 404 || /no encontramos esa página/i.test(h)) return `HTTP 404 en ${u.pathname} («${h.trim() || "sin título"}»)`;
+  if (err || !path.test(u.pathname)) return `Redirigido a ${u.pathname}${err ? ` (${err})` : ""}`;
+  return null;
+}
+const BETA_HINT = "solo el dueño, la cuenta interna o una cuenta listada en BETA_QA_USER_IDS (correo confirmado) entra a la beta";
+
 export async function runAudioReal(c: RealCtx, v: AudioVariant): Promise<void> {
   const { page } = c;
   const sleep = c.sleep ?? ((ms: number) => page.waitForTimeout(ms));
   const title = `${v.title} ${c.jobId.slice(-6)}`;
   let projectUrl = "";
   await c.step("Abrir Audio Podcast y crear el episodio", async () => {
-    await c.goto("/dashboard/audio-studio");
+    const met = await c.goto("/dashboard/audio-studio");
+    const gate = await betaGate(c, met, /\/dashboard\/audio-studio/);
+    if (gate) {
+      c.setHumanGate(`La cuenta QA no tiene acceso a Audio Podcast Studio (${BETA_HINT}).`);
+      c.mark(c.cIdx(/Crea el episodio/), false, gate);
+      return { state: "BLOCKED", detail: `Sin acceso a la beta: ${gate}` };
+    }
     await page.getByLabel("Título").first().fill(title);
     await page.getByRole("button", { name: "Crear episodio" }).click();
     await page.waitForURL(/audio-studio\/[0-9a-f-]{36}/, { timeout: 30_000 });
@@ -212,17 +229,16 @@ export async function runAudioReal(c: RealCtx, v: AudioVariant): Promise<void> {
 export async function runYoutubeReal(c: RealCtx): Promise<void> {
   const { page } = c;
   await c.step("Abrir Video de YouTube (Long Form)", async () => {
-    await c.goto("/dashboard/long-form/new");
-    const u = new URL(page.url());
-    const err = u.searchParams.get("error");
-    if (/beta no está disponible/i.test(err ?? "") || !/long-form\/new/.test(u.pathname)) {
-      c.setHumanGate("La cuenta QA no tiene acceso a la beta de YouTube/Long Form (canAccessLongFormBeta: solo AVATAR_PREPARATION_OWNER_EMAIL o INTERNAL_PRODUCTION_OWNER_USER_ID). Para certificarlo como cliente hace falta habilitar la beta para la cuenta QA.");
-      c.mark(c.cIdx(/Encuentra el video/), false, `Redirigido a ${u.pathname}${err ? ` (${err})` : ""}`);
-      return { state: "BLOCKED", detail: `Sin acceso a la beta: ${u.pathname}${err ? ` · ${err}` : ""}` };
+    const met = await c.goto("/dashboard/long-form/new");
+    const gate = await betaGate(c, met, /long-form\/new/);
+    if (gate) {
+      c.setHumanGate(`La cuenta QA no tiene acceso a la beta de YouTube/Long Form (${BETA_HINT}).`);
+      c.mark(c.cIdx(/Encuentra el video/), false, gate);
+      return { state: "BLOCKED", detail: `Sin acceso a la beta: ${gate}` };
     }
     c.mark(c.cIdx(/Encuentra el video/), true, "Formulario visible.");
     return { state: "PASS", detail: "Formulario de Long Form abierto." };
   });
-  if (!/long-form\/new/.test(page.url())) return;
+  if (!/long-form\/new/.test(page.url()) || /no encontramos esa página/i.test(String(await page.locator("h1").first().innerText({ timeout: 2000 }).catch(() => "")))) return;
   await c.step("Generación real de Long Form", async () => ({ state: "SKIP", detail: "El recorrido de render de Long Form como cliente aún no está implementado en el worker 3.0; queda NO EVALUADO (sin gasto)." }));
 }
