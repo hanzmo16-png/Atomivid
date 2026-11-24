@@ -1,12 +1,54 @@
 {
   "stage": "video",
-  "startedAt": "2026-11-24T16:33:08.038Z",
-  "items": [],
+  "startedAt": "2026-11-24T16:34:03.020Z",
+  "items": [
+    {
+      "id": "vid-land-loop",
+      "model": "fal-ai/veo3.1/fast/first-last-frame-to-video",
+      "aspect": "16:9",
+      "image": "ops/cinematic-bg/out/kf-land-d.jpg",
+      "loop": true,
+      "requestId": "01a20e68-4196-7243-aa04-9a773910cf85",
+      "ok": true,
+      "bytes": 3149621,
+      "usd": 1.2
+    },
+    {
+      "id": "vid-port-loop",
+      "model": "fal-ai/veo3.1/fast/first-last-frame-to-video",
+      "aspect": "9:16",
+      "image": "ops/cinematic-bg/out/kf-port-a.jpg",
+      "loop": true,
+      "requestId": "01a20e69-e8c1-78f0-a058-bb518a49094a",
+      "ok": true,
+      "bytes": 3420037,
+      "usd": 1.2
+    },
+    {
+      "id": "vid-land-free",
+      "model": "fal-ai/veo3.1/fast/image-to-video",
+      "aspect": "16:9",
+      "image": "ops/cinematic-bg/out/kf-land-d.jpg",
+      "loop": false,
+      "requestId": "01a20e6b-e22e-7ff1-86d3-23eb41a5affe",
+      "ok": true,
+      "bytes": 10307062,
+      "usd": 1.2
+    },
+    {
+      "id": "vid-port-free",
+      "model": "fal-ai/veo3.1/fast/image-to-video",
+      "aspect": "9:16",
+      "image": "ops/cinematic-bg/out/kf-port-a.jpg",
+      "loop": false,
+      "requestId": "01a20e6d-8936-71e3-a612-ec394e57d089",
+      "ok": true,
+      "bytes": 8070642,
+      "usd": 1.2
+    }
+  ],
   "estimatedMaxUsd": 4.8,
   "capUsd": 8,
-  "veoModels": [],
-  "veoModel": null,
-  "fatal": "ningún modelo Veo con predictLongRunning disponible",
-  "finishedAt": "2026-11-24T16:33:08.195Z",
-  "spentUsd": 0
+  "finishedAt": "2026-11-24T16:41:42.195Z",
+  "spentUsd": 4.8
 }
