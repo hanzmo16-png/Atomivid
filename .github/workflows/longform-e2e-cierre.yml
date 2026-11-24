@@ -10,6 +10,7 @@ on:
     paths:
       - ".github/workflows/longform-e2e-cierre.yml"
       - "scripts/harness/e2e/longform-cierre/**"
+      - "scripts/harness/e2e/shared/**"
       - "scripts/harness/e2e/infra/**"
       - "scripts/harness/e2e/worker-longform.ts"
       - "src/lib/video/**"
@@ -55,6 +56,11 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Arnés local (PG, PostgREST, Chrome con H.264 de Remotion)
         run: bash scripts/harness/e2e/infra/setup.sh
+      - name: Contratos del arnés (navegador real, fixtures sin proveedores)
+        run: |
+          . "$E2E_HOME/paths.env"
+          PLAYWRIGHT_MODULE="$E2E_HOME/deps/node_modules/playwright" E2E_CHROME="$CHROME" \
+            node --test scripts/harness/e2e/shared/contracts.browser.test.cjs
       - name: Entorno Long Form (propuestas en BD desechable, mocks, worker, Next)
         run: bash scripts/harness/e2e/longform-cierre/start-lf.sh
       - name: Recorrido UI → MP4 (escritorio + Android) con fallo de proveedor e interrupción del worker
