@@ -35,6 +35,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci --no-audit --no-fund
+      - name: Contrato de descarga (dobles HTTP controlados, sin red)
+        run: node --test scripts/harness/e2e/audio-studio/download.test.cjs
       - name: Podcast Studio Premium intacto (ningún archivo de Premium en el PR)
         if: github.event_name == 'pull_request'
         run: |
