@@ -1,82 +1,46 @@
 {
   "stage": "keyframes",
-  "startedAt": "2026-11-24T16:28:32.620Z",
+  "startedAt": "2026-11-24T16:31:01.424Z",
   "items": [
     {
-      "id": "kf-land-a",
+      "id": "kf-land-d",
       "model": "fal-ai/flux-pro/v1.1-ultra",
       "aspect": "16:9",
-      "seed": 1101,
-      "requestId": "01a20e63-36c6-7b70-8aa1-df54852dc2e5",
+      "seed": 4404,
+      "requestId": "01a20e65-7bd0-7790-8fbe-bda9873130fd",
       "ok": true,
       "width": 2752,
       "height": 1536,
-      "bytes": 829618,
+      "bytes": 801455,
       "usd": 0.06
     },
     {
-      "id": "kf-land-b",
+      "id": "kf-land-e",
       "model": "fal-ai/flux-pro/v1.1-ultra",
       "aspect": "16:9",
-      "seed": 2202,
-      "requestId": "01a20e63-699b-7f10-9702-96aec01beeb9",
+      "seed": 5505,
+      "requestId": "01a20e65-adae-79a2-afe0-fca3bc449040",
       "ok": true,
       "width": 2752,
       "height": 1536,
-      "bytes": 1031165,
+      "bytes": 953865,
       "usd": 0.06
     },
     {
-      "id": "kf-land-c",
+      "id": "kf-land-f",
       "model": "fal-ai/flux-pro/v1.1-ultra",
       "aspect": "16:9",
-      "seed": 3303,
-      "requestId": "01a20e63-9085-7583-8785-b88ae725537e",
+      "seed": 6606,
+      "requestId": "01a20e65-dfb3-7c91-8032-34d2d1b19ed6",
       "ok": true,
       "width": 2752,
       "height": 1536,
-      "bytes": 980652,
-      "usd": 0.06
-    },
-    {
-      "id": "kf-port-a",
-      "model": "fal-ai/flux-pro/v1.1-ultra",
-      "aspect": "9:16",
-      "seed": 1101,
-      "requestId": "01a20e63-c344-7702-b3ef-e5c30f7c73a3",
-      "ok": true,
-      "width": 1536,
-      "height": 2752,
-      "bytes": 962961,
-      "usd": 0.06
-    },
-    {
-      "id": "kf-port-b",
-      "model": "fal-ai/flux-pro/v1.1-ultra",
-      "aspect": "9:16",
-      "seed": 2202,
-      "requestId": "01a20e63-ea52-7522-83b3-3039836369af",
-      "ok": true,
-      "width": 1536,
-      "height": 2752,
-      "bytes": 1231497,
-      "usd": 0.06
-    },
-    {
-      "id": "kf-port-c",
-      "model": "fal-ai/flux-pro/v1.1-ultra",
-      "aspect": "9:16",
-      "seed": 3303,
-      "requestId": "01a20e64-110f-7f81-8bec-25a0e9f3a98d",
-      "ok": true,
-      "width": 1536,
-      "height": 2752,
-      "bytes": 980138,
+      "bytes": 695178,
       "usd": 0.06
     }
   ],
-  "estimatedMaxUsd": 0.36,
+  "estimatedMaxUsd": 0.18,
   "capUsd": 1,
-  "finishedAt": "2026-11-24T16:29:44.809Z",
-  "spentUsd": 0.36
+  "finishedAt": "2026-11-24T16:31:36.679Z",
+  "spentUsd": 0.18
 }
