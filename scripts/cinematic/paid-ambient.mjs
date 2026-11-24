@@ -36,6 +36,31 @@ async function keyframes() {
   }
 }
 
+// Veo 3.1 Fast servido por fal.ai (la clave de Google ya no lista modelos Veo). Bucle: first-last-frame-to-video con la
+// misma imagen al principio y al final; movimiento libre: image-to-video. Sin audio. Precio prudente USD 0,15/s.
+const FAL_VEO = { loop: "fal-ai/veo3.1/fast/first-last-frame-to-video", free: "fal-ai/veo3.1/fast/image-to-video" }, FAL_VEO_USD_S = 0.15;
+async function videoFal() {
+  const key = process.env.FAL_KEY; if (!key) throw new Error("FAL_KEY ausente");
+  const H = { Authorization: `Key ${key}`, "content-type": "application/json", "X-Fal-No-Retry": "1" };
+  const uri = (f) => `data:image/jpeg;base64,${fs.readFileSync(f).toString("base64")}`;
+  for (const v of job.videos) {
+    const model = v.loop ? FAL_VEO.loop : FAL_VEO.free;
+    const item = { id: v.id, model, aspect: v.aspect, image: v.image, loop: !!v.loop };
+    report.items.push(item);
+    const input = { prompt: v.prompt, aspect_ratio: v.aspect, duration: "8s", resolution: v.resolution ?? "1080p", generate_audio: false };
+    if (v.loop) { input.first_frame_url = uri(v.image); input.last_frame_url = uri(v.lastImage ?? v.image); } else input.image_url = uri(v.image);
+    const sub = await j(`https://queue.fal.run/${model}`, { method: "POST", headers: H, body: JSON.stringify(input) });
+    if (!sub.ok) { item.error = { status: sub.status, body: sub.body }; save(); continue; }
+    const { status_url, response_url, request_id } = sub.body; item.requestId = request_id; save();
+    let st; for (let i = 0; i < 180; i++) { await sleep(5000); st = await j(status_url, { headers: H }); if (st.body?.status === "COMPLETED") break; }
+    if (st?.body?.status !== "COMPLETED") { item.error = { status: "timeout", last: st?.body }; save(); continue; }
+    const res = await j(response_url, { headers: H }); const url = res.body?.video?.url;
+    if (!url) { item.error = { status: res.status, body: res.body }; save(); continue; }
+    const bin = Buffer.from(await (await fetch(url)).arrayBuffer()); fs.writeFileSync(path.join(OUT, `${v.id}.mp4`), bin);
+    Object.assign(item, { ok: true, bytes: bin.length, usd: 8 * FAL_VEO_USD_S }); save();
+  }
+}
+
 async function video() {
   const key = process.env.VEO_API_KEY; if (!key) throw new Error("VEO_API_KEY ausente");
   const base = "https://generativelanguage.googleapis.com/v1beta"; const H = { "x-goog-api-key": key, "content-type": "application/json" };
@@ -78,6 +103,6 @@ async function video() {
 const est = job.stage === "keyframes" ? job.keyframes.length * FLUX_USD : job.videos.length * 8 * 0.15;
 report.estimatedMaxUsd = +est.toFixed(2); report.capUsd = job.capUsd;
 if (!(est <= job.capUsd)) { report.refused = `coste máximo ${est} > tope ${job.capUsd}`; save(); console.log(report.refused); process.exit(1); }
-try { await (job.stage === "keyframes" ? keyframes() : video()); } catch (e) { report.fatal = String(e?.message ?? e); }
+try { await (job.stage === "keyframes" ? keyframes() : job.provider === "fal" ? videoFal() : video()); } catch (e) { report.fatal = String(e?.message ?? e); }
 report.finishedAt = new Date().toISOString(); report.spentUsd = +report.items.filter((i) => i.ok).reduce((s, i) => s + (i.usd ?? 0), 0).toFixed(2); save();
 console.log(JSON.stringify(report.items.map(({ id, ok, error, bytes }) => ({ id, ok, bytes, error: error ? JSON.stringify(error).slice(0, 300) : undefined })), null, 1), "spent", report.spentUsd);

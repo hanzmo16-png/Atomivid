@@ -1,7 +1,7 @@
 {
   "stage": "video",
   "capUsd": 8.0,
-  "note": "Autorizado por Hans 2026-11-24. Fase 2: Veo 3.1 Fast 1080p 8 s, 4 clips. Reintento tras 404 del modelo preview (sin cobro): modelo elegido de ListModels; tope USD 8.",
+  "note": "Autorizado por Hans 2026-11-24. Fase 2: Veo 3.1 Fast 1080p 8 s, 4 clips. Reintento tras 404 del modelo preview (sin cobro): modelo elegido de ListModels; tope USD 8. Proveedor: Veo 3.1 Fast vía fal.ai (la clave de Google no lista modelos Veo; sin cobro).",
   "videos": [
     {
       "id": "vid-land-loop",
@@ -31,5 +31,6 @@
       "loop": false,
       "prompt": "Photorealistic cinematic space shot. The colossal starship glides slowly and majestically forward, its blue ion engines pulsing, tiny running lights blinking along the hull. The camera tracks slowly alongside with a gentle parallax push-in, the ringed gas giant turning almost imperceptibly behind, its storm bands drifting. Faint space dust floats past the lens. Smooth, steady, epic scale, IMAX film look, one continuous shot. Avoid: text, letters, logos, watermark, cuts, scene changes, fast or shaky motion, explosions, people, warp effects."
     }
-  ]
+  ],
+  "provider": "fal"
 }
