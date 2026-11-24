@@ -145,3 +145,68 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/*
+ * Cinematic UI 1.0 — capa cinematográfica (portada, cabecera y navegación). No cambia los tokens de arriba: los
+ * estudios siguen igual. Negro obsidiana, azul medianoche y dorado champagne como acento premium.
+ */
+:root {
+  --color-obsidian: #05060c;
+  --color-midnight: #0b1330;
+  --color-champagne: #e6cf9f;
+  --color-champagne-strong: #f1dcae;
+  --color-champagne-soft: rgba(230, 207, 159, 0.14);
+  --color-glass: rgba(14, 18, 34, 0.55);
+  --color-glass-strong: rgba(10, 13, 26, 0.78);
+  --color-glass-border: rgba(255, 255, 255, 0.10);
+}
+
+@theme inline {
+  --color-obsidian: var(--color-obsidian);
+  --color-midnight: var(--color-midnight);
+  --color-champagne: var(--color-champagne);
+  --color-champagne-strong: var(--color-champagne-strong);
+  --color-champagne-soft: var(--color-champagne-soft);
+  --color-glass: var(--color-glass);
+  --color-glass-strong: var(--color-glass-strong);
+  --color-glass-border: var(--color-glass-border);
+}
+
+@layer components {
+  .glass {
+    background: var(--color-glass);
+    border: 1px solid var(--color-glass-border);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    backdrop-filter: blur(18px) saturate(140%);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 24px 60px -24px rgba(0, 0, 0, 0.7);
+  }
+  .glass-strong {
+    background: var(--color-glass-strong);
+    border: 1px solid var(--color-glass-border);
+    -webkit-backdrop-filter: blur(22px) saturate(150%);
+    backdrop-filter: blur(22px) saturate(150%);
+  }
+  .text-champagne-gradient {
+    background: linear-gradient(100deg, #fbf3e0 0%, #e6cf9f 45%, #c9a96a 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
+/* Entrada sutil: el texto principal es visible desde el primer pintado (solo se desliza; sin opacidad 0, que retrasaría
+   el LCP). La línea pequeña de arriba sí aparece con fundido. */
+@keyframes cine-rise {
+  from { transform: translateY(14px); }
+  to { transform: none; }
+}
+@keyframes cine-fade-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+.cine-rise { animation: cine-fade-rise 900ms cubic-bezier(0.2, 0.7, 0.1, 1) both; }
+.cine-rise-2 { animation: cine-rise 900ms cubic-bezier(0.2, 0.7, 0.1, 1) both; }
+.cine-rise-3 { animation: cine-rise 1000ms cubic-bezier(0.2, 0.7, 0.1, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .cine-rise, .cine-rise-2, .cine-rise-3 { animation: none; }
+}
