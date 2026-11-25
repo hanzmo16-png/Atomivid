@@ -28,6 +28,7 @@ export type RealCtx = {
   killSwitch?: () => boolean;
   /** Tope de gasto de ESTA ejecución (job.maxBudgetUsd); además del acumulado y del módulo. */
   runCapUsd?: number;
+  readAudioSynthesis?: () => Promise<string | null>;
   readReelCap?: (requestId: string) => Promise<number | null>;
   ffprobe?: string; ffmpeg?: string;
 };
@@ -114,6 +115,13 @@ export async function runAudioReal(c: RealCtx, v: AudioVariant): Promise<void> {
       c.setHumanGate(`La cuenta QA no tiene acceso a Audio Podcast Studio (${BETA_HINT}).`);
       c.mark(c.cIdx(/Crea el episodio/), false, gate);
       return { state: "BLOCKED", detail: `Sin acceso a la beta: ${gate}` };
+    }
+    if (c.real) {
+      const synthesis = await c.readAudioSynthesis?.().catch(() => null) ?? null;
+      if (synthesis !== "real") {
+        c.setHumanGate(`Síntesis comercial no disponible: estado ${synthesis ?? "no verificable"}. No se cambia la configuración productiva ni se acepta demo/local como ElevenLabs.`);
+        return { state: "BLOCKED", detail: `Audio requiere ElevenLabs real; catálogo autenticado informa ${synthesis ?? "no verificable"}. No se crea otro episodio ni se reserva gasto.` };
+      }
     }
     await page.getByLabel("Título").first().fill(title);
     await page.getByRole("button", { name: "Crear episodio" }).click();

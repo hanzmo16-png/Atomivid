@@ -50,6 +50,7 @@ async function main() {
   });
   const page = await context.newPage();
   const screens: unknown[] = [];
+  let audio: string | null = null;
   try {
     await page.goto("/login", { waitUntil: "domcontentloaded" });
     await page.getByLabel("Correo electrónico").fill(env.MYSTERY_SHOPPER_QA_EMAIL);
@@ -58,6 +59,7 @@ async function main() {
     await page.waitForURL((u: URL) => /^\/dashboard(?:\/|$)/.test(u.pathname) || u.searchParams.has("error"), { timeout: 30000 });
     authenticated = new URL(page.url()).pathname.startsWith("/dashboard");
     if (authenticated) {
+      audio = await context.request.get(`${baseURL}/api/audio-studio/voices`, { timeout: 15000 }).then(async (r: { ok(): boolean; json(): Promise<{ synthesis?: string }> }) => r.ok() ? (await r.json()).synthesis ?? null : null).catch(() => null);
       for (const surface of ["reels", "video-podcast"] as const) {
         screens.push(await inspectCampaign320SurfaceReadOnly(page, surface));
         await page.screenshot({ path: path.join(out, `${surface}-412.png`), fullPage: true });
@@ -70,7 +72,8 @@ async function main() {
       }
     }
   } finally { await browser.close(); }
-  const result = { authenticated, viewport: "412x915", target: baseURL, ledger, screens, paidCalls: 0, jobsCreated: 0, scope: "AUTHENTICATED_READ_ONLY_NOT_COMMERCIAL_GENERATION" };
+
+  const result = { audioSynthesis: audio, authenticated, viewport: "412x915", target: baseURL, ledger, screens, paidCalls: 0, jobsCreated: 0, scope: "AUTHENTICATED_READ_ONLY_NOT_COMMERCIAL_GENERATION" };
   await writeFile(path.join(out, "authenticated-readonly.json"), JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result, null, 2));
   if (!authenticated) process.exitCode = 3;

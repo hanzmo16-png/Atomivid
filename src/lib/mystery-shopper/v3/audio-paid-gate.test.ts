@@ -16,7 +16,7 @@ function scenario(stopAfterReservation: boolean) {
     page, jobId: "ms-test", baseUrl: "https://atomivid.vercel.app", real: true, out: "/tmp", media: [], incidents: [],
     step: async (name: string, fn: () => Promise<{ state: string; detail: string }>) => { const r = await fn(); steps.push({ name, state: r.state }); return r; },
     goto: async () => ({ httpStatus: 200 }), mark: () => {}, cIdx: () => 0, metrics: async () => ({}), act: () => {}, sleep: async () => {}, setCritical: () => {}, setHumanGate: () => {}, addSpend: () => {},
-    killSwitch: () => stopAfterReservation, runCapUsd: 1,
+    readAudioSynthesis: async () => "real", killSwitch: () => stopAfterReservation, runCapUsd: 1,
     ledger: { state: async () => ({ reservations: [], settlements: [] }), stopped: async () => reserved && stopAfterReservation, reserve: async () => { reserved = true; actions.push("reserve"); return { ok: true, reason: "fixture" }; }, settle: async () => { actions.push("settle"); } },
   } as unknown as RealCtx;
   return { ctx, actions, steps };
@@ -30,4 +30,12 @@ test("Audio real: STOP posterior a reserva impide generar sin liberar ni liquida
   const s = scenario(true); await runAudioReal(s.ctx, AUDIO_VARIANTS["audio-real-es"]);
   assert.ok(s.actions.includes("reserve")); assert.ok(!s.actions.includes("check:audio-authorize")); assert.ok(!s.actions.includes("click:audio-generate")); assert.ok(!s.actions.includes("settle"));
   assert.equal(s.steps.at(-1)?.state, "BLOCKED");
+});
+
+test("Audio comercial: demo/local/inactiva o catálogo ausente bloquean antes de crear episodios", async () => {
+  for (const mode of ["demo", "local", "inactiva", null]) {
+    const s = scenario(true); s.ctx.readAudioSynthesis = async () => mode;
+    await runAudioReal(s.ctx, AUDIO_VARIANTS["audio-real-es"]);
+    assert.deepEqual(s.actions, []); assert.equal(s.steps.length, 1); assert.equal(s.steps[0].state, "BLOCKED");
+  }
 });

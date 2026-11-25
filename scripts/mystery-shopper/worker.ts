@@ -435,6 +435,12 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
           setCritical: (x) => { critical = critical ?? x; }, setHumanGate: (x) => { humanGate = humanGate ?? x; }, addSpend: (usd) => { spendUsd = Math.round((spendUsd + usd) * 100) / 100; },
           ledger: realAllowed ? ledgerStore(bucket()) : null,
           killSwitch: () => process.env.MYSTERY_SHOPPER_REAL_ENABLED === "1", runCapUsd: realAllowed ? job.maxBudgetUsd : 0,
+          readAudioSynthesis: async () => {
+            const response = await page.request.get(`${job.target.url}/api/audio-studio/voices`, { timeout: 15000 });
+            if (!response.ok()) return null;
+            const body = await response.json();
+            return ["real", "local", "demo", "inactiva"].includes(body.synthesis) ? body.synthesis : null;
+          },
           readReelCap: async (id) => {
             const sb = createClient(env.NEXT_PUBLIC_SUPABASE_URL || env.SUPABASE_URL!, env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
             const { data, error } = await sb.from("video_requests").select("provider_spend_cap_usd, mode").eq("id", id).maybeSingle();
