@@ -42,22 +42,24 @@ Solo cambia la capa de presentación y navegación. No toca autenticación, susc
 
 ## Material audiovisual
 
-### COSMOS 2 (actual, 2026-11-25): escena con acción
+### COSMOS 2 (actual, 2026-11-25): escena con acción, salto a la luz y logo
 
-Hans pidió un fondo que **de verdad se mueva** (el anterior apenas cambiaba y los últimos ~3 s quedaban casi fijos). COSMOS 2 es una escena con acción desde el primer segundo: la nave avanza hacia el planeta anillado, un dispositivo en la proa libera energía y las partículas se convierten en escenas (jinete, ola en el teléfono, templo, dragón) que vuelven a disolverse: «la máquina que crea historias».
-- **Origen:** clips propios generados con IA el 2026-11-25 (16:9 y 9:16, 15 s), **USD 0** para ATOMIVID.
-- **Montaje** (`scripts/cinematic/encode-loop-xfade.sh`): corte en 11,0 s, antes del encogimiento artificial del final, y bucle clásico por fundido de 1,25 s (la salida empieza en el fotograma 1,25 s y acaba justo antes de él). Duración 9,75 s, 24 fps, sin audio, `faststart`.
-- **Costura verificada** (diferencia media del último al primer fotograma vs. entre fotogramas consecutivos, a 160 px): horizontal 3,44 vs. mediana 8,16; vertical 2,67 vs. mediana 3,93. La costura es más suave que un cambio normal entre fotogramas.
-- **Legibilidad:** en el teléfono el 45 % inferior (titular y botón dorado, delante de los motores) se oscurece; en escritorio, el tercio izquierdo.
-- **Comparar con la versión anterior:** `/dashboard?bg=old` usa COSMOS 1 (abajo) con sus degradados originales.
+Hans pidió un fondo que **de verdad se mueva** y lo fue afinando el mismo día. Resultado (14,96 s, 24 fps, sin audio, `faststart`):
+- **0–11 s:** una nave (vista desde atrás, alas y cuatro motores) avanza hacia el planeta anillado; su dispositivo libera energía y las partículas se vuelven escenas: ballena galáctica, jinete, ola (en vertical), templo, astronauta, dragones y fénix, con acentos dorados y azules.
+- **11–12,4 s:** salto a la luz: la nave se aleja y las estrellas se estiran hacia el planeta.
+- **12,4–13,1 s:** estallido dorado breve (no blanco) que deja oscura la zona baja del titular.
+- **13,1–14,9 s:** sale el logo real de Atomicvid (el átomo de `src/components/ui/Logo.tsx` + «Atomicvid» en Geist 600) en dorado, pasa al morado de la app (`#8f7ff5`, `accent-hover`) y se desvanece en un campo de estrellas que se funde con el primer fotograma ⇒ bucle sin salto (costura 2,9 vs. mediana entre fotogramas 4,7 en vertical y 7,3 en horizontal).
+- **Origen y coste:** clips propios generados con IA el 2026-11-25 + imágenes generadas (nave vista desde atrás, fénix, astronauta, ballena) y composición propia (`scripts/cinematic/cosmos2/compose.py`, OpenCV/ffmpeg). **USD 0.** En vertical la nave original se sustituye fotograma a fotograma siguiendo sus motores; en horizontal se conserva la nave original (vista de tres cuartos) con parpadeo de motores.
+- **Legibilidad:** en el teléfono el 45 % inferior se oscurece; en escritorio, el tercio izquierdo.
+- **Comparar con la versión anterior:** `/dashboard?bg=old` usa COSMOS 1 (abajo) con sus degradados y su altura originales.
 
 | Archivo | Tamaño |
 |---|---|
-| `cosmos2-landscape.mp4` (1280×720, H.264) | 2,39 MB |
-| `cosmos2-landscape.webm` (VP9) | 2,05 MB |
-| `cosmos2-portrait.mp4` (720×1280, H.264) | 2,00 MB |
-| `cosmos2-portrait.webm` (VP9) | 1,28 MB |
-| Pósteres (primer fotograma del bucle) | 37 / 36 KB |
+| `cosmos2-landscape.mp4` (1280×720, H.264) | 2,38 MB |
+| `cosmos2-landscape.webm` (VP9) | 2,25 MB |
+| `cosmos2-portrait.mp4` (720×1280, H.264) | 2,31 MB |
+| `cosmos2-portrait.webm` (VP9) | 2,25 MB |
+| Pósteres (primer fotograma del bucle) | 34 / 49 KB |
 
 ### COSMOS 1 (anterior, se conserva para `?bg=old`)
 

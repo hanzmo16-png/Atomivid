@@ -54,7 +54,7 @@ export const AMBIENTS: readonly Ambient[] = [
     name: "COSMOS",
     theme: "Universo y exploración espacial",
     fallback: "radial-gradient(120% 90% at 35% 35%, #1b2550 0%, #070b1c 55%, #02030a 100%)",
-    media: own("cosmos2", 9.75, "Producción propia ATOMIVID generada con IA (2026-11-25, USD 0): la nave avanza hacia el planeta y su dispositivo libera energía que convierte partículas en escenas (jinete, ola, templo, dragón). Corte antes del encogimiento final y bucle por fundido de 1,25 s (scripts/cinematic/encode-loop-xfade.sh)."),
+    media: own("cosmos2", 14.96, "Producción propia ATOMIVID generada con IA (2026-11-25, USD 0): una nave avanza hacia el planeta y su dispositivo libera energía que convierte partículas en escenas (ballena galáctica, jinete, ola, templo, astronauta, dragones, fénix); salto a la luz, estallido dorado y logo de Atomicvid (dorado → morado #8f7ff5) que se funde en las estrellas y vuelve al inicio sin salto (scripts/cinematic/cosmos2/compose.py)."),
   },
   { id: "epic-history", name: "EPIC HISTORY", theme: "Civilizaciones, imperios e historia", fallback: "radial-gradient(120% 90% at 40% 30%, #3a2a14 0%, #150e07 55%, #050302 100%)", media: null },
   { id: "ocean-deep", name: "OCEAN DEEP", theme: "Océanos y naturaleza", fallback: "radial-gradient(120% 90% at 50% 20%, #0d3a4f 0%, #061722 55%, #01060a 100%)", media: null },
