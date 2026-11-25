@@ -15,6 +15,7 @@
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
 import { canReserve, MODULE_CAP_USD, type LedgerState } from "../../src/lib/mystery-shopper/v3/ledger";
+import { incrementalRenderReserve } from "./long-form-incremental-reserve";
 import { detectAv, detectMedia, detectProgress, type Incident } from "../../src/lib/mystery-shopper/v3/detect";
 import { measureVideo, type VideoMeasure } from "./av-check";
 import type { RealCtx } from "./real-missions";
@@ -213,9 +214,16 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
   });
   if (!configureHref || ceiling === null) return;
 
-  // 6 · Render (cobro): reserva del techo completo → clic
+  // 6 · Render: el techo total ya incluye el guion liquidado; reservar el resto.
   const renderKey = `${c.jobId}-yt-render`;
-  if (!await reserve(renderKey, ceiling, "el render (techo que autoriza la app)")) return;
+  const state = await c.ledger!.state().catch(() => null);
+  const prior = state?.settlements.find(s => s.key === scriptKey)?.spentUsd ?? null;
+  const renderReserve = incrementalRenderReserve(ceiling, scriptSpent, prior);
+  if (renderReserve === null || renderReserve <= 0) {
+    c.setHumanGate("No se verificó el gasto previo del guion contra el libro: no se autoriza ni se libera presupuesto.");
+    return;
+  }
+  if (!await reserve(renderKey, renderReserve, "el render (resto del techo total, guion ya liquidado)")) return;
   let videoPath = "";
   await c.step("Pulsar «Confirmar y generar video»", async () => {
     if (!killSwitch()) { await settle(renderKey, 0, "no se pulsó (interruptor apagado)"); return { state: "BLOCKED", detail: "Interruptor apagado justo antes del clic." }; }
@@ -226,8 +234,8 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
     const went = await page.waitForURL(/\/dashboard\/videos\/[0-9a-f-]{36}/, { timeout: 120_000 }).then(() => true, () => false);
     if (!went) {
       const err = await page.getByRole("alert").first().innerText(Q).catch(() => "sin mensaje");
-      await settle(renderKey, 0, "la app rechazó la confirmación (sigue en Configurar, sin render)");
-      return { state: "FAIL", detail: `La confirmación no avanzó: ${err}` };
+      c.setHumanGate("La confirmación no avanzó de forma acreditada; reserva conservada hasta verificar si se aceptó el render. No se reenvía.");
+      return { state: "BLOCKED", detail: `La confirmación no avanzó; sin asumir ausencia de cargo: ${err}` };
     }
     videoPath = new URL(page.url()).pathname;
     return { state: "PASS", detail: `Producción iniciada: ${videoPath}` };
@@ -263,10 +271,10 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
     c.setCritical(`YouTube Studio no entregó el MP4: ${err}`);
     return { state: "FAIL", detail: err };
   });
-  // La app no muestra al cliente el gasto final del render: se liquida el techo autorizado (peor caso, nunca por debajo).
+  // La app no muestra el gasto final: contabilizar el resto reservado del techo total.
   await c.step("Liquidar el gasto del render", async () => {
-    await settle(renderKey, ceiling!, "techo autorizado en la interfaz (la app no muestra el gasto final al cliente)");
-    return { state: "PASS", detail: `Render liquidado en USD ${ceiling!.toFixed(2)} (peor caso).` };
+    await settle(renderKey, renderReserve, "resto del techo total autorizado, guion ya liquidado; peor caso, no factura del proveedor");
+    return { state: "PASS", detail: `Render contabilizado en USD ${renderReserve.toFixed(2)} (resto del techo, peor caso).` };
   });
   if (outcome !== "completed") return;
 
