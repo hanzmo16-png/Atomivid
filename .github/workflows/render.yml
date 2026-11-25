@@ -48,7 +48,7 @@ jobs:
     # El CLI rechaza un timeout distinto del cotizado para la solicitud.
     # Un timeout del job entero no ejecutaría la limpieza, por eso el job
     # siempre deja ~15 min más que el paso.
-    timeout-minutes: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && (github.event.client_payload.longFormJobTimeoutMin || fromJSON(inputs.long_form_timeout_minutes || '330')) || 18 }}
+    timeout-minutes: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && (github.event.client_payload.longFormJobTimeoutMin || fromJSON(inputs.long_form_timeout_minutes || '0')) || (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 330 || 18 }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -91,7 +91,7 @@ jobs:
             *) echo '::error::timeout no autorizado'; exit 1 ;;
           esac
       - name: Renderizar video
-        timeout-minutes: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && fromJSON(steps.timeout.outputs.step) || 12 }}
+        timeout-minutes: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && (steps.timeout.outputs.step && fromJSON(steps.timeout.outputs.step)) || (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 300 || 12 }}
         run: npx tsx scripts/render-worker.ts
         env:
           ATOMIVID_RUNTIME: production
