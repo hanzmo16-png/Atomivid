@@ -28,6 +28,8 @@ export type RealCtx = {
   killSwitch?: () => boolean;
   /** Tope de gasto de ESTA ejecución (job.maxBudgetUsd); además del acumulado y del módulo. */
   runCapUsd?: number;
+  audioProjectId?: string;
+  readAudioProject?: (id: string) => Promise<{ script?: string; voiceCount?: number; targetMinutes?: number; budgetUsd?: number; voices?: string[]; spentUsd?: number } | null>;
   readAudioSynthesis?: () => Promise<string | null>;
   readReelCap?: (requestId: string) => Promise<number | null>;
   ffprobe?: string; ffmpeg?: string;
@@ -109,7 +111,7 @@ export async function runAudioReal(c: RealCtx, v: AudioVariant): Promise<void> {
   const title = `${v.title} ${c.jobId.slice(-6)}`;
   let projectUrl = "";
   await c.step("Abrir Audio Podcast y crear el episodio", async () => {
-    const met = await c.goto("/dashboard/audio-studio");
+    const met = await c.goto(c.audioProjectId ? `/dashboard/audio-studio/${c.audioProjectId}` : "/dashboard/audio-studio");
     const gate = await betaGate(c, met, /\/dashboard\/audio-studio/);
     if (gate) {
       c.setHumanGate(`La cuenta QA no tiene acceso a Audio Podcast Studio (${BETA_HINT}).`);
@@ -123,6 +125,13 @@ export async function runAudioReal(c: RealCtx, v: AudioVariant): Promise<void> {
         return { state: "BLOCKED", detail: `Audio requiere ElevenLabs real; catálogo autenticado informa ${synthesis ?? "no verificable"}. No se crea otro episodio ni se reserva gasto.` };
       }
     }
+    if (c.audioProjectId) {
+      if (!/^[0-9a-f-]{36}$/.test(c.audioProjectId)) return { state: "BLOCKED", detail: "Identidad de episodio inválida." };
+      const existing = await c.readAudioProject?.(c.audioProjectId);
+      if (!existing || existing.spentUsd !== 0) return { state: "BLOCKED", detail: "No se puede confirmar que el episodio existente siga sin gasto; no se repite." };
+      projectUrl = page.url();
+      return { state: "PASS", detail: "Mismo episodio existente, sin gasto; no se crea duplicado." };
+    }
     await page.getByLabel("Título").first().fill(title);
     await page.getByRole("button", { name: "Crear episodio" }).click();
     await page.waitForURL(/audio-studio\/[0-9a-f-]{36}/, { timeout: 30_000 });
@@ -131,22 +140,38 @@ export async function runAudioReal(c: RealCtx, v: AudioVariant): Promise<void> {
     return { state: "PASS", detail: "Episodio creado." };
   });
   if (!projectUrl) return;
-  await c.step(`Configurar ${v.lang.toUpperCase()} · ${v.voices} voz/voces · guion de ~3 min · tope USD 1`, async () => {
+  const configuration = await c.step(`Configurar ${v.lang.toUpperCase()} · ${v.voices} voz/voces · guion de ~3 min · tope USD 1`, async () => {
     await page.getByTestId("audio-language").selectOption(v.lang);
     await page.getByTestId(`audio-voices-${v.voices}`).check();
     for (let i = 0; i < v.voices; i++) await page.getByTestId(`audio-voice-${i}`).selectOption(v.voiceIds[i]);
     await page.getByTestId("audio-target").fill("5");
     await page.getByTestId("audio-budget").fill("1");
     await page.getByTestId("audio-script").fill(qaScript(v.lang, v.voices));
+    await page.waitForFunction(() => {
+      const stats = document.querySelector('[data-testid="audio-script-stats"]')?.textContent ?? "";
+      return !/^0 palabras/.test(stats) && (document.querySelector('[data-testid="audio-script"]') as HTMLTextAreaElement | null)?.value.trim();
+    }, null, { timeout: 15000 });
     await page.getByTestId("audio-save").click();
     await page.waitForFunction(() => !/Guardando/i.test(document.querySelector('[data-testid="audio-save-state"]')?.textContent ?? ""), null, { timeout: 30_000 }).catch(() => {});
     await sleep(1500);
+    if (c.real) {
+      const id = new URL(projectUrl).pathname.split("/").at(-1)!;
+      let verified = false;
+      for (let i = 0; i < 15; i++) {
+        const saved = await c.readAudioProject?.(id);
+        verified = !!saved && saved.script === qaScript(v.lang, v.voices) && saved.voiceCount === v.voices && saved.targetMinutes === 5 && saved.budgetUsd === 1 && JSON.stringify(saved.voices) === JSON.stringify(v.voiceIds);
+        if (verified) break;
+        await sleep(1000);
+      }
+      if (!verified) return { state: "FAIL", detail: "La lectura autenticada del episodio guardado no coincide con guion/voces/duración/presupuesto. No se autoriza ni genera." };
+    }
     const ok = await page.getByTestId("audio-readiness-ok").isVisible().catch(() => false);
     const issues = ok ? [] : await page.getByTestId("audio-readiness").locator("li").allInnerTexts().catch(() => []);
     c.mark(c.cIdx(/Configura idioma/), ok, ok ? "Listo para autorizar." : issues.join(" · "));
     await c.metrics(200, 0);
     return ok ? { state: "PASS", detail: "Guion, voces, música y presupuesto completos." } : { state: "FAIL", detail: `No queda listo: ${issues.join(" · ") || "sin detalle"}` };
   });
+  if (configuration.state !== "PASS") return;
   const estimate = usdOf(await page.getByTestId("audio-estimated-usd").innerText().catch(() => null));
   c.mark(c.cIdx(/costo antes/), estimate !== null, estimate !== null ? `Costo estimado visible: USD ${estimate.toFixed(2)}` : "Sin costo visible.");
   const readyBtn = page.getByTestId("audio-ready");

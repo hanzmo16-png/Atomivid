@@ -435,6 +435,11 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
           setCritical: (x) => { critical = critical ?? x; }, setHumanGate: (x) => { humanGate = humanGate ?? x; }, addSpend: (usd) => { spendUsd = Math.round((spendUsd + usd) * 100) / 100; },
           ledger: realAllowed ? ledgerStore(bucket()) : null,
           killSwitch: () => process.env.MYSTERY_SHOPPER_REAL_ENABLED === "1", runCapUsd: realAllowed ? job.maxBudgetUsd : 0,
+          audioProjectId: env.MS_AUDIO_PROJECT_ID || undefined,
+          readAudioProject: async (id) => {
+            const r = await page.request.get(`${job.target.url}/api/audio-studio/projects/${id}`, { timeout: 15000 });
+            return r.ok() ? await r.json() : null;
+          },
           readAudioSynthesis: async () => {
             const response = await page.request.get(`${job.target.url}/api/audio-studio/voices`, { timeout: 15000 });
             if (!response.ok()) return null;

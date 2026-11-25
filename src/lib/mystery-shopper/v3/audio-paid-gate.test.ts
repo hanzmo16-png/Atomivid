@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runAudioReal, AUDIO_VARIANTS, type RealCtx } from "../../../../scripts/mystery-shopper/real-missions";
+import { runAudioReal, AUDIO_VARIANTS, qaScript, type RealCtx } from "../../../../scripts/mystery-shopper/real-missions";
 function scenario(stopAfterReservation: boolean) {
   const actions: string[] = []; const steps: { name: string; state: string }[] = [];
   let reserved = false;
@@ -16,6 +16,7 @@ function scenario(stopAfterReservation: boolean) {
     page, jobId: "ms-test", baseUrl: "https://atomivid.vercel.app", real: true, out: "/tmp", media: [], incidents: [],
     step: async (name: string, fn: () => Promise<{ state: string; detail: string }>) => { const r = await fn(); steps.push({ name, state: r.state }); return r; },
     goto: async () => ({ httpStatus: 200 }), mark: () => {}, cIdx: () => 0, metrics: async () => ({}), act: () => {}, sleep: async () => {}, setCritical: () => {}, setHumanGate: () => {}, addSpend: () => {},
+    readAudioProject: async () => ({ script: qaScript("es", 2), voiceCount: 2, targetMinutes: 5, budgetUsd: 1, voices: AUDIO_VARIANTS["audio-real-es"].voiceIds, spentUsd: 0 }),
     readAudioSynthesis: async () => "real", killSwitch: () => stopAfterReservation, runCapUsd: 1,
     ledger: { state: async () => ({ reservations: [], settlements: [] }), stopped: async () => reserved && stopAfterReservation, reserve: async () => { reserved = true; actions.push("reserve"); return { ok: true, reason: "fixture" }; }, settle: async () => { actions.push("settle"); } },
   } as unknown as RealCtx;
@@ -38,4 +39,10 @@ test("Audio comercial: demo/local/inactiva o catálogo ausente bloquean antes de
     await runAudioReal(s.ctx, AUDIO_VARIANTS["audio-real-es"]);
     assert.deepEqual(s.actions, []); assert.equal(s.steps.length, 1); assert.equal(s.steps[0].state, "BLOCKED");
   }
+});
+
+test("Audio: stale/default saved configuration cannot pass or reserve money", async () => {
+  const s = scenario(true); s.ctx.readAudioProject = async () => ({ script: "", voiceCount: 1, targetMinutes: 10, budgetUsd: 6 });
+  await runAudioReal(s.ctx, AUDIO_VARIANTS["audio-real-es"]);
+  assert.equal(s.steps.at(-1)?.state, "FAIL"); assert.ok(!s.actions.includes("reserve"));
 });

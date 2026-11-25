@@ -17,6 +17,10 @@ on:
         type: choice
         options: [evaluate, qa-preflight, observe-reel, campaign-real]
         default: evaluate
+      audio_project_id:
+        description: Episodio QA existente sin gasto para recuperar configuración sin duplicarlo
+        required: false
+        default: ""
       observe_request_id:
         description: Id de Reel existente para observar/descargar sin reenviar render
         required: false
@@ -135,6 +139,7 @@ jobs:
         env:
           MS_JOB_ID: ${{ steps.trabajo.outputs.job }}
           MYSTERY_SHOPPER_REAL_ENABLED: ${{ inputs.operation == 'campaign-real' && '1' || '0' }}
+          MS_AUDIO_PROJECT_ID: ${{ inputs.mission == 'audio-real-es' && inputs.audio_project_id || '' }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           MYSTERY_SHOPPER_QA_EMAIL: ${{ secrets.MYSTERY_SHOPPER_QA_EMAIL }}
