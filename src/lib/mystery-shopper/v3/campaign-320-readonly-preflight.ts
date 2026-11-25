@@ -64,7 +64,7 @@ export async function inspectCampaign320SurfaceReadOnly(
   const response = await page.goto(requestedPath, { waitUntil: "domcontentloaded" });
   // Hydrated client controls can arrive after DOMContentLoaded. Never treat
   // an immediate isVisible() snapshot as proof that a control is missing.
-  await page.locator(surface === "reels" ? 'input[name="mode"][value="visual"]' : '[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor({ state: "attached", timeout: 15_000 }).catch(() => {});
+  await page.locator(surface === "reels" ? '[role="radiogroup"][aria-label="Guion"]' : '[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor({ state: "attached", timeout: 15_000 }).catch(() => {});
   const url = new URL(page.url());
   const body = page.locator("body");
   const bodyText = String(await body.innerText({ timeout: 5_000 }).catch(() => ""));
@@ -80,7 +80,7 @@ export async function inspectCampaign320SurfaceReadOnly(
   const requiredVisible: Record<string, boolean> = surface === "reels"
     ? {
         "Generar nuevo video": await visible(page.getByRole("heading", { name: "Generar nuevo video" })),
-        "Reel": await page.locator('input[name="mode"][value="visual"]').count().then((n: number) => n === 1),
+        "Reel": await visible(page.getByRole("radiogroup", { name: "Guion", exact: true })),
         "Tema o instrucciones": await visible(page.getByLabel(/Tema o instrucciones|Título del video/).first()),
         "Duración deseada": await visible(page.getByRole("radiogroup", { name: "Duración deseada" })),
       }
