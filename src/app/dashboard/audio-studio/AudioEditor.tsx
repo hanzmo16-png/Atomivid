@@ -8,7 +8,7 @@ import { INPUT_CLASS } from "@/components/ui/Field";
 import { commitTargetMinutes, parseTargetMinutes, voiceReplacements } from "@/lib/audio-studio/editor-rules";
 import {
   LANGUAGES, defaultSecondVoice, draftOutline, estimate, GENERATION_LABEL, generationActive, MAX_BUDGET_USD, MAX_SCRIPT, MAX_TARGET_MINUTES, MAX_TITLE, MIN_TARGET_MINUTES, MOOD_LABEL, MUSIC_MOODS,
-  audioProviderNote, DEMO_VOICE_LABEL, FALLBACK_TTS_MODEL, musicPlan, readinessIssues, STATUS_LABEL, TTS_MODELS, ttsModel, VOICE_PRESETS, voicePreset, type StudioLanguage, type AudioProject, type MusicConfig, type MusicMood, type TtsModelId,
+  audioProviderNote, DEMO_VOICE_LABEL, downloadFileName, formatAudioDuration, FALLBACK_TTS_MODEL, musicPlan, readinessIssues, STATUS_LABEL, TTS_MODELS, ttsModel, VOICE_PRESETS, voicePreset, type StudioLanguage, type AudioProject, type MusicConfig, type MusicMood, type TtsModelId,
 } from "@/lib/audio-studio/model";
 import type { StudioCatalogVoice } from "@/lib/audio-studio/catalog";
 import type { ProjectView } from "@/lib/audio-studio/service";
@@ -53,6 +53,9 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
   // Texto libre del campo de duración: se puede borrar y reescribir; se valida al salir del campo.
   const [targetText, setTargetText] = useState<string | null>(null);
   const [clock, setClock] = useState(() => Date.now());
+  // MP3 que no carga (URL firmada caducada, red caída): se explica y se reintenta en vez de dejar un reproductor mudo.
+  const [playerError, setPlayerError] = useState(false);
+  const [playerKey, setPlayerKey] = useState(0);
   const dirty = !same(draft, draftOf(saved));
   const archived = !!saved.archivedAt;
   const g = saved.generation;
@@ -383,12 +386,19 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
         {g.error && !running && <p role="alert" className="text-sm text-danger" data-testid="audio-generation-error">{g.error}</p>}
         {saved.audio && (
           <div className="space-y-2 rounded-md border border-border p-3" data-testid="audio-result">
-            <audio controls preload="none" className="w-full" src={`/api/audio-studio/projects/${saved.id}/audio`} data-testid="audio-player" />
+            <audio key={playerKey} controls preload="none" className="w-full" src={`/api/audio-studio/projects/${saved.id}/audio`} data-testid="audio-player"
+              onError={() => setPlayerError(true)} onCanPlay={() => setPlayerError(false)} />
+            {playerError && (
+              <p role="alert" className="text-sm text-danger" data-testid="audio-player-error">
+                No se pudo cargar el MP3. Tu episodio sigue guardado y no se vuelve a generar ni a cobrar.{" "}
+                <button type="button" className="inline-flex min-h-11 items-center font-medium underline" data-testid="audio-player-retry" onClick={() => { setPlayerError(false); setPlayerKey((k) => k + 1); }}>Reintentar</button>
+              </p>
+            )}
             <p className="text-xs text-ink-muted">
-              {Math.floor(saved.audio.durationSeconds / 60)} min {Math.round(saved.audio.durationSeconds % 60)} s · {saved.audio.lufs} LUFS · pico {saved.audio.truePeak} dBTP · {(saved.audio.bytes / 1e6).toFixed(1)} MB
+              {formatAudioDuration(saved.audio.durationSeconds)} · {saved.audio.lufs} LUFS · pico {saved.audio.truePeak} dBTP · {(saved.audio.bytes / 1e6).toFixed(1)} MB
               {audioProviderNote(saved.audio.provider)}{saved.audio.revision !== saved.revision ? " · de una versión anterior del guion" : ""}
             </p>
-            <a href={`/api/audio-studio/projects/${saved.id}/audio?descargar=1`} className="inline-flex min-h-11 items-center text-sm font-medium text-accent underline" data-testid="audio-download">Descargar MP3</a>
+            <a href={`/api/audio-studio/projects/${saved.id}/audio?descargar=1`} download={downloadFileName(saved.title)} className="inline-flex min-h-11 items-center text-sm font-medium text-accent underline" data-testid="audio-download">Descargar MP3</a>
           </div>
         )}
         {canPay && !archived && !running && !checking && (g.status === "inactiva" || g.status === "terminada") && (

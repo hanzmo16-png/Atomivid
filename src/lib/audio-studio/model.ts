@@ -151,6 +151,40 @@ export function generationActive(g: Generation, now: number): boolean {
 }
 export const GENERATION_LABEL: Record<GenerationStatus, string> = { inactiva: "Sin generar", en_cola: "En cola", generando: "Generando", terminada: "Audio listo", fallida: "Falló" };
 
+/** «m min s s» redondeando el total: 239.6 s es «4 min 0 s», nunca «3 min 60 s». */
+export function formatAudioDuration(seconds: number): string {
+  const s = Math.max(0, Math.round(Number.isFinite(seconds) ? seconds : 0));
+  return `${Math.floor(s / 60)} min ${s % 60} s`;
+}
+
+/**
+ * Nombre del MP3 descargado, sólo ASCII. supabase-js codifica `download` dos veces (URLSearchParams y después encodeURI),
+ * así que «Conversación» llegaba al Storage como «Conversaci%C3%B3n» y el navegador guardaba «download» sin extensión.
+ * Se quitan tildes y signos (ñ → n) y siempre termina en .mp3.
+ */
+export function downloadFileName(title: string): string {
+  const base = title.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z0-9 _-]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80).trim();
+  return `${base || "episodio"}.mp3`;
+}
+
+export const languageLabel = (id: StudioLanguage): string => LANGUAGES.find((l) => l.id === id)?.label ?? id;
+
+export type AudioStateTone = "success" | "danger" | "info" | "warning" | "neutral";
+/**
+ * Estado del AUDIO para la biblioteca (no el del borrador): verde sólo con el MP3 guardado, en curso sólo con latido
+ * reciente del servidor; un trabajo sin latido se muestra como interrumpido, nunca como verde ni como «Generando».
+ */
+export function libraryAudioState(g: Generation, hasAudio: boolean, now: number): { label: string; tone: AudioStateTone; hint: string } {
+  if (generationActive(g, now)) {
+    const total = g.progress?.total ?? 0, done = Math.max(0, Math.min(total, g.progress?.done ?? 0));
+    return { label: g.status === "en_cola" ? "En cola" : total > 0 ? `Generando · ${Math.floor(done / total * 100)}%` : "Generando", tone: "info", hint: "Abre el episodio para seguir el avance; no vuelvas a generarlo." };
+  }
+  if (g.status === "en_cola" || g.status === "generando") return { label: "Interrumpida", tone: "warning", hint: "La generación dejó de informar avances. Abre el episodio para revisar el estado antes de reanudar." };
+  if (g.status === "fallida") return { label: "Falló", tone: "danger", hint: hasAudio ? "El último intento falló; el MP3 anterior sigue disponible. Abre el episodio para ver el motivo." : "Abre el episodio para ver el motivo antes de reanudar." };
+  if (hasAudio) return { label: "Audio listo", tone: "success", hint: "" };
+  return { label: GENERATION_LABEL[g.status], tone: "neutral", hint: "Generar requiere tu autorización del gasto." };
+}
+
 export type ProjectInput = Partial<Pick<AudioProject, "title" | "language" | "voiceCount" | "voices" | "targetMinutes" | "script" | "notes" | "music" | "budgetUsd" | "ttsModel">>;
 
 export class ValidationError extends Error {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { audioStudioUser, studioDeps } from "@/lib/audio-studio/server";
-import { isUuid } from "@/lib/audio-studio/model";
+import { downloadFileName, isUuid } from "@/lib/audio-studio/model";
 import { assertBlobPath } from "@/lib/audio-studio/store";
 
 export const dynamic = "force-dynamic";
@@ -15,8 +15,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!p?.audio) return NextResponse.json({ error: "Audio no encontrado." }, { status: 404 });
   const path = assertBlobPath(p.audio.path, user.id, id);
   const download = new URL(request.url).searchParams.get("descargar") === "1";
-  const safe = p.title.replace(/[^\p{L}\p{N} _-]+/gu, "").trim().slice(0, 80) || "episodio";
-  const url = await d.store.signedUrl(path, 600, download ? `${safe}.mp3` : undefined);
+  const url = await d.store.signedUrl(path, 600, download ? downloadFileName(p.title) : undefined);
   if (!url) return NextResponse.json({ error: "No se pudo preparar el audio." }, { status: 503 });
   return NextResponse.redirect(url, { status: 302, headers: { "Cache-Control": "no-store" } });
 }

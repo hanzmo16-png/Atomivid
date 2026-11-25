@@ -83,6 +83,14 @@ jobs:
             timeout 3600 node scripts/harness/e2e/audio-studio/audio-studio-e2e.cjs 2>&1 | tee "$E2E_HOME/out/audio-studio.log"
           grep -q '^RESULTADO OK' "$E2E_HOME/out/audio-studio.log"
           echo "::notice title=audio-podcast-studio::$(grep -E '^RESULTADO' "$E2E_HOME/out/audio-studio.log" | tail -1)"
+      - name: Recorrido de cliente no mutante (proyecto terminado, MP3, móvil 390x844 y 412x915)
+        run: |
+          set -o pipefail
+          . "$E2E_HOME/paths.env"; mkdir -p "$E2E_HOME/out/audio-studio/lanzamiento"
+          E2E_OUT="$E2E_HOME/out/audio-studio/lanzamiento" E2E_BASE=http://127.0.0.1:3300 \
+            E2E_CHROME="$CHROME" PLAYWRIGHT_MODULE="$E2E_HOME/deps/node_modules/playwright" \
+            timeout 900 node scripts/harness/e2e/audio-studio/launch-candidate-e2e.cjs 2>&1 | tee "$E2E_HOME/out/audio-studio-lanzamiento.log"
+          grep -q '^RESULTADO OK' "$E2E_HOME/out/audio-studio-lanzamiento.log"
       - name: Ningún proveedor real contactado
         if: always()
         run: |
@@ -99,5 +107,6 @@ jobs:
             audio-studio-tests.log
             .e2e-local/out/audio-studio
             .e2e-local/out/audio-studio.log
+            .e2e-local/out/audio-studio-lanzamiento.log
             .e2e-local/logs/next.log
             .e2e-local/logs/gateway.jsonl
