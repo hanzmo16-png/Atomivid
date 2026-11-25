@@ -87,6 +87,10 @@ export const githubActionsWorker: RenderWorker = {
       throw new InvalidEnvVarError("GH_WORKER_REPO", '"owner/repo", p. ej. "hanzmo16-png/Atomivid"');
     }
 
+    // Server-controlled, Preview-only QA route; never selected by a client payload or Production.
+    const qaRef = process.env.VERCEL_ENV === "preview" && mode === "long_form" ? process.env.GH_WORKER_QA_REF : undefined;
+    if (qaRef && !/^codex\/endgame-[a-z0-9-]+$/.test(qaRef)) throw new InvalidEnvVarError("GH_WORKER_QA_REF", "an isolated codex/endgame-* branch");
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), DISPATCH_TIMEOUT_MS);
 
@@ -95,21 +99,29 @@ export const githubActionsWorker: RenderWorker = {
       // A Preview may run new quote code while the default-branch workflow is
       // still old. Never dispatch a discounted short-job quote to that worker.
       if (mode === "long_form" && longFormJobTimeoutMin !== undefined && longFormJobTimeoutMin < 330) {
-        const policy = await fetch(`${GITHUB_API}/repos/${repo}/contents/.github/workflows/render.yml`, {
+        const policy = await fetch(`${GITHUB_API}/repos/${repo}/contents/.github/workflows/render.yml${qaRef ? `?ref=${encodeURIComponent(qaRef)}` : ""}`, {
           headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" }, signal: controller.signal,
         });
         const file = policy.ok ? await policy.json().catch(() => null) as { content?: string; encoding?: string } | null : null;
         const source = file?.encoding === "base64" && typeof file.content === "string" ? Buffer.from(file.content, "base64").toString("utf8") : "";
         if (!source.includes("# LONG_FORM_RENDER_TIMEOUT_PROTOCOL=1") || !source.includes("LONG_FORM_RENDER_JOB_TIMEOUT_MIN:")) throw new GitHubWorkerDispatchError(409, "Remote render timeout policy is not active; no short-quote render dispatched.");
       }
-      res = await fetch(`${GITHUB_API}/repos/${repo}/dispatches`, {
+      if (qaRef) {
+        if (longFormJobTimeoutMin === undefined || longFormJobTimeoutMin >= 330) throw new GitHubWorkerDispatchError(409, "QA requires an explicit bounded short-job timeout.");
+        // The QA source must preserve encrypted failure recovery, not publish a private MP4.
+        const checked = await fetch(`${GITHUB_API}/repos/${repo}/contents/.github/workflows/render.yml?ref=${encodeURIComponent(qaRef)}`, { headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" }, signal: controller.signal });
+        const file = checked.ok ? await checked.json().catch(() => null) as { content?: string } | null : null;
+        const source = typeof file?.content === "string" ? Buffer.from(file.content, "base64").toString("utf8") : "";
+        if (!source.includes("# PRIVATE_LONG_FORM_FAILURE_PROTOCOL=1")) throw new GitHubWorkerDispatchError(409, "Private QA failure recovery is not active.");
+      }
+      res = await fetch(`${GITHUB_API}/repos/${repo}/${qaRef ? "actions/workflows/render.yml/dispatches" : "dispatches"}`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: "application/vnd.github+json",
           "X-GitHub-Api-Version": "2022-11-28",
         },
-        body: JSON.stringify({
+        body: JSON.stringify(qaRef ? { ref: qaRef, inputs: { request_id: requestId, mode: "long_form", long_form_timeout_minutes: String(longFormJobTimeoutMin) } } : {
           event_type: DISPATCH_EVENT_TYPE,
           // `mode` permite a render.yml dar a Long Form su propio timeout y
           // sus credenciales (OpenAI/Veo/confirmación de gasto) sin

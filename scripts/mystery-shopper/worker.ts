@@ -134,6 +134,8 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
     return route.continue();
   });
   const page = await context.newPage();
+  // A deferred welcome dialog may appear after route navigation; dismiss it as a customer would.
+  await page.addLocatorHandler(page.getByRole("button", { name: "Omitir", exact: true }).first(), async (button: { click(): Promise<void> }) => { await button.click(); });
   let consoleErrors = 0;
   page.on("console", (m: { type(): string }) => { if (m.type() === "error") consoleErrors++; });
   // 3.0: excepciones sin capturar quedan en el registro de acciones (sanitizado por redact al guardar).
