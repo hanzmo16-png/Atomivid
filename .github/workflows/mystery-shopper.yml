@@ -55,7 +55,7 @@ jobs:
         if: inputs.operation == 'preflight' || inputs.operation == 'run'
         run: node scripts/mystery-shopper/prepare-existing-longform.mjs
       - name: Read-only authenticated Preview preflight
-        if: inputs.operation == 'preflight'
+        if: inputs.operation == 'preflight' || inputs.operation == 'run'
         env:
           MYSTERY_SHOPPER_QA_EMAIL: ${{ secrets.MYSTERY_SHOPPER_QA_EMAIL }}
           MYSTERY_SHOPPER_QA_PASSWORD: ${{ secrets.MYSTERY_SHOPPER_QA_PASSWORD }}
