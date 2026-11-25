@@ -1,10 +1,13 @@
-name: Private Endgame readback
+name: Authorized Reel settlement
 on:
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  private-readback:
+  settle:
+    concurrency:
+      group: mystery-shopper-real-campaign-320
+      cancel-in-progress: false
     environment: Preview
     runs-on: ubuntu-24.04
     timeout-minutes: 6
@@ -13,15 +16,9 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci --no-audit --no-fund
-      - name: Read existing campaign only and seal output
+      - name: Reconcile completed Reel without public financial output
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          PRIVATE_OUT: ${{ runner.temp }}/sealed
-        run: node scripts/mystery-shopper/private-readback.mjs
-      - uses: actions/upload-artifact@v4
-        with:
-          name: sealed-private-readback
-          path: ${{ runner.temp }}/sealed/sealed.json
-          if-no-files-found: error
-          retention-days: 1
+          GH_READ_TOKEN: ${{ github.token }}
+        run: node scripts/mystery-shopper/settle-completed-reel.mjs
