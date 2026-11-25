@@ -82,7 +82,9 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
   const killSwitch = c.killSwitch ?? (() => false);
   const runCap = Math.min(c.runCapUsd ?? 0, MODULE_CAP_USD.youtube);
   let runCommitted = 0;
-  const topic = `QA Mystery Shopper ${c.jobId.slice(-6)}: cómo se forman las nubes y por qué llueve`;
+  // Etiqueta única por ejecución: el tema idéntico hace que la app reutilice la preparación anterior (input_hash).
+  const tag = (c.jobId.replace(/[^0-9a-f]/gi, "").slice(-8) || c.jobId.slice(-8));
+  const topic = `QA Mystery Shopper ${tag}: cómo se forman las nubes y por qué llueve`;
   const requestedSeconds = limits.minutes * 60;
 
   const guard = async (amount: number | null) => ytSpendGuard({ real: c.real, killSwitch: killSwitch(), stopped: c.ledger?.stopped ? await c.ledger.stopped().catch(() => true) : false, ledger: c.ledger ? await c.ledger.state().catch(() => null) : null, amountUsd: amount, runCapUsd: runCap, runCommittedUsd: runCommitted });
@@ -137,7 +139,7 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
   // 3 · Guion (cobro): reserva → clic
   const scriptKey = `${c.jobId}-yt-script`;
   if (!await reserve(scriptKey, limits.scriptReserveUsd, "el guion")) return;
-  let jobUrl = "";
+  let jobUrl = ""; let reused = false;
   await c.step("Pulsar «Crear y revisar guion»", async () => {
     if (!killSwitch()) { await settle(scriptKey, 0, "no se pulsó (interruptor apagado)"); return { state: "BLOCKED", detail: "Interruptor apagado justo antes del clic." }; }
     await page.getByRole("button", { name: "Crear y revisar guion" }).click();
@@ -146,7 +148,7 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
     const u = new URL(page.url());
     const id = u.searchParams.get("script_job") ?? /long-form\/jobs\/([0-9a-f-]{36})/.exec(u.pathname)?.[1] ?? null;
     if (!id) return { state: "FAIL", detail: `La app no creó la preparación: ${u.searchParams.get("error") ?? u.pathname}` };
-    if (u.searchParams.get("existing") === "1") c.act("aviso", "La app reutilizó una preparación existente (mismo tema): no se cobró otra.");
+    if (u.searchParams.get("existing") === "1") reused = true, c.act("aviso", "La app reutilizó una preparación existente (mismo tema): no se cobró otra.");
     jobUrl = `/dashboard/long-form/jobs/${id}`;
     return { state: "PASS", detail: `Preparación ${id} creada.` };
   });
@@ -206,10 +208,11 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
   });
   // Liquidar el guion con lo que muestra la app («Guion ya gastado»), o con la reserva si no lo muestra.
   await c.step("Liquidar el gasto del guion", async () => {
-    const v = scriptSpent ?? limits.scriptReserveUsd;
-    await settle(scriptKey, v, scriptSpent === null ? "reserva (la app no mostró «Guion ya gastado»)" : "interfaz «Guion ya gastado»");
+    // Preparación reutilizada (existing=1): la app no hizo llamadas nuevas en esta ejecución.
+    const v = reused ? 0 : scriptSpent ?? limits.scriptReserveUsd;
+    await settle(scriptKey, v, reused ? "la app reutilizó la preparación existente (existing=1): sin cobro nuevo" : scriptSpent === null ? "reserva (la app no mostró «Guion ya gastado»)" : "interfaz «Guion ya gastado»");
     runCommitted = r2(runCommitted - limits.scriptReserveUsd + v);
-    return { state: scriptSpent === null ? "FAIL" : "PASS", detail: `Guion liquidado en USD ${v.toFixed(2)}.` };
+    return { state: reused || scriptSpent !== null ? "PASS" : "FAIL", detail: `Guion liquidado en USD ${v.toFixed(2)}${reused ? " (preparación reutilizada)" : ""}.` };
   });
   if (!configureHref || ceiling === null) return;
 
