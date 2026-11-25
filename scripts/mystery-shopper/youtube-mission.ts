@@ -1,4 +1,4 @@
-import { provedUnstartedRender } from "./start-response";
+import { provedUnstartedRender, matchesRenderStartResponse } from "./start-response";
 /**
  * Mystery Shopper 3.0 — YouTube Studio (Long Form) COMPLETO como cliente real (aprobado por Hans: t900s5862).
  *
@@ -250,7 +250,7 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
     const btn = page.getByRole("button", { name: "Confirmar y generar video" });
     if (await btn.isDisabled().catch(() => true)) { await settle(renderKey, 0, "botón deshabilitado: no se pulsó"); return { state: "BLOCKED", detail: "«Confirmar y generar video» deshabilitado." }; }
     const responseP = page.waitForResponse((r: { url(): string; request(): { method(): string } }) => {
-      const u=new URL(r.url());return u.origin===new URL(c.baseUrl).origin&&/^\/api\/generate\/[0-9a-f-]{36}\/render$/.test(u.pathname)&&r.request().method()==="POST";
+      return matchesRenderStartResponse(c.baseUrl,configureHref,r.url(),r.request().method());
     }, { timeout: 60_000 }).catch(()=>null);
     await btn.click();
     const started=await responseP;
