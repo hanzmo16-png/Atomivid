@@ -74,7 +74,12 @@ export class VisualPlanBlockedError extends DocumentaryResponseError {
 
 /** Zod issues as "code@path" (indices kept, values never included). */
 export function schemaIssuePaths(error: z.ZodError, limit = 12): string[] {
-  return error.issues.slice(0, limit).map(i => `${i.code}@${i.path.map(String).join(".")}`);
+  // Para claves no reconocidas se añaden los NOMBRES (nunca valores) para que el log confirme la causa raíz
+  // (incidente real 1091fe88, 2026-11-25: solo se veía «unrecognized_keys@firstAnswer.evidence»).
+  return error.issues.slice(0, limit).map(i => {
+    const keys = i.code === "unrecognized_keys" ? ((i as { keys?: unknown[] }).keys ?? []).map(String).map(k => /^[A-Za-z0-9_]{1,40}$/.test(k) ? k : "?").slice(0, 6) : [];
+    return `${i.code}@${i.path.map(String).join(".")}${keys.length ? `[${keys.join(",")}]` : ""}`;
+  });
 }
 
 export function parseDocumentaryResponse<T extends z.ZodType>(schema: T, response: {
