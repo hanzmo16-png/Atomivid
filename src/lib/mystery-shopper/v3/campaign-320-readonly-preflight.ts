@@ -20,6 +20,7 @@ export type ReadonlyObservation = {
   notFound: boolean;
   requiredVisible: Record<string, boolean>;
   enabledPaidControl: boolean;
+  generationBlocked?: boolean;
 };
 
 export type ReadonlyVerdict = {
@@ -34,6 +35,7 @@ export const CAMPAIGN_320_READONLY_ROUTES: Record<Campaign320Surface, string> = 
 
 export function evaluateReadonlyObservation(o: ReadonlyObservation): ReadonlyVerdict {
   const reasons: string[] = [];
+  if (o.generationBlocked) reasons.push("La generación audiovisual está desactivada y pendiente de autorización.");
   if (o.loginRedirect) reasons.push("La sesión QA no está autenticada.");
   if (o.notFound || o.httpStatus === 404) reasons.push("La cuenta QA no tiene acceso a la superficie.");
   if (o.httpStatus !== null && o.httpStatus >= 500) reasons.push(`La superficie respondió HTTP ${o.httpStatus}.`);
@@ -42,7 +44,7 @@ export function evaluateReadonlyObservation(o: ReadonlyObservation): ReadonlyVer
   }
   if (o.enabledPaidControl) reasons.push("Hay un control de gasto habilitado durante el preflight no mutante.");
 
-  if (o.loginRedirect || o.notFound || o.httpStatus === 404) return { state: "BLOCKED", reasons };
+  if (o.generationBlocked || o.loginRedirect || o.notFound || o.httpStatus === 404) return { state: "BLOCKED", reasons };
   return { state: reasons.length ? "FAIL" : "PASS", reasons };
 }
 
@@ -60,6 +62,9 @@ export async function inspectCampaign320SurfaceReadOnly(
 ): Promise<{ observation: ReadonlyObservation; verdict: ReadonlyVerdict }> {
   const requestedPath = CAMPAIGN_320_READONLY_ROUTES[surface];
   const response = await page.goto(requestedPath, { waitUntil: "domcontentloaded" });
+  // Hydrated client controls can arrive after DOMContentLoaded. Never treat
+  // an immediate isVisible() snapshot as proof that a control is missing.
+  await page.locator(surface === "reels" ? 'input[name="mode"][value="visual"]' : '[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor({ state: "attached", timeout: 15_000 }).catch(() => {});
   const url = new URL(page.url());
   const body = page.locator("body");
   const bodyText = String(await body.innerText({ timeout: 5_000 }).catch(() => ""));
@@ -75,7 +80,7 @@ export async function inspectCampaign320SurfaceReadOnly(
   const requiredVisible: Record<string, boolean> = surface === "reels"
     ? {
         "Generar nuevo video": await visible(page.getByRole("heading", { name: "Generar nuevo video" })),
-        "Reel": await visible(page.getByText("Reel", { exact: true }).first()),
+        "Reel": await page.locator('input[name="mode"][value="visual"]').count().then((n: number) => n === 1),
         "Tema o instrucciones": await visible(page.getByLabel(/Tema o instrucciones|Título del video/).first()),
         "Duración deseada": await visible(page.getByRole("radiogroup", { name: "Duración deseada" })),
       }
@@ -94,6 +99,6 @@ export async function inspectCampaign320SurfaceReadOnly(
     if (await visible(item) && await item.isEnabled().catch(() => false)) enabledPaidControl = true;
   }
 
-  const observation: ReadonlyObservation = { ...common, requiredVisible, enabledPaidControl };
+  const observation: ReadonlyObservation = { ...common, requiredVisible, enabledPaidControl, generationBlocked: surface === "video-podcast" && /Disponible cuando se active el estudio|generación está desactivada|modo se activa cuando el propietario autorice/i.test(bodyText) };
   return { observation, verdict: evaluateReadonlyObservation(observation) };
 }

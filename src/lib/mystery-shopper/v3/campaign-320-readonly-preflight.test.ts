@@ -42,3 +42,8 @@ test("issue #320: el preflight no contiene acciones mutantes ni clics pagados", 
   }
   assert.equal(evaluateReadonlyObservation({ ...good, enabledPaidControl: true }).state, "FAIL");
 });
+
+ test("issue #320: generación audiovisual pendiente de autorización queda BLOCKED, no FAIL del motor ni PASS", () => {
+  const r = evaluateReadonlyObservation({ ...good, surface: "video-podcast", generationBlocked: true });
+  assert.equal(r.state, "BLOCKED"); assert.match(r.reasons.join(" "), /desactivada/);
+});
