@@ -11,7 +11,7 @@ function scenario(stopAfterReservation: boolean) {
     innerText: async () => id === "audio-authorize-usd" ? "USD 1.00" : id === "audio-estimated-usd" ? "USD 0.50" : "Audio Podcast",
     allInnerTexts: async () => [],
   });
-  const page = { url: () => "https://atomivid.vercel.app/dashboard/audio-studio/11111111-1111-4111-8111-111111111111", locator: el, getByLabel: el, getByTestId: el, getByRole: el, waitForURL: async () => {}, waitForFunction: async () => {} };
+  const page = { url: () => "https://atomivid.vercel.app/dashboard/audio-studio/11111111-1111-4111-8111-111111111111", locator: el, getByLabel: el, getByTestId: el, getByRole: el, waitForResponse: async () => ({ ok: () => true, json: async () => ({ generation: { status: "inactiva" } }) }), waitForURL: async () => {}, waitForFunction: async () => {} };
   const ctx = {
     page, jobId: "ms-test", baseUrl: "https://atomivid.vercel.app", real: true, out: "/tmp", media: [], incidents: [],
     step: async (name: string, fn: () => Promise<{ state: string; detail: string }>) => { const r = await fn(); steps.push({ name, state: r.state }); return r; },

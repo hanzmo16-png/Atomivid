@@ -1,3 +1,4 @@
+import { audioActionAck } from "./audio-action-ack";
 /**
  * Mystery Shopper 3.0 — misiones de generación REAL como cliente (autorización t899u, tope acumulado USD 8.50).
  *
@@ -177,7 +178,10 @@ export async function runAudioReal(c: RealCtx, v: AudioVariant): Promise<void> {
   const estimate = usdOf(await page.getByTestId("audio-estimated-usd").innerText().catch(() => null));
   c.mark(c.cIdx(/costo antes/), estimate !== null, estimate !== null ? `Costo estimado visible: USD ${estimate.toFixed(2)}` : "Sin costo visible.");
   const readyBtn = page.getByTestId("audio-ready");
-  if (await readyBtn.isVisible().catch(() => false) && await readyBtn.isEnabled().catch(() => false)) { await readyBtn.click(); await sleep(1500); }
+  if (await readyBtn.isVisible().catch(() => false) && await readyBtn.isEnabled().catch(() => false)) {
+    const ready = await c.step("Confirmar preparación en la API", () => audioActionAck(page, new URL(projectUrl).pathname.split("/").at(-1)!, "listo", () => readyBtn.click()));
+    if (ready.state !== "PASS") return;
+  }
   const gen = page.getByTestId("audio-generate");
   const disabledBefore = await gen.isDisabled().catch(() => null);
   c.mark(c.cIdx(/Sin autorizar/), disabledBefore === true, disabledBefore ? "«Generar» deshabilitado hasta autorizar el monto." : "«Generar» habilitado sin autorizar.");
@@ -209,9 +213,9 @@ export async function runAudioReal(c: RealCtx, v: AudioVariant): Promise<void> {
   const start = await c.step("Autorizar el monto y generar", async () => {
     if (!c.killSwitch?.() || !c.ledger?.stopped || await c.ledger.stopped().catch(() => true)) return { state: "BLOCKED", detail: "STOP o interruptor cambiado después de reservar: no se pulsa; la reserva se conserva." };
     await page.getByTestId("audio-authorize").check();
-    await gen.click();
-    c.act("gasto", `«Generar» pulsado con autorización de USD ${authUsd!.toFixed(2)}`);
-    return { state: "PASS", detail: `Generación solicitada (USD ${authUsd!.toFixed(2)} autorizados).` };
+    const ack = await audioActionAck(page, new URL(projectUrl).pathname.split("/").at(-1)!, "generar", () => gen.click());
+    c.act("gasto", `Resultado de aceptación API: ${ack.state}; sin reintento automático.`);
+    return ack;
   });
   if (start.state !== "PASS") return;
   await c.step("Seguir el progreso hasta el MP3 (máx. 25 min)", async () => {
@@ -234,6 +238,10 @@ export async function runAudioReal(c: RealCtx, v: AudioVariant): Promise<void> {
     c.setCritical(`Audio Podcast no entregó el MP3: ${err}`);
     return { state: "FAIL", detail: err };
   });
+  if (finished !== "ok") {
+    c.setHumanGate("La generación no terminó de forma acreditada. Reserva conservada hasta reconciliación; «Gastado 0» en una pantalla no prueba que una llamada incierta no pueda cobrar después.");
+    return;
+  }
   // Liquidar con el gasto que muestra la app (aunque haya fallado: puede haber gasto parcial).
   await c.step("Liquidar el gasto real (lo que muestra «Gastado»)", async () => {
     await page.reload({ waitUntil: "domcontentloaded" }).catch(() => {});
