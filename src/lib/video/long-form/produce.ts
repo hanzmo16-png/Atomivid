@@ -1,3 +1,4 @@
+import { longFormRenderTimeout } from "./render-timeout";
 import { setFootageWaitBeat } from "@/lib/ai/footage";
 import { SupplyUnavailableError } from "@/lib/supply/policy";
 import { gatedMusicTrack, type PaidCallDeps } from "@/lib/paid-calls/gated-providers";
@@ -448,7 +449,7 @@ export async function generateLongFormVideoFromScript({
       { stage: "video", ceilingUsd: conservative.clipUsd * allocation.maxAiVideoClips, retryPolicy: "reuse_paid_results" },
       { stage: "music", ceilingUsd: musicCeiling, retryPolicy: "reuse_paid_results", note: musicName === "beatoven" ? "BEATOVEN_ESTIMATED_COST_USD" : `proveedor ${musicName} sin cargo por llamada` },
       // Render costeado (PRICING_RENDER_USD_PER_MINUTE): techo = intentos máximos × timeout del job long_form × tarifa.
-      { stage: "render", ceilingUsd: renderCeilingUsd(), retryPolicy: "reuse_paid_results", note: `cubre ${MAX_RENDER_ATTEMPTS} intentos × ${LONG_FORM_RENDER_JOB_TIMEOUT_MIN} min; cada intento factura sus minutos; fuera del ledger` },
+      { stage: "render", ceilingUsd: renderCeilingUsd(requestedDurationSeconds), retryPolicy: "reuse_paid_results", note: `cubre ${MAX_RENDER_ATTEMPTS} intentos × ${longFormRenderTimeout(requestedDurationSeconds).jobMinutes} min; cada intento factura sus minutos; fuera del ledger` },
     ];
     const auth = await authorizeRequestBudget({
       requestId,

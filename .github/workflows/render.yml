@@ -1,3 +1,4 @@
+# LONG_FORM_RENDER_TIMEOUT_PROTOCOL=1
 name: Render video (worker de Atomivid)
 
 # Disparado normalmente por /api/generate/[id]/render
@@ -17,6 +18,11 @@ on:
         description: "ID de la solicitud (video_requests.id) a renderizar"
         required: true
         type: string
+      long_form_timeout_minutes:
+        description: "Techo de job cotizado para la duración guardada; el worker rechaza discrepancias"
+        type: choice
+        options: ['45', '90', '180', '330']
+        default: '330'
       mode:
         description: "Modalidad de la solicitud (vacío = Reel/Avatar). 'long_form' da el timeout y las credenciales de Long Form."
         required: false
@@ -38,9 +44,11 @@ jobs:
     # producción; 30 min de documental ≈ 90 min + masterizado/subida, más
     # posibles esperas por límite de búsquedas de stock. 300 min de paso
     # dejan margen dentro del máximo de 360 min de un runner alojado.
+    # Piezas cortas: 45/90/180 min según duración guardada; duración desconocida o 20–30 min mantiene 330.
+    # El CLI rechaza un timeout distinto del cotizado para la solicitud.
     # Un timeout del job entero no ejecutaría la limpieza, por eso el job
     # siempre deja ~15 min más que el paso.
-    timeout-minutes: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 330 || 18 }}
+    timeout-minutes: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && (github.event.client_payload.longFormJobTimeoutMin || fromJSON(inputs.long_form_timeout_minutes || '0')) || (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 330 || 18 }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -70,11 +78,24 @@ jobs:
             echo "$PWD/node_modules/@ffprobe-installer/linux-x64" >> "$GITHUB_PATH"
           fi
 
+      - name: Elegir límite de paso coherente con el job
+        id: timeout
+        env:
+          JOB_MIN: ${{ github.event.client_payload.longFormJobTimeoutMin || inputs.long_form_timeout_minutes || '330' }}
+        run: |
+          case "$JOB_MIN" in
+            45) echo 'step=30' >> "$GITHUB_OUTPUT" ;;
+            90) echo 'step=75' >> "$GITHUB_OUTPUT" ;;
+            180) echo 'step=165' >> "$GITHUB_OUTPUT" ;;
+            330) echo 'step=300' >> "$GITHUB_OUTPUT" ;;
+            *) echo '::error::timeout no autorizado'; exit 1 ;;
+          esac
       - name: Renderizar video
-        timeout-minutes: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 300 || 12 }}
+        timeout-minutes: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && (steps.timeout.outputs.step && fromJSON(steps.timeout.outputs.step)) || (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 300 || 12 }}
         run: npx tsx scripts/render-worker.ts
         env:
           ATOMIVID_RUNTIME: production
+          LONG_FORM_RENDER_JOB_TIMEOUT_MIN: ${{ github.event.client_payload.longFormJobTimeoutMin || inputs.long_form_timeout_minutes || '330' }}
           REQUEST_ID: ${{ github.event.client_payload.requestId || inputs.request_id }}
           RENDER_ATTEMPT: ${{ github.event.client_payload.renderAttempt }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

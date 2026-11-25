@@ -223,3 +223,25 @@ test("trigger lanza GitHubWorkerNetworkError si la señal de abort se dispara (t
     global.fetch = originalFetch;
   }
 });
+
+test("short quote cannot dispatch from a Preview to an old default-branch workflow", async () => {
+  const original = global.fetch; const calls: string[] = [];
+  global.fetch = (async (url: string | URL | Request) => { calls.push(String(url)); return Response.json({ encoding: "base64", content: Buffer.from("legacy workflow, 330 minute job").toString("base64") }); }) as typeof fetch;
+  try {
+    await withEnv({ GH_WORKER_TOKEN: "fake-test-token", GH_WORKER_REPO: "owner/repo" }, async () => {
+      await assert.rejects(githubActionsWorker.trigger({ requestId: "req-test", mode: "long_form", longFormJobTimeoutMin: 45 }));
+    });
+    assert.equal(calls.length,1); assert.match(calls[0], /contents\/\.github\/workflows\/render.yml$/);
+  } finally { global.fetch=original; }
+});
+test("short quote dispatch carries the verified native job ceiling", async () => {
+  const original=global.fetch; let posted: { client_payload?: { longFormJobTimeoutMin?: number } } | null=null;
+  global.fetch=(async (url: string | URL | Request, init?: RequestInit)=>{
+    if(String(url).includes('/contents/')) return Response.json({encoding:"base64",content:Buffer.from('# LONG_FORM_RENDER_TIMEOUT_PROTOCOL=1\nLONG_FORM_RENDER_JOB_TIMEOUT_MIN:').toString('base64')});
+    posted=JSON.parse(String(init?.body));return new Response(null,{status:204});
+  }) as typeof fetch;
+  try {
+    await withEnv({ GH_WORKER_TOKEN:"fake-test-token",GH_WORKER_REPO:"owner/repo" },()=>githubActionsWorker.trigger({requestId:"req-test",mode:"long_form",longFormJobTimeoutMin:45}));
+    assert.equal((posted as {client_payload?:{longFormJobTimeoutMin?:number}}|null)?.client_payload?.longFormJobTimeoutMin,45);
+  } finally {global.fetch=original;}
+});
