@@ -23,6 +23,7 @@ import { CreateHome } from "@/components/dashboard/simple-create/CreateHome";
 import { createFormats, midFlow, splitHistory } from "@/components/dashboard/simple-create/home";
 import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
 import { studioFlagFor } from "@/lib/podcast/v3/studio";
+import { VideoBackground } from "@/components/dashboard/VideoBackground";
 
 export default async function DashboardPage({
   searchParams,
@@ -113,6 +114,8 @@ export default async function DashboardPage({
 
   return (
     <div>
+      {/* Fondo en video (COSMOS 2 v4): solo visual, fijo detrás del contenido. */}
+      <VideoBackground />
       <AutoRefresh active={hasProcessing || (scriptJobs ?? []).some(job => scriptJobView(job, nowMs).refresh)} />
 
       {!mid && (
