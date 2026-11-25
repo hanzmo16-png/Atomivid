@@ -92,6 +92,16 @@ export const githubActionsWorker: RenderWorker = {
 
     let res: Response;
     try {
+      // A Preview may run new quote code while the default-branch workflow is
+      // still old. Never dispatch a discounted short-job quote to that worker.
+      if (mode === "long_form" && longFormJobTimeoutMin !== undefined && longFormJobTimeoutMin < 330) {
+        const policy = await fetch(`${GITHUB_API}/repos/${repo}/contents/.github/workflows/render.yml`, {
+          headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" }, signal: controller.signal,
+        });
+        const file = policy.ok ? await policy.json().catch(() => null) as { content?: string; encoding?: string } | null : null;
+        const source = file?.encoding === "base64" && typeof file.content === "string" ? Buffer.from(file.content, "base64").toString("utf8") : "";
+        if (!source.includes("# LONG_FORM_RENDER_TIMEOUT_PROTOCOL=1") || !source.includes("LONG_FORM_RENDER_JOB_TIMEOUT_MIN:")) throw new GitHubWorkerDispatchError(409, "Remote render timeout policy is not active; no short-quote render dispatched.");
+      }
       res = await fetch(`${GITHUB_API}/repos/${repo}/dispatches`, {
         method: "POST",
         headers: {
@@ -117,6 +127,7 @@ export const githubActionsWorker: RenderWorker = {
       // fetch() rechaza (no responde con un status) ante DNS/conexión
       // rechazada, y AbortController produce un DOMException "AbortError"
       // al vencer el timeout — ambos son fallos de red, no de config.
+      if (error instanceof GitHubWorkerDispatchError) throw error;
       throw new GitHubWorkerNetworkError(error);
     } finally {
       clearTimeout(timeout);

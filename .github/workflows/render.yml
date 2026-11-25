@@ -1,3 +1,4 @@
+# LONG_FORM_RENDER_TIMEOUT_PROTOCOL=1
 name: Render video (worker de Atomivid)
 
 # Disparado normalmente por /api/generate/[id]/render
