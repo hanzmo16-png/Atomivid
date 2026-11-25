@@ -44,6 +44,8 @@ async function login(p) {
   for (const [dev, opts] of Object.entries(DEVICES)) {
     const mobile = opts.viewport.width < 640;
     const ctx = await browser.newContext({ ...opts, recordVideo: dev === "s26ultra-412x915" || dev === "desktop-1440x900" ? { dir: path.join(OUT, `rec-${dev}`), size: opts.viewport } : undefined });
+    // El recorrido de bienvenida puede aparecer tarde (después del «Omitir» de abajo) y tapar la portada: se da por visto.
+    await ctx.addInitScript(() => { try { localStorage.setItem("atomivid_onboarding_completed_v1", "1"); } catch {} });
     // CLS real con PerformanceObserver desde el primer byte.
     await ctx.addInitScript(() => { window.__cls = 0; window.__lcp = 0; try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__cls += e.value; }).observe({ type: "layout-shift", buffered: true });
       new PerformanceObserver((l) => { const e = l.getEntries().at(-1); if (e) window.__lcp = e.startTime; }).observe({ type: "largest-contentful-paint", buffered: true }); } catch {} });
@@ -66,7 +68,7 @@ async function login(p) {
     check(`[${dev}] fondo: <video> real reproduciendo (currentTime ${v0?.t?.toFixed(2)}→${v1.t?.toFixed(2)})`, v1.has && v1.state === "playing" && v1.t > v0.t && v1.paused === false, { v0, v1 });
     check(`[${dev}] fondo: silencioso, en bucle, sin controles`, v1.muted === true && v1.loop === true && v1.controls === false, v1);
     const expectOrient = opts.viewport.height > opts.viewport.width ? "portrait" : "landscape";
-    check(`[${dev}] fondo: material ${expectOrient} (${(v1.src || "").split("/").pop()})`, v1.orientation === expectOrient && (v1.src || "").includes(`cosmos-${expectOrient}`), v1);
+    check(`[${dev}] fondo: material ${expectOrient} (${(v1.src || "").split("/").pop()})`, v1.orientation === expectOrient && new RegExp(`/cosmos2?-${expectOrient}\\.`).test(v1.src || ""), v1);
     check(`[${dev}] solo un ambiente descargado (no los cinco)`, new Set(bytes.videoReqs.map((u) => u.split("?")[0].replace(/-(landscape|portrait)\.(mp4|webm)$/, ""))).size <= 1, bytes.videoReqs);
 
     // Hero + CTA

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { AMBIENTS, ambientById, orientationFor, videoPolicy } from "./ambients";
+import { AMBIENTS, COSMOS_PREVIOUS_MEDIA, ambientById, ambientForVariant, backgroundVariant, orientationFor, videoPolicy } from "./ambients";
 import { studiosFor, STUDIO_SOON } from "./studios";
 import { showcaseItems, formatDuration } from "./showcase";
 import { dockVisibleOn } from "./MobileDock";
@@ -108,5 +108,25 @@ test("la capa cinematográfica no toca proveedores, cobros ni datos", () => {
   for (const f of ["ambients.ts", "studios.ts", "showcase.ts", "CinematicBackground.tsx", "CinematicHero.tsx", "StudioCards.tsx", "Showcase.tsx", "MobileDock.tsx"]) {
     const src = readFileSync(join(__dirname, f), "utf8");
     assert.equal(/fetch\s*\(|supabase|stripe|process\.env|elevenlabs|heygen|openai|recraft/i.test(src), false, f);
+  }
+});
+
+test("COSMOS actual = video nuevo (cosmos2, ≤ 2,5 MB por archivo); ?bg=old conserva la versión anterior para comparar", () => {
+  const cur = ambientForVariant(ambientById("cosmos"), backgroundVariant(undefined));
+  const old = ambientForVariant(ambientById("cosmos"), backgroundVariant("old"));
+  assert.match(cur.media!.sources.portrait[0].src, /\/cinematic\/cosmos2-portrait\.webm$/);
+  assert.equal(old.media, COSMOS_PREVIOUS_MEDIA);
+  assert.match(old.media!.sources.landscape[1].src, /\/cinematic\/cosmos-landscape\.mp4$/);
+  assert.equal(backgroundVariant(["old"]), "old");
+  assert.equal(backgroundVariant("nuevo"), "current");
+  assert.equal(ambientForVariant(ambientById("ocean-deep"), "old").media, null, "solo COSMOS tiene versión anterior");
+  for (const media of [cur.media!, old.media!]) {
+    for (const o of ["landscape", "portrait"] as const) {
+      for (const s of media.sources[o]) {
+        assert.ok(existsSync(pub(s.src)), s.src);
+        if (media === cur.media) assert.ok(statSync(pub(s.src)).size <= 2_500_000, `${s.src} ≤ 2,5 MB`);
+      }
+      assert.ok(existsSync(pub(media.posters[o])), media.posters[o]);
+    }
   }
 });

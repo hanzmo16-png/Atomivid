@@ -42,6 +42,26 @@ Solo cambia la capa de presentación y navegación. No toca autenticación, susc
 
 ## Material audiovisual
 
+### COSMOS 2 (actual, 2026-11-25): escena con acción
+
+Hans pidió un fondo que **de verdad se mueva** (el anterior apenas cambiaba y los últimos ~3 s quedaban casi fijos). COSMOS 2 es una escena con acción desde el primer segundo: la nave avanza hacia el planeta anillado, un dispositivo en la proa libera energía y las partículas se convierten en escenas (jinete, ola en el teléfono, templo, dragón) que vuelven a disolverse: «la máquina que crea historias».
+- **Origen:** clips propios generados con IA el 2026-11-25 (16:9 y 9:16, 15 s), **USD 0** para ATOMIVID.
+- **Montaje** (`scripts/cinematic/encode-loop-xfade.sh`): corte en 11,0 s, antes del encogimiento artificial del final, y bucle clásico por fundido de 1,25 s (la salida empieza en el fotograma 1,25 s y acaba justo antes de él). Duración 9,75 s, 24 fps, sin audio, `faststart`.
+- **Costura verificada** (diferencia media del último al primer fotograma vs. entre fotogramas consecutivos, a 160 px): horizontal 3,44 vs. mediana 8,16; vertical 2,67 vs. mediana 3,93. La costura es más suave que un cambio normal entre fotogramas.
+- **Legibilidad:** en el teléfono el 45 % inferior (titular y botón dorado, delante de los motores) se oscurece; en escritorio, el tercio izquierdo.
+- **Comparar con la versión anterior:** `/dashboard?bg=old` usa COSMOS 1 (abajo) con sus degradados originales.
+
+| Archivo | Tamaño |
+|---|---|
+| `cosmos2-landscape.mp4` (1280×720, H.264) | 2,39 MB |
+| `cosmos2-landscape.webm` (VP9) | 2,05 MB |
+| `cosmos2-portrait.mp4` (720×1280, H.264) | 2,00 MB |
+| `cosmos2-portrait.webm` (VP9) | 1,28 MB |
+| Pósteres (primer fotograma del bucle) | 37 / 36 KB |
+
+### COSMOS 1 (anterior, se conserva para `?bg=old`)
+
+
 **COSMOS es producción propia de ATOMIVID generada con IA**, autorizada por Hans el 2026-11-24 («si necesitas un proveedor de pago … tienes mi autorización»). Gasto total: **USD 5,34**.
 - **Imágenes clave:** FLUX 1.1 Pro Ultra (fal.ai), 9 candidatas (USD 0,54). Elegidas: `kf-land-d` (horizontal: nave de frente, nebulosa, planeta anillado a la derecha) y `kf-port-a` (vertical: planeta arriba, nave en el centro, espacio libre abajo). Se descartaron las que tenían texto en el casco, barras negras o el planeta detrás del titular.
 - **Animación:** Veo 3.1 Fast vía fal.ai, 1080p, 8 s, sin audio. Por orientación, un clip con movimiento libre de cámara (image-to-video) y uno de bucle exacto (primer y último fotograma = imagen clave). 4 clips, USD 4,80. La clave directa de Google ya no ofrece modelos Veo (404 / ListModels vacío, sin cobro).

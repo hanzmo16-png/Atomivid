@@ -27,6 +27,7 @@ import { canAccessAudioStudio } from "@/lib/audio-studio/access";
 import { isCommandCenterAdmin } from "@/lib/command-center/access";
 import { CinematicBackground } from "@/components/cinematic/CinematicBackground";
 import { CinematicHero } from "@/components/cinematic/CinematicHero";
+import { backgroundVariant } from "@/components/cinematic/ambients";
 import { StudioCards } from "@/components/cinematic/StudioCards";
 import { Showcase } from "@/components/cinematic/Showcase";
 import { studiosFor } from "@/components/cinematic/studios";
@@ -35,9 +36,9 @@ import { showcaseItems } from "@/components/cinematic/showcase";
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ created?: string; draft?: string; existing?: string; script_job?: string }>;
+  searchParams: Promise<{ created?: string; draft?: string; existing?: string; script_job?: string; bg?: string }>;
 }) {
-  const { created, draft, existing, script_job } = await searchParams;
+  const { created, draft, existing, script_job, bg } = await searchParams;
   // Simple UX 1.0: la pantalla empieza por «¿Qué quieres crear hoy?»; si se vuelve aquí a mitad de un flujo (solicitud
   // recién creada, guion en preparación), el historial va primero para no esconder la acción pendiente.
   const mid = midFlow({ created, draft, existing, script_job });
@@ -135,8 +136,8 @@ export default async function DashboardPage({
       {!mid && (
         <>
           {/* Fondo cinematográfico real (video propio en bucle); se pausa al salir de la portada o de la pestaña. */}
-          <CinematicBackground ambientId="cosmos" watchId="portada" />
-          <CinematicHero />
+          <CinematicBackground ambientId="cosmos" watchId="portada" variant={backgroundVariant(bg)} />
+          <CinematicHero fullscreen={backgroundVariant(bg) !== "old"} />
           <div id="crear" className="glass max-w-3xl scroll-mt-24 rounded-3xl p-5 sm:p-8">
             <CreateHome formats={formats} subscriptionNeeded={!subscribed && !internalOwner} />
           </div>
