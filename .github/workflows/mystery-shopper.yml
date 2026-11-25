@@ -29,7 +29,7 @@ jobs:
       MS_TARGET: ${{ inputs.target }}
       MS_ACCESS_KEY_ID: ${{ inputs.key_id }}
       MS_ACCESS_CIPHERTEXT: ${{ inputs.sealed_access }}
-      MS_OUT_DIR: ${{ runner.temp }}/private-longform
+      MS_OUT_DIR: /tmp/endgame01-private-longform
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
