@@ -4,6 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { inspectCampaign320SurfaceReadOnly } from "../../src/lib/mystery-shopper/v3/campaign-320-readonly-preflight";
 import { LEDGER_PREFIX, totals, type LedgerState } from "../../src/lib/mystery-shopper/v3/ledger";
+import { measureVideo } from "./av-check";
 import { MS_BUCKET } from "../../src/lib/mystery-shopper/jobs";
 
 async function main() {
@@ -60,6 +61,26 @@ async function main() {
     authenticated = new URL(page.url()).pathname.startsWith("/dashboard");
     if (authenticated) {
       audio = await context.request.get(`${baseURL}/api/audio-studio/voices`, { timeout: 15000 }).then(async (r: { ok(): boolean; json(): Promise<{ synthesis?: string }> }) => r.ok() ? (await r.json()).synthesis ?? null : null).catch(() => null);
+      if (env.MS_OBSERVE_REEL_ID) {
+        const id = env.MS_OBSERVE_REEL_ID;
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id)) throw new Error("Invalid observer request id");
+        const deadline = Date.now() + 18 * 60000;
+        let delivered = false;
+        while (Date.now() < deadline) {
+          await page.goto(`/dashboard/videos/${id}`, { waitUntil: "domcontentloaded" });
+          const body = await page.locator("body").innerText();
+          if (/No se pudo generar|Producción cancelada/.test(body)) { screens.push({ requestId: id, state: "FAIL", reason: "Existing production failed; no retry requested" }); break; }
+          const link = page.getByRole("link", { name: "Descargar video", exact: true });
+          if (await link.isVisible().catch(() => false)) {
+            const [download] = await Promise.all([page.waitForEvent("download", { timeout: 30000 }), link.click()]);
+            const file = path.join(out, "existing-reel.mp4"); await download.saveAs(file);
+            const facts = await measureVideo(file); screens.push({ requestId: id, state: "DOWNLOADED", facts, subtitles: "NOT_MEASURED", cost: "RESERVATION_RETAINED_PENDING_RECONCILIATION" }); delivered = true; break;
+          }
+          await page.waitForTimeout(10000);
+        }
+        await page.screenshot({ path: path.join(out, "existing-reel-final-412.png"), fullPage: true });
+        if (!delivered) screens.push({ observerComplete: false, noRenderResent: true });
+      }
       for (const surface of ["reels", "video-podcast"] as const) {
         screens.push(await inspectCampaign320SurfaceReadOnly(page, surface));
         await page.screenshot({ path: path.join(out, `${surface}-412.png`), fullPage: true });

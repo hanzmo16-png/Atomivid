@@ -53,7 +53,10 @@ export async function runReelReal(c: RealCtx): Promise<void> {
   const render = await c.step("Generar MP4 del Reel una sola vez", async () => {
     if (!await allowed()) return { state: "BLOCKED", detail: "STOP o interruptor antes del render." };
     await p.getByRole("button", { name: "Generar video final", exact: true }).click();
-    await p.waitForURL(new RegExp(`/dashboard/videos/${id}`), { timeout: 30000 });
+    await p.waitForURL((u: URL) => u.pathname === "/dashboard" || u.pathname === `/dashboard/videos/${id}`, { timeout: 30000 });
+    // ScriptReview deliberately redirects to history after starting. Open the
+    // same owner's detail page; never resend POST /render on a navigation mismatch.
+    if (new URL(p.url()).pathname === "/dashboard") await c.goto(`/dashboard/videos/${id}`);
     return { state: "PASS", detail: "Render solicitado; sin reintentos automáticos." };
   });
   if (render.state !== "PASS") return;
