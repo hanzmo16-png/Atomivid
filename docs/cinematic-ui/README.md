@@ -42,6 +42,28 @@ Solo cambia la capa de presentación y navegación. No toca autenticación, susc
 
 ## Material audiovisual
 
+### COSMOS 2 (actual, 2026-11-25): escena con acción, salto a la luz y logo
+
+Hans pidió un fondo que **de verdad se mueva** y lo fue afinando el mismo día. Resultado (14,96 s, 24 fps, sin audio, `faststart`):
+- **0–11 s:** una nave (vista desde atrás, alas y cuatro motores) avanza hacia el planeta anillado; su dispositivo libera energía y las partículas se vuelven escenas: ballena galáctica, jinete, ola (en vertical), templo, astronauta, dragones y fénix, con acentos dorados y azules.
+- **11–12,4 s:** salto a la luz: la nave se aleja y las estrellas se estiran hacia el planeta.
+- **12,4–13,1 s:** estallido dorado breve (no blanco) que deja oscura la zona baja del titular.
+- **13,1–14,9 s:** sale el logo real de Atomicvid (el átomo de `src/components/ui/Logo.tsx` + «Atomicvid» en Geist 600) en dorado, pasa al morado de la app (`#8f7ff5`, `accent-hover`) y se desvanece en un campo de estrellas que se funde con el primer fotograma ⇒ bucle sin salto (costura 2,9 vs. mediana entre fotogramas 4,7 en vertical y 7,3 en horizontal).
+- **Origen y coste:** clips propios generados con IA el 2026-11-25 + imágenes generadas (nave vista desde atrás, fénix, astronauta, ballena) y composición propia (`scripts/cinematic/cosmos2/compose.py`, OpenCV/ffmpeg). **USD 0.** En vertical la nave original se sustituye fotograma a fotograma siguiendo sus motores; en horizontal se conserva la nave original (vista de tres cuartos) con parpadeo de motores.
+- **Legibilidad:** en el teléfono el 45 % inferior se oscurece; en escritorio, el tercio izquierdo.
+- **Comparar con la versión anterior:** `/dashboard?bg=old` usa COSMOS 1 (abajo) con sus degradados y su altura originales.
+
+| Archivo | Tamaño |
+|---|---|
+| `cosmos2-landscape.mp4` (1280×720, H.264) | 2,38 MB |
+| `cosmos2-landscape.webm` (VP9) | 2,25 MB |
+| `cosmos2-portrait.mp4` (720×1280, H.264) | 2,31 MB |
+| `cosmos2-portrait.webm` (VP9) | 2,25 MB |
+| Pósteres (primer fotograma del bucle) | 34 / 49 KB |
+
+### COSMOS 1 (anterior, se conserva para `?bg=old`)
+
+
 **COSMOS es producción propia de ATOMIVID generada con IA**, autorizada por Hans el 2026-11-24 («si necesitas un proveedor de pago … tienes mi autorización»). Gasto total: **USD 5,34**.
 - **Imágenes clave:** FLUX 1.1 Pro Ultra (fal.ai), 9 candidatas (USD 0,54). Elegidas: `kf-land-d` (horizontal: nave de frente, nebulosa, planeta anillado a la derecha) y `kf-port-a` (vertical: planeta arriba, nave en el centro, espacio libre abajo). Se descartaron las que tenían texto en el casco, barras negras o el planeta detrás del titular.
 - **Animación:** Veo 3.1 Fast vía fal.ai, 1080p, 8 s, sin audio. Por orientación, un clip con movimiento libre de cámara (image-to-video) y uno de bucle exacto (primer y último fotograma = imagen clave). 4 clips, USD 4,80. La clave directa de Google ya no ofrece modelos Veo (404 / ListModels vacío, sin cobro).

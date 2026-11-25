@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { ambientById, orientationFor, videoPolicy, type AmbientId, type Orientation } from "./ambients";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ambientById, ambientForVariant, orientationFor, videoPolicy, type AmbientId, type BackgroundVariant, type Orientation } from "./ambients";
 
 type State = "gradient" | "poster" | "loading" | "playing" | "paused" | "fallback";
 
@@ -14,8 +14,8 @@ type State = "gradient" | "poster" | "loading" | "playing" | "paused" | "fallbac
  * - Sin video con «reducir movimiento», ahorro de datos o 2G; si el video falla, se queda el póster.
  * - Al desmontar, suelta el archivo (pause + quitar src + load) para liberar memoria y red.
  */
-export function CinematicBackground({ ambientId = "cosmos", watchId }: { ambientId?: AmbientId; watchId?: string }) {
-  const ambient = ambientById(ambientId);
+export function CinematicBackground({ ambientId = "cosmos", watchId, variant = "current" }: { ambientId?: AmbientId; watchId?: string; variant?: BackgroundVariant }) {
+  const ambient = useMemo(() => ambientForVariant(ambientById(ambientId), variant), [ambientId, variant]);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [orientation, setOrientation] = useState<Orientation | null>(null);
   const [mode, setMode] = useState<"video" | "poster" | "gradient" | null>(null);
@@ -90,7 +90,7 @@ export function CinematicBackground({ ambientId = "cosmos", watchId }: { ambient
   const effective: State = mode === "gradient" ? "gradient" : mode === "poster" ? "poster" : mode === "video" && state === "gradient" ? "loading" : state;
 
   return (
-    <div aria-hidden="true" data-testid="cinematic-bg" data-ambient={ambient.id} data-state={effective} data-orientation={orientation ?? ""}
+    <div aria-hidden="true" data-testid="cinematic-bg" data-ambient={ambient.id} data-variant={variant} data-state={effective} data-orientation={orientation ?? ""}
       className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" style={{ background: ambient.fallback }}>
       {media && (
         // Póster pintado por el servidor (sin esperar a JavaScript): el navegador elige la orientación por CSS.
@@ -107,8 +107,19 @@ export function CinematicBackground({ ambientId = "cosmos", watchId }: { ambient
         </video>
       )}
       {/* Gradientes cinematográficos: legibilidad del texto encima, y oscurecer cuando la portada ya pasó. */}
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,3,9,0.35)_0%,rgba(2,3,9,0.05)_30%,rgba(2,3,9,0.5)_64%,rgba(5,6,12,0.96)_100%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_20%_30%,rgba(2,3,9,0)_0%,rgba(2,3,9,0.45)_100%)]" />
+      {variant === "old" ? (
+        <>
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,3,9,0.35)_0%,rgba(2,3,9,0.05)_30%,rgba(2,3,9,0.5)_64%,rgba(5,6,12,0.96)_100%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_20%_30%,rgba(2,3,9,0)_0%,rgba(2,3,9,0.45)_100%)]" />
+        </>
+      ) : (
+        <>
+          {/* Teléfono: la escena vive arriba; el 45 % inferior (titular y botón dorado) se oscurece para que se lean sobre los motores. */}
+          <div data-testid="cinematic-veil" className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,3,9,0.30)_0%,rgba(2,3,9,0)_16%,rgba(2,3,9,0)_48%,rgba(2,3,9,0.72)_62%,rgba(3,4,10,0.9)_78%,rgba(5,6,12,0.97)_100%)] sm:bg-[linear-gradient(180deg,rgba(2,3,9,0.30)_0%,rgba(2,3,9,0)_22%,rgba(2,3,9,0.15)_62%,rgba(5,6,12,0.96)_100%)]" />
+          {/* Escritorio: tercio izquierdo más oscuro detrás del texto; el resto de la escena queda limpio. */}
+          <div className="absolute inset-0 hidden sm:block bg-[linear-gradient(90deg,rgba(2,3,9,0.82)_0%,rgba(2,3,9,0.6)_22%,rgba(2,3,9,0.18)_40%,rgba(2,3,9,0)_55%)]" />
+        </>
+      )}
       <div className={`absolute inset-0 bg-[#05060c] transition-opacity duration-700 ${dim ? "opacity-80" : "opacity-0"}`} />
     </div>
   );

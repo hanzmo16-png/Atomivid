@@ -54,13 +54,32 @@ export const AMBIENTS: readonly Ambient[] = [
     name: "COSMOS",
     theme: "Universo y exploración espacial",
     fallback: "radial-gradient(120% 90% at 35% 35%, #1b2550 0%, #070b1c 55%, #02030a 100%)",
-    media: own("cosmos", 11.5, "Producción propia ATOMIVID generada con IA: imágenes clave FLUX 1.1 Pro Ultra animadas con Veo 3.1 Fast (fal.ai), montaje en bucle de 11,5 s. Autorizado por Hans (2026-11-24), USD 5,34."),
+    media: own("cosmos2", 14.96, "Producción propia ATOMIVID generada con IA (2026-11-25, USD 0): una nave avanza hacia el planeta y su dispositivo libera energía que convierte partículas en escenas (ballena galáctica, jinete, ola, templo, astronauta, dragones, fénix); salto a la luz, estallido dorado y logo de Atomicvid (dorado → morado #8f7ff5) que se funde en las estrellas y vuelve al inicio sin salto (scripts/cinematic/cosmos2/compose.py)."),
   },
   { id: "epic-history", name: "EPIC HISTORY", theme: "Civilizaciones, imperios e historia", fallback: "radial-gradient(120% 90% at 40% 30%, #3a2a14 0%, #150e07 55%, #050302 100%)", media: null },
   { id: "ocean-deep", name: "OCEAN DEEP", theme: "Océanos y naturaleza", fallback: "radial-gradient(120% 90% at 50% 20%, #0d3a4f 0%, #061722 55%, #01060a 100%)", media: null },
   { id: "dark-mystery", name: "DARK MYSTERY", theme: "Misterios y escenarios atmosféricos", fallback: "radial-gradient(120% 90% at 50% 40%, #241a2e 0%, #0c0812 55%, #030205 100%)", media: null },
   { id: "future-world", name: "FUTURE WORLD", theme: "Ciencia ficción y tecnología", fallback: "radial-gradient(120% 90% at 60% 30%, #10334a 0%, #071420 55%, #02060a 100%)", media: null },
 ] as const;
+
+/**
+ * Versión anterior de COSMOS (PR #315, Veo 3.1 Fast, 11,5 s) conservada para comparar: `/dashboard?bg=old`.
+ * Solo afecta a la presentación; se retira cuando Hans apruebe la nueva.
+ */
+export const COSMOS_PREVIOUS_MEDIA: AmbientMedia = own("cosmos", 11.5, "Producción propia ATOMIVID generada con IA: imágenes clave FLUX 1.1 Pro Ultra animadas con Veo 3.1 Fast (fal.ai), montaje en bucle de 11,5 s. Autorizado por Hans (2026-11-24), USD 5,34.");
+
+export type BackgroundVariant = "current" | "old";
+
+/** `?bg=old` → la versión anterior; cualquier otro valor (o ninguno) → la actual. */
+export function backgroundVariant(param: string | string[] | undefined): BackgroundVariant {
+  const v = Array.isArray(param) ? param[0] : param;
+  return v === "old" ? "old" : "current";
+}
+
+/** El ambiente con el material de la variante pedida (solo COSMOS tiene versión anterior). */
+export function ambientForVariant(ambient: Ambient, variant: BackgroundVariant): Ambient {
+  return variant === "old" && ambient.id === "cosmos" ? { ...ambient, media: COSMOS_PREVIOUS_MEDIA } : ambient;
+}
 
 export const DEFAULT_AMBIENT: AmbientId = "cosmos";
 

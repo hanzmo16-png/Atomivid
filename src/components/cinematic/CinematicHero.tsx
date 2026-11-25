@@ -4,10 +4,11 @@ import Link from "next/link";
  * Portada cinematográfica. La llamada principal no inventa ninguna ruta: baja a «¿Qué quieres crear hoy?» (#crear),
  * el selector real que abre el flujo de cada formato. El fondo en movimiento lo pinta <CinematicBackground watchId="portada">.
  */
-export function CinematicHero() {
+/** `fullscreen`: en escritorio la portada ocupa la primera pantalla y el selector queda debajo, para que se vea la escena. */
+export function CinematicHero({ fullscreen = true }: { fullscreen?: boolean }) {
   return (
     <section id="portada" aria-labelledby="portada-titulo" data-testid="cinematic-hero"
-      className="relative flex min-h-[calc(100svh-9rem)] flex-col justify-end pb-10 pt-16 sm:min-h-[62vh] sm:justify-center sm:pb-16">
+      className={`relative flex min-h-[calc(100svh-9rem)] flex-col justify-end pb-10 pt-16 sm:justify-center sm:pb-16 ${fullscreen ? "sm:min-h-[calc(100svh-5rem)]" : "sm:min-h-[62vh]"}`}>
       <p className="cine-rise text-[11px] font-semibold uppercase tracking-[0.32em] text-champagne/90">Estudio cinematográfico ATOMIVID</p>
       <h1 id="portada-titulo" className="cine-rise-2 mt-4 max-w-3xl text-[2.6rem] font-semibold leading-[1.02] tracking-[-0.03em] text-ink sm:text-6xl lg:text-7xl">
         Tu imaginación.<br />
