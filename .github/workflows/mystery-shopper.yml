@@ -1,6 +1,11 @@
 name: Endgame private Long Form resume
 on:
   workflow_dispatch:
+    inputs:
+      operation:
+        type: choice
+        options: [inspect, run]
+        default: inspect
 permissions:
   contents: read
 concurrency:
@@ -8,6 +13,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   longform:
+    if: inputs.operation == 'run'
     environment: Preview
     runs-on: ubuntu-24.04
     timeout-minutes: 75
@@ -56,3 +62,19 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           MS_OUT_DIR: ${{ runner.temp }}/private-longform
         run: node scripts/mystery-shopper/private-longform-receipt.mjs
+  inspect:
+    if: inputs.operation == 'inspect'
+    environment: Preview
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Read completed journey only and keep result private
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          MS_INSPECT_TARGET: https://atomivid-pbuerx6ey-atomivid.vercel.app
+        run: node --import tsx scripts/mystery-shopper/private-journey-inspection.mjs
