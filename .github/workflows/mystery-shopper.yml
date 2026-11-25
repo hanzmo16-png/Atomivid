@@ -70,6 +70,16 @@ jobs:
           COMMAND_CENTER_ADMIN_EMAILS: ${{ secrets.COMMAND_CENTER_ADMIN_EMAILS }}
           MS_OUT_DIR: ${{ runner.temp }}/qa-preflight
         run: node --import tsx scripts/mystery-shopper/qa-preflight.ts
+      - name: Navegador móvil de solo lectura
+        run: npm install --no-save --no-audit --no-fund playwright@1.49.1 && npx playwright install --with-deps chromium
+      - name: Verificar acceso móvil y leer ledger acumulado sin reservar
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          MYSTERY_SHOPPER_QA_EMAIL: ${{ secrets.MYSTERY_SHOPPER_QA_EMAIL }}
+          MYSTERY_SHOPPER_QA_PASSWORD: ${{ secrets.MYSTERY_SHOPPER_QA_PASSWORD }}
+          MS_OUT_DIR: ${{ runner.temp }}/qa-preflight
+        run: node --import tsx scripts/mystery-shopper/qa-authenticated-readonly.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
