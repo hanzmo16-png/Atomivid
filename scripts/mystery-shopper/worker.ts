@@ -18,6 +18,10 @@ import { promisify } from "node:util";
 import path from "node:path";
 import os from "node:os";
 import { createClient } from "@supabase/supabase-js";
+import { classifyAuth, type AuthOutcome } from "../../src/lib/mystery-shopper/v3/auth-outcome";
+import { ledgerStore } from "../../src/lib/mystery-shopper/v3/ledger";
+import { AUDIO_VARIANTS, runAudioReal, runYoutubeReal, type RealCtx } from "./real-missions";
+import type { Incident } from "../../src/lib/mystery-shopper/v3/detect";
 import { defaultCatalog, missionById } from "../../src/lib/mystery-shopper/catalog";
 import { jobStore, MS_BUCKET, type JobStatus, type StorageApi } from "../../src/lib/mystery-shopper/jobs";
 import { findingsFrom, mediaCheck, technicalTerms, verdictFor, LIVE_VERSION, type ActionLog, type LiveReport, type LiveStep, type MediaCheck, type PageMetrics } from "../../src/lib/mystery-shopper/live";
@@ -87,6 +91,10 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
   const criteria = (mission.criteria ?? []).map((text) => ({ text, met: null as boolean | null, evidence: "" }));
   const mark = (i: number, met: boolean, evidence: string) => { if (criteria[i]) criteria[i] = { ...criteria[i], met, evidence: redact(evidence).slice(0, 240) }; };
   let critical: string | null = null;
+  // 3.0: gasto real solo con modo real + interruptor + presupuesto del trabajo > 0 (el libro acumulado hace cumplir USD 8.50).
+  const realAllowed = job.mode === "real" && env.MYSTERY_SHOPPER_REAL_ENABLED === "1" && job.maxBudgetUsd > 0;
+  let spendUsd = 0;
+  const v3Incidents: Incident[] = [];
   let authenticated = false;
   let humanGate: string | null = null;
   let observedSha: string | null = null;
@@ -113,6 +121,8 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
   const page = await context.newPage();
   let consoleErrors = 0;
   page.on("console", (m: { type(): string }) => { if (m.type() === "error") consoleErrors++; });
+  // 3.0: excepciones sin capturar quedan en el registro de acciones (sanitizado por redact al guardar).
+  page.on("pageerror", (e: Error) => act("js-error", (e?.message ?? String(e)).split("\n")[0].slice(0, 200)));
   page.on("response", (r: { url(): string; headers(): Record<string, string> }) => { const s = r.headers()["x-vercel-git-commit-sha"]; if (s && !observedSha) observedSha = s; });
 
   let n = 0;
@@ -188,16 +198,27 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
     });
     // 2. Autenticación real con la cuenta QA (o bloqueo explícito si no existe)
     const email = env.MYSTERY_SHOPPER_QA_EMAIL, password = env.MYSTERY_SHOPPER_QA_PASSWORD;
-    const doLogin = async () => {
+    /**
+     * 3.0: la acción de login redirige a /login?error=… si Supabase rechaza la cuenta. Se espera lo que
+     * ocurra primero (panel o error) y se clasifica con classifyAuth, en vez de un timeout genérico.
+     */
+    const doLogin = async (): Promise<AuthOutcome> => {
       await page.getByLabel("Correo electrónico").fill(email!);
       await page.getByLabel("Contraseña").fill(password!);
       await page.getByRole("button", { name: "Iniciar sesión" }).click();
-      await page.waitForURL(/\/dashboard/, { timeout: 30_000 });
+      let timedOut = false;
+      await page.waitForURL((u: URL) => /^\/dashboard(\/|$)/.test(u.pathname) || (u.pathname === "/login" && u.searchParams.has("error")), { timeout: 30_000 }).catch(() => { timedOut = true; });
+      const alertText = await page.locator('[role="alert"]').first().innerText({ timeout: 2_000 }).catch(() => null);
+      const outcome = classifyAuth({ hasEmail: true, hasPassword: true, finalUrl: page.url(), alertText, timedOut });
+      act("login", `resultado ${outcome.kind}`);
+      return outcome;
     };
     if (access.state === "PASS") {
       await step("Iniciar sesión con la cuenta QA", async () => {
         if (!email || !password) { humanGate = "Falta la cuenta QA: crear un usuario de prueba en ATOMIVID y guardar MYSTERY_SHOPPER_QA_EMAIL y MYSTERY_SHOPPER_QA_PASSWORD como secretos del repositorio."; return { state: "BLOCKED", detail: "No hay cuenta QA configurada. No se inventa una sesión." }; }
-        await doLogin(); authenticated = true;
+        const outcome = await doLogin();
+        if (outcome.state !== "PASS") { humanGate = outcome.state === "BLOCKED" ? outcome.humanGate : null; if (outcome.state === "FAIL") critical = `No se pudo entrar a ATOMIVID: ${outcome.detail}`; return { state: outcome.state, detail: outcome.detail }; }
+        authenticated = true;
         await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
         await metrics(200, 0);
         await dismissOverlays();
@@ -220,8 +241,8 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
         return outside ? { state: "PASS", detail: "Sesión cerrada: /dashboard vuelve al login." } : { state: "FAIL", detail: `Tras cerrar sesión /dashboard respondió ${back?.status()} sin pedir login.` };
       });
       await step("Volver a entrar (recuperación)", async () => {
-        await goto("/login"); await doLogin();
-        return { state: "PASS", detail: "La cuenta vuelve a entrar y ve su panel." };
+        await goto("/login"); const again = await doLogin();
+        return again.state === "PASS" ? { state: "PASS", detail: "La cuenta vuelve a entrar y ve su panel." } : { state: "FAIL", detail: `No vuelve a entrar: ${again.detail}` };
       });
     }
   } catch (e) {
@@ -404,6 +425,19 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
         });
         break;
       }
+      case "audio-real-es":
+      case "audio-real-en":
+      case "youtube-real": {
+        const realCtx: RealCtx = {
+          page, jobId, baseUrl: job.target.url, out, real: realAllowed, step, goto, metrics, mark, cIdx, act, probe, media, incidents: v3Incidents,
+          setCritical: (x) => { critical = critical ?? x; }, setHumanGate: (x) => { humanGate = humanGate ?? x; }, addSpend: (usd) => { spendUsd = Math.round((spendUsd + usd) * 100) / 100; },
+          ledger: realAllowed ? ledgerStore(bucket()) : null,
+          killSwitch: () => process.env.MYSTERY_SHOPPER_REAL_ENABLED === "1", runCapUsd: realAllowed ? job.maxBudgetUsd : 0,
+          ffprobe: env.MS_FFPROBE || undefined, ffmpeg: env.MS_FFMPEG || undefined,
+        };
+        if (mission.id === "youtube-real") await runYoutubeReal(realCtx); else await runAudioReal(realCtx, AUDIO_VARIANTS[mission.id]);
+        break;
+      }
       case "command-center-panel": {
         await step("Abrir el Command Center", async () => {
           const m = await goto("/dashboard/command-center");
@@ -452,13 +486,14 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
     interpretation: "Un cliente que solo quiere salir o ir a otro producto queda atrapado; parece que la página no responde.",
     recommendation: "Dejar la cabecera (menú y «Salir») utilizable mientras se muestra el recorrido, o mostrarlo como un aviso que no bloquee.",
     evidence: steps.find((x) => x.screenshot)?.screenshot ?? null });
+  for (const i of v3Incidents) findings.push({ severity: i.severity, product: mission.product, screen: i.repro[i.repro.length - 1]?.replace(/^Pantalla: /, "") ?? "", fact: i.title, interpretation: i.evidence.join(" · "), recommendation: i.fixProposal, evidence: i.screenshot });
   const verdict = verdictFor(mission.product, criteria, findings, critical);
   const worked = steps.filter((s) => s.state === "PASS").map((s) => s.name);
   const failed = steps.filter((s) => s.state === "FAIL").map((s) => `${s.name}: ${s.detail}`);
   const report: LiveReport = {
     version: LIVE_VERSION, jobId, scope: "atomivid-real", target: job.target, observedSha, missionId: mission.id, product: mission.product, profile: job.profile, mode: job.mode, authenticated,
     browser: { sessionId, version: browser.version(), freshContext: fresh, viewport: { width: vp.width, height: vp.height } },
-    startedAt, finishedAt: nowIso(), spendUsd: 0, steps, pages, media, findings, verdict,
+    startedAt, finishedAt: nowIso(), spendUsd, steps, pages, media, findings, verdict,
     plain: {
       doing: `Un cliente «${job.profile}» recorrió ${PRODUCT_LABEL[mission.product]} en ${job.target.url} con un navegador nuevo (${vp.width}×${vp.height}).`,
       found: findings.length ? `${findings.length} problema(s): ${findings.filter((f) => f.severity <= "P1").length} importantes.` : verdict.coverage === "EVALUADO" ? "No encontró problemas medibles." : "No pudo completar la misión, así que no califica el producto.",
@@ -477,6 +512,11 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
   await save({ state, stage: state === "bloqueada" ? `Bloqueada: ${humanGate}` : "Informe listo", finishedAt: nowIso(), error: state === "error" ? "El recorrido no llegó a ningún paso." : null,
     result: { verdict: verdict.verdict, score: verdict.score, coverage: verdict.coverage, findings: findings.length, critical: verdict.criticalBlock, humanGate } });
   console.log(`[mystery-shopper] ${jobId}: ${state} · ${verdict.verdict} · nota ${verdict.score ?? "NO EVALUADO"} · ${steps.length} pasos · ${findings.length} hallazgos`);
+  // 3.0: no ocultar fallos. Con MS_FAIL_ON_VERDICT=1 el job de Actions termina en rojo si la evaluación no fue FUNCIONA.
+  if (env.MS_FAIL_ON_VERDICT === "1" && verdict.verdict !== "FUNCIONA") {
+    console.log(`::error title=Mystery Shopper::${jobId} ${verdict.verdict}${humanGate ? ` — ${redact(humanGate)}` : critical ? ` — ${redact(critical)}` : ""}`);
+    return 2;
+  }
   return 0;
 }
 

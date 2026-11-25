@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Catalog } from "@/lib/mystery-shopper/catalog";
 import type { JobState, JobView } from "@/lib/mystery-shopper/jobs";
 import type { LiveReport } from "@/lib/mystery-shopper/live";
+import { CertificationMatrix } from "./CertificationMatrix";
 import { PRODUCT_LABEL, PROFILE_LABEL, PROFILES, type ProductId, type ProfileId } from "@/lib/mystery-shopper/types";
 
 const STATE_LABEL: Record<JobState, string> = {
@@ -147,6 +148,8 @@ export function MysteryShopperPanel({ catalog, sha, environment }: { catalog: Ca
           );
         })}
       </ul>
+
+      <CertificationMatrix jobs={jobs} />
 
       <h3 className="mt-5 text-sm font-semibold text-ink">Historial</h3>
       {jobs.length === 0 ? <p className="mt-1 text-sm text-ink-muted">Todavía no hay evaluaciones guardadas.</p> : (

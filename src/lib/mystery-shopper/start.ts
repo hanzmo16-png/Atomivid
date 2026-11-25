@@ -13,7 +13,8 @@ export const DISPATCH_EVENT = "mystery-shopper-run";
 /** Despachos por trabajo. Repetir el despacho es inocuo (el claim del worker es atómico), pero se acota. */
 export const MAX_DISPATCHES = 3;
 /** Presupuesto aprobado hoy por Hans para el modo real. Mientras sea 0, el modo real no corre. */
-export const APPROVED_REAL_BUDGET_USD = 0;
+/** Autorización de Hans t899u (2026-11-24): tope ACUMULADO USD 8.50 incluidos reintentos; el libro v3/ledger lo hace cumplir. */
+export const APPROVED_REAL_BUDGET_USD = 8.5;
 
 const PROD_HOST = /^atomivid\.vercel\.app$/;
 const PREVIEW_HOST = /^atomivid-[a-z0-9-]+-atomivid\.vercel\.app$/;

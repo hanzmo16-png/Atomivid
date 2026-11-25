@@ -25,3 +25,12 @@ test("la página del Command Center sigue cerrada a quien no es dueño", async (
   assert.match(page, /force-dynamic/);
   assert.match(page, /MysteryShopperPanel/);
 });
+
+test("3.0: el panel muestra la matriz de certificación y, sin evaluaciones reales, nada sale como GO", async () => {
+  const { CertificationMatrix } = await import("./CertificationMatrix");
+  const html = renderToStaticMarkup(<CertificationMatrix jobs={[]} />);
+  assert.match(html, /data-testid="ms-certificacion"/);
+  assert.equal((html.match(/data-cert="BLOCKED"/g) ?? []).length, 7);
+  assert.doesNotMatch(html, /data-cert="GO_/);
+  assert.match(html, /USD 0\.00/);
+});

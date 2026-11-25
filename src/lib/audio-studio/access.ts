@@ -8,5 +8,5 @@ type U = { id?: string; email?: string; email_confirmed_at?: string } | null;
  */
 export function canAccessAudioStudio(user: U, env: Record<string, string | undefined> = process.env): boolean {
   if (env.AUDIO_STUDIO_DISABLED === "1") return false;
-  return !!user?.id && canAccessLongFormBeta(user);
+  return !!user?.id && canAccessLongFormBeta(user, env);
 }
