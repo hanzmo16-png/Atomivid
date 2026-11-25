@@ -16,7 +16,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: mystery-shopper-real-campaign-320
+  group: ${{ inputs.operation == 'inspect' && 'mystery-shopper-private-readback-320' || 'mystery-shopper-real-campaign-320' }}
   cancel-in-progress: false
 jobs:
   execution:
