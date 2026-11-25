@@ -86,6 +86,8 @@ export const LIVE_MISSIONS: Mission[] = [
   { id: "command-center-panel", product: "command-center", title: "Command Center: panel carga", instructions: "Abrir el Command Center con la cuenta QA y comprobar que carga o que niega el acceso con claridad.", expected: "Panel o negación clara", publishForbidden: false,
     criteria: ["La página responde sin error", "Muestra el panel o un mensaje de acceso claro"],
     failure: ["Error del servidor"] },
+  { id: "reels-real", product: "reels", title: "Reel real: 30 segundos vertical", instructions: "Generar un Reel de 30 segundos desde el formulario; revisar guion, progreso, MP4, reproducción y descarga. Detenerse ante presupuesto no verificable.", expected: "MP4 9:16 con audio y subtítulos medidos", publishForbidden: true, auto: false, requestedSeconds: 30,
+    criteria: ["Formulario de Reel de 30 segundos", "Guion revisable", "Progreso medido", "MP4 reproducible y descargable", "Subtítulos medidos", "Gasto real conciliado"], failure: ["No se genera MP4", "Gasto no verificable", "Duración o formato incorrectos"] },
 ];
 
 export type Catalog = { missions: Mission[] };

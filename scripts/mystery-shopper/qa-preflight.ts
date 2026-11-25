@@ -12,16 +12,18 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 type Result = {
-  at: string; secrets_present: boolean; user_exists: boolean | null; email_confirmed: boolean | null; not_banned: boolean | null;
+  at: string; bindings: Record<string, boolean>; auth_status: number | null; logout_ok: boolean | null; secrets_present: boolean; user_exists: boolean | null; email_confirmed: boolean | null; not_banned: boolean | null;
   is_admin: boolean | null; password_ok: boolean | null; diagnosis: string;
 };
 
-export async function preflight(env: NodeJS.ProcessEnv, fetchImpl: typeof fetch = fetch): Promise<Result> {
+export async function preflight(env: Readonly<Record<string, string | undefined>>, fetchImpl: typeof fetch = fetch): Promise<Result> {
   const url = env.NEXT_PUBLIC_SUPABASE_URL || env.SUPABASE_URL, key = env.SUPABASE_SERVICE_ROLE_KEY;
   const email = (env.MYSTERY_SHOPPER_QA_EMAIL ?? "").trim().toLowerCase(), password = env.MYSTERY_SHOPPER_QA_PASSWORD ?? "";
-  const r: Result = { at: new Date().toISOString(), secrets_present: !!(email && password && url && key), user_exists: null, email_confirmed: null, not_banned: null, is_admin: null, password_ok: null, diagnosis: "" };
+  const bindings = { supabase_url: !!url, service_role: !!key, qa_email: !!email, qa_password: !!password };
+  const boundedFetch: typeof fetch = (input, init) => fetchImpl(input, { ...init, signal: AbortSignal.timeout(15_000) });
+  const r: Result = { at: new Date().toISOString(), bindings, auth_status: null, logout_ok: null, secrets_present: !!(email && password && url && key), user_exists: null, email_confirmed: null, not_banned: null, is_admin: null, password_ok: null, diagnosis: "" };
   if (!r.secrets_present) { r.diagnosis = "Faltan secretos (QA o Supabase) en el entorno del worker."; return r; }
-  const admin = createClient(url!, key!, { auth: { autoRefreshToken: false, persistSession: false } });
+  const admin = createClient(url!, key!, { global: { fetch: boundedFetch }, auth: { autoRefreshToken: false, persistSession: false } });
   type U = { email?: string; email_confirmed_at?: string | null; banned_until?: string | null; app_metadata?: Record<string, unknown> };
   let user: U | null = null;
   for (let page = 1; page <= 20 && !user; page++) {
@@ -36,21 +38,24 @@ export async function preflight(env: NodeJS.ProcessEnv, fetchImpl: typeof fetch 
   r.not_banned = !user.banned_until || new Date(user.banned_until).getTime() < Date.now();
   const admins = (env.COMMAND_CENTER_ADMIN_EMAILS ?? "").toLowerCase().split(/[,\s]+/).filter(Boolean);
   r.is_admin = admins.includes(email) || user.app_metadata?.role === "admin";
-  const res = await fetchImpl(`${url}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: key!, "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) }).catch(() => null);
-  r.password_ok = !!res && res.ok;
+  const res = await boundedFetch(`${url}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: key!, "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) }).catch(() => null);
+  r.auth_status = res?.status ?? null;
+  if (!res || res.status === 429 || res.status >= 500) { r.diagnosis = !res ? "No se pudo conectar con Supabase Auth (red o timeout)." : res.status === 429 ? "Supabase Auth limitó los intentos (429); no reintentar automáticamente." : "Supabase Auth devolvió un error de servidor; no se atribuye a la contraseña."; return r; }
+  r.password_ok = res.ok;
   if (res && res.ok) {
     const body = await res.json().catch(() => null) as { access_token?: string } | null;
-    if (body?.access_token) await fetchImpl(`${url}/auth/v1/logout`, { method: "POST", headers: { apikey: key!, Authorization: `Bearer ${body.access_token}` } }).catch(() => null);
+    if (body?.access_token) r.logout_ok = await boundedFetch(`${url}/auth/v1/logout?scope=local`, { method: "POST", headers: { apikey: key!, Authorization: `Bearer ${body.access_token}` } }).then((response) => response.ok).catch(() => false);
   }
   r.diagnosis = !r.email_confirmed ? "El usuario QA existe pero el correo no está confirmado."
     : !r.not_banned ? "El usuario QA está suspendido (banned_until)."
     : !r.password_ok ? "El usuario QA existe y está confirmado, pero la contraseña de MYSTERY_SHOPPER_QA_PASSWORD no coincide."
+    : !r.logout_ok ? "Inicio de sesión correcto, pero no se confirmó el cierre de la sesión de diagnóstico."
     : r.is_admin ? "La cuenta QA es administradora: debe ser una cuenta de cliente normal."
     : "Cuenta QA verificada: existe, confirmada, no suspendida, no admin, contraseña correcta.";
   return r;
 }
 
-const ok = (r: Result) => r.secrets_present && r.user_exists && r.email_confirmed && r.not_banned && r.password_ok && !r.is_admin;
+const ok = (r: Result) => r.secrets_present && r.user_exists && r.email_confirmed && r.not_banned && r.password_ok && r.logout_ok && !r.is_admin;
 
 if (process.argv[1] && /qa-preflight\.ts$/.test(process.argv[1])) {
   preflight(process.env).then(async (r) => {
