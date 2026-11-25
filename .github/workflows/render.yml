@@ -1,3 +1,4 @@
+# PRIVATE_LONG_FORM_FAILURE_PROTOCOL=1
 # LONG_FORM_RENDER_TIMEOUT_PROTOCOL=1
 name: Render video (worker de Atomivid)
 
@@ -92,7 +93,14 @@ jobs:
           esac
       - name: Renderizar video
         timeout-minutes: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && (steps.timeout.outputs.step && fromJSON(steps.timeout.outputs.step)) || (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 300 || 12 }}
-        run: npx tsx scripts/render-worker.ts
+        run: |
+          umask 077
+          set +e
+          npx tsx scripts/render-worker.ts > "$RUNNER_TEMP/render-private.log" 2>&1
+          native_exit=$?
+          set -e
+          echo "Render process finished with exit code $native_exit; details remain private."
+          exit "$native_exit"
         env:
           ATOMIVID_RUNTIME: production
           LONG_FORM_RENDER_JOB_TIMEOUT_MIN: ${{ github.event.client_payload.longFormJobTimeoutMin || inputs.long_form_timeout_minutes || '330' }}
@@ -199,13 +207,18 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
-      - name: Conservar la salida de Long Form si la entrega falló
+      - name: Seal private Long Form failure output before artifact upload
         if: failure() && (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form')
-        continue-on-error: true
+        env:
+          PRIVATE_INPUT: ${{ runner.temp }}/long-form-output
+          PRIVATE_OUT: ${{ runner.temp }}/long-form-sealed
+        run: node scripts/mystery-shopper/seal-failed-longform.mjs
+      - name: Preserve encrypted failure output only
+        if: failure() && (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form')
         uses: actions/upload-artifact@v4
         with:
-          name: long-form-output-${{ github.event.client_payload.requestId || inputs.request_id }}-${{ github.run_id }}
-          path: ${{ runner.temp }}/long-form-output/
+          name: sealed-long-form-output-${{ github.run_id }}
+          path: ${{ runner.temp }}/long-form-sealed/
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 1
           compression-level: 0
