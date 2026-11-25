@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { incrementalRenderReserve } from "../../../../scripts/mystery-shopper/long-form-incremental-reserve";
+import { incrementalRenderReserve, verifiedReusableScript } from "../../../../scripts/mystery-shopper/long-form-incremental-reserve";
 import { canReserve } from "./ledger";
 test("a total quote does not charge the already settled script twice", () => {
   const amount = incrementalRenderReserve(1.96, .33, .33);
@@ -16,4 +16,16 @@ test("unknown, inconsistent or negative prior spend never releases budget", () =
 test("fractional cents round upward; another open reservation still blocks", () => {
   assert.equal(incrementalRenderReserve(1.961,.33,.33),1.64);
   assert.equal(canReserve({reservations:[{key:"other",module:"youtube",jobId:"fixture",reservedUsd:1,at:"fixture"}],settlements:[]},"youtube",1.63).ok,false);
+});
+test("resume requires an unambiguous settled YouTube script and never forgives a pending charge", () => {
+  const key = "ms-fixture-yt-script";
+  const r = { key, module:"youtube" as const, jobId:"fixture", reservedUsd:.6, at:"fixture" };
+  const s = {key,spentUsd:.33,source:"fixture",at:"fixture"};
+  assert.equal(verifiedReusableScript({reservations:[r],settlements:[s]},key),.33);
+  assert.equal(verifiedReusableScript(null,key),null);
+  assert.equal(verifiedReusableScript({reservations:[r],settlements:[]},key),null);
+  assert.equal(verifiedReusableScript({reservations:[r,r],settlements:[s]},key),null);
+  assert.equal(verifiedReusableScript({reservations:[r],settlements:[s,s]},key),null);
+  assert.equal(verifiedReusableScript({reservations:[r],settlements:[{...s,spentUsd:1}]},key),null);
+  assert.equal(verifiedReusableScript({reservations:[{...r,module:"reels"}],settlements:[s]},key),null);
 });
