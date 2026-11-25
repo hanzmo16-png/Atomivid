@@ -1,3 +1,4 @@
+import { provedUnstartedRender } from "./start-response";
 /**
  * Mystery Shopper 3.0 — YouTube Studio (Long Form) COMPLETO como cliente real (aprobado por Hans: t900s5862).
  *
@@ -248,8 +249,20 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
     if (!killSwitch()) { await settle(renderKey, 0, "no se pulsó (interruptor apagado)"); return { state: "BLOCKED", detail: "Interruptor apagado justo antes del clic." }; }
     const btn = page.getByRole("button", { name: "Confirmar y generar video" });
     if (await btn.isDisabled().catch(() => true)) { await settle(renderKey, 0, "botón deshabilitado: no se pulsó"); return { state: "BLOCKED", detail: "«Confirmar y generar video» deshabilitado." }; }
+    const responseP = page.waitForResponse((r: { url(): string; request(): { method(): string } }) => {
+      const u=new URL(r.url());return u.origin===new URL(c.baseUrl).origin&&/^\/api\/generate\/[0-9a-f-]{36}\/render$/.test(u.pathname)&&r.request().method()==="POST";
+    }, { timeout: 60_000 }).catch(()=>null);
     await btn.click();
-    c.act("gasto", `«Confirmar y generar video» pulsado (techo USD ${ceiling!.toFixed(2)})`);
+    const started=await responseP;
+    if(!started){c.setHumanGate("Sin respuesta acreditada de inicio; reserva conservada, sin reenvío automático.");return {state:"BLOCKED",detail:"Inicio sin respuesta verificable; no se infiere ausencia de cargo."};}
+    if(!started.ok()){
+      const payload=await started.json().catch(()=>null);
+      await writeFile(path.join(c.out,"youtube-render-start.json"),JSON.stringify({httpStatus:started.status(),body:payload},null,2));
+      if(provedUnstartedRender(payload))await settle(renderKey,0,"respuesta de inicio tipada none_proven: el servidor acreditó que este render no arrancó");
+      c.setHumanGate(typeof payload?.error==="string"?payload.error:"El servidor rechazó el inicio; consultar el diagnóstico privado antes de repetir.");
+      return {state:"BLOCKED",detail:"El servidor rechazó el inicio; no se muestra un render inexistente ni se reenvía."};
+    }
+    c.act("gasto", `«Confirmar y generar video» aceptado por el servidor (techo USD ${ceiling!.toFixed(2)})`);
     const went = await page.waitForURL(/\/dashboard\/videos\/[0-9a-f-]{36}/, { timeout: 120_000 }).then(() => true, () => false);
     if (!went) {
       const err = await page.getByRole("alert").first().innerText(Q).catch(() => "sin mensaje");
