@@ -11,6 +11,7 @@
  * Entorno: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, MYSTERY_SHOPPER_QA_EMAIL, MYSTERY_SHOPPER_QA_PASSWORD,
  *          VERCEL_AUTOMATION_BYPASS_SECRET (solo Previews protegidos), MS_WORKER_RUN_URL, PLAYWRIGHT_MODULE, MS_CHROME.
  */
+import { runVideoPodcastReal } from "./video-podcast-mission";
 import { runReelReal } from "./reels-mission";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -429,7 +430,8 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
       case "audio-real-es":
       case "audio-real-en":
       case "youtube-real":
-      case "reels-real": {
+      case "reels-real":
+      case "video-podcast-real": {
         const realCtx: RealCtx = {
           page, jobId, baseUrl: job.target.url, out, real: realAllowed, step, goto, metrics, mark, cIdx, act, probe, media, incidents: v3Incidents,
           setCritical: (x) => { critical = critical ?? x; }, setHumanGate: (x) => { humanGate = humanGate ?? x; }, addSpend: (usd) => { spendUsd = Math.round((spendUsd + usd) * 100) / 100; },
@@ -453,7 +455,7 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
           },
           ffprobe: env.MS_FFPROBE || undefined, ffmpeg: env.MS_FFMPEG || undefined,
         };
-        if (mission.id === "reels-real") await runReelReal(realCtx); else if (mission.id === "youtube-real") await runYoutubeReal(realCtx); else await runAudioReal(realCtx, AUDIO_VARIANTS[mission.id]);
+        if (mission.id === "video-podcast-real") await runVideoPodcastReal(realCtx); else if (mission.id === "reels-real") await runReelReal(realCtx); else if (mission.id === "youtube-real") await runYoutubeReal(realCtx); else await runAudioReal(realCtx, AUDIO_VARIANTS[mission.id]);
         break;
       }
       case "command-center-panel": {
