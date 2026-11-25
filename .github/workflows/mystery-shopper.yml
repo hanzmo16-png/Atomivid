@@ -25,6 +25,7 @@ jobs:
       - id: create
         name: Reserve one bounded evaluation; details stay private
         env:
+          MS_TARGET: https://atomivid-m7s0p9nqp-atomivid.vercel.app
           MS_MISSION: youtube-real
           MS_MODE: real
           MS_MAX_BUDGET_USD: '2'
