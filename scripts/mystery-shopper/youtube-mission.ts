@@ -236,7 +236,7 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
 
   // 7 · Progreso real del render
   const rSamples: { t: number; pct: number | null; state: string; stage: string }[] = [];
-  let outcome = "timeout" as "completed" | "failed" | "stalled" | "timeout";
+  let outcome = "timeout" as "completed" | "failed" | "stalled" | "timeout" | "not_started";
   await c.step(`Seguir el progreso real hasta el MP4 (máx. ${dur(limits.renderTimeoutMs)})`, async () => {
     const t0 = Date.now();
     while (Date.now() - t0 < limits.renderTimeoutMs) {
@@ -246,7 +246,9 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
       const failed = await page.getByRole("alert").filter({ hasText: /No se pudo generar|Producción cancelada/ }).first().isVisible().catch(() => false);
       const pctRaw = await page.locator('[role="progressbar"]').first().getAttribute("aria-valuenow", Q).catch(() => null);
       const stage = await page.getByTestId("long-form-stage").innerText(Q).catch(() => "");
-      const state = done ? "completed" : failed ? "failed" : stalled ? "stalled" : "processing";
+      // Plan confirmado pero render rechazado (p. ej. 402 sin suscripción): la página ofrece «Iniciar producción» y no avanza.
+      const notStarted = !done && !failed && !stalled && rSamples.length >= 1 && await page.getByRole("button", { name: /Iniciar producción|Revisar y configurar producción/ }).first().isVisible().catch(() => false);
+      const state = done ? "completed" : failed ? "failed" : stalled ? "stalled" : notStarted ? "not_started" : "processing";
       rSamples.push({ t: Date.now() - t0, pct: pctRaw === null ? null : Number(pctRaw), state, stage });
       if (state !== "processing") { outcome = state; break; }
       await sleep(limits.pollMs);
@@ -259,12 +261,18 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
     c.incidents.push(...inc);
     c.mark(c.cIdx(/progreso real/), rSamples.some((s) => s.pct !== null) && !inc.some((i) => i.kind === "wrong_progress"), `${rSamples.length} muestras; ${inc.map((i) => i.title).join(" · ") || "sin anomalías"}`);
     if (outcome === "completed") return { state: "PASS", detail: `MP4 listo en ${Math.round((rSamples.at(-1)?.t ?? 0) / 1000)} s.` };
+    if (outcome === "not_started") {
+      const why = (await page.getByRole("alert").first().innerText(Q).catch(() => "")) || (await page.locator("main").innerText(Q).catch(() => "")).replace(/\s+/g, " ").slice(0, 200);
+      c.setCritical(`YouTube Studio confirmó el plan pero no arrancó el render: ${why}`);
+      return { state: "FAIL", detail: `Render no iniciado: ${why}` };
+    }
     const err = outcome === "failed" ? await page.getByRole("alert").first().innerText(Q).catch(() => "falló") : outcome === "stalled" ? "La producción dejó de reportar avances." : `No terminó en ${dur(limits.renderTimeoutMs)}.`;
     c.setCritical(`YouTube Studio no entregó el MP4: ${err}`);
     return { state: "FAIL", detail: err };
   });
   // La app no muestra al cliente el gasto final del render: se liquida el techo autorizado (peor caso, nunca por debajo).
   await c.step("Liquidar el gasto del render", async () => {
+    if (outcome === "not_started") { await settle(renderKey, 0, "render no iniciado por la app (plan confirmado, «Iniciar producción» pendiente)"); return { state: "PASS", detail: "Render no iniciado: USD 0." }; }
     await settle(renderKey, ceiling!, "techo autorizado en la interfaz (la app no muestra el gasto final al cliente)");
     return { state: "PASS", detail: `Render liquidado en USD ${ceiling!.toFixed(2)} (peor caso).` };
   });
