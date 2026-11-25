@@ -1,3 +1,4 @@
+import { githubActionsQaWorker } from "./github-actions-qa";
 import type { RenderWorker } from "./types";
 import { inlineWorker } from "./inline";
 import { githubActionsWorker } from "./github-actions";
@@ -46,7 +47,7 @@ export function getRenderWorker(): RenderWorker {
   if (isRunningOnVercel()) {
     if (!process.env.GH_WORKER_TOKEN) throw new MissingEnvVarError("GH_WORKER_TOKEN");
     if (!process.env.GH_WORKER_REPO) throw new MissingEnvVarError("GH_WORKER_REPO");
-    return githubActionsWorker;
+    return process.env.VERCEL_ENV === "preview" && process.env.GH_WORKER_QA_REF ? githubActionsQaWorker : githubActionsWorker;
   }
 
   if (process.env.RENDER_WORKER === "inline") return inlineWorker;
