@@ -1,3 +1,4 @@
+import { previewAccessBlocked, previewProtectionHeaders } from "./preview-access";
 /**
  * Mystery Shopper 2.0 — worker real. Corre en GitHub Actions (o en el arnés local), nunca en Vercel serverless.
  *
@@ -105,11 +106,16 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- playwright no es dependencia de la app; el worker lo instala aparte.
   const pw = (pwMod.chromium ? pwMod : pwMod.default) as any;
   const browser = await pw.chromium.launch({ headless: true, executablePath: env.MS_CHROME || undefined });
-  const headers: Record<string, string> = {};
-  if (job.target.kind === "preview") {
-    if (env.VERCEL_AUTOMATION_BYPASS_SECRET) { headers["x-vercel-protection-bypass"] = env.VERCEL_AUTOMATION_BYPASS_SECRET; headers["x-vercel-set-bypass-cookie"] = "true"; }
+  const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, isMobile: vp.mobile, hasTouch: vp.mobile, locale: "es-MX" });
+  // Bootstrap only the exact Preview origin through the cookie-sharing API context.
+  // Do not attach a bearer header globally: Playwright forwards continue() headers across redirects.
+  if (job.target.kind === "preview" && env.VERCEL_AUTOMATION_BYPASS_SECRET) {
+    const bootstrap = await context.request.get(job.target.url, {
+      headers: previewProtectionHeaders(job.target.url, job.target.url, env.VERCEL_AUTOMATION_BYPASS_SECRET),
+      maxRedirects: 0,
+    });
+    await bootstrap.dispose();
   }
-  const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, isMobile: vp.mobile, hasTouch: vp.mobile, locale: "es-MX", extraHTTPHeaders: headers });
   const sessionId = randomUUID();
   const fresh = (await context.cookies()).length === 0;
   await save({ stage: "Navegador nuevo abierto", browser: { sessionId, version: browser.version(), freshContext: fresh } });
@@ -191,6 +197,10 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
     // 1. Acceso
     const access = await step("Abrir ATOMIVID", async () => {
       const m = await goto("/login");
+      if (job.target.kind === "preview" && previewAccessBlocked(job.target.url, page.url(), m.httpStatus)) {
+        humanGate = "El Preview requiere acceso autorizado de Vercel para el runner. No se envían credenciales QA a una página externa ni se desactiva la protección.";
+        return { state: "BLOCKED", detail: "El Preview no entregó el formulario de ATOMIVID en su origen autorizado." };
+      }
       if (!m.httpStatus || m.httpStatus >= 400) {
         if (job.target.kind === "preview" && (m.httpStatus === 401 || m.httpStatus === 403)) { humanGate = "El Preview está protegido por Vercel: falta el secreto VERCEL_AUTOMATION_BYPASS_SECRET en el worker."; return { state: "BLOCKED", detail: `HTTP ${m.httpStatus}: Preview protegido.` }; }
         return { state: "FAIL", detail: `HTTP ${m.httpStatus}` };
