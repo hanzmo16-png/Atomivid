@@ -391,7 +391,13 @@ export async function POST(
 
     try {
       // Anexo C1: nothing about the material travels in the dispatch; the worker reads it from the envelope reserved above.
-      await worker.trigger({ requestId: id, renderAttempt: videoRequest.render_attempts + 1, mode: videoRequest.mode, ...(videoRequest.mode === "long_form" ? { longFormJobTimeoutMin: longFormRenderTimeout(videoRequest.duration_seconds).jobMinutes } : {}) });
+      if (videoRequest.mode === "long_form") {
+        await worker.trigger({ requestId: id, renderAttempt: videoRequest.render_attempts + 1, mode: videoRequest.mode,
+          longFormJobTimeoutMin: longFormRenderTimeout(videoRequest.duration_seconds).jobMinutes });
+      } else {
+        // Preserve the exact Reel/Avatar contract: no price/material/timeout fields travel in their dispatch.
+        await worker.trigger({ requestId: id, renderAttempt: videoRequest.render_attempts + 1, mode: videoRequest.mode });
+      }
     } catch (error) {
       const diagnosticId = generateDiagnosticId();
       logRenderError(`POST /render (worker: ${worker.name})`, error, diagnosticId);
