@@ -73,7 +73,7 @@ export class GitHubWorkerNetworkError extends Error {
  */
 export const githubActionsWorker: RenderWorker = {
   name: "github-actions",
-  async trigger({ requestId, renderAttempt, mode }) {
+  async trigger({ requestId, renderAttempt, mode, longFormJobTimeoutMin }) {
     const token = process.env.GH_WORKER_TOKEN;
     const repo = process.env.GH_WORKER_REPO;
 
@@ -108,6 +108,7 @@ export const githubActionsWorker: RenderWorker = {
             requestId,
             ...(renderAttempt === undefined ? {} : { renderAttempt }),
             ...(mode ? { mode } : {}),
+            ...(mode === "long_form" && longFormJobTimeoutMin !== undefined ? { longFormJobTimeoutMin } : {}),
           },
         }),
         signal: controller.signal,

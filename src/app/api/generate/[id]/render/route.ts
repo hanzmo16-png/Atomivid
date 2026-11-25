@@ -1,3 +1,4 @@
+import { longFormRenderTimeout } from "@/lib/video/long-form/render-timeout";
 import { scriptLengthReview } from "@/lib/video/script-length-review";
 import { isMaterialUnavailableFailure } from "@/lib/video/long-form/material-failure";
 import { usesAnchoredVisuals, type ProductionPlan } from "@/lib/video/long-form/production-plan-types";
@@ -390,7 +391,7 @@ export async function POST(
 
     try {
       // Anexo C1: nothing about the material travels in the dispatch; the worker reads it from the envelope reserved above.
-      await worker.trigger({ requestId: id, renderAttempt: videoRequest.render_attempts + 1, mode: videoRequest.mode });
+      await worker.trigger({ requestId: id, renderAttempt: videoRequest.render_attempts + 1, mode: videoRequest.mode, ...(videoRequest.mode === "long_form" ? { longFormJobTimeoutMin: longFormRenderTimeout(videoRequest.duration_seconds).jobMinutes } : {}) });
     } catch (error) {
       const diagnosticId = generateDiagnosticId();
       logRenderError(`POST /render (worker: ${worker.name})`, error, diagnosticId);
