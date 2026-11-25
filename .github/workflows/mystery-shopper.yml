@@ -4,7 +4,7 @@ on:
     inputs:
       operation:
         type: choice
-        options: [prepare, preflight, run, inspect]
+        options: [prepare, preflight, run, inspect, readback]
         default: prepare
       target:
         type: string
@@ -89,3 +89,15 @@ jobs:
         env:
           MS_JOB_ID: ${{ steps.create.outputs.job }}
         run: node scripts/mystery-shopper/private-longform-receipt.mjs
+      - name: Recover only the already completed private MP4
+        if: inputs.operation == 'readback'
+        env:
+          PRIVATE_OUT: ${{ runner.temp }}/sealed
+        run: node scripts/mystery-shopper/longform-private-readback.mjs
+      - uses: actions/upload-artifact@v4
+        if: inputs.operation == 'readback'
+        with:
+          name: sealed-completed-longform
+          path: ${{ runner.temp }}/sealed/sealed.json
+          if-no-files-found: error
+          retention-days: 1
