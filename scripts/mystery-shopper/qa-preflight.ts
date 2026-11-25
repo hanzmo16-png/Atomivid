@@ -16,7 +16,7 @@ type Result = {
   is_admin: boolean | null; password_ok: boolean | null; diagnosis: string;
 };
 
-export async function preflight(env: NodeJS.ProcessEnv, fetchImpl: typeof fetch = fetch): Promise<Result> {
+export async function preflight(env: Readonly<Record<string, string | undefined>>, fetchImpl: typeof fetch = fetch): Promise<Result> {
   const url = env.NEXT_PUBLIC_SUPABASE_URL || env.SUPABASE_URL, key = env.SUPABASE_SERVICE_ROLE_KEY;
   const email = (env.MYSTERY_SHOPPER_QA_EMAIL ?? "").trim().toLowerCase(), password = env.MYSTERY_SHOPPER_QA_PASSWORD ?? "";
   const bindings = { supabase_url: !!url, service_role: !!key, qa_email: !!email, qa_password: !!password };

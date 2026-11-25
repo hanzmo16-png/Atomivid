@@ -11,6 +11,7 @@
  * Entorno: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, MYSTERY_SHOPPER_QA_EMAIL, MYSTERY_SHOPPER_QA_PASSWORD,
  *          VERCEL_AUTOMATION_BYPASS_SECRET (solo Previews protegidos), MS_WORKER_RUN_URL, PLAYWRIGHT_MODULE, MS_CHROME.
  */
+import { runReelReal } from "./reels-mission";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
@@ -427,15 +428,21 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
       }
       case "audio-real-es":
       case "audio-real-en":
-      case "youtube-real": {
+      case "youtube-real":
+      case "reels-real": {
         const realCtx: RealCtx = {
           page, jobId, baseUrl: job.target.url, out, real: realAllowed, step, goto, metrics, mark, cIdx, act, probe, media, incidents: v3Incidents,
           setCritical: (x) => { critical = critical ?? x; }, setHumanGate: (x) => { humanGate = humanGate ?? x; }, addSpend: (usd) => { spendUsd = Math.round((spendUsd + usd) * 100) / 100; },
           ledger: realAllowed ? ledgerStore(bucket()) : null,
           killSwitch: () => process.env.MYSTERY_SHOPPER_REAL_ENABLED === "1", runCapUsd: realAllowed ? job.maxBudgetUsd : 0,
+          readReelCap: async (id) => {
+            const sb = createClient(env.NEXT_PUBLIC_SUPABASE_URL || env.SUPABASE_URL!, env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
+            const { data, error } = await sb.from("video_requests").select("provider_spend_cap_usd, mode").eq("id", id).maybeSingle();
+            return !error && data?.mode === "visual" && typeof data.provider_spend_cap_usd === "number" ? data.provider_spend_cap_usd : null;
+          },
           ffprobe: env.MS_FFPROBE || undefined, ffmpeg: env.MS_FFMPEG || undefined,
         };
-        if (mission.id === "youtube-real") await runYoutubeReal(realCtx); else await runAudioReal(realCtx, AUDIO_VARIANTS[mission.id]);
+        if (mission.id === "reels-real") await runReelReal(realCtx); else if (mission.id === "youtube-real") await runYoutubeReal(realCtx); else await runAudioReal(realCtx, AUDIO_VARIANTS[mission.id]);
         break;
       }
       case "command-center-panel": {

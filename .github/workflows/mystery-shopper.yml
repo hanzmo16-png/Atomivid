@@ -1,5 +1,5 @@
 # Mystery Shopper 2.0 — el worker real. Playwright corre aquí (GitHub Actions), nunca en Vercel serverless.
-# Solo modo gratuito: el navegador no pulsa nada facturable y además bloquea las peticiones a proveedores de pago.
+# Gratuito por defecto; campaign-real exige despacho explícito, topes y ledger acumulado existente.
 #
 #  - repository_dispatch «mystery-shopper-run»: lo envía el panel (Command Center) al crear una evaluación.
 #  - deployment_status: Vercel avisa de un Preview listo; si el CI del SHA está verde, corren las misiones automáticas.
@@ -13,15 +13,15 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: Diagnóstico QA sin crear trabajos ni consumir proveedores
+        description: Evaluar gratis, diagnosticar QA o ejecutar campaña autorizada con topes
         type: choice
         options: [evaluate, qa-preflight, campaign-real]
         default: evaluate
       qa_environment:
         description: Ámbito de bindings existentes (solo diagnóstico QA)
         type: choice
-        options: [orchestrator, Preview, Production]
-        default: orchestrator
+        options: [Preview, orchestrator]
+        default: Preview
       job_id:
         description: Id de una evaluación ya creada (ms-...). Vacío = crear una nueva con la misión y el perfil de abajo.
         required: false
@@ -88,7 +88,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
   # Un trabajo pedido desde el panel o a mano. El claim atómico del trabajo evita dobles ejecuciones;
-  # la concurrencia por id además serializa dos despachos del mismo trabajo.
+  # Un único grupo serializa toda la campaña para impedir gasto paralelo del mismo ledger.
   evaluar:
     environment: Preview
     if: github.event_name == 'repository_dispatch' || (github.event_name == 'workflow_dispatch' && inputs.operation != 'qa-preflight')
@@ -104,7 +104,7 @@ jobs:
           MISSION: ${{ inputs.mission }}
           JOB_ID: ${{ inputs.job_id }}
         run: |
-          [[ -z "$JOB_ID" && ( "$MISSION" == "audio-real-es" || "$MISSION" == "youtube-real" ) ]] || { echo "::error::Campaña real limitada a Audio ES o YouTube nuevos; sin reintento automático"; exit 1; }
+          [[ -z "$JOB_ID" && ( "$MISSION" == "audio-real-es" || "$MISSION" == "youtube-real" || "$MISSION" == "reels-real" ) ]] || { echo "::error::Campaña real limitada a Audio ES, YouTube o Reel nuevos; sin reintento automático"; exit 1; }
       - name: Id de trabajo válido
         env:
           JOB: ${{ github.event.client_payload.jobId || inputs.job_id }}
@@ -120,7 +120,7 @@ jobs:
           MS_MISSION: ${{ inputs.mission || 'cuenta-navegacion' }}
           MS_PROFILE: ${{ inputs.profile || 'principiante' }}
           MS_MODE: ${{ inputs.operation == 'campaign-real' && 'real' || 'gratuito' }}
-          MS_MAX_BUDGET_USD: ${{ inputs.mission == 'audio-real-es' && '1' || '2' }}
+          MS_MAX_BUDGET_USD: ${{ inputs.mission == 'audio-real-es' && '1' || inputs.mission == 'reels-real' && '1.5' || '2' }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: npx tsx scripts/mystery-shopper/manual-start.ts
@@ -223,6 +223,8 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Pruebas unitarias del módulo
         run: node --import tsx --test --test-concurrency=1 src/lib/mystery-shopper/ms2.test.ts src/lib/mystery-shopper/mystery-shopper.test.ts src/lib/mystery-shopper/media.test.ts src/app/dashboard/command-center/mystery-shopper/panel.test.tsx
+      - name: Regresiones de campañas y autenticación QA
+        run: node --import tsx --test --test-concurrency=1 src/lib/mystery-shopper/v3/*.test.ts
       - name: Arnés local
         run: bash scripts/harness/e2e/infra/setup.sh
       - name: E2E autenticado (panel → trabajo → worker → informe)

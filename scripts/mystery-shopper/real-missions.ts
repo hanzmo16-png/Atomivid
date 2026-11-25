@@ -28,6 +28,7 @@ export type RealCtx = {
   killSwitch?: () => boolean;
   /** Tope de gasto de ESTA ejecución (job.maxBudgetUsd); además del acumulado y del módulo. */
   runCapUsd?: number;
+  readReelCap?: (requestId: string) => Promise<number | null>;
   ffprobe?: string; ffmpeg?: string;
 };
 
