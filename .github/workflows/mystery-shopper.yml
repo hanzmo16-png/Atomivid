@@ -1,4 +1,4 @@
-name: Authorized Reel settlement
+name: Private campaign balance receipt
 on:
   workflow_dispatch:
 permissions:
@@ -17,9 +17,9 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci --no-audit --no-fund
-      - name: Reconcile completed Reel without public financial output
+      - name: Verify accumulated ledger and save receipt inside private application storage
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GH_READ_TOKEN: ${{ github.token }}
-        run: node scripts/mystery-shopper/settle-completed-reel.mjs
+        run: node --import tsx scripts/mystery-shopper/private-balance-receipt.mjs
