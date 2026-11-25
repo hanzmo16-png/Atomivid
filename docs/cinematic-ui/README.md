@@ -47,7 +47,7 @@ Solo cambia la capa de presentación y navegación. No toca autenticación, susc
 - **Animación:** Veo 3.1 Fast vía fal.ai, 1080p, 8 s, sin audio. Por orientación, un clip con movimiento libre de cámara (image-to-video) y uno de bucle exacto (primer y último fotograma = imagen clave). 4 clips, USD 4,80. La clave directa de Google ya no ofrece modelos Veo (404 / ListModels vacío, sin cobro).
 - **Montaje** (`scripts/cinematic/encode-ambient.sh`): clip libre completo + fundido de 1,5 s hacia el tramo 3–8 s del clip de bucle, que acaba en la imagen clave = primer fotograma ⇒ **bucle de 11,5 s sin salto** (PSNR de la costura 28,7 dB en horizontal, igual o mejor que entre fotogramas consecutivos).
 - **Clips maestros** (Veo 1080p, 4 × 8 s, ~25 MB): fuera del árbol para no engordar el repositorio; están en el historial de esta rama (commit `6ef9eb02`, `ops/cinematic-bg/out/vid-*.mp4`).
-- **Reproducible:** `ops/cinematic-bg/job.json` + `.github/workflows/cinematic-bg-paid.yml` (solo corre al cambiar el job en esta rama, con tope de gasto y sin reintentos) + `scripts/cinematic/paid-ambient.mjs`. Los informes con identificadores de petición están en `ops/cinematic-bg/out/report-*.json`.
+- **Reproducible:** `ops/cinematic-bg/job.json` + `scripts/cinematic/paid-ambient.mjs` (tope de gasto en el job, sin reintentos). El workflow de GitHub que lo ejecutaba (`cinematic-bg-paid.yml`) se retiró antes del merge: está en el historial de esta rama y solo debe restaurarse con una nueva autorización de gasto. Los informes con identificadores de petición están en `ops/cinematic-bg/out/report-*.json`.
 
 | Archivo | Tamaño |
 |---|---|
