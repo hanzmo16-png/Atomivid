@@ -1,3 +1,4 @@
+import { validatePreviewShare } from "./preview-share";
 import { previewAccessBlocked, previewProtectionHeaders } from "./preview-access";
 /**
  * Mystery Shopper 2.0 — worker real. Corre en GitHub Actions (o en el arnés local), nunca en Vercel serverless.
@@ -52,7 +53,7 @@ function bucket(): StorageApi {
 /** Nunca deja pasar la contraseña, correos ni tokens a un log o informe. */
 function redact(text: string): string {
   let t = text.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[correo]").replace(/\b(eyJ[\w-]{10,}|sk-[\w-]{8,}|ghp_[\w]{10,})/g, "[secreto]");
-  for (const s of [env.MYSTERY_SHOPPER_QA_PASSWORD, env.VERCEL_AUTOMATION_BYPASS_SECRET, env.SUPABASE_SERVICE_ROLE_KEY]) if (s && s.length >= 4) t = t.split(s).join("[secreto]");
+  for (const s of [env.MYSTERY_SHOPPER_QA_PASSWORD, env.VERCEL_AUTOMATION_BYPASS_SECRET, env.SUPABASE_SERVICE_ROLE_KEY, env.MS_PREVIEW_ACCESS_URL]) if (s && s.length >= 4) t = t.split(s).join("[secreto]");
   return t;
 }
 
@@ -107,6 +108,7 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
   const pw = (pwMod.chromium ? pwMod : pwMod.default) as any;
   const browser = await pw.chromium.launch({ headless: true, executablePath: env.MS_CHROME || undefined });
   const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, isMobile: vp.mobile, hasTouch: vp.mobile, locale: "es-MX" });
+  const fresh = (await context.cookies()).length === 0;
   // Bootstrap only the exact Preview origin through the cookie-sharing API context.
   // Do not attach a bearer header globally: Playwright forwards continue() headers across redirects.
   if (job.target.kind === "preview" && env.VERCEL_AUTOMATION_BYPASS_SECRET) {
@@ -116,8 +118,14 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
     });
     await bootstrap.dispose();
   }
+  if (job.target.kind === "preview" && env.MS_PREVIEW_ACCESS_URL) {
+    try {
+      const access = validatePreviewShare(job.target.url, env.MS_PREVIEW_ACCESS_URL);
+      const response = await context.request.get(access, { maxRedirects: 0 });
+      await response.dispose();
+    } catch { throw new Error("Temporary Preview access failed; protected details withheld."); }
+  }
   const sessionId = randomUUID();
-  const fresh = (await context.cookies()).length === 0;
   await save({ stage: "Navegador nuevo abierto", browser: { sessionId, version: browser.version(), freshContext: fresh } });
   act("navegador", `sesión ${sessionId} · ${browser.version()} · contexto nuevo=${fresh} · ${vp.width}×${vp.height} · perfil ${job.profile}`);
   await context.route("**/*", (route: { request(): { url(): string }; abort(r?: string): Promise<void>; continue(): Promise<void> }) => {
