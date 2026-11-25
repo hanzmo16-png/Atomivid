@@ -151,7 +151,9 @@ export async function runAudioReal(c: RealCtx, v: AudioVariant): Promise<void> {
       const stats = document.querySelector('[data-testid="audio-script-stats"]')?.textContent ?? "";
       return !/^0 palabras/.test(stats) && (document.querySelector('[data-testid="audio-script"]') as HTMLTextAreaElement | null)?.value.trim();
     }, null, { timeout: 15000 });
-    await page.getByTestId("audio-save").click();
+    // Autosave can finish before the explicit click. A disabled Save with
+    // persisted matching data is valid; waiting to click it causes a false timeout.
+    if (await page.getByTestId("audio-save").isEnabled()) await page.getByTestId("audio-save").click();
     await page.waitForFunction(() => !/Guardando/i.test(document.querySelector('[data-testid="audio-save-state"]')?.textContent ?? ""), null, { timeout: 30_000 }).catch(() => {});
     await sleep(1500);
     if (c.real) {

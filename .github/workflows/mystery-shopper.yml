@@ -79,7 +79,7 @@ jobs:
           MS_OUT_DIR: ${{ runner.temp }}/qa-preflight
         run: node --import tsx scripts/mystery-shopper/qa-preflight.ts
       - name: Navegador móvil de solo lectura
-        run: npm install --no-save --no-audit --no-fund playwright@1.49.1 && npx playwright install --with-deps chromium
+        run: sudo apt-get update -q && sudo apt-get install -yq ffmpeg && npm install --no-save --no-audit --no-fund playwright@1.49.1 && npx playwright install --with-deps chromium
       - name: Verificar acceso móvil y leer ledger acumulado sin reservar
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
