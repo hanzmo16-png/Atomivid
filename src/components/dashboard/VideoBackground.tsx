@@ -57,9 +57,12 @@ export function VideoBackground() {
           <source src={src.mp4} type="video/mp4" />
         </video>
       )}
-      {/* Velo: oscurece todo y, abajo, se funde con el fondo del panel para que la lista de proyectos quede sobre negro. */}
-      <div className="absolute inset-0 bg-canvas/55" />
-      <div className="absolute inset-0 bg-gradient-to-b from-canvas/30 via-canvas/45 to-canvas" />
+      {/* Velo ligero (≈30 %) para que el video se aprecie; más oscuro solo donde hace falta: arriba (cabecera y título)
+          y abajo, donde se funde con el fondo del panel para la lista de proyectos. Los controles llevan su propio vidrio. */}
+      <div className="absolute inset-0 bg-canvas/30" />
+      <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgb(8_8_12/0.55)_0%,rgb(8_8_12/0.2)_28%,rgb(8_8_12/0.2)_62%,rgb(8_8_12/0.85)_100%)] sm:bg-[linear-gradient(to_bottom,rgb(8_8_12/0.55)_0%,rgb(8_8_12/0.1)_28%,rgb(8_8_12/0.1)_62%,rgb(8_8_12/0.85)_100%)]" />
+      {/* En pantallas anchas el formulario va al centro: una sombra suave solo detrás de él, los lados quedan luminosos. */}
+      <div className="absolute inset-0 hidden bg-[radial-gradient(ellipse_42%_65%_at_50%_42%,rgb(8_8_12/0.6),transparent)] sm:block" />
     </div>
   );
 }
