@@ -12,6 +12,16 @@ on:
   deployment_status:
   workflow_dispatch:
     inputs:
+      operation:
+        description: Diagnóstico QA sin crear trabajos ni consumir proveedores
+        type: choice
+        options: [evaluate, qa-preflight]
+        default: evaluate
+      qa_environment:
+        description: Ámbito de bindings existentes (solo diagnóstico QA)
+        type: choice
+        options: [orchestrator, Preview, Production]
+        default: orchestrator
       job_id:
         description: Id de una evaluación ya creada (ms-...). Vacío = crear una nueva con la misión y el perfil de abajo.
         required: false
@@ -38,10 +48,39 @@ permissions:
   checks: read
   statuses: read
 jobs:
+  qa-preflight:
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'qa-preflight'
+    environment: ${{ inputs.qa_environment || 'orchestrator' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    concurrency:
+      group: mystery-shopper-qa-preflight
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Verificar cuenta QA sin crear trabajos ni reservar gasto
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          MYSTERY_SHOPPER_QA_EMAIL: ${{ secrets.MYSTERY_SHOPPER_QA_EMAIL }}
+          MYSTERY_SHOPPER_QA_PASSWORD: ${{ secrets.MYSTERY_SHOPPER_QA_PASSWORD }}
+          COMMAND_CENTER_ADMIN_EMAILS: ${{ secrets.COMMAND_CENTER_ADMIN_EMAILS }}
+          MS_OUT_DIR: ${{ runner.temp }}/qa-preflight
+        run: node --import tsx scripts/mystery-shopper/qa-preflight.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qa-preflight-${{ github.run_id }}
+          path: ${{ runner.temp }}/qa-preflight
+          if-no-files-found: error
+          retention-days: 7
   # Un trabajo pedido desde el panel o a mano. El claim atómico del trabajo evita dobles ejecuciones;
   # la concurrencia por id además serializa dos despachos del mismo trabajo.
   evaluar:
-    if: github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'repository_dispatch' || (github.event_name == 'workflow_dispatch' && inputs.operation != 'qa-preflight')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     concurrency:
