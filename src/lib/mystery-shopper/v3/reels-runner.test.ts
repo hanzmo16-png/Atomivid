@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { runReelReal } from "../../../../scripts/mystery-shopper/reels-mission";
+import { defaultCatalog } from "../catalog";
 import type { RealCtx } from "../../../../scripts/mystery-shopper/real-missions";
 function fixture(real: boolean, cap: number | null, stopped = false) {
   const actions: string[] = [], steps: { state: string; detail: string }[] = [];
@@ -30,4 +31,9 @@ test("Reel browser double: STOP and rejected reservation prevent script and rend
     const f = fixture(true, 1.5, stopped); await runReelReal(f.c);
     assert.ok(!f.actions.includes("Generar guion")); assert.ok(!f.actions.includes("Generar video final")); assert.equal(f.steps.at(-1)?.state, "BLOCKED");
   }
+});
+
+test("adding real Reel preserves the existing default navigation mission", () => {
+  assert.equal(defaultCatalog().missions[0].id, "cuenta-navegacion");
+  assert.equal(defaultCatalog().missions.filter(m => m.id === "reels-real").length, 1);
 });
