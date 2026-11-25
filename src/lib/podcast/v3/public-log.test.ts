@@ -13,4 +13,9 @@ test("native CLI public log sites do not serialize financial records or upstream
   const logs=source.split("\n").filter(l=>l.includes("console.log"));
   for(const line of logs) assert.doesNotMatch(line,/spentUsd|paidOps|reusedOps|\.free|demands|JSON\.stringify\(rates|\.detail/);
   assert.match(source,/console\.log\("STUDIO_READY"\);/);
+  const workflow=readFileSync(".github/workflows/podcast-video.yml","utf8");
+  assert.match(workflow,/if \[\[ "\$JOB_KIND" == "studio" \]\]; then/);
+  assert.match(workflow,/studio-private\.log" 2>&1/);
+  assert.match(workflow,/studio_exit=\$\?/);
+  assert.match(workflow,/exit "\$studio_exit"/);
 });

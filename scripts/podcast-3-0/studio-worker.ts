@@ -10,9 +10,10 @@ import path from "node:path";
 /** Mismo interruptor que la app: PODCAST_V3_ENABLED=1, o el piloto del dueño (PODCAST_V3_OWNER_PILOT=0 lo apaga) para
  *  episodios del dueño, verificado aquí de forma independiente: por PODCAST_V3_OWNER_USER_ID (secreto
  *  INTERNAL_PRODUCTION_OWNER_USER_ID, si existe en GitHub) o, si no, preguntando a la app con una petición firmada (la app
- *  sí conoce al dueño). Cualquier otra cuenta, error o falta de respuesta: no se genera ni se cobra. */
+ *  sí conoce al dueño). El piloto QA se consulta con una respuesta firmada SEPARADA, sin conceder derechos de dueño.
+ *  Cualquier otra cuenta, error o falta de respuesta: no se genera ni se cobra. */
 export async function studioWorkerEnabled(episodeId: string, env: Record<string, string | undefined> = process.env,
-  deps: { ownerOf?: (id: string) => Promise<string | null>; askApp?: (userId: string) => Promise<boolean> } = {}): Promise<boolean> {
+  deps: { ownerOf?: (id: string) => Promise<string | null>; askApp?: (userId: string) => Promise<boolean>; askQa?: (userId: string) => Promise<boolean> } = {}): Promise<boolean> {
   if (env.PODCAST_V3_ENABLED === "1") return true;
   if (env.PODCAST_V3_OWNER_PILOT === "0" || !/^[0-9a-f-]{36}$/i.test(episodeId)) return false;
   const ownerId = env.PODCAST_V3_OWNER_USER_ID?.trim().toLowerCase();
@@ -25,9 +26,14 @@ export async function studioWorkerEnabled(episodeId: string, env: Record<string,
   });
   const uid = (await read(episodeId))?.toLowerCase();
   if (!uid) return false;
-  if (ownerId) return uid === ownerId;
-  const ask = deps.askApp ?? (async (u: string) => (await import("../../src/lib/podcast/v3/owner-check")).askAppIsStudioOwner(u, env));
-  return ask(uid);
+  if (ownerId && uid === ownerId) return true;
+  if (!ownerId) {
+    const ask = deps.askApp ?? (async (u: string) => (await import("../../src/lib/podcast/v3/owner-check")).askAppIsStudioOwner(u, env));
+    if (await ask(uid)) return true;
+  }
+  if (env.PODCAST_V3_QA_PILOT === "0") return false;
+  const askQa = deps.askQa ?? (async (u: string) => (await import("../../src/lib/podcast/v3/owner-check")).askAppIsStudioQaPilot(u, env));
+  return askQa(uid).catch(() => false);
 }
 
 export async function runStudioJob(episodeId: string) {

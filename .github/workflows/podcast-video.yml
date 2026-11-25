@@ -69,7 +69,17 @@ jobs:
       - name: Produce
         if: steps.due.outputs.go == 'true'
         timeout-minutes: 185
-        run: npx tsx scripts/podcast-video-worker.ts
+        run: |
+          if [[ "$JOB_KIND" == "studio" ]]; then
+            umask 077
+            set +e
+            npx tsx scripts/podcast-video-worker.ts > "$RUNNER_TEMP/studio-private.log" 2>&1
+            studio_exit=$?
+            set -e
+            echo "STUDIO_PROCESS_FINISHED: exit=$studio_exit; details remain in the private episode record."
+            exit "$studio_exit"
+          fi
+          npx tsx scripts/podcast-video-worker.ts
         env:
           ATOMIVID_RUNTIME: production
           EPISODE_ID: ${{ github.event.client_payload.episodeId || inputs.episode_id }}
