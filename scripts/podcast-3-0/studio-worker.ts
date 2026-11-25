@@ -212,7 +212,7 @@ export async function runStudioJob(episodeId: string) {
       result: { duration: r.durationSeconds, duration_check: deliveredDuration(spec, r.durationSeconds), lufs: r.lufs, true_peak: r.truePeak, music: r.musicTrack, mood: r.mood, shots: r.plan.shots.map((s) => ({ kind: s.kind, speaker: s.speaker, start: s.start, end: s.end, label: s.label ?? null })), providers: r.providers,
         // Podcast 2.1: línea de tiempo de labios por segmento y su verificación contra la voz real (nadie habla fuera de su turno).
         lips: lipTimeline(r.plan).map((x) => ({ start: x.start, end: x.end, shot: x.shot, A: x.lips.A, B: x.lips.B })), lip_violations: lipViolations(lipTimeline(r.plan), r.timeline), coverage: shotCoverage(r.plan) }, error: null, updated_at: new Date().toISOString() }).eq("id", episodeId);
-    console.log("STUDIO_READY");
+    console.log("STUDIO_READY", JSON.stringify(publicStudioCompletion(r)));
   } catch (e) {
     clearInterval(beat);
     await writer.flush();
@@ -223,4 +223,4 @@ export async function runStudioJob(episodeId: string) {
     throw e;
   }
 }
-import { publicStudioReadiness } from "./public-log";
+import { publicStudioCompletion, publicStudioReadiness } from "./public-log";
