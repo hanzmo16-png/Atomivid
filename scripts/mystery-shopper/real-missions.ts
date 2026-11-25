@@ -157,7 +157,9 @@ export async function runAudioReal(c: RealCtx, v: AudioVariant): Promise<void> {
   let reserved = false;
   await c.step("Reservar el gasto en el libro acumulado (tope USD 8.50)", async () => {
     if (!c.ledger) { c.setHumanGate("Sin libro de gasto no se genera."); return { state: "BLOCKED", detail: "Libro de gasto no disponible." }; }
-    if (authUsd === null) return { state: "FAIL", detail: "La app no mostró el monto a autorizar." };
+    if (authUsd === null || !Number.isFinite(authUsd) || authUsd <= 0) return { state: "FAIL", detail: "La app no mostró un monto positivo verificable a autorizar." };
+    if (!c.killSwitch?.() || !c.ledger.stopped || await c.ledger.stopped().catch(() => true)) return { state: "BLOCKED", detail: "Interruptor apagado, STOP o libro no verificable: no se genera." };
+    if ((c.runCapUsd ?? 0) < 1) return { state: "BLOCKED", detail: "La reserva de Audio excede el tope de esta ejecución." };
     const amount = Math.min(MODULE_CAP_USD["audio-podcast"], 1);
     if (authUsd > amount + 1e-9) return { state: "BLOCKED", detail: `La app pide USD ${authUsd.toFixed(2)} y la reserva máxima es USD ${amount.toFixed(2)}.` };
     const r = await c.ledger.reserve({ key, module: "audio-podcast", jobId: c.jobId, reservedUsd: amount, at: new Date().toISOString() });
@@ -168,12 +170,14 @@ export async function runAudioReal(c: RealCtx, v: AudioVariant): Promise<void> {
   const samples: { t: number; pct: number | null; state?: string }[] = [];
   const t0 = Date.now();
   let finished = "timeout" as "ok" | "error" | "timeout";
-  await c.step("Autorizar el monto y generar", async () => {
+  const start = await c.step("Autorizar el monto y generar", async () => {
+    if (!c.killSwitch?.() || !c.ledger?.stopped || await c.ledger.stopped().catch(() => true)) return { state: "BLOCKED", detail: "STOP o interruptor cambiado después de reservar: no se pulsa; la reserva se conserva." };
     await page.getByTestId("audio-authorize").check();
     await gen.click();
     c.act("gasto", `«Generar» pulsado con autorización de USD ${authUsd!.toFixed(2)}`);
     return { state: "PASS", detail: `Generación solicitada (USD ${authUsd!.toFixed(2)} autorizados).` };
   });
+  if (start.state !== "PASS") return;
   await c.step("Seguir el progreso hasta el MP3 (máx. 25 min)", async () => {
     let n = 0;
     while (Date.now() - t0 < 25 * 60_000) {

@@ -15,7 +15,7 @@ on:
       operation:
         description: Diagnóstico QA sin crear trabajos ni consumir proveedores
         type: choice
-        options: [evaluate, qa-preflight]
+        options: [evaluate, qa-preflight, campaign-real]
         default: evaluate
       qa_environment:
         description: Ámbito de bindings existentes (solo diagnóstico QA)
@@ -90,13 +90,21 @@ jobs:
   # Un trabajo pedido desde el panel o a mano. El claim atómico del trabajo evita dobles ejecuciones;
   # la concurrencia por id además serializa dos despachos del mismo trabajo.
   evaluar:
+    environment: Preview
     if: github.event_name == 'repository_dispatch' || (github.event_name == 'workflow_dispatch' && inputs.operation != 'qa-preflight')
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 100
     concurrency:
-      group: mystery-shopper-${{ github.event.client_payload.jobId || inputs.job_id || github.run_id }}
+      group: mystery-shopper-campaign-real-serialized
       cancel-in-progress: false
     steps:
+      - name: Alcance de campaña real autorizado
+        if: inputs.operation == 'campaign-real'
+        env:
+          MISSION: ${{ inputs.mission }}
+          JOB_ID: ${{ inputs.job_id }}
+        run: |
+          [[ -z "$JOB_ID" && ( "$MISSION" == "audio-real-es" || "$MISSION" == "youtube-real" ) ]] || { echo "::error::Campaña real limitada a Audio ES o YouTube nuevos; sin reintento automático"; exit 1; }
       - name: Id de trabajo válido
         env:
           JOB: ${{ github.event.client_payload.jobId || inputs.job_id }}
@@ -111,6 +119,8 @@ jobs:
           MS_JOB_ID: ${{ github.event.client_payload.jobId || inputs.job_id }}
           MS_MISSION: ${{ inputs.mission || 'cuenta-navegacion' }}
           MS_PROFILE: ${{ inputs.profile || 'principiante' }}
+          MS_MODE: ${{ inputs.operation == 'campaign-real' && 'real' || 'gratuito' }}
+          MS_MAX_BUDGET_USD: ${{ inputs.mission == 'audio-real-es' && '1' || '2' }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: npx tsx scripts/mystery-shopper/manual-start.ts
@@ -119,6 +129,7 @@ jobs:
       - name: Recorrido con navegador nuevo
         env:
           MS_JOB_ID: ${{ steps.trabajo.outputs.job }}
+          MYSTERY_SHOPPER_REAL_ENABLED: ${{ inputs.operation == 'campaign-real' && '1' || '0' }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           MYSTERY_SHOPPER_QA_EMAIL: ${{ secrets.MYSTERY_SHOPPER_QA_EMAIL }}
