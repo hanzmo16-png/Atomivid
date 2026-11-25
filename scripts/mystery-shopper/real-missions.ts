@@ -29,6 +29,14 @@ export type RealCtx = {
   /** Tope de gasto de ESTA ejecución (job.maxBudgetUsd); además del acumulado y del módulo. */
   runCapUsd?: number;
   ffprobe?: string; ffmpeg?: string;
+  /** YouTube: continuar una preparación ya pagada (id de /dashboard/long-form/jobs/<id>) sin pagar otro guion. */
+  ytResumeJobId?: string;
+  /** YouTube: reserva acotada del render = costo estimado de proveedores × contingencia + minutos de runner bajo NUESTRO
+   * límite de espera (renderTimeout) × tarifa. Solo es válida si `ytCancelRender` puede cortar el runner al vencer. */
+  ytRenderBound?: { runnerUsdPerMin: number; contingency: number };
+  ytCancelRender?: (sinceIso: string) => Promise<string>;
+  /** YouTube: estrategia visual a elegir (value del radio), p. ej. tras un paro por falta de archivo. Por defecto, la más barata. */
+  ytStrategy?: string;
 };
 
 export const usdOf = (t: string | null | undefined): number | null => { const m = /(\d+(?:[.,]\d{1,2})?)/.exec(String(t ?? "").replace(/\s/g, "")); return m ? Number(m[1].replace(",", ".")) : null; };
@@ -142,6 +150,22 @@ export async function runAudioReal(c: RealCtx, v: AudioVariant): Promise<void> {
   c.mark(c.cIdx(/costo antes/), estimate !== null, estimate !== null ? `Costo estimado visible: USD ${estimate.toFixed(2)}` : "Sin costo visible.");
   const readyBtn = page.getByTestId("audio-ready");
   if (await readyBtn.isVisible().catch(() => false) && await readyBtn.isEnabled().catch(() => false)) { await readyBtn.click(); await sleep(1500); }
+  // Incidente real (t901): justo tras guardar, «Marcar listo» dejó el formulario con valores por defecto (1 voz, 10 min,
+  // tope 6, guion vacío, «Autorizo USD 0.00») aunque el servidor guardó bien. Un cliente recargaría: se recarga y se anota.
+  if (!(await page.getByTestId("audio-authorize").isEnabled().catch(() => false)) || usdOf(await page.getByTestId("audio-authorize-usd").first().innerText().catch(() => null)) !== estimate) {
+    c.act("incidente", "Tras «Marcar listo» el formulario muestra valores por defecto / autorización no disponible: se recarga la página.");
+    c.incidents.push({ id: `audio-ready-reset-${c.jobId}`, kind: "frozen_screen", severity: "P1", module: "audio-podcast", title: "«Marcar listo» justo después de guardar muestra el formulario con valores por defecto y «Autorizo USD 0.00» (hay que recargar)", repro: ["Configurar 2 voces, 5 min, tope 1, guion", "Guardar", "Marcar listo para autorizar"], evidence: ["Tras recargar, el servidor tiene los valores correctos (idioma, 2 voces, 5 min, tope 1, guion completo, autorización USD 0.53)"], screenshot: null, logs: [], rootCause: null, fixProposal: "Tras «Marcar listo», refrescar el estado del cliente con la respuesta del servidor en vez de reinicializar el formulario con valores por defecto." });
+    // El servidor sí guardó (lectura posterior correcta): se recarga como un cliente hasta 6 veces, cada 10 s.
+    for (let i = 0; i < 6; i++) {
+      await sleep(10_000);
+      await c.goto(new URL(projectUrl).pathname);
+      const shown = usdOf(await page.getByTestId("audio-authorize-usd").first().innerText().catch(() => null));
+      c.act("recarga", `intento ${i + 1}: la app muestra autorización USD ${shown ?? "?"} (estimado USD ${estimate ?? "?"})`);
+      if (shown !== estimate) continue;
+      if (await readyBtn.isVisible().catch(() => false) && await readyBtn.isEnabled().catch(() => false)) { await readyBtn.click(); await sleep(2500); }
+      if (await page.getByTestId("audio-authorize").isEnabled().catch(() => false) && usdOf(await page.getByTestId("audio-authorize-usd").first().innerText().catch(() => null)) === estimate) break;
+    }
+  }
   const gen = page.getByTestId("audio-generate");
   const disabledBefore = await gen.isDisabled().catch(() => null);
   c.mark(c.cIdx(/Sin autorizar/), disabledBefore === true, disabledBefore ? "«Generar» deshabilitado hasta autorizar el monto." : "«Generar» habilitado sin autorizar.");
@@ -157,7 +181,7 @@ export async function runAudioReal(c: RealCtx, v: AudioVariant): Promise<void> {
   let reserved = false;
   await c.step("Reservar el gasto en el libro acumulado (tope USD 8.50)", async () => {
     if (!c.ledger) { c.setHumanGate("Sin libro de gasto no se genera."); return { state: "BLOCKED", detail: "Libro de gasto no disponible." }; }
-    if (authUsd === null) return { state: "FAIL", detail: "La app no mostró el monto a autorizar." };
+    if (authUsd === null || !(authUsd > 0)) return { state: "FAIL", detail: `La app no mostró un monto a autorizar válido (${authUsd ?? "sin monto"}).` };
     const amount = Math.min(MODULE_CAP_USD["audio-podcast"], 1);
     if (authUsd > amount + 1e-9) return { state: "BLOCKED", detail: `La app pide USD ${authUsd.toFixed(2)} y la reserva máxima es USD ${amount.toFixed(2)}.` };
     const r = await c.ledger.reserve({ key, module: "audio-podcast", jobId: c.jobId, reservedUsd: amount, at: new Date().toISOString() });
@@ -168,12 +192,14 @@ export async function runAudioReal(c: RealCtx, v: AudioVariant): Promise<void> {
   const samples: { t: number; pct: number | null; state?: string }[] = [];
   const t0 = Date.now();
   let finished = "timeout" as "ok" | "error" | "timeout";
+  let clicked = false;
   await c.step("Autorizar el monto y generar", async () => {
-    await page.getByTestId("audio-authorize").check();
-    await gen.click();
+    await page.getByTestId("audio-authorize").check({ timeout: 15_000 });
+    await gen.click({ timeout: 15_000 }); clicked = true;
     c.act("gasto", `«Generar» pulsado con autorización de USD ${authUsd!.toFixed(2)}`);
     return { state: "PASS", detail: `Generación solicitada (USD ${authUsd!.toFixed(2)} autorizados).` };
   });
+  if (!clicked) { await c.ledger!.settle({ key, spentUsd: 0, source: "no se pulsó «Generar» (autorización no disponible)", at: new Date().toISOString() }); return; }
   await c.step("Seguir el progreso hasta el MP3 (máx. 25 min)", async () => {
     let n = 0;
     while (Date.now() - t0 < 25 * 60_000) {

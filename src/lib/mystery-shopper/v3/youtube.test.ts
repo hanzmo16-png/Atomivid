@@ -114,3 +114,13 @@ test("misión: en modo real con el interruptor apagado NO pulsa «Crear y revisa
   assert.deepEqual(reservations, []);
   assert.ok(steps.some((s) => s.state === "BLOCKED" && /Interruptor/.test(s.detail)));
 });
+
+test("reserva acotada del render: estimado × contingencia + runner bajo nuestro límite; nunca sin corte ni sobre el techo", async () => {
+  const { boundedRenderReserve } = await import("../../../../scripts/mystery-shopper/youtube-mission");
+  const base = { providerEstimateUsd: 0.49, ceilingUsd: 8.04, renderTimeoutMs: 60 * 60_000, runnerUsdPerMin: 0.008, contingency: 1.5, canCancel: true };
+  assert.equal(boundedRenderReserve(base), 1.22);
+  assert.equal(boundedRenderReserve({ ...base, canCancel: false }), null);
+  assert.equal(boundedRenderReserve({ ...base, providerEstimateUsd: null }), null);
+  assert.equal(boundedRenderReserve({ ...base, contingency: 0.5 }), null);
+  assert.equal(boundedRenderReserve({ ...base, ceilingUsd: 0.9 }), 0.9);
+});

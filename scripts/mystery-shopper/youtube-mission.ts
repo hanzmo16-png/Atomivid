@@ -71,6 +71,12 @@ export function renderIncidents(screen: string, samples: { t: number; pct: numbe
   return out;
 }
 
+/** Reserva acotada del render (pura, probada): null si falta el estimado o no hay forma de cortar el runner. */
+export function boundedRenderReserve(i: { providerEstimateUsd: number | null; ceilingUsd: number | null; renderTimeoutMs: number; runnerUsdPerMin: number; contingency: number; canCancel: boolean }): number | null {
+  if (!i.canCancel || i.providerEstimateUsd === null || i.ceilingUsd === null || !(i.contingency >= 1) || !(i.runnerUsdPerMin > 0)) return null;
+  return Math.min(i.ceilingUsd, Math.ceil((i.providerEstimateUsd * i.contingency + (i.renderTimeoutMs / 60_000) * i.runnerUsdPerMin) * 100) / 100);
+}
+
 type Rows = Record<string, string>;
 async function rows(page: RealCtx["page"]): Promise<Rows> {
   return page.evaluate(() => Object.fromEntries([...document.querySelectorAll("dt")].map((dt) => [dt.textContent?.trim() ?? "", (dt.nextElementSibling?.textContent ?? "").trim()])));
@@ -138,9 +144,14 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
 
   // 3 · Guion (cobro): reserva → clic
   const scriptKey = `${c.jobId}-yt-script`;
-  if (!await reserve(scriptKey, limits.scriptReserveUsd, "el guion")) return;
   let jobUrl = ""; let reused = false;
-  await c.step("Pulsar «Crear y revisar guion»", async () => {
+  if (c.ytResumeJobId) {
+    // Preparación ya pagada en una ejecución anterior (liquidada allí): se continúa sin pagar otro guion.
+    if (!await reserve(scriptKey, 0.01, "el guion (preparación reanudada, ya liquidada)")) return;
+    reused = true; jobUrl = `/dashboard/long-form/jobs/${c.ytResumeJobId}`;
+    c.act("aviso", `Se reanuda la preparación ${c.ytResumeJobId}: sin nuevo clic de guion.`);
+  } else if (!await reserve(scriptKey, limits.scriptReserveUsd, "el guion")) return;
+  if (!c.ytResumeJobId) await c.step("Pulsar «Crear y revisar guion»", async () => {
     if (!killSwitch()) { await settle(scriptKey, 0, "no se pulsó (interruptor apagado)"); return { state: "BLOCKED", detail: "Interruptor apagado justo antes del clic." }; }
     await page.getByRole("button", { name: "Crear y revisar guion" }).click();
     c.act("gasto", "«Crear y revisar guion» pulsado (guion)");
@@ -179,7 +190,7 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
   });
 
   // 5 · Configurar producción (sin costo hasta confirmar)
-  let ceiling: number | null = null; let scriptSpent: number | null = null; let strategyLabel = ""; let voice = "";
+  let ceiling: number | null = null; let providerEstimate: number | null = null; let scriptSpent: number | null = null; let strategyLabel = ""; let voice = "";
   if (configureHref) await c.step("Configurar: estrategia visual más barata, voz y techo de gasto", async () => {
     await c.goto(configureHref);
     const radios = page.locator('input[type="radio"][name="strategy"]');
@@ -188,8 +199,10 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
     for (let i = 0; i < n; i++) {
       const txt = await radios.nth(i).locator("xpath=ancestor::label[1]").innerText().catch(() => "");
       const v = usd(/(?:subtotal|~)\s*[^\d]*([\d.,]+)/i.exec(txt)?.[1] ?? null);
+      if (c.ytStrategy) { if (await radios.nth(i).getAttribute("value") === c.ytStrategy) { best = i; bestUsd = v ?? NaN; strategyLabel = txt.split("\n")[0].trim(); } continue; }
       if (v !== null && v < bestUsd) { bestUsd = v; best = i; strategyLabel = txt.split("\n")[0].trim(); }
     }
+    if (c.ytStrategy && best < 0) return { state: "BLOCKED", detail: `No existe la estrategia «${c.ytStrategy}» en Configurar.` };
     if (best >= 0) await radios.nth(best).check();
     const picker = page.locator("#reel_voice_picker");
     if (await picker.isEnabled().catch(() => false)) voice = await picker.evaluate((el: HTMLSelectElement) => el.selectedOptions[0]?.textContent?.trim() ?? "");
@@ -198,7 +211,7 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
     await sleep(1500);
     const r = await rows(page);
     await writeFile(path.join(c.out, "youtube-configurar.json"), JSON.stringify({ strategy: strategyLabel, voice, rows: r }, null, 1)).catch(() => {});
-    scriptSpent = usd(r["Guion ya gastado"]);
+    scriptSpent = usd(r["Guion ya gastado"]); providerEstimate = usd(r["Costo estimado de proveedores"]);
     const techo = r["Techo que se autorizaría"];
     ceiling = techo && !/no cabe|sin verificar/i.test(techo) ? usd(techo) : null;
     const blocked = await page.getByRole("alert").filter({ hasText: /No se puede iniciar/ }).first().innerText(Q).catch(() => "");
@@ -211,19 +224,24 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
     // Preparación reutilizada (existing=1): la app no hizo llamadas nuevas en esta ejecución.
     const v = reused ? 0 : scriptSpent ?? limits.scriptReserveUsd;
     await settle(scriptKey, v, reused ? "la app reutilizó la preparación existente (existing=1): sin cobro nuevo" : scriptSpent === null ? "reserva (la app no mostró «Guion ya gastado»)" : "interfaz «Guion ya gastado»");
-    runCommitted = r2(runCommitted - limits.scriptReserveUsd + v);
+    runCommitted = r2(runCommitted - (c.ytResumeJobId ? 0.01 : limits.scriptReserveUsd) + v);
     return { state: reused || scriptSpent !== null ? "PASS" : "FAIL", detail: `Guion liquidado en USD ${v.toFixed(2)}${reused ? " (preparación reutilizada)" : ""}.` };
   });
   if (!configureHref || ceiling === null) return;
 
   // 6 · Render (cobro): reserva del techo completo → clic
   const renderKey = `${c.jobId}-yt-render`;
-  if (!await reserve(renderKey, ceiling, "el render (techo que autoriza la app)")) return;
+  const bounded = c.ytRenderBound ? boundedRenderReserve({ providerEstimateUsd: providerEstimate, ceilingUsd: ceiling, renderTimeoutMs: limits.renderTimeoutMs, runnerUsdPerMin: c.ytRenderBound.runnerUsdPerMin, contingency: c.ytRenderBound.contingency, canCancel: !!c.ytCancelRender }) : null;
+  const renderReserve = bounded ?? ceiling;
+  if (bounded !== null) c.act("gasto", `Reserva acotada del render: USD ${bounded.toFixed(2)} (estimado proveedores USD ${providerEstimate!.toFixed(2)} × ${c.ytRenderBound!.contingency} + ${dur(limits.renderTimeoutMs)} de runner × USD ${c.ytRenderBound!.runnerUsdPerMin}/min); techo de la app USD ${Number(ceiling).toFixed(2)} (peor caso teórico de runner), cortado por nuestro límite.`);
+  if (!await reserve(renderKey, renderReserve, bounded !== null ? "el render (reserva acotada con corte de runner)" : "el render (techo que autoriza la app)")) return;
+  let confirmedAt = "";
   let videoPath = "";
   await c.step("Pulsar «Confirmar y generar video»", async () => {
     if (!killSwitch()) { await settle(renderKey, 0, "no se pulsó (interruptor apagado)"); return { state: "BLOCKED", detail: "Interruptor apagado justo antes del clic." }; }
     const btn = page.getByRole("button", { name: "Confirmar y generar video" });
     if (await btn.isDisabled().catch(() => true)) { await settle(renderKey, 0, "botón deshabilitado: no se pulsó"); return { state: "BLOCKED", detail: "«Confirmar y generar video» deshabilitado." }; }
+    confirmedAt = new Date(Date.now() - 60_000).toISOString();
     await btn.click();
     c.act("gasto", `«Confirmar y generar video» pulsado (techo USD ${ceiling!.toFixed(2)})`);
     const went = await page.waitForURL(/\/dashboard\/videos\/[0-9a-f-]{36}/, { timeout: 120_000 }).then(() => true, () => false);
@@ -260,7 +278,10 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
     const inc = renderIncidents("/dashboard/videos/[id]", rSamples, { maxTotalMs: limits.renderTimeoutMs, maxStallMs: limits.stallMs });
     if (!rSamples.some((x) => x.pct !== null)) inc.push(...stageIncidents("youtube", "/dashboard/videos/[id]", rSamples.map((s) => ({ t: s.t, stage: `${s.stage} ${s.pct ?? ""}`, done: s.state === "completed" })), { maxTotalMs: Infinity, maxStallMs: limits.stallMs }).filter((i) => i.kind !== "endless_generation"));
     if (outcome === "stalled") inc.push({ ...renderIncidents("/dashboard/videos/[id]", [{ t: 0, pct: 5, state: "processing" }, { t: limits.stallMs, pct: 5, state: "processing" }], { maxTotalMs: Infinity, maxStallMs: 1 })[0], title: "La app declara que la producción dejó de reportar avances" });
-    if (outcome === "timeout" || outcome === "stalled") c.act("cancelación", "Long Form no ofrece «Cancelar» al cliente: se deja de esperar, se liquida el techo y se reporta.");
+    if (outcome === "timeout" || outcome === "stalled") {
+      c.act("cancelación", "Long Form no ofrece «Cancelar» al cliente: se deja de esperar y se reporta.");
+      if (bounded !== null && c.ytCancelRender) c.act("cancelación", await c.ytCancelRender(confirmedAt).catch((e) => `no se pudo cortar el runner: ${e instanceof Error ? e.message : e}`));
+    }
     c.incidents.push(...inc);
     c.mark(c.cIdx(/progreso real/), rSamples.some((s) => s.pct !== null) && !inc.some((i) => i.kind === "wrong_progress"), `${rSamples.length} muestras; ${inc.map((i) => i.title).join(" · ") || "sin anomalías"}`);
     if (outcome === "completed") return { state: "PASS", detail: `MP4 listo en ${Math.round((rSamples.at(-1)?.t ?? 0) / 1000)} s.` };
@@ -276,8 +297,8 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
   // La app no muestra al cliente el gasto final del render: se liquida el techo autorizado (peor caso, nunca por debajo).
   await c.step("Liquidar el gasto del render", async () => {
     if (outcome === "not_started") { await settle(renderKey, 0, "render no iniciado por la app (plan confirmado, «Iniciar producción» pendiente)"); return { state: "PASS", detail: "Render no iniciado: USD 0." }; }
-    await settle(renderKey, ceiling!, "techo autorizado en la interfaz (la app no muestra el gasto final al cliente)");
-    return { state: "PASS", detail: `Render liquidado en USD ${ceiling!.toFixed(2)} (peor caso).` };
+    await settle(renderKey, renderReserve, bounded !== null ? "reserva acotada (la app no muestra el gasto final al cliente; runner cortado a nuestro límite)" : "techo autorizado en la interfaz (la app no muestra el gasto final al cliente)");
+    return { state: "PASS", detail: `Render liquidado en USD ${renderReserve.toFixed(2)} (peor caso${bounded !== null ? " acotado" : ""}).` };
   });
   if (outcome !== "completed") return;
 
