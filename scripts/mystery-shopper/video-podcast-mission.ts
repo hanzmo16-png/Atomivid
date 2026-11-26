@@ -1,3 +1,4 @@
+import {createHmac,randomUUID} from "node:crypto";
 import path from "node:path";
 import {writeFile} from "node:fs/promises";
 import type {RealCtx} from "./real-missions";
@@ -39,6 +40,15 @@ export async function runVideoPodcastReal(c:RealCtx){
  if(!c.ledger){c.setHumanGate('No existe libro de gasto.');return;}
  const gate=audiovisualGate({real:c.real,kill:c.killSwitch?.()===true,stopped:!c.ledger.stopped||await c.ledger.stopped().catch(()=>true),ledger:await c.ledger.state().catch(()=>null),quote,runCap:c.runCapUsd??0});
  if(!gate.ok){c.setHumanGate(gate.reason);return;}
+ if(c.real){
+  const expected=process.env.MS_PRODUCTION_SHA,secret=process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if(!/^[0-9a-f]{40}$/.test(expected??'')||!secret){c.setHumanGate('No hay versión de producción fijada; no se autoriza.');return;}
+  const nonce=randomUUID(),time=String(Date.now()),signature=createHmac('sha256',secret).update(`atomivid-provider-config-v1\nPOST\n/api/internal/provider-config\n${nonce}\n${time}`).digest('hex');
+  const probe=await p.request.post(`${c.baseUrl}/api/internal/provider-config`,{timeout:60000,maxRedirects:0,data:{},headers:{'x-probe-nonce':nonce,'x-probe-time':time,'x-probe-signature':signature}}).catch(()=>null);
+  const config=probe?.ok()?await probe.json().catch(()=>null):null;
+  if(config?.vercelEnv!=='production'||config?.commit!==expected!.slice(0,7)){c.setHumanGate('La versión activa cambió o no se pudo verificar; no se autoriza.');return;}
+  await writeFile(path.join(c.out,'av-build.json'),JSON.stringify({expectedSha:expected,observedCommit:config.commit,verifiedBeforeReservation:true}));
+ }
  const r=await c.ledger.reserve({key,module:'video-podcast',jobId:c.jobId,reservedUsd:3,at:new Date().toISOString()});if(!r.ok){c.setHumanGate(r.reason);return;}
  if(!c.killSwitch?.()||await c.ledger.stopped!().catch(()=>true)){c.setHumanGate('STOP antes del clic; reserva conservada.');return;}
  const accepted=await c.step('Autorizar una sola producción audiovisual con confirmación API',async()=>{

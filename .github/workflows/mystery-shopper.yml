@@ -6,6 +6,8 @@ on:
         type: choice
         options: [prepare, admission, production-admission, preflight, run]
         default: prepare
+      production_sha:
+        type: string
       admission_run:
         type: string
       quote_run:
@@ -51,6 +53,7 @@ jobs:
       MS_NATIVE_TARGET_MATCHES: ${{ needs.native-config.outputs.target_matches }}
       MS_NATIVE_QA_ENABLED: ${{ needs.native-config.outputs.qa_enabled }}
       MS_NATIVE_OWNER_GATE_ENABLED: ${{ needs.native-config.outputs.owner_gate_enabled }}
+      MS_PRODUCTION_SHA: ${{ inputs.production_sha }}
       PODCAST_V3_APP_URL: https://atomivid.vercel.app
       PODCAST_V3_QA_PILOT: '1'
       MS_TARGET: https://atomivid-ifh6x9b59-atomivid.vercel.app
