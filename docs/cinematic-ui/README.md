@@ -4,6 +4,10 @@ Rediseño de la entrada a ATOMIVID: portada `/dashboard` con fondo de video real
 
 Solo cambia la capa de presentación y navegación. No toca autenticación, suscripciones, créditos, Stripe, Supabase, motores, proveedores, trabajos en curso ni rutas.
 
+## Integración con COSMOS 2 v4
+
+La portada usa el fondo `VideoBackground` de COSMOS 2 v4 y el formulario de vidrio de la base actual. `CinematicBackground` y el material COSMOS original se conservan como alternativa, sin montarse ni descargarse en la portada. Solo hay un reproductor de fondo. Se conservan el hero, las tarjetas, la galería y la navegación móvil de esta entrega. Con movimiento reducido, ahorro de datos o 2G, COSMOS 2 v4 muestra su póster.
+
 ## Qué hay
 
 | Pieza | Archivo |
