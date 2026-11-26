@@ -322,3 +322,44 @@ test("a draft from last month rendered this month consumes this month's quota", 
   assert.equal((await assertCanGenerate(service, "u", "visual")).allowed, false);
   assert.match(filter, /T00:00:00.000Z/);
 });
+
+/**
+ * Cierre comercial 26-nov (Mystery Shopper en producción: el formulario de Reel no informaba ni costo ni límite):
+ * la lectura para la UI usa la MISMA resolución de plan y el MISMO conteo mensual que assertCanGenerate.
+ */
+test("normalQuotaPreview: mismo conteo que el bloqueo real; inactivo, agotado y dueño interno", async (t) => {
+  const { normalQuotaPreview } = await import("./quota");
+  const previous = process.env.STRIPE_PRICE_ID_PRO;
+  process.env.STRIPE_PRICE_ID_PRO = "price_pro_test";
+  t.after(() => { if (previous === undefined) delete process.env.STRIPE_PRICE_ID_PRO; else process.env.STRIPE_PRICE_ID_PRO = previous; });
+  const active = { data: { status: "active", price_id: "price_pro_test" }, error: null };
+
+  const some = fakeService({ subscriptions: active, video_requests: { data: null, count: 4, error: null } });
+  const p = await normalQuotaPreview(some, "u1", { id: "u1" });
+  assert.equal(p.kind, "plan");
+  if (p.kind === "plan") {
+    assert.equal(p.used, 4);
+    assert.equal(p.remaining, p.limit - 4);
+    assert.ok(p.limit > 4 && p.planName.length > 0);
+    assert.equal((await assertCanGenerate(some, "u1", "visual", { id: "u1" })).allowed, true, "quedan videos → el servidor también permite");
+  }
+
+  const full = fakeService({ subscriptions: active, video_requests: { data: null, count: 999, error: null } });
+  const f = await normalQuotaPreview(full, "u1", { id: "u1" });
+  assert.equal(f.kind === "plan" && f.remaining, 0, "nunca negativo");
+  assert.equal((await assertCanGenerate(full, "u1", "visual", { id: "u1" })).allowed, false, "agotado → el servidor también bloquea");
+
+  const none = fakeService({});
+  const n = await normalQuotaPreview(none, "u1", { id: "u1" });
+  assert.equal(n.kind, "inactive");
+  assert.equal(n.kind === "inactive" && n.reason, (await assertCanGenerate(none, "u1", "visual")).allowed === false && "Necesitas una suscripción activa para generar videos.");
+
+  const bad = fakeService({ subscriptions: active, video_requests: { data: null, count: null, error: null } });
+  await assert.rejects(normalQuotaPreview(bad, "u1", { id: "u1" }), /consumo mensual/, "un conteo ilegible no se muestra como «te quedan todos»");
+
+  const ownerId = "12345678-1234-4234-8234-123456789abc";
+  const prevOwner = process.env.INTERNAL_PRODUCTION_OWNER_USER_ID;
+  process.env.INTERNAL_PRODUCTION_OWNER_USER_ID = ownerId;
+  t.after(() => { if (prevOwner === undefined) delete process.env.INTERNAL_PRODUCTION_OWNER_USER_ID; else process.env.INTERNAL_PRODUCTION_OWNER_USER_ID = prevOwner; });
+  assert.deepEqual(await normalQuotaPreview(none, ownerId, { id: ownerId, email_confirmed_at: "2026-10-05" }), { kind: "internal" });
+});

@@ -123,6 +123,23 @@ export async function assertCanGenerate(
     };
   }
 
+  const count = await countMonthlyUsage(service, userId, isAvatar);
+
+  if (count >= limit) {
+    return {
+      allowed: false,
+      reason: `Alcanzaste el límite de ${limit} videos ${isAvatar ? "con avatar " : ""}este mes en tu plan (${plan.name}). Vuelve a intentarlo el próximo mes o mejora tu plan.`,
+    };
+  }
+
+  return { allowed: true };
+}
+
+/**
+ * Videos que ya cuentan este mes contra el límite del plan: EXACTAMENTE el conteo con el que assertCanGenerate
+ * bloquea (producciones iniciadas este mes; los borradores y los guiones en revisión no consumen).
+ */
+async function countMonthlyUsage(service: ServiceClient, userId: string, isAvatar: boolean): Promise<number> {
   const startOfMonth = new Date();
   startOfMonth.setUTCDate(1);
   startOfMonth.setUTCHours(0, 0, 0, 0);
@@ -145,13 +162,24 @@ export async function assertCanGenerate(
   const { count, error: countError } = await countQuery;
   if (countError) throw countError;
   if (count === null || !Number.isSafeInteger(count) || count < 0) throw new Error("No se pudo comprobar el consumo mensual.");
+  return count;
+}
 
-  if (count >= limit) {
-    return {
-      allowed: false,
-      reason: `Alcanzaste el límite de ${limit} videos ${isAvatar ? "con avatar " : ""}este mes en tu plan (${plan.name}). Vuelve a intentarlo el próximo mes o mejora tu plan.`,
-    };
-  }
+export type NormalQuotaPreview =
+  | { kind: "internal" }
+  | { kind: "inactive"; reason: string }
+  | { kind: "plan"; planName: string; used: number; limit: number; remaining: number };
 
-  return { allowed: true };
+/**
+ * Lectura para la UI (sin decidir nada): cuántos videos normales le quedan al cliente este mes, con la misma
+ * resolución de plan y el mismo conteo que assertCanGenerate. La fuente de verdad que impide generar sigue siendo
+ * assertCanGenerate en el servidor, al iniciar la producción.
+ */
+export async function normalQuotaPreview(service: ServiceClient, userId: string, user: MinimalUser): Promise<NormalQuotaPreview> {
+  if (user?.id === userId && isInternalProductionOwner(user)) return { kind: "internal" };
+  const resolution = await resolveActivePlan(service, userId);
+  if (!resolution.active) return { kind: "inactive", reason: resolution.reason };
+  const limit = resolution.plan.monthlyNormalLimit;
+  const used = await countMonthlyUsage(service, userId, false);
+  return { kind: "plan", planName: resolution.plan.name, used, limit, remaining: Math.max(0, limit - used) };
 }
