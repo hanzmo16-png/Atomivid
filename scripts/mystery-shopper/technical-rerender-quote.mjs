@@ -2,6 +2,7 @@
 import { chromium } from 'playwright';
 import { createClient } from '@supabase/supabase-js';
 import { SOURCE_ID, ANCHOR_ID, prepareTechnicalRerender, verifiedReview, snapshotSha, reviewSummary } from './technical-long-form-rerender.ts';
+const sanitized = value => String(value ?? '').replace(/https?:\/\/\S+/gi, '[URL]').replace(/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}/gi, '[UUID]').replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[EMAIL]').slice(0, 1800);
 
 async function main() {
   const e = process.env;
@@ -71,10 +72,12 @@ async function main() {
     const image = await bucket.upload(`mystery-shopper/v3/receipts/technical-rerender-quote-${e.GITHUB_RUN_ID}.png`, shot, { contentType: 'image/png', upsert: false });
     if (image.error) throw Error('private screenshot');
     receipt.status = receipt.quoteWithinTwoDollars && receipt.zeroPaidAiVisuals && !receipt.confirmButtonDisabled && !blocked.length ? 'PASS' : 'BLOCKED';
+    if (receipt.status === 'BLOCKED') receipt.reason = receipt.confirmButtonDisabled ? 'UI confirmation button disabled; inspect actual alerts.' : blocked.length ? 'Browser blocked a mutation or paid-provider request.' : 'Quote or zero-paid-AI-visual requirement failed.';
   } catch (error) { receipt.reason = String(error.message).replace(/https?:\/\/\S+/g, '[URL]').slice(0, 600); }
   finally {
     await browser.close();
-    const saved = await bucket.upload(`mystery-shopper/v3/receipts/technical-rerender-quote-${e.GITHUB_RUN_ID}.json`, JSON.stringify(receipt), { contentType: 'application/json', upsert: false, metadata: { ...reviewSummary(plan), status: receipt.status, ceilingUsd: receipt.ceilingUsd ?? null, quoteWithinTwoDollars: receipt.quoteWithinTwoDollars ?? false, zeroPaidAiVisuals: receipt.zeroPaidAiVisuals ?? false, confirmed: false, renderStarted: false } });
+    const relevantRows = Object.fromEntries(Object.entries(receipt.rows ?? {}).filter(([key]) => /Guion ya gastado|Techo que se autorizaría|Costo estimado|Límite autorizado|Imágenes generadas|Clips de video IA|Reserva|Contingencia/i.test(key)).map(([key, value]) => [sanitized(key), sanitized(value)]));
+    const saved = await bucket.upload(`mystery-shopper/v3/receipts/technical-rerender-quote-${e.GITHUB_RUN_ID}.json`, JSON.stringify(receipt), { contentType: 'application/json', upsert: false, metadata: { ...reviewSummary(plan), status: receipt.status, reason: sanitized(receipt.reason), confirmButtonDisabled: receipt.confirmButtonDisabled ?? null, blockedMutationCount: receipt.blockedMutations?.length ?? 0, alerts: (receipt.alerts ?? []).map(sanitized), relevantRows, ceilingUsd: receipt.ceilingUsd ?? null, quoteWithinTwoDollars: receipt.quoteWithinTwoDollars ?? false, zeroPaidAiVisuals: receipt.zeroPaidAiVisuals ?? false, confirmed: false, renderStarted: false } });
     if (saved.error || receipt.status !== 'PASS') process.exitCode = 1;
     console.log('UI quote recorded privately; no confirmation, reservation or generation.');
   }
