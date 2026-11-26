@@ -26,7 +26,7 @@ async function main() {
   const expectedHash = 'bde3a69d88f7980c0b319206f379ffd44fa91c179c123ea1d4faad79217d7c0e';
   if (audioProject.ownerId !== owner || audioProject.id !== audioId || audioProject.audio?.sha256 !== expectedHash || audioProject.audio?.bytes !== 4496877) throw Error('audio ownership/integrity mismatch');
   const prefix = `mystery-shopper/private-final-readonly/${randomUUID()}`;
-  const receipts = []; const screens = []; let blocked = 0;
+  const receipts = []; const screens = []; let blocked = 0; let checkpoint = "browser-login";
   const browser = await chromium.launch({headless:true});
   try {
     for (const width of [390,412]) {
@@ -45,6 +45,7 @@ async function main() {
       await page.waitForURL(url => url.origin === ORIGIN && url.pathname.startsWith('/dashboard'),{timeout:30000});
       authenticated = true;
       for (const route of ['/dashboard','/dashboard/long-form/new','/dashboard/new','/dashboard/podcast','/dashboard/audio-studio',`/dashboard/audio-studio/${audioId}`,...ids.map(id=>`/dashboard/videos/${id}`)]) {
+        checkpoint = route.startsWith('/dashboard/videos/') ? 'completed-video' : route === `/dashboard/audio-studio/${audioId}` ? 'completed-audio' : 'module-navigation';
         const response = await page.goto(`${ORIGIN}${route}`,{waitUntil:'domcontentloaded'});
         if (response?.status() !== 200 || new URL(page.url()).origin !== ORIGIN || new URL(page.url()).pathname !== route) throw Error('navigation failed');
         const body = await page.locator('body').innerText();
@@ -86,6 +87,10 @@ async function main() {
       }
       await context.close();
     }
+  } catch {
+    // Retain only safe progress metadata on failure; never serialize browser errors, bodies or URLs.
+    await sb.storage.from('videos').upload(`${prefix}/receipt.json`,JSON.stringify({version:1,passed:false,checkpoint,screens,receipts,blockedRequests:blocked,paidCalls:0,jobsCreated:0,createdAt:new Date().toISOString()}),{contentType:'application/json',upsert:false});
+    throw Error('private smoke incomplete');
   } finally { await browser.close(); }
   const receipt = {version:1,passed:true,screens,receipts,blockedRequests:blocked,paidCalls:0,jobsCreated:0,audioExistingMp3:'VERIFIED_PLAYBACK_AND_SHA256',createdAt:new Date().toISOString()};
   const saved = await sb.storage.from('videos').upload(`${prefix}/receipt.json`,JSON.stringify(receipt),{contentType:'application/json',upsert:false});
