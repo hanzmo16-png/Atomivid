@@ -1,7 +1,7 @@
 {
   "version": "quality-loop/1",
-  "enabled": false,
-  "updatedAt": "2026-11-26T20:12:50.149324+00:00",
+  "enabled": true,
+  "updatedAt": "2026-11-26T20:14:52.024702+00:00",
   "lease": null,
   "cycles": [
     {
@@ -1644,6 +1644,10 @@
     {
       "at": "2026-11-26T20:12:50.149324+00:00",
       "text": "Actual zero-provider-cost emergency stop verification by active Codex; no production data mutation"
+    },
+    {
+      "at": "2026-11-26T20:14:52.024702+00:00",
+      "text": "Actual zero-provider-cost emergency restart verification by active Codex; no production data mutation"
     }
   ],
   "lastAlert": "5e5d0f6f007156894becd561179d5827b88c5005c0301733f0dcb38e949baab2",
