@@ -8,6 +8,9 @@ import { fluxAllowedFor } from "@/lib/video/flux-images";
 import { createClient } from "@/lib/supabase/server";
 import { canPrepareAvatar } from "@/lib/video/avatar/private-access";
 import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
+import { createServiceClient } from "@/lib/supabase/service";
+import { normalQuotaPreview, type NormalQuotaPreview } from "@/lib/billing/quota";
+import { PlanQuotaNote } from "./PlanQuotaNote";
 
 const INCLUDES = [
   // The script source is chosen in the form; this static list must hold for both (T46 E).
@@ -56,6 +59,17 @@ export default async function NewVideoPage({
       .eq("status", "ready")
       .order("created_at", { ascending: false });
     existingAvatars = data ?? [];
+  }
+
+  // Solo informativo (cuántos videos quedan del plan): si la lectura falla, la página sigue igual y el servidor
+  // sigue aplicando el límite real al iniciar la producción.
+  let quota: NormalQuotaPreview | null = null;
+  if (user) {
+    try {
+      quota = await normalQuotaPreview(createServiceClient(), user.id, user);
+    } catch {
+      quota = null;
+    }
   }
 
   return (
@@ -121,6 +135,7 @@ export default async function NewVideoPage({
             Al enviar, primero preparamos el guion (el de IA o el tuyo): podrás revisarlo
             antes de producir el video final.
           </p>
+          <PlanQuotaNote preview={quota} />
         </Card>
       </div>
     </div>
