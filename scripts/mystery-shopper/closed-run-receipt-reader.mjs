@@ -6,7 +6,11 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const hash = x => typeof x === 'string' && /^[0-9a-f]{64}$/.test(x) ? x : undefined;
 const num = x => typeof x === 'number' && Number.isFinite(x) && x >= 0 ? x : undefined;
 const bool = x => typeof x === 'boolean' ? x : undefined;
-const safeFile = x => typeof x === 'string' && ROOTS.some(root=>new RegExp(`^${root}/[0-9a-f-]{36}/screen-\\d+\\.png$`).test(x)) ? x : undefined;
+const safeFile = x => typeof x === 'string' && ROOTS.some(root=>{
+  if(!x.startsWith(`${root}/`))return false;
+  const parts=x.slice(root.length+1).split('/');
+  return parts.length===2 && uuid.test(parts[0]) && /^screen-\d+\.png$/.test(parts[1]);
+}) ? x : undefined;
 const player = x => x && {width:num(x.width),height:num(x.height),durationSeconds:num(x.durationSeconds),timeAdvancedSeconds:num(x.timeAdvancedSeconds)};
 const digest = x => x && {bytes:num(x.bytes),sha256:hash(x.sha256)};
 export function sanitizeReceipt(raw) {
@@ -28,7 +32,7 @@ async function main() {
   const response = await fetch(`https://api.github.com/repos/${REPO}/actions/runs/${RUN}`,{headers:{authorization:`Bearer ${process.env.GITHUB_TOKEN}`,accept:'application/vnd.github+json'},redirect:'error',signal:AbortSignal.timeout(15000)});
   if (!response.ok) throw Error('closed run unavailable');
   const run = await response.json();
-  if (String(run.id)!==RUN || run.status!=='completed' || run.repository?.full_name!==REPO || !run.run_started_at || !run.updated_at) throw Error('exact run not closed');
+  if (String(run.id)!==RUN || run.status!=='completed' || run.repository?.full_name!==REPO || run.actor?.login!=='hanzmo16-png' || process.env.GITHUB_ACTOR!=='hanzmo16-png' || run.event!=='workflow_dispatch' || run.head_branch!=='codex/endgame-new-longform-readonly-20261126' || run.head_sha!=='f09700c9fa9f0e0f839d06a3dacf8272f1da3f39' || !run.run_started_at || !run.updated_at) throw Error('exact run not closed');
   const start=Date.parse(run.run_started_at), end=Date.parse(run.updated_at);
   if (!Number.isFinite(start) || !Number.isFinite(end) || end<start || end-start>30*60*1000) throw Error('run window unavailable');
   const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
@@ -51,7 +55,7 @@ async function main() {
   receipts.push({source,createdAt:object.created_at,receiptBytes:file.data.size,screenshotObjectCount:objects.data.filter(x=>/^screen-\d+\.png$/.test(x.name)).length,receipt:sanitized,privateReceiptUrlExpiresInSeconds:300,privateReceiptUrl:signed.data.signedUrl});
   coverage.push({prefix,matched:1});
   const out={version:1,runId:RUN,runStatus:'completed',runConclusion:['success','failure','cancelled','timed_out','skipped','neutral','action_required','stale'].includes(run.conclusion)?run.conclusion:'unknown',coverage,receipts,readAt:new Date().toISOString(),scope:'EXACT_CLOSED_RUN_RECEIPTS_ONLY_NO_SCREEN_BODY_READ'};
-  const saved=await bucket.upload(OUTPUT,JSON.stringify(out),{contentType:'application/json',upsert:false});
+  const saved=await bucket.upload(OUTPUT,JSON.stringify(out),{contentType:'application/json',upsert:false,metadata:out});
   if(saved.error)throw Error('private aggregate unavailable');
   console.log('PASS: exact closed-run aggregate retained privately; no browser executed.');
 }
