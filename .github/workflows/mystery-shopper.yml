@@ -31,6 +31,7 @@ jobs:
       MS_ACCESS_KEY_ID: ${{ inputs.key_id }}
       MS_ACCESS_CIPHERTEXT: ${{ inputs.sealed_access }}
       MS_OUT_DIR: /tmp/endgame01-private-longform
+      PRICING_ELEVENLABS_USD_PER_1K_CHARS: '0.2'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -54,7 +55,7 @@ jobs:
         run: sudo apt-get update -q && sudo apt-get install -yq ffmpeg && npm install --no-save --no-audit --no-fund playwright@1.49.1 && npx playwright install --with-deps chromium
       - name: Reuse an already settled QA script only
         if: inputs.operation == 'preflight' || inputs.operation == 'run'
-        run: node scripts/mystery-shopper/prepare-existing-longform.mjs
+        run: node --import tsx scripts/mystery-shopper/prepare-existing-longform.mjs
       - name: Read-only authenticated Preview preflight
         if: inputs.operation == 'preflight' || inputs.operation == 'run'
         env:

@@ -96,12 +96,13 @@ jobs:
         run: |
           umask 077
           set +e
-          npx tsx scripts/render-worker.ts > "$RUNNER_TEMP/render-private.log" 2>&1
+          npx tsx scripts/mystery-shopper/qa-longform-render-worker.ts > "$RUNNER_TEMP/render-private.log" 2>&1
           native_exit=$?
           set -e
           echo "Render process finished with exit code $native_exit; details remain private."
           exit "$native_exit"
         env:
+          LONG_FORM_MAX_TOTAL_USD: '2'
           ATOMIVID_RUNTIME: production
           LONG_FORM_RENDER_JOB_TIMEOUT_MIN: ${{ github.event.client_payload.longFormJobTimeoutMin || inputs.long_form_timeout_minutes || '330' }}
           REQUEST_ID: ${{ github.event.client_payload.requestId || inputs.request_id }}
