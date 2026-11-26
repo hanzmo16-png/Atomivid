@@ -9,6 +9,10 @@ async function main() {
   const id = env.MS_EXISTING_LF_ID;
   const expectedSha = env.MS_EXPECTED_LF_SHA256;
   const productionCommit = env.MS_EXPECTED_PRODUCTION_COMMIT;
+  const avId = env.MS_EXISTING_AV_ID;
+  const avSha = env.MS_EXPECTED_AV_SHA256;
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  if ((avId || avSha) && (!uuid.test(avId ?? '') || !/^[0-9a-f]{64}$/.test(avSha ?? ''))) throw Error('invalid existing AV bindings');
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id ?? '') || !/^[0-9a-f]{64}$/.test(expectedSha ?? '') || !/^[0-9a-f]{40}$/.test(productionCommit ?? '')) throw Error('invalid binding');
   for (const key of ['NEXT_PUBLIC_SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY','MYSTERY_SHOPPER_QA_EMAIL','MYSTERY_SHOPPER_QA_PASSWORD']) if (!env[key]) throw Error('bindings unavailable');
   const storageOrigin = new URL(env.NEXT_PUBLIC_SUPABASE_URL).origin;
@@ -21,18 +25,22 @@ async function main() {
   if (auth.error || !auth.data.user) throw Error('QA identity unavailable');
   const rows = await sb.from('video_requests').select('id,user_id,status,render_attempts,mode').eq('id',id);
   if (rows.error || !ownedCompleted(rows.data,auth.data.user.id,[id]) || rows.data[0].render_attempts !== 1 || rows.data[0].mode !== 'long_form') throw Error('delivery not owned completed attempt one LF');
+  if (avId) {
+    const av = await sb.from('podcast_studio_episodes').select('id,user_id,status,mode,video_path').eq('id',avId).maybeSingle();
+    if (av.error || av.data?.id !== avId || av.data.user_id !== auth.data.user.id || av.data.status !== 'ready' || av.data.mode !== 'avatar' || av.data.video_path !== `${auth.data.user.id}/podcast-studio/${avId}/episodio.mp4`) throw Error('existing AV not owned ready canonical episode');
+  }
   const prefix = `mystery-shopper/private-focused-longform/${randomUUID()}`;
   const screens = []; const viewports = []; let delivery; let blockedRequests = 0; let checkpoint = 'browser-login';
   const browser = await chromium.launch({headless:true});
-  async function capture(page, width, surface) {
-    const body = await page.screenshot({fullPage:true});
+  async function capture(page, width, surface, locator) {
+    const body = locator ? await locator.screenshot() : await page.screenshot({fullPage:true});
     const name = `${prefix}/screen-${screens.length}.png`;
     const saved = await sb.storage.from('videos').upload(name,body,{contentType:'image/png',upsert:false});
     if (saved.error) throw Error('private evidence unavailable');
     screens.push({width,surface,file:name,bytes:body.length,sha256:createHash('sha256').update(body).digest('hex')});
   }
   async function receipt(passed) {
-    const result = {version:1,passed,checkpoint,productionCommit,requestId:id,renderAttempt:1,viewports,screens,delivery,blockedRequests,paidCalls:0,jobsCreated:0,createdAt:new Date().toISOString(),runId:env.GITHUB_RUN_ID};
+    const result = {version:1,passed,checkpoint,productionCommit,requestId:id,renderAttempt:1,existingAvId:avId ?? null,viewports,screens,delivery,blockedRequests,paidCalls:0,jobsCreated:0,createdAt:new Date().toISOString(),runId:env.GITHUB_RUN_ID};
     const saved = await sb.storage.from('videos').upload(`${prefix}/receipt.json`,JSON.stringify(result),{contentType:'application/json',upsert:false});
     if (saved.error) throw Error('private receipt unavailable');
   }
@@ -43,7 +51,9 @@ async function main() {
       let authenticated = false;
       await context.route('**/*', async route => {
         const req = route.request();
-        if (!allowedRequest(req.url(),req.method(),authenticated,storageOrigin)) { blockedRequests++; return route.abort(); }
+        const u = new URL(req.url());
+        const exactExistingAvGet = authenticated && avId && req.method() === 'GET' && u.origin === ORIGIN && u.pathname === `/api/podcast/v3/${avId}`;
+        if (!exactExistingAvGet && !allowedRequest(req.url(),req.method(),authenticated,storageOrigin)) { blockedRequests++; return route.abort(); }
         return route.continue();
       });
       const page = await context.newPage();
@@ -93,8 +103,37 @@ async function main() {
       const downloaded = await digestDelivery(href,storageOrigin,cookies);
       if (downloaded.sha256 !== expectedSha || delivery && downloaded.bytes !== delivery.bytes) throw Error('canonical download digest mismatch');
       delivery = downloaded;
-      viewports.push({width,onboarding,libraryVisible:true,player:facts,downloadShaMatches:true});
       await capture(page,width,'completed-longform-player-download');
+      let avEpisode = null;
+      if (avId) {
+        checkpoint = 'existing-AV-library';
+        const episodeResponse = page.waitForResponse(r=>r.request().method()==='GET' && new URL(r.url()).origin===ORIGIN && new URL(r.url()).pathname===`/api/podcast/v3/${avId}`,{timeout:30000});
+        const archived = await page.goto(`${ORIGIN}/dashboard/podcast?vista=archivados&mostrar=500#episodios`,{waitUntil:'domcontentloaded'});
+        if (archived?.status() !== 200 || new URL(page.url()).pathname !== '/dashboard/podcast') throw Error('existing AV library unavailable');
+        const card = page.getByTestId(`studio-episode-${avId}`);
+        await card.waitFor({state:'visible'});
+        const open = card.getByTestId(`studio-abrir-${avId}`);
+        if (await open.isVisible().catch(()=>false)) await open.click();
+        const response = await episodeResponse;
+        if (response.status() !== 200) throw Error('existing AV owner GET failed');
+        const state = await response.json();
+        if (state.episode?.id !== avId || state.episode.status !== 'ready' || state.episode.output !== 'video' || !state.video_url || !allowedRequest(state.video_url,'GET',true,storageOrigin)) throw Error('existing AV ready video unavailable');
+        checkpoint = 'existing-AV-player';
+        const player = card.getByTestId('studio-player');
+        await player.waitFor({state:'visible'});
+        await player.evaluate(async v=>{v.muted=true;await v.play();});
+        await player.evaluate(async v=>{const deadline=Date.now()+30000;while(!(v.readyState>=2 && v.currentTime>0 && v.videoWidth>0)){if(Date.now()>deadline)throw Error('player timeout');await new Promise(r=>setTimeout(r,100));}});
+        const media = await player.evaluate(v=>{v.pause();return {width:v.videoWidth,height:v.videoHeight,durationSeconds:v.duration,timeAdvancedSeconds:v.currentTime};});
+        if (media.width !== 1920 || media.height !== 1080 || Math.abs(media.durationSeconds-57.759)>0.25) throw Error('existing AV media mismatch');
+        checkpoint = 'existing-AV-streamed-download';
+        const videoHref = await card.getByTestId('studio-download-mp4').getAttribute('href');
+        if (!videoHref) throw Error('existing AV download unavailable');
+        const avDelivery = await digestDelivery(videoHref,storageOrigin,cookies);
+        if (avDelivery.sha256 !== avSha || avDelivery.bytes !== 4749264) throw Error('existing AV digest mismatch');
+        avEpisode = {source:'AUTHENTIC_EXISTING_READY_AV_EPISODE_NOT_LANDING',player:media,delivery:avDelivery};
+        await capture(page,width,'authentic-existing-AV-episode-player-download',card);
+      }
+      viewports.push({width,onboarding,libraryVisible:true,player:facts,downloadShaMatches:true,avEpisode});
       await context.close();
     }
     checkpoint = 'complete';

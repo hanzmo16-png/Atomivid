@@ -2,6 +2,14 @@ name: focused-longform-readonly
 on:
   workflow_dispatch:
     inputs:
+      existing_av_id:
+        description: Optional existing QA-owned ready audiovisual studio episode UUID
+        required: false
+        type: string
+      expected_av_sha256:
+        description: Optional root-verified existing audiovisual video full SHA256
+        required: false
+        type: string
       existing_audio_id:
         description: Existing QA-owned real Audio Studio project UUID
         required: true
@@ -29,6 +37,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
+      MS_EXISTING_AV_ID: ${{ inputs.existing_av_id }}
+      MS_EXPECTED_AV_SHA256: ${{ inputs.expected_av_sha256 }}
       MS_EXISTING_AUDIO_ID: ${{ inputs.existing_audio_id }}
       MS_EXISTING_LF_ID: ${{ inputs.existing_lf_id }}
       MS_EXPECTED_LF_SHA256: ${{ inputs.expected_sha256 }}
