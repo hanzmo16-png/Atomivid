@@ -4,7 +4,7 @@ on:
     inputs:
       operation:
         type: choice
-        options: [prepare, admission, production-admission, preflight, budget, delivery, audit, run]
+        options: [prepare, admission, production-admission, preflight, budget, delivery, audit, voice-tail, run]
         default: prepare
       av_run:
         type: string
@@ -129,3 +129,11 @@ jobs:
         env:
           MS_AV_RUN_ID: ${{ inputs.av_run }}
         run: node --import tsx scripts/mystery-shopper/private-av-final-audit.mjs
+      - name: Install free raw-voice inspector
+        if: inputs.operation == 'voice-tail'
+        run: sudo apt-get update -q && sudo apt-get install -yq ffmpeg
+      - name: Inspect cached TTS alignment and true voice tail without generation
+        if: inputs.operation == 'voice-tail'
+        env:
+          MS_AV_RUN_ID: ${{ inputs.av_run }}
+        run: node scripts/mystery-shopper/private-av-voice-tail.mjs
