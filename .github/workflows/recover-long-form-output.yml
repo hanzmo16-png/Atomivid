@@ -8,7 +8,7 @@ on:
         required: true
         default: validate
         type: choice
-        options: [validate, record-original-proof, apply]
+        options: [validate, record-original-proof, apply, inspect, resume-before-upload]
       root_drive_receipt_sha256:
         description: "Nonsecret hash of root's independent private Drive readback receipt; record only"
         type: string
@@ -26,6 +26,15 @@ on:
         type: string
       validation_receipt_sha256:
         description: "Exact nonsecret hash of the root-reviewed validation receipt"
+        type: string
+      expected_intent_sha256:
+        description: "Exact inspected original intent SHA; resume only"
+        type: string
+      inspection_receipt_path:
+        description: "Exact root-reviewed private inspection receipt path; resume only"
+        type: string
+      inspection_receipt_sha256:
+        description: "Exact root-approved inspection body SHA; resume only"
         type: string
 permissions:
   contents: read
@@ -62,6 +71,9 @@ jobs:
           fi
         env:
           MODE: ${{ inputs.mode }}
+          EXPECTED_INTENT_SHA256: ${{ inputs.expected_intent_sha256 }}
+          INSPECTION_RECEIPT_PATH: ${{ inputs.inspection_receipt_path }}
+          INSPECTION_RECEIPT_SHA256: ${{ inputs.inspection_receipt_sha256 }}
           VALIDATION_RECEIPT_PATH: ${{ inputs.validation_receipt_path }}
           VALIDATION_RECEIPT_SHA256: ${{ inputs.validation_receipt_sha256 }}
           APPROVED_CANDIDATE_SHA256: ${{ inputs.approved_candidate_sha256 }}

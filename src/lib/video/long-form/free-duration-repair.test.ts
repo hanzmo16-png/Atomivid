@@ -7,8 +7,8 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import ffmpeg from "@ffmpeg-installer/ffmpeg";
 import { memoryOutputDeps, type LongFormOutputState } from "./output-finalize";
-import { sha256File } from "./output-media";
-import { loadApprovedCachedCandidate, assertPrivateCandidateUrl, hash, stableJson, type CachedRepairValidation, assertPrivateCanonicalUrl, assertProof, createDurationRepair, applyDurationRepair, ORIGINAL_SHA256, ORIGINAL_BYTES, ROOT_DRIVE_RECEIPT_SHA256, REPAIR_REQUEST_ID, NATIVE_RUN_ID, type PreservationProof } from "./free-duration-repair";
+import { sha256File, probeOutput } from "./output-media";
+import { type RepairDeps, inspectProbeDependency, probePinnedOutput, assertResumeInspection, FAILED_BEFORE_UPLOAD_RUN_ID, type BeforeUploadInspection, loadApprovedCachedCandidate, assertPrivateCandidateUrl, hash, stableJson, type CachedRepairValidation, assertPrivateCanonicalUrl, assertProof, createDurationRepair, applyDurationRepair, ORIGINAL_SHA256, ORIGINAL_BYTES, ROOT_DRIVE_RECEIPT_SHA256, REPAIR_REQUEST_ID, NATIVE_RUN_ID, type PreservationProof } from "./free-duration-repair";
 const run = promisify(execFile);
 const proof = (): PreservationProof => ({ version: 1, requestId: REPAIR_REQUEST_ID, qaOwnerId: "11111111-1111-1111-1111-111111111111", rootOwnerLogin: "owner", originalSha256: ORIGINAL_SHA256, originalBytes: ORIGINAL_BYTES, nativeRunId: NATIVE_RUN_ID,
   drive: { rootReceiptSha256: ROOT_DRIVE_RECEIPT_SHA256, independentReadback: true, privateOwnerOnly: true, method: "GoogleDriveConnector", verifiedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 3600_000).toISOString() }, ledgerObjectPaths: ["private/ledger.json"] });
@@ -27,6 +27,19 @@ for (const color of ["orange", "black"]) test(`real CPU ${color} source: bounded
     const originalHash = await sha256File(source);
     if (color === "black") await assert.rejects(createDurationRepair(source, candidate, 3), /black|visible/i);
     else {
+      const prevPath = process.env.PATH, prevProbe = process.env.FFPROBE_BIN;
+      try {
+        process.env.PATH = "/tmp/no-system-ffprobe"; delete process.env.FFPROBE_BIN;
+        const dependency = await inspectProbeDependency(source, probeOutput);
+        assert.equal(dependency.defaultProbeError?.code, "ENOENT");
+        assert.equal(dependency.defaultProbeError?.reason, "ffprobe_failed");
+        assert.equal(dependency.pinned.videoCodec, "h264");
+        assert.equal(dependency.pinned.audioCodec, "aac");
+        assert.ok((await probePinnedOutput(source)).durationSeconds >= 2);
+      } finally {
+        if (prevPath === undefined) delete process.env.PATH; else process.env.PATH = prevPath;
+        if (prevProbe === undefined) delete process.env.FFPROBE_BIN; else process.env.FFPROBE_BIN = prevProbe;
+      }
       const result = await createDurationRepair(source, candidate, 3);
       assert.equal(result.after.duration, 3);
       assert.ok(result.after.avEndDelta <= 0.1);
@@ -49,7 +62,7 @@ async function seam() {
   const finance = { request: { render_attempts: 1 }, pi: [{ committed_usd: 0.37 }], generationCosts: [{ total: 0.37 }], ledgerHash: "same" };
   const upload = out.deps.upload;
   out.deps.upload = async (p, f) => { const r = await upload(p, f); canonical = "candidate"; return r; };
-  const deps = { finalize: out.deps, canonicalHash: async () => canonical, snapshot: async () => structuredClone(finance),
+  const deps: RepairDeps = { finalize: out.deps, canonicalHash: async () => canonical, snapshot: async () => structuredClone(finance),
     fileHash: async (f: string) => f === original ? ORIGINAL_SHA256 : "candidate", candidateQc: async () => {},
     createIntent: async () => { if (intent) throw new Error("intent exists"); intent = true; }, preserve: async () => { preserves++; } };
   return { dir, out, state, deps, input: { requestId: REPAIR_REQUEST_ID, original, candidate, state, candidateHash: "candidate", proofHash: "rootproof" }, finance, setCanonical: (v: string) => { canonical = v; }, preserved: () => preserves, intentCreated: () => intent };
@@ -142,4 +155,43 @@ test("candidate review URL is private and restricted to the exact cached SHA pat
   assert.doesNotThrow(() => assertPrivateCandidateUrl(url, base, sha));
   assert.throws(() => assertPrivateCandidateUrl(url.replace(sha, "b".repeat(64)), base, sha));
   assert.throws(() => assertPrivateCandidateUrl(url.replace("example.supabase.co", "evil.example"), base, sha));
+});
+
+
+test("resume requires exact inspected intent, unchanged original state/source/finances and confirmed dependency gap", () => {
+  const intent = Buffer.from(stableJson({ originalSha256: ORIGINAL_SHA256, candidateSha256: "candidate", validationReceiptSha256: "validation", proofSha256: "proof", beforeSnapshotSha256: "snapshot", attempt: 1 }));
+  const inspection: BeforeUploadInspection = { status: "INSPECTED_ORIGINAL_BEFORE_UPLOAD", failedRunId: FAILED_BEFORE_UPLOAD_RUN_ID, intentSha256: hash(intent), canonicalSha256: ORIGINAL_SHA256,
+    originalStateSha256: "state", candidateSha256: "candidate", validationReceiptSha256: "validation", proofSha256: "proof", beforeSnapshotSha256: "snapshot", snapshotEqual: true, resultAbsent: true, dependencyGapConfirmed: true, originalMediaMatch: true };
+  const raw = Buffer.from(stableJson(inspection));
+  const input = { rawInspection: raw, expectedInspectionSha256: hash(raw), rawIntent: intent, expectedIntentSha256: hash(intent), canonicalSha256: ORIGINAL_SHA256,
+    originalStateSha256: "state", candidateSha256: "candidate", validationReceiptSha256: "validation", proofSha256: "proof", beforeSnapshotSha256: "snapshot" };
+  assert.doesNotThrow(() => assertResumeInspection(input));
+  for (const changed of [{ canonicalSha256: "candidate" }, { originalStateSha256: "changed" }, { beforeSnapshotSha256: "changed" }, { expectedIntentSha256: "0".repeat(64) }, { expectedInspectionSha256: "0".repeat(64) }]) assert.throws(() => assertResumeInspection({ ...input, ...changed }));
+  for (const changed of [{ dependencyGapConfirmed: false }, { originalMediaMatch: false }, { resultAbsent: false }, { failedRunId: 1 }]) {
+    const altered = Buffer.from(stableJson({ ...inspection, ...changed }));
+    assert.throws(() => assertResumeInspection({ ...input, rawInspection: altered, expectedInspectionSha256: hash(altered) }));
+  }
+  assert.deepEqual(intent, input.rawIntent, "inspection never deletes or rewrites the original intent");
+});
+
+test("explicit verified resume callback preserves existing intent/state and fences a second resume", async () => {
+  const s = await seam(); try {
+    const originalIntent = Buffer.from("immutable prior intent"), originalIntentHash = hash(originalIntent);
+    let fenced = false;
+    s.deps.createIntent = async () => { assert.equal(hash(originalIntent), originalIntentHash); if (fenced) throw new Error("resume fence exists"); fenced = true; };
+    s.deps.preserve = async (_a, _b, state) => { assert.deepEqual(state, s.state); };
+    await applyDurationRepair(s.input, s.deps);
+    assert.equal(s.out.calls.upload, 1);
+    assert.equal(hash(originalIntent), originalIntentHash);
+    s.setCanonical(ORIGINAL_SHA256);
+    await assert.rejects(applyDurationRepair(s.input, s.deps), /resume fence exists/);
+    assert.equal(s.out.calls.upload, 1);
+  } finally { await fs.rm(s.dir, { recursive: true, force: true }); }
+});
+
+test("ops adapter explicitly pins its finalizer probe and cannot delete old intent", async () => {
+  const source = await fs.readFile("scripts/repair-long-form-duration.ts", "utf8");
+  assert.match(source, /probe: probePinnedOutput/);
+  assert.match(source, /resume-before-upload\.json/);
+  assert.doesNotMatch(source, /\.(remove|delete)\(/);
 });

@@ -3,13 +3,13 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { createServiceClient } from "../src/lib/supabase/service";
 import { supabaseOutputDeps, canonicalOutputPath, type LongFormOutputState } from "../src/lib/video/long-form/output-finalize";
-import { loadApprovedCachedCandidate, assertPrivateCandidateUrl, probeRepairMedia, type CachedRepairValidation, assertRepairCandidateSize, assertPrivateCanonicalUrl, assertProof, ORIGINAL_BYTES, ORIGINAL_SHA256, NATIVE_RUN_ID, REPAIR_REQUEST_ID, ROOT_DRIVE_RECEIPT_SHA256, createDurationRepair, applyDurationRepair, hash, stableJson, type PreservationProof } from "../src/lib/video/long-form/free-duration-repair";
+import { inspectProbeDependency, probePinnedOutput, assertResumeInspection, FAILED_BEFORE_UPLOAD_RUN_ID, type BeforeUploadInspection, loadApprovedCachedCandidate, assertPrivateCandidateUrl, probeRepairMedia, type CachedRepairValidation, assertRepairCandidateSize, assertPrivateCanonicalUrl, assertProof, ORIGINAL_BYTES, ORIGINAL_SHA256, NATIVE_RUN_ID, REPAIR_REQUEST_ID, ROOT_DRIVE_RECEIPT_SHA256, createDurationRepair, applyDurationRepair, hash, stableJson, type PreservationProof } from "../src/lib/video/long-form/free-duration-repair";
 
 let privateFailure: ((message: string) => Promise<void>) | undefined;
 async function main() {
   const env = process.env;
   const mode = env.MODE ?? "validate";
-  if (!["record-original-proof", "validate", "apply"].includes(mode)) throw new Error("explicit_mode_required");
+  if (!["record-original-proof", "validate", "apply", "inspect", "resume-before-upload"].includes(mode)) throw new Error("explicit_mode_required");
   for (const [key, value] of Object.entries(env)) if (value && /^(ELEVENLABS|ANTHROPIC|OPENAI|PEXELS|FAL|RECRAFT|VEO|BEATOVEN).*KEY$/.test(key)) throw new Error("provider_credential_forbidden");
   if (env.GITHUB_REPOSITORY !== "hanzmo16-png/Atomivid" || !env.GITHUB_TOKEN) throw new Error("repository_context_required");
   if (env.GITHUB_ACTOR !== env.GITHUB_REPOSITORY_OWNER) throw new Error("repository_owner_required");
@@ -17,6 +17,12 @@ async function main() {
   if (!runRes.ok) throw new Error("native_run_read_failed");
   const native = await runRes.json() as { status: string; conclusion: string };
   if (native.status !== "completed" || native.conclusion !== "success") throw new Error("native_run_not_closed_success");
+  if (mode === "inspect" || mode === "resume-before-upload") {
+    const failedRes = await fetch(`https://api.github.com/repos/${env.GITHUB_REPOSITORY}/actions/runs/${FAILED_BEFORE_UPLOAD_RUN_ID}`, { headers: { Authorization: `Bearer ${env.GITHUB_TOKEN}`, Accept: "application/vnd.github+json" }, signal: AbortSignal.timeout(30_000) });
+    if (!failedRes.ok) throw new Error("failed_run_read_failed");
+    const failed = await failedRes.json() as { status: string; conclusion: string };
+    if (failed.status !== "completed" || failed.conclusion !== "failure") throw new Error("exact_failed_run_not_closed");
+  }
   const service = createServiceClient(), storage = service.storage.from("videos"), requestId = REPAIR_REQUEST_ID;
   const bucket = await service.storage.getBucket("videos");
   if (bucket.error || bucket.data?.public !== false) throw new Error("private_evidence_bucket_required");
@@ -25,7 +31,7 @@ async function main() {
   const rootProofPath = `${prefix}/root-preservation-proof.json`;
   privateFailure = async (message) => {
     const diagnostic = { status: "STOPPED_NO_AUTOMATIC_RETRY", failureCode: message.slice(0, 200), runId: env.GITHUB_RUN_ID, mode };
-    await storage.upload(`${prefix}/diagnostic-${env.GITHUB_RUN_ID}.json`, Buffer.from(stableJson(diagnostic)), { upsert: false, contentType: "application/json", metadata: diagnostic });
+    await storage.upload(`${prefix}/${mode === "inspect" ? "inspection" : "diagnostic"}-${env.GITHUB_RUN_ID}.json`, Buffer.from(stableJson(diagnostic)), { upsert: false, contentType: "application/json", metadata: diagnostic });
   };
   async function download(p: string) { const { data, error } = await storage.download(p); if (error || !data) throw new Error("required_object_read_failed"); return Buffer.from(await data.arrayBuffer()); }
   async function immutable(p: string, bytes: Buffer, metadata: Record<string, unknown> = {}) { if (bytes.length > 512 * 1024) throw new Error("small_private_journal_limit"); const { error } = await storage.upload(p, bytes, { upsert: false, contentType: "application/json", metadata }); if (error) throw new Error("immutable_write_failed_or_intent_exists_NO_RETRY"); }
@@ -58,6 +64,7 @@ async function main() {
   await fs.mkdir(dir, { recursive: true });
   const original = path.join(dir, "original.mp4"), candidate = path.join(dir, "candidate.mp4");
   const originalBytes = await download(objectPath);
+  if (hash(originalBytes) === env.APPROVED_CANDIDATE_SHA256) throw new Error("canonical_already_candidate_SEPARATE_VERIFY_ONLY_REQUIRED");
   if (hash(originalBytes) !== ORIGINAL_SHA256 || originalBytes.length !== ORIGINAL_BYTES) throw new Error("exact_original_required");
   await fs.writeFile(original, originalBytes);
   const finalDeps = supabaseOutputDeps(service);
@@ -112,36 +119,89 @@ async function main() {
     approvedCandidateSha256: env.APPROVED_CANDIDATE_SHA256 ?? "", proofSha256: proofHash, beforeSnapshotSha256: hash(stableJson(before)) }, download);
   await fs.writeFile(candidate, cached.bytes);
   assertRepairCandidateSize(cached.bytes.length, finalDeps.storageMaxBytes);
+  const dependencyInspection = mode === "inspect" ? await inspectProbeDependency(candidate, finalDeps.probe) : undefined;
   const beforeMedia = await probeRepairMedia(original), afterMedia = await probeRepairMedia(candidate);
   // No encoder here: the existing finalizer independently probes and black-checks these approved bytes.
   media = { before: beforeMedia, after: afterMedia, originalHash: ORIGINAL_SHA256, candidateHash: cached.receipt.candidateSha256, target: 180 };
+  let resumeAudit: { rawIntent: Buffer; intentSha256: string; originalStateSha256: string; inspectionSha256?: string } | undefined;
+  if (mode === "inspect" || mode === "resume-before-upload") {
+    const rawIntent = await download(`${prefix}/intent.json`), intentSha256 = hash(rawIntent);
+    const intent = JSON.parse(rawIntent.toString()) as Record<string, unknown>;
+    const originalStateRaw = await download(`${prefix}/original-state.json`), originalStateSha256 = hash(originalStateRaw);
+    const beforeSnapshotSha256 = hash(stableJson(before));
+    const listed = await storage.list(prefix, { search: "result.json", limit: 100 });
+    if (listed.error || (listed.data ?? []).some(x => x.name === "result.json")) throw new Error("result_exists_or_uncertain_SEPARATE_VERIFY_ONLY_REQUIRED");
+    if (hash(stableJson(state)) !== originalStateSha256 || state.sha256 !== ORIGINAL_SHA256 || state.costsRecorded !== true || state.attempt !== 1
+      || intent.originalSha256 !== ORIGINAL_SHA256 || intent.candidateSha256 !== media.candidateHash || intent.validationReceiptSha256 !== env.VALIDATION_RECEIPT_SHA256
+      || intent.proofSha256 !== proofHash || intent.beforeSnapshotSha256 !== beforeSnapshotSha256 || intent.attempt !== 1) throw new Error("existing_intent_original_state_or_financial_snapshot_changed");
+    resumeAudit = { rawIntent, intentSha256, originalStateSha256 };
+    if (mode === "inspect") {
+      // This executes the unchanged default dependency BEFORE invoking the versioned probe.
+      const probes = dependencyInspection!;
+      const originalProbe = await probePinnedOutput(original);
+      const originalMediaMatch = originalProbe.bytes === ORIGINAL_BYTES && state.delivered?.bytes === originalProbe.bytes
+        && Math.abs((state.delivered?.durationSeconds ?? 0) - originalProbe.durationSeconds) < 0.05
+        && state.delivered?.videoCodec === originalProbe.videoCodec && state.delivered?.audioCodec === originalProbe.audioCodec;
+      const inspection = { status: "INSPECTED_ORIGINAL_BEFORE_UPLOAD", failedRunId: FAILED_BEFORE_UPLOAD_RUN_ID, intentSha256, canonicalSha256: hash(originalBytes), originalStateSha256,
+        candidateSha256: media.candidateHash, validationReceiptSha256: env.VALIDATION_RECEIPT_SHA256, proofSha256: proofHash, beforeSnapshotSha256,
+        snapshotEqual: true, resultAbsent: true, originalMediaMatch, ...probes, originalProbe };
+      const inspectionBytes = Buffer.from(stableJson(inspection));
+      await immutable(`${prefix}/inspection-${env.GITHUB_RUN_ID}.json`, inspectionBytes, { status: inspection.status, inspectionReceiptSha256: hash(inspectionBytes),
+        failedRunId: FAILED_BEFORE_UPLOAD_RUN_ID, intentSha256, canonicalSha256: inspection.canonicalSha256, originalStateSha256, candidateSha256: media.candidateHash,
+        validationReceiptSha256: env.VALIDATION_RECEIPT_SHA256, proofSha256: proofHash, beforeSnapshotSha256, snapshotEqual: true, resultAbsent: true,
+        dependencyGapConfirmed: probes.dependencyGapConfirmed, defaultProbeError: probes.defaultProbeError, pinnedProbe: probes.pinned, originalMediaMatch });
+      console.log("Private read-only inspection retained; no canonical or intent mutation.");
+      return;
+    }
+    const inspectionPath = env.INSPECTION_RECEIPT_PATH ?? "";
+    if (!inspectionPath.startsWith(`${prefix}/inspection-`) || !/^[0-9]+\.json$/.test(inspectionPath.slice(`${prefix}/inspection-`.length))) throw new Error("exact_inspection_receipt_path_required");
+    const rawInspection = await download(inspectionPath);
+    assertResumeInspection({ rawInspection, expectedInspectionSha256: env.INSPECTION_RECEIPT_SHA256 ?? "", rawIntent, expectedIntentSha256: env.EXPECTED_INTENT_SHA256 ?? "",
+      canonicalSha256: hash(originalBytes), originalStateSha256, candidateSha256: media.candidateHash, validationReceiptSha256: env.VALIDATION_RECEIPT_SHA256 ?? "", proofSha256: proofHash, beforeSnapshotSha256 });
+    resumeAudit.inspectionSha256 = hash(rawInspection);
+  }
   const result = await applyDurationRepair({ requestId, original, candidate, proofHash, state, candidateHash: media.candidateHash }, {
     finalize: {
       ...finalDeps,
+      probe: probePinnedOutput,
       upload: async (p, file) => {
+        if (resumeAudit && hash(stableJson(await finalDeps.readState(requestId))) !== resumeAudit.originalStateSha256) throw new Error("resume_original_state_changed_before_upload");
         const { error } = await storage.upload(p, await fs.readFile(file), { contentType: "video/mp4", upsert: true });
         if (error) throw new Error("canonical_upload_ambiguous_NO_RETRY");
         return { method: "standard", attempts: [{ method: "standard", attempt: 1, ok: true }] };
       },
     },
     canonicalHash: async () => hash(await download(objectPath)), snapshot,
-    createIntent: async intent => immutable(`${prefix}/intent.json`, Buffer.from(stableJson({ ...(intent as Record<string, unknown>), validationReceiptPath: env.VALIDATION_RECEIPT_PATH, validationReceiptSha256: env.VALIDATION_RECEIPT_SHA256 }))),
+    createIntent: async intent => {
+      if (resumeAudit) {
+        if (hash(await download(`${prefix}/intent.json`)) !== resumeAudit.intentSha256 || hash(stableJson(await snapshot())) !== hash(stableJson(before))) throw new Error("resume_original_intent_or_snapshot_changed");
+        await immutable(`${prefix}/resume-before-upload.json`, Buffer.from(stableJson({ failedRunId: FAILED_BEFORE_UPLOAD_RUN_ID, originalIntentSha256: resumeAudit.intentSha256,
+          inspectionReceiptSha256: resumeAudit.inspectionSha256, candidateSha256: media.candidateHash, validationReceiptSha256: env.VALIDATION_RECEIPT_SHA256, proofSha256: proofHash,
+          beforeSnapshotSha256: hash(stableJson(before)), resumeRunId: env.GITHUB_RUN_ID })), { status: "EXPLICIT_RESUME_FENCE_CREATED", originalIntentSha256: resumeAudit.intentSha256 });
+        return; // Preserve, never delete or replace, the original intent.
+      }
+      await immutable(`${prefix}/intent.json`, Buffer.from(stableJson({ ...(intent as Record<string, unknown>), validationReceiptPath: env.VALIDATION_RECEIPT_PATH, validationReceiptSha256: env.VALIDATION_RECEIPT_SHA256 })));
+    },
     preserve: async (_source, _output, originalState: LongFormOutputState) => {
       // Original media already preserved and independently verified in private Drive.
       // No duplicate original/candidate binary objects consume unknown plan headroom.
+      if (resumeAudit) {
+        if (hash(await download(`${prefix}/original-state.json`)) !== resumeAudit.originalStateSha256 || hash(stableJson(originalState)) !== resumeAudit.originalStateSha256) throw new Error("resume_preserved_original_state_changed");
+        return;
+      }
       await immutable(`${prefix}/original-state.json`, Buffer.from(stableJson(originalState)));
     },
   });
   const after = await snapshot();
   const afterState = await finalDeps.readState(requestId);
   if (afterState?.costsRecorded !== true || afterState.sha256 !== media.candidateHash || afterState.attempt !== 1) throw new Error("repair_state_readback_failed_NO_RETRY");
-  const receipt = { validationReceiptPath: env.VALIDATION_RECEIPT_PATH, validationReceiptSha256: env.VALIDATION_RECEIPT_SHA256, lineage: result.lineage, beforeSha256: result.beforeHash, afterSha256: hash(stableJson(after)), afterSnapshot: after, afterState, media };
+  const receipt = { ...(resumeAudit ? { resumedFromIntentSha256: resumeAudit.intentSha256, inspectionReceiptSha256: resumeAudit.inspectionSha256 } : {}), validationReceiptPath: env.VALIDATION_RECEIPT_PATH, validationReceiptSha256: env.VALIDATION_RECEIPT_SHA256, lineage: result.lineage, beforeSha256: result.beforeHash, afterSha256: hash(stableJson(after)), afterSnapshot: after, afterState, media };
   const candidateBytes = (await fs.stat(candidate)).size;
   const signed = await storage.createSignedUrl(objectPath, 300);
   if (signed.error || !signed.data?.signedUrl) throw new Error("postreadback_private_url_failed_NO_RETRY");
   assertPrivateCanonicalUrl(signed.data.signedUrl, env.NEXT_PUBLIC_SUPABASE_URL ?? "");
   await immutable(`${prefix}/result.json`, Buffer.from(stableJson(receipt)), {
-    status: "REPAIRED_READBACK_VERIFIED", proofSha256: proofHash, candidateSha256: media.candidateHash,
+    status: "REPAIRED_READBACK_VERIFIED", resumedBeforeUpload: Boolean(resumeAudit), originalIntentSha256: resumeAudit?.intentSha256, inspectionReceiptSha256: resumeAudit?.inspectionSha256, proofSha256: proofHash, candidateSha256: media.candidateHash,
     bytes: candidateBytes, metrics: media.after, snapshotEqual: receipt.beforeSha256 === receipt.afterSha256,
     signedUrl: signed.data.signedUrl, signedUrlExpiresAt: new Date(Date.now() + 300_000).toISOString(),
   });

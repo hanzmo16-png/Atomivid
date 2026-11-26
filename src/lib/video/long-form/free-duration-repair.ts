@@ -8,7 +8,7 @@ import ffmpeg from "@ffmpeg-installer/ffmpeg";
 import ffprobe from "@ffprobe-installer/ffprobe";
 import { assertNoLongBlackIntervals, parseBlackDetectOutput } from "./long-form-qc";
 import { finalizeLongFormOutput, type LongFormOutputState, type OutputFinalizeDeps } from "./output-finalize";
-import { sha256File } from "./output-media";
+import { sha256File, type OutputMediaMetrics } from "./output-media";
 
 const run = promisify(execFile);
 export const ORIGINAL_SHA256 = "c51e179b5aaa05cf4b443b1c046b14c58795d796e47ea38abb6135785777a0d4";
@@ -80,6 +80,43 @@ export async function probeRepairMedia(file: string) {
   if (![duration, audioDuration, avEndDelta].every(Number.isFinite) || duration <= 0 || avEndDelta > 0.1
     || Math.abs(Number(video.start_time ?? 0) - Number(audio.start_time ?? 0)) > 0.05) throw new Error("repair_av_sync_failed");
   return { duration, audioDuration, avEndDelta, width: video.width, height: video.height, fps: video.r_frame_rate };
+}
+/** Explicit installer binary, never the system PATH or a mutable FFMPEG/FFPROBE env override. */
+export async function probePinnedOutput(file: string): Promise<OutputMediaMetrics> {
+  const [stat, result] = await Promise.all([fs.stat(file), run(ffprobe.path, ["-v", "error", "-show_streams", "-show_format", "-of", "json", file], { timeout: 30_000, maxBuffer: 1024 * 1024 })]);
+  const j = JSON.parse(result.stdout) as { format?: { duration?: string }; streams?: { codec_type?: string; codec_name?: string; width?: number; height?: number; avg_frame_rate?: string; r_frame_rate?: string; bit_rate?: string }[] };
+  const video = j.streams?.find(x => x.codec_type === "video"), audio = j.streams?.find(x => x.codec_type === "audio");
+  const durationSeconds = Number(j.format?.duration ?? 0);
+  const [n, d] = (video?.avg_frame_rate ?? video?.r_frame_rate ?? "0/1").split("/").map(Number);
+  const kbps = (v?: string) => v && Number.isFinite(Number(v)) ? Math.round(Number(v) / 1000) : null;
+  return { bytes: stat.size, durationSeconds, width: video?.width ?? null, height: video?.height ?? null, fps: d ? n / d : null,
+    videoCodec: video?.codec_name ?? null, audioCodec: audio?.codec_name ?? null, totalKbps: durationSeconds > 0 ? Math.round(stat.size * 8 / durationSeconds / 1000) : 0, videoKbps: kbps(video?.bit_rate), audioKbps: kbps(audio?.bit_rate) };
+}
+export async function inspectProbeDependency(file: string, defaultProbe: (file: string) => Promise<OutputMediaMetrics>) {
+  let defaultProbePassed = false;
+  let defaultProbeError: { code: string; reason: string; message: string } | null = null;
+  // Deliberately run the unchanged production dependency first, before the pinned adapter.
+  try { await defaultProbe(file); defaultProbePassed = true; }
+  catch (err) { const e = err as { code?: string; message?: string }; defaultProbeError = { code: e.code ?? "unknown", reason: "ffprobe_failed", message: (e.message ?? String(err)).slice(0, 1000) }; }
+  const pinned = await probePinnedOutput(file);
+  return { defaultProbePassed, defaultProbeError, pinned, dependencyGapConfirmed: !defaultProbePassed && defaultProbeError?.code === "ENOENT" && Boolean(pinned.videoCodec && pinned.audioCodec && pinned.durationSeconds >= 180) };
+}
+export const FAILED_BEFORE_UPLOAD_RUN_ID = 45850929535;
+export type BeforeUploadInspection = {
+  status: "INSPECTED_ORIGINAL_BEFORE_UPLOAD"; failedRunId: number; intentSha256: string; canonicalSha256: string; originalStateSha256: string;
+  candidateSha256: string; validationReceiptSha256: string; proofSha256: string; beforeSnapshotSha256: string; snapshotEqual: true; resultAbsent: true; dependencyGapConfirmed: true; originalMediaMatch: true;
+};
+export function assertResumeInspection(input: { rawInspection: Buffer; expectedInspectionSha256: string; rawIntent: Buffer; expectedIntentSha256: string; canonicalSha256: string; originalStateSha256: string; candidateSha256: string; validationReceiptSha256: string; proofSha256: string; beforeSnapshotSha256: string }) {
+  if (!/^[a-f0-9]{64}$/.test(input.expectedIntentSha256) || hash(input.rawIntent) !== input.expectedIntentSha256 || hash(input.rawInspection) !== input.expectedInspectionSha256) throw new Error("exact_root_approved_inspection_and_intent_required");
+  const inspected = JSON.parse(input.rawInspection.toString()) as BeforeUploadInspection;
+  const intent = JSON.parse(input.rawIntent.toString()) as Record<string, unknown>;
+  if (inspected.status !== "INSPECTED_ORIGINAL_BEFORE_UPLOAD" || inspected.failedRunId !== FAILED_BEFORE_UPLOAD_RUN_ID || inspected.intentSha256 !== input.expectedIntentSha256
+    || inspected.canonicalSha256 !== ORIGINAL_SHA256 || input.canonicalSha256 !== ORIGINAL_SHA256 || inspected.originalStateSha256 !== input.originalStateSha256
+    || inspected.candidateSha256 !== input.candidateSha256 || inspected.validationReceiptSha256 !== input.validationReceiptSha256 || inspected.proofSha256 !== input.proofSha256
+    || inspected.beforeSnapshotSha256 !== input.beforeSnapshotSha256 || inspected.snapshotEqual !== true || inspected.resultAbsent !== true || inspected.dependencyGapConfirmed !== true || inspected.originalMediaMatch !== true
+    || intent.originalSha256 !== ORIGINAL_SHA256 || intent.candidateSha256 !== input.candidateSha256 || intent.validationReceiptSha256 !== input.validationReceiptSha256
+    || intent.proofSha256 !== input.proofSha256 || intent.beforeSnapshotSha256 !== input.beforeSnapshotSha256 || intent.attempt !== 1) throw new Error("resume_before_upload_binding_mismatch");
+  return inspected;
 }
 /** Clone the last decoded visible frame and pad existing mixed audio; never invent or resynthesize narration. */
 export async function createDurationRepair(source: string, candidate: string, target = 180) {
