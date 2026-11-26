@@ -1,15 +1,23 @@
-name: final-authenticated-readonly
+name: focused-longform-readonly
 on:
   workflow_dispatch:
     inputs:
-      existing_audio_id:
-        description: Existing QA-owned completed Audio Studio project UUID
+      existing_lf_id:
+        description: Existing QA-owned completed Long Form UUID
+        required: true
+        type: string
+      expected_sha256:
+        description: Root-verified canonical full video SHA256
+        required: true
+        type: string
+      production_commit:
+        description: Root-verified READY production commit
         required: true
         type: string
 permissions:
   contents: read
 concurrency:
-  group: final-authenticated-readonly
+  group: focused-longform-readonly
   cancel-in-progress: false
 jobs:
   smoke:
@@ -17,7 +25,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
-      MS_EXISTING_AUDIO_ID: ${{ inputs.existing_audio_id }}
+      MS_EXISTING_LF_ID: ${{ inputs.existing_lf_id }}
+      MS_EXPECTED_LF_SHA256: ${{ inputs.expected_sha256 }}
+      MS_EXPECTED_PRODUCTION_COMMIT: ${{ inputs.production_commit }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       MYSTERY_SHOPPER_QA_EMAIL: ${{ secrets.MYSTERY_SHOPPER_QA_EMAIL }}
@@ -33,4 +43,4 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: node --test scripts/mystery-shopper/final-readonly-policy.test.mjs
       - name: Production read-only mobile smoke; evidence exclusively in private Storage
-        run: node scripts/mystery-shopper/final-authenticated-readonly.mjs
+        run: node scripts/mystery-shopper/focused-longform-readonly.mjs
