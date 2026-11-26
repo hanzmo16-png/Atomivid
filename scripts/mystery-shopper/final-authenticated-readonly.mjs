@@ -17,6 +17,14 @@ async function main() {
   const ids = ['ed438c74-b0bb-43e1-8153-ea8c993d9877','c6264af5-e4ec-8c36-9b9a-946bd4b09c03'];
   const rows = await sb.from('video_requests').select('id,user_id,status').in('id',ids);
   if (rows.error || !ownedCompleted(rows.data,login.data.user.id,ids)) throw Error('existing deliveries not owned/completed');
+  const audioId = env.MS_EXISTING_AUDIO_ID;
+  if (!/^[0-9a-f-]{36}$/.test(audioId ?? '')) throw Error('existing audio binding required');
+  const owner = login.data.user.id;
+  const project = await sb.storage.from('videos').download(`audio-studio/v1/${owner}/${audioId}.json`);
+  if (project.error || !project.data) throw Error('owned audio unavailable');
+  const audioProject = JSON.parse(await project.data.text());
+  const expectedHash = 'bde3a69d88f7980c0b319206f379ffd44fa91c179c123ea1d4faad79217d7c0e';
+  if (audioProject.ownerId !== owner || audioProject.id !== audioId || audioProject.audio?.sha256 !== expectedHash || audioProject.audio?.bytes !== 4496877) throw Error('audio ownership/integrity mismatch');
   const prefix = `mystery-shopper/private-final-readonly/${randomUUID()}`;
   const receipts = []; const screens = []; let blocked = 0;
   const browser = await chromium.launch({headless:true});
@@ -36,7 +44,7 @@ async function main() {
       await page.getByRole('button',{name:'Iniciar sesión',exact:true}).click();
       await page.waitForURL(url => url.origin === ORIGIN && url.pathname.startsWith('/dashboard'),{timeout:30000});
       authenticated = true;
-      for (const route of ['/dashboard','/dashboard/long-form/new','/dashboard/new','/dashboard/podcast','/dashboard/audio-studio',...ids.map(id=>`/dashboard/videos/${id}`)]) {
+      for (const route of ['/dashboard','/dashboard/long-form/new','/dashboard/new','/dashboard/podcast','/dashboard/audio-studio',`/dashboard/audio-studio/${audioId}`,...ids.map(id=>`/dashboard/videos/${id}`)]) {
         const response = await page.goto(`${ORIGIN}${route}`,{waitUntil:'domcontentloaded'});
         if (response?.status() !== 200 || new URL(page.url()).origin !== ORIGIN || new URL(page.url()).pathname !== route) throw Error('navigation failed');
         const body = await page.locator('body').innerText();
@@ -54,7 +62,22 @@ async function main() {
           const downloaded = await page.evaluate(async url => { const r=await fetch(url,{headers:{Range:'bytes=0-1023'}}); return {ok:r.ok,bytes:(await r.arrayBuffer()).byteLength}; },href);
           if (!downloaded.ok || !downloaded.bytes) throw Error('download failed');
         }
-        screens.push({width,surface:route.startsWith('/dashboard/videos/')?'completed-video':route.split('/').pop(),passed:true});
+        if (route === `/dashboard/audio-studio/${audioId}`) {
+          const audio = page.locator('audio').first();
+          await audio.waitFor();
+          await audio.evaluate(async a => { a.muted=true; await a.play(); });
+          await page.waitForFunction(() => { const a=document.querySelector('audio'); return a && a.currentTime>0 && a.duration>180; });
+          await audio.evaluate(a=>a.pause());
+          const href = await page.getByRole('link',{name:'Descargar MP3',exact:true}).getAttribute('href');
+          if (!href || !allowedRequest(new URL(href,ORIGIN).href,'GET',true,storageOrigin)) throw Error('unsafe audio delivery');
+          const facts = await page.evaluate(async url => {
+            const r=await fetch(url); const data=await r.arrayBuffer();
+            const hash=await crypto.subtle.digest('SHA-256',data);
+            return {ok:r.ok,bytes:data.byteLength,sha256:[...new Uint8Array(hash)].map(x=>x.toString(16).padStart(2,'0')).join('')};
+          },href);
+          if (!facts.ok || facts.bytes !== 4496877 || facts.sha256 !== expectedHash) throw Error('audio download integrity mismatch');
+        }
+        screens.push({width,surface:route.startsWith('/dashboard/videos/')?'completed-video':route === `/dashboard/audio-studio/${audioId}`?'completed-audio':route.split('/').pop(),passed:true});
         const bytes = await page.screenshot({fullPage:true});
         const name = `${prefix}/screen-${receipts.length}.png`;
         const saved = await sb.storage.from('videos').upload(name,bytes,{contentType:'image/png',upsert:false});
@@ -64,7 +87,7 @@ async function main() {
       await context.close();
     }
   } finally { await browser.close(); }
-  const receipt = {version:1,passed:true,screens,receipts,blockedRequests:blocked,paidCalls:0,jobsCreated:0,audioExistingMp3:'NOT_VERIFIED',createdAt:new Date().toISOString()};
+  const receipt = {version:1,passed:true,screens,receipts,blockedRequests:blocked,paidCalls:0,jobsCreated:0,audioExistingMp3:'VERIFIED_PLAYBACK_AND_SHA256',createdAt:new Date().toISOString()};
   const saved = await sb.storage.from('videos').upload(`${prefix}/receipt.json`,JSON.stringify(receipt),{contentType:'application/json',upsert:false});
   if (saved.error) throw Error('receipt unavailable');
   console.log('PASS: authenticated mobile read-only checks; private evidence retained.');

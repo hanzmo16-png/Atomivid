@@ -1,6 +1,11 @@
 name: final-authenticated-readonly
 on:
   workflow_dispatch:
+    inputs:
+      existing_audio_id:
+        description: Existing QA-owned completed Audio Studio project UUID
+        required: true
+        type: string
 permissions:
   contents: read
 concurrency:
@@ -12,6 +17,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
+      MS_EXISTING_AUDIO_ID: ${{ inputs.existing_audio_id }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       MYSTERY_SHOPPER_QA_EMAIL: ${{ secrets.MYSTERY_SHOPPER_QA_EMAIL }}
