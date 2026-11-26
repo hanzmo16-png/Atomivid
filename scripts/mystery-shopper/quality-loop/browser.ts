@@ -2,7 +2,7 @@
 import { findingsFrom, technicalTerms, type PageMetrics } from '../../../src/lib/mystery-shopper/live';
 import { inspectCampaign320SurfaceReadOnly } from '../../../src/lib/mystery-shopper/v3/campaign-320-readonly-preflight';
 import { classifyAuth } from '../../../src/lib/mystery-shopper/v3/auth-outcome';
-import { allowBrowserRequest, sentinelStatus, targetOrigin, PRODUCT_PROVIDER_IMPACT } from '../../../src/lib/mystery-shopper/quality-loop/policy';
+import { allowBrowserRequest, sentinelStatus, targetOrigin, providerReadiness } from '../../../src/lib/mystery-shopper/quality-loop/policy';
 import { sampleMedia } from './media';
 import { smoke } from '../smoke';
 import { PRODUCTS, type Cycle, type Check } from '../../../src/lib/mystery-shopper/quality-loop/model';
@@ -52,8 +52,7 @@ export async function observe(env: Record<string,string|undefined>, input: Pick<
     add({id:'sentinel-read',product:'command-center',state:sentinel==='READ'?'PASS':'BLOCKED',severity:'P1',owner:'codex',module:'sentinel',detail:sentinel==='READ'?'Existing Resource Sentinel read successfully; private balances omitted':'Sentinel not deployed, unavailable or QA lacks admin access; provider-dependent checks blocked'});
     // Only operational statuses leave this process; never provider balances or private financial rows.
     for(const product of PRODUCTS){
-      const affected=(sent.data?.sentinel?.accounts||[]).filter((a:{providers?:string[]})=>a.providers?.some(p=>(PRODUCT_PROVIDER_IMPACT[product] as readonly string[]).includes(p)));
-      const good=sentinel==='READ'&&affected.length>0&&affected.every((a:{operationalLevel?:string,balanceStatus?:string})=>a.operationalLevel==='GREEN'&&a.balanceStatus==='REAL');
+      const good=sentinel==='READ'&&providerReadiness(product,sent.data);
       add({id:'provider-readiness',product,state:good?'PASS':'BLOCKED',severity:'P1',owner:'codex',module:'sentinel',detail:good?'Readiness observed only; paid tests remain prohibited':'Provider capacity, balances, reservations or worker coverage unverified; no provider calls made'});
     }
     const routes=[{product:'youtube',path:'/dashboard/long-form/new'},{product:'reels',path:'/dashboard/new?formato=reel'},{product:'audio-podcast',path:'/dashboard/audio-studio'},{product:'video-podcast',path:'/dashboard/podcast'},{product:'library',path:'/dashboard'},{product:'commercial',path:'/dashboard/billing'}] as const;
@@ -80,7 +79,7 @@ export async function observe(env: Record<string,string|undefined>, input: Pick<
           add({id:`progress-${route.product}-${viewport.width}`,product,state:metrics.progress.length?(metrics.progress.every((n:number)=>Number.isFinite(n)&&n>=0&&n<=100)?'PASS':'FAIL'):'SKIP',severity:'P2',owner:'codex',module:'progress',detail:metrics.progress.length?'Observed progress bounds checked':'No active job shown; no generation or recovery started'});
           if(route.product==='reels'||route.product==='video-podcast'){
             const inspection=await inspectCampaign320SurfaceReadOnly(page,route.product);
-            add({id:`controls-${route.product}-${viewport.width}`,product:route.product,state:inspection.observation.generationBlocked?'BLOCKED':Object.values(inspection.observation.requiredVisible).every(Boolean)?'PASS':'FAIL',severity:'P1',owner:'claude',module:'ui',detail:'Existing Mystery Shopper surface inspector; no paid control clicked'});
+            add({id:`controls-${route.product}-${viewport.width}`,product:route.product,state:inspection.observation.generationBlocked?'BLOCKED':Object.values(inspection.observation.requiredVisible).every(Boolean)?'PASS':'FAIL',severity:'P1',owner:'claude',module:'ui',detail:`Readonly controls: ${Object.entries(inspection.observation.requiredVisible).map(([name,present])=>`${name}=${present?'present':'missing'}`).join('; ')}`});
           }
           if(route.product==='audio-podcast'||route.product==='youtube')add({id:`configuration-${route.product}-${viewport.width}`,product:route.product,state:await page.locator('input,select,textarea,button').count()>0?'PASS':'FAIL',severity:'P1',owner:'claude',module:'ui',detail:'Configuration controls visible; language/voice changes that persist are reserved for isolated tests'});
           // Observe existing player/download controls without an unbounded media request.

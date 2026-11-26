@@ -15,7 +15,7 @@ async function main(){
   if(await channel.read(saved.id)!==queueText)throw new Error('DRIVE_READBACK_MISMATCH');
   const deliveries=await channel.list('entregas');
   let published=0;
-  for(const d of q.defects.filter(d=>(d.state==='DETECTED'||d.state==='CLAIMED')&&!d.driveId).slice(0,3)){
+  for(const d of (q.enabled?q.defects:[]).filter(d=>(d.state==='DETECTED'||d.state==='CLAIMED')&&!d.driveId).slice(0,3)){
    const priorAck=deliveries.find(f=>f.name.startsWith(`${d.taskId}__${d.owner}__`)&&/ACK|EN_PROCESO|ENTREGADO/i.test(f.name));
    if(priorAck)continue;
    const content=renderHeader({id:d.taskId,de:'orquestador',para:d.owner,estado:'SOLICITADO',raiz:'issue-320',presupuesto_usd:0,defecto:d.id,sha:d.sha||'UNKNOWN',archivos:d.module,pide:`Corregir y revalidar ${d.checkId}`,criterio_de_hecho:'PR y SHA + repetición del mismo check; no cerrar con fixture como producción',requiere_gasto_o_produccion:'no'})+`\n\nEvidencia: ${d.evidence}\nClaim atómico obligatorio en Command Center Quality Loop antes de editar. Revisar #320 y no solapar Sentinel #337/#338 ni claude/hola-sn3dxy. No pagado, secretos, migraciones o Premium. No existe activación de sesión por publicar este archivo.\n`;

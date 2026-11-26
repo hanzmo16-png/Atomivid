@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { initialQueue, claimCycle, finishCycle, claimDefect, transition, fingerprint, publicView, type Cycle, type Check } from './model';
-import { allowBrowserRequest, targetOrigin, sentinelStatus } from './policy';
+import { allowBrowserRequest, targetOrigin, sentinelStatus, providerReadiness } from './policy';
 import { update, Conflict, type QueueStore } from './github-store';
 const at='2026-11-26T20:00:00.000Z', end='2026-11-26T20:01:00.000Z', sha='a'.repeat(40);
 const check:Check={id:'download',product:'reels',state:'FAIL',severity:'P1',owner:'codex',module:'delivery',detail:'controlled failure'};
@@ -53,4 +53,17 @@ test('wrong owner, expired claim, invalid transition and paid cycle are refused'
 test('admin view reports blockers, not healthy merely because a runner finished',()=>{
  const q=initialQueue(at);assert.equal(publicView(q,end).operational,'STALE');
  add(q,cycle('blocked',[{...check,state:'BLOCKED'}]));assert.equal(publicView(q,end).operational,'BLOCKED');assert.equal(publicView(q,end).nextEvaluation,'2026-11-26T20:17:00.000Z');
+});
+
+test('one green provider or a stale/unreconciled wallet cannot green-light a whole product',()=>{
+ assert.equal(providerReadiness('youtube',{sentinel:{accounts:[{providers:['openai'],operationalLevel:'GREEN',balanceStatus:'REAL',free:100}],resources:[{resource:'workers',state:'VERIFIED',used:0,limit:1}]}}),false);
+ assert.equal(providerReadiness('reels',{sentinel:{accounts:[{providers:['openai','pexels','elevenlabs','recraft','flux'],operationalLevel:'GREEN',balanceStatus:'REAL',free:null}]}}),false);
+});
+test('one defect across viewports; a desktop pass cannot hide the mobile failure or missing revalidation',()=>{
+ const q=initialQueue(at);const mobile={...check,id:'layout-412'},desktop={...check,id:'layout-1440',state:'PASS' as const};
+ add(q,cycle('mixed',[mobile,desktop]));assert.equal(q.defects.length,1);assert.equal(q.defects[0].state,'DETECTED');
+ const id=fingerprint(mobile),t=claimDefect(q,id,'codex','agent',end);transition(q,id,t,'FIXED_IN_BRANCH',sha,end);transition(q,id,t,'INTEGRATED',sha,end);
+ add(q,cycle('still-broken',[mobile,desktop]));assert.equal(q.defects[0].state,'INTEGRATED');
+ add(q,cycle('missing-mobile',[desktop]));assert.equal(q.defects[0].state,'INTEGRATED');
+ add(q,cycle('fixed',[{...mobile,state:'PASS'},desktop]));assert.equal(q.defects[0].state,'REVALIDATED');
 });

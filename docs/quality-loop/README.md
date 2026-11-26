@@ -48,3 +48,7 @@ Two consecutive schedule-triggered run URLs, real QA auth, four-product observat
 ## Rollback
 
 Stop through the admin API/panel (or set the existing repo variable to `0`); disable the scheduled job if necessary. Preserve the state branch and Drive evidence. Revert this code PR to restore the previous UI/workflow. No product data, reservations or budgets require rollback. Do not delete the queue or financial ledger.
+
+## First authentic branch run and correction
+
+Manual run `45886485209` (not cron) confirmed QA authentication, with50PASS/2FAIL/22BLOCKED/12SKIP. Both FAIL were the same stale test selector: `modalidad-video` does not exist in the production wizard's `visual/avatar/dialogo` contract. The inspector was corrected, with a browser regression covering all three actual choices, and the two viewport findings were consolidated/claimed in the persistent queue by the active Codex session. The original run and state remain preserved. A subsequent PASS must not be called production integration while this PR is only a branch. Build identity and Resource Sentinel were unavailable in that production version; those blockers were retained.
