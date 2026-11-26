@@ -14,9 +14,9 @@ async function main(){
  let client;
  try{
   if(origin==='https://atomivid.vercel.app'){
-   result.nativeTargetMatches=e.MS_NATIVE_APP_URL==='https://atomivid.vercel.app';
-   result.nativeQaEnabled=e.MS_NATIVE_QA_PILOT!=='0';
-   result.nativeOwnerGateEnabled=e.MS_NATIVE_OWNER_PILOT!=='0';
+   result.nativeTargetMatches=e.MS_NATIVE_TARGET_MATCHES==='true';
+   result.nativeQaEnabled=e.MS_NATIVE_QA_ENABLED==='true';
+   result.nativeOwnerGateEnabled=e.MS_NATIVE_OWNER_GATE_ENABLED==='true';
    if(!result.nativeTargetMatches||!result.nativeQaEnabled||!result.nativeOwnerGateEnabled)throw Error('native-config');
   }
   const authClient=createClient(e.NEXT_PUBLIC_SUPABASE_URL,e.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});

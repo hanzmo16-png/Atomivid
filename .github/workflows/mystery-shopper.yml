@@ -20,7 +20,28 @@ concurrency:
   group: mystery-shopper-real-campaign-320
   cancel-in-progress: false
 jobs:
+  native-config:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    outputs:
+      target_matches: ${{ steps.check.outputs.target_matches }}
+      qa_enabled: ${{ steps.check.outputs.qa_enabled }}
+      owner_gate_enabled: ${{ steps.check.outputs.owner_gate_enabled }}
+    steps:
+      - id: check
+        name: Resolve repository-only native configuration without Preview overrides
+        env:
+          NATIVE_APP_URL: ${{ vars.PODCAST_V3_APP_URL || 'https://atomivid.vercel.app' }}
+          NATIVE_QA_PILOT: ${{ vars.PODCAST_V3_QA_PILOT }}
+          NATIVE_OWNER_PILOT: ${{ vars.PODCAST_V3_OWNER_PILOT }}
+        run: |
+          node <<'JS'
+          const fs=require('node:fs'),e=process.env;
+          fs.appendFileSync(e.GITHUB_OUTPUT,`target_matches=${e.NATIVE_APP_URL==='https://atomivid.vercel.app'}\nqa_enabled=${e.NATIVE_QA_PILOT!=='0'}\nowner_gate_enabled=${e.NATIVE_OWNER_PILOT!=='0'}\n`);
+          console.log('Native repository configuration resolved to boolean proofs only.');
+          JS
   admission:
+    needs: native-config
     environment: Preview
     runs-on: ubuntu-24.04
     timeout-minutes: 65
@@ -50,9 +71,9 @@ jobs:
       - name: Signed admission without generation
         if: inputs.operation == 'admission' || inputs.operation == 'production-admission'
         env:
-          MS_NATIVE_APP_URL: ${{ vars.PODCAST_V3_APP_URL || 'https://atomivid.vercel.app' }}
-          MS_NATIVE_QA_PILOT: ${{ vars.PODCAST_V3_QA_PILOT }}
-          MS_NATIVE_OWNER_PILOT: ${{ vars.PODCAST_V3_OWNER_PILOT }}
+          MS_NATIVE_TARGET_MATCHES: ${{ needs.native-config.outputs.target_matches }}
+          MS_NATIVE_QA_ENABLED: ${{ needs.native-config.outputs.qa_enabled }}
+          MS_NATIVE_OWNER_GATE_ENABLED: ${{ needs.native-config.outputs.owner_gate_enabled }}
           MS_TARGET: ${{ inputs.operation == 'production-admission' && 'https://atomivid.vercel.app' || 'https://atomivid-ifh6x9b59-atomivid.vercel.app' }}
           MYSTERY_SHOPPER_QA_EMAIL: ${{ secrets.MYSTERY_SHOPPER_QA_EMAIL }}
           MYSTERY_SHOPPER_QA_PASSWORD: ${{ secrets.MYSTERY_SHOPPER_QA_PASSWORD }}
