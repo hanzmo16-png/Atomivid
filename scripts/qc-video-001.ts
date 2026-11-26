@@ -8,7 +8,8 @@
  * (qc-report.json) que se sube como artifact de GitHub Actions.
  *
  * FAIL CLOSED: cualquier verificación objetiva (resolución/fps/duración/
- * audio/mode/shotCount) que falle hace que este script salga con código
+ * audio/mode/shotCount/tramos negros > 2 s, o un fallo del análisis
+ * blackdetect) que falle hace que este script salga con código
  * != 0 — el workflow NO debe marcar el run como exitoso si esto falla.
  * Los silencios detectados se REPORTAN siempre (nunca bloquean solos —
  * distinguir una pausa narrativa normal de una anomalía real requiere
@@ -21,6 +22,13 @@ import {
   evaluateVideoProbe,
   evaluateProductionReportForRealRun,
   detectAnomalousSilences,
+  detectBlackIntervals,
+  assertNoLongBlackIntervals,
+  LongFormQcFailedError,
+  BLACK_DETECT_DEFAULTS,
+  DEFAULT_MAX_BLACK_SECONDS,
+  type BlackInterval,
+  type BlackDetectOptions,
   type ProductionReportForQc,
 } from "../src/lib/video/long-form/long-form-qc";
 
@@ -28,6 +36,13 @@ const EXPECTED_SHOT_COUNT = 45;
 const EXPECTED_WIDTH = 1920;
 const EXPECTED_HEIGHT = 1080;
 const EXPECTED_FPS = 30;
+/**
+ * Gate de tramos negros/casi negros (T-20261126-0415/0522). Parámetros explícitos y conservadores, iguales a los
+ * valores por defecto auditados: ffmpeg blackdetect d=1 s, pic_th=0.98, pix_th=0.10; bloquea todo tramo > 2 s
+ * (los fundidos editoriales de 1–2 s pasan; el hueco ~37–42 s observado en la salida real no).
+ */
+const BLACK_DETECT_PARAMS: Required<BlackDetectOptions> = { ...BLACK_DETECT_DEFAULTS };
+const BLACK_MAX_SECONDS = DEFAULT_MAX_BLACK_SECONDS;
 
 function parseArgs(argv: string[]) {
   const get = (name: string): string | undefined => {
@@ -80,6 +95,28 @@ async function main() {
     });
   }
 
+  // FAIL-CLOSED: un tramo por encima del máximo o cualquier fallo del análisis es un hard failure; nunca «cero intervalos».
+  let blackIntervals: BlackInterval[] = [];
+  let blackDetectError: string | undefined;
+  try {
+    blackIntervals = await assertNoLongBlackIntervals(args.mp4, BLACK_MAX_SECONDS, BLACK_DETECT_PARAMS);
+  } catch (err) {
+    if (err instanceof LongFormQcFailedError) {
+      issues.push(...err.issues);
+      // El gate solo expone los problemas; se repite la detección (solo en la ruta de fallo) para dejar en la
+      // evidencia la lista completa de intervalos. Si esa repetición falla, también queda como hard failure.
+      try {
+        blackIntervals = await detectBlackIntervals(args.mp4, BLACK_DETECT_PARAMS);
+      } catch (again) {
+        blackDetectError = String(again);
+        issues.push({ code: "black_detect_failed", message: blackDetectError });
+      }
+    } else {
+      blackDetectError = String(err);
+      issues.push({ code: "black_detect_failed", message: blackDetectError });
+    }
+  }
+
   let silences: Awaited<ReturnType<typeof detectAnomalousSilences>> = [];
   let silenceDetectionError: string | undefined;
   try {
@@ -99,6 +136,12 @@ async function main() {
     paidApisCalled: reportRaw.paidApisCalled,
     silences: silences.map((s) => ({ startSeconds: s.startSeconds, endSeconds: s.endSeconds, durationSeconds: s.durationSeconds })),
     silenceDetectionError,
+    blackDetect: {
+      maxAllowedSeconds: BLACK_MAX_SECONDS,
+      params: BLACK_DETECT_PARAMS,
+      intervals: blackIntervals.map((b) => ({ startSeconds: b.startSeconds, endSeconds: b.endSeconds, durationSeconds: b.durationSeconds })),
+      error: blackDetectError,
+    },
     hardFailures: issues,
     passed: issues.length === 0,
   };
@@ -117,7 +160,7 @@ async function main() {
     console.error(`[qc-video-001] QC FALLÓ con ${issues.length} problema(s) objetivo(s) — ver qc-report.json.`);
     process.exit(1);
   }
-  console.log("[qc-video-001] QC objetivo: PASA (resolución/fps/duración/audio/mode/shotCount/0-fixtures).");
+  console.log(`[qc-video-001] QC objetivo: PASA (resolución/fps/duración/audio/mode/shotCount/0-fixtures/sin tramos negros > ${BLACK_MAX_SECONDS}s).`);
 }
 
 main().catch((err) => {
