@@ -78,7 +78,9 @@ async function main() {
           },href);
           if (!facts.ok || facts.bytes !== 4496877 || facts.sha256 !== expectedHash) throw Error('audio download integrity mismatch');
         }
-        screens.push({width,surface:route.startsWith('/dashboard/videos/')?'completed-video':route === `/dashboard/audio-studio/${audioId}`?'completed-audio':route.split('/').pop(),passed:true});
+        const planQuotaVisible = route === '/dashboard/new' ? await page.getByTestId('plan-quota').isVisible().catch(()=>false) : undefined;
+        if (planQuotaVisible === true) throw Error('internal QA quota note mismatch');
+        screens.push({width,planQuotaVisible,planQuotaExpectation:route === '/dashboard/new'?'INTERNAL_ACCOUNT_NOTE_ABSENT':undefined,surface:route.startsWith('/dashboard/videos/')?'completed-video':route === `/dashboard/audio-studio/${audioId}`?'completed-audio':route.split('/').pop(),passed:true});
         const bytes = await page.screenshot({fullPage:true});
         const name = `${prefix}/screen-${receipts.length}.png`;
         const saved = await sb.storage.from('videos').upload(name,bytes,{contentType:'image/png',upsert:false});
