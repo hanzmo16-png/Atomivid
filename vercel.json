@@ -1,0 +1,7 @@
+{
+  "git": {
+    "deploymentEnabled": {
+      "automation/quality-loop-state": false
+    }
+  }
+}
