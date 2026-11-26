@@ -3,6 +3,7 @@ import { chromium } from 'playwright';
 import { createHash, randomUUID } from 'node:crypto';
 import { ORIGIN, allowedRequest, ownedCompleted } from './final-readonly-policy.mjs';
 import {privateFailure,privatePathname} from './private-smoke-failure.mjs';
+import {normalUsage,quotaExpectation,quotaNoteMatches,readQuotaRows} from './live-quota-oracle.mjs';
 
 async function main() {
   const env = process.env;
@@ -45,6 +46,10 @@ async function main() {
   const allowedFields=['id','ownerId','user_id','project','data','audio','output','version','generation','scriptJob','createdAt','updatedAt','revision','archivedAt','status','title','script','notes','music','voices','ttsModel','targetMinutes','voiceCount','language'];
   safePrechecks.audioProject={fieldNames:Object.keys(audioProject ?? {}).filter(k=>allowedFields.includes(k)),idMatch:audioProject?.id===audioId,ownerMatch:audioProject?.ownerId===owner,audioPresent:!!audioProject?.audio,audioFieldNames:Object.keys(audioProject?.audio ?? {}).filter(k=>['sha256','bytes','path','revision','durationSeconds','renderedAt','provider','model','segments'].includes(k)),sha256:typeof audioProject?.audio?.sha256==='string'&&/^[0-9a-f]{64}$/.test(audioProject.audio.sha256)?audioProject.audio.sha256:undefined,bytes:Number.isFinite(audioProject?.audio?.bytes)?audioProject.audio.bytes:undefined};
   if (audioProject.ownerId !== owner || audioProject.id !== audioId || audioProject.audio?.sha256 !== expectedHash || audioProject.audio?.bytes !== 4496877) throw Error('audio ownership/integrity mismatch');
+    checkpoint='quota-independent-read';
+    const subscription=await sb.from('subscriptions').select('status').eq('user_id',owner).maybeSingle();
+    if(subscription.error)throw Error('quota subscription status unavailable');
+    const quotaRows=await readQuotaRows(sb,owner);
     checkpoint='browser-launch';
     browser=await chromium.launch({headless:true});
     for (const width of [390,412]) {
@@ -97,9 +102,26 @@ async function main() {
           },href);
           if (!facts.ok || facts.bytes !== 4496877 || facts.sha256 !== expectedHash) throw Error('audio download integrity mismatch');
         }
-        const planQuotaVisible = route === '/dashboard/new' ? await page.getByTestId('plan-quota').isVisible().catch(()=>false) : undefined;
-        if (planQuotaVisible === true) throw Error('internal QA quota note mismatch');
-        screens.push({width,planQuotaVisible,planQuotaExpectation:route === '/dashboard/new'?'INTERNAL_ACCOUNT_NOTE_ABSENT':undefined,surface:route.startsWith('/dashboard/videos/')?'completed-video':route === `/dashboard/audio-studio/${audioId}`?'completed-audio':route.split('/').pop(),passed:true});
+        let quotaOracle;
+        if(route==='/dashboard/new'){
+          checkpoint='quota-live-billing-oracle';
+          const billing=await context.newPage();
+          let ownerVisible;let planLabel;
+          try{
+            const result=await billing.goto(`${ORIGIN}/dashboard/billing`,{waitUntil:'domcontentloaded'});
+            if(result?.status()!==200||new URL(billing.url()).pathname!=='/dashboard/billing')throw Error('live billing oracle unavailable');
+            ownerVisible=await billing.getByRole('heading',{name:'Atomicvid Propietario',exact:true}).isVisible();
+            if(!ownerVisible&&['active','trialing'].includes(subscription.data?.status))planLabel=await billing.locator('p').filter({hasText:/^Plan actual$/}).locator('xpath=following-sibling::p[1]').innerText();
+          }finally{await billing.close();}
+          const usage=normalUsage(quotaRows,new Date().toISOString());
+          const expected=quotaExpectation({ownerVisible,status:subscription.data?.status??'none',planLabel,used:usage.used});
+          const note=page.getByTestId('plan-quota');const visible=await note.isVisible();
+          const match=quotaNoteMatches(expected,visible,visible?await note.innerText():'');
+          quotaOracle={...expected,cutoff:usage.cutoff,noteVisible:visible,match,subscriptionStatus:subscription.data?.status??'none',source:'INDEPENDENT_OWNER_ROWS_AND_ACTUAL_BILLING_GET'};
+          safePrechecks.quotaOracle=quotaOracle;
+          if(!match)throw Error('live quota note differs from independent oracle');
+        }
+        screens.push({width,height:width===390?844:915,quotaOracle,surface:route.startsWith('/dashboard/videos/')?'completed-video':route === `/dashboard/audio-studio/${audioId}`?'completed-audio':route.split('/').pop(),passed:true});
         const bytes = await page.screenshot({fullPage:true});
         const name = `${prefix}/screen-${receipts.length}.png`;
         const saved = await sb.storage.from('videos').upload(name,bytes,{contentType:'image/png',upsert:false});

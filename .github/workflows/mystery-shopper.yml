@@ -79,7 +79,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm install --no-save --package-lock=false --no-audit --no-fund playwright@1.58.2
       - run: npx playwright install --with-deps chromium
-      - run: node --test scripts/mystery-shopper/final-readonly-policy.test.mjs scripts/mystery-shopper/readonly-media-stream.test.mjs
+      - run: node --test scripts/mystery-shopper/final-readonly-policy.test.mjs scripts/mystery-shopper/readonly-media-stream.test.mjs scripts/mystery-shopper/live-quota-oracle.test.mjs
       - name: Production read-only mobile smoke; evidence exclusively in private Storage
         if: ${{ !inputs.audio_surfaces_only }}
         run: node scripts/mystery-shopper/focused-longform-readonly.mjs
