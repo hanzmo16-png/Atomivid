@@ -20,6 +20,7 @@ import type { FootageProvider, ImageProvider, VideoProvider, VoiceProvider } fro
 import type { LongFormProviderSet } from "./mode";
 import type { RenderLongFormDocInput } from "./render";
 import { memoryOutputDeps } from "./output-finalize";
+import { LongFormCompositionDurationError } from "./composition-duration";
 import { LONG_FORM_MIN_DURATION_RATIO, LongFormDurationShortfallError, LongFormRenderedDurationError } from "./duration-shortfall";
 import { execFileSync } from "node:child_process";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
@@ -515,11 +516,26 @@ test("duración: narración MEDIDA muy por debajo de lo pedido → sin imágenes
   assert.equal(env.out.calls.upload, 0, "0 subidas");
 });
 
-test("duración: lo pedido dentro de la tolerancia → produce y entrega como siempre", async () => {
+test("duración: una diferencia editorial pequeña alcanza el mínimo pedido y mantiene visible el cierre", async () => {
   const c = counters();
   const env = freshEnv();
-  const { result } = await run(env, c, planFor("economical"), { requestedDurationSeconds: 180 });
+  const { result, renderInput } = await run(env, c, planFor("economical"), { requestedDurationSeconds: 161 });
   assert.equal(result.videoPath, "req-panama-qa/output/final.mp4");
+  assert.equal(renderInput?.durationSeconds, 161);
+  const last = renderInput?.scenes.at(-1);
+  assert.equal(last?.endSeconds, 161);
+  assert.ok(last?.holdFromSeconds && last.holdFromSeconds < 161);
+});
+
+test("duración: la tolerancia narrativa no autoriza rellenar 19s de silencio para entregar 180s", async () => {
+  const c = counters();
+  const env = freshEnv();
+  const renders = { count: 0 };
+  await assert.rejects(run(env, c, planFor("balanced"), { requestedDurationSeconds: 180, renders }), LongFormCompositionDurationError);
+  assert.equal(c.voice, 5, "la voz ya generada queda reutilizable");
+  assert.equal(c.image, 0, "no imágenes adicionales");
+  assert.equal(renders.count, 0);
+  assert.equal(env.out.calls.upload, 0);
 });
 
 test("duración: un MP4 real que no dura lo compuesto NO se sube ni se marca completado (fallo cerrado)", async () => {

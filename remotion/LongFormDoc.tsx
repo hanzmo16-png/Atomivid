@@ -1,6 +1,7 @@
 import {
   AbsoluteFill,
   Audio,
+  Freeze,
   Img,
   OffthreadVideo,
   Sequence,
@@ -108,6 +109,8 @@ export type LongFormShotScene = {
   id: string;
   startSeconds: number;
   endSeconds: number;
+  /** Absolute timeline time of the final visible frame to hold during a bounded outro. */
+  holdFromSeconds?: number;
   asset: LongFormMediaAsset | LongFormGraphicAsset;
   motion: "static" | "ken_burns" | "pan" | "cut";
   direction?: SceneDirection;
@@ -180,16 +183,21 @@ export function LongFormDoc({
         ) : 0;
         const extendedTo = Math.min(durationInFrames, rawTo + outgoing);
         const sequenceDuration = Math.max(1, extendedTo - from);
+        const holdFrame = isLast && scene.holdFromSeconds !== undefined
+          ? Math.max(0, Math.floor((scene.holdFromSeconds - scene.startSeconds) * fps) - 1)
+          : null;
 
         return (
           <Sequence key={scene.id} from={from} durationInFrames={sequenceDuration}>
-            <SceneRenderer
-              scene={scene}
-              durationInFrames={sequenceDuration}
-              fadeInFrames={isFirst ? 0 : Math.min(incoming, Math.floor((scenes[i - 1].endSeconds - scenes[i - 1].startSeconds) * fps / 2))}
-              fadeOutFrames={next?.direction ? 0 : outgoing}
-              isHook={isFirst}
-            />
+            <Freeze frame={holdFrame ?? 0} active={(frame) => holdFrame !== null && frame >= holdFrame}>
+              <SceneRenderer
+                scene={scene}
+                durationInFrames={sequenceDuration}
+                fadeInFrames={isFirst ? 0 : Math.min(incoming, Math.floor((scenes[i - 1].endSeconds - scenes[i - 1].startSeconds) * fps / 2))}
+                fadeOutFrames={next?.direction ? 0 : outgoing}
+                isHook={isFirst}
+              />
+            </Freeze>
           </Sequence>
         );
       })}

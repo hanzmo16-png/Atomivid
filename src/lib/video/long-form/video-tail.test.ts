@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { compositionDurationSeconds, LongFormCompositionDurationError } from "./composition-duration";
 import { coverVideoTail } from "./produce";
 import { preflightRenderInput } from "./render-preflight";
 
@@ -26,4 +27,28 @@ test("coverVideoTail no acorta ni toca escenas que ya cubren el final", () => {
   const long = [{ id: "a", startSeconds: 0, endSeconds: 500 }];
   assert.equal(coverVideoTail(long, duration), long);
   assert.deepEqual(coverVideoTail([], duration), []);
+});
+
+
+test("near-target 3-minute composition reaches 180s without changing narration or earlier scenes", () => {
+  const narrationSeconds = 178.1;
+  const duration = compositionDurationSeconds(narrationSeconds, 180);
+  assert.equal(duration, 180);
+  const original = [{ id: "a", startSeconds: 0, endSeconds: 100 }, { id: "last", startSeconds: 100, endSeconds: narrationSeconds }];
+  const covered = coverVideoTail(original, duration, true);
+  assert.equal(covered[0], original[0]);
+  assert.deepEqual(covered[1], { ...original[1], endSeconds: 180, holdFromSeconds: narrationSeconds });
+  assert.equal(original[1].endSeconds, narrationSeconds);
+  assert.deepEqual(preflightRenderInput({ scenes: covered, captions, durationSeconds: duration, audioUrl: "memory://unchanged-voice.mp3" }), []);
+});
+
+test("duration floor never truncates, hides missing narration, or extends an unrequested legacy composition", () => {
+  assert.equal(compositionDurationSeconds(180, 180), 180.5);
+  assert.equal(compositionDurationSeconds(178.1), 178.6);
+  assert.equal(compositionDurationSeconds(177.5, 180), 180, "bounded two-second extra outro");
+  assert.throws(() => compositionDurationSeconds(177.49, 180), LongFormCompositionDurationError);
+  for (const invalid of [0, -1, NaN, Infinity]) {
+    assert.throws(() => compositionDurationSeconds(invalid, 180), RangeError);
+    assert.throws(() => compositionDurationSeconds(178, invalid), RangeError);
+  }
 });
