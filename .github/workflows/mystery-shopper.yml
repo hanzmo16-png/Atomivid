@@ -4,7 +4,7 @@ on:
     inputs:
       operation:
         type: choice
-        options: [prepare, preflight, run, inspect, reconcile, repair, material, material_apply]
+        options: [prepare, preflight, run, inspect, reconcile, repair, material, material_apply, material_inspect]
         default: prepare
       target:
         type: string
@@ -103,10 +103,11 @@ jobs:
         run: node --import tsx scripts/mystery-shopper/repair-qa-envelope-refusal.mjs
 
       - name: Check free stock availability for scoped editorial correction
-        if: inputs.operation == 'material' || inputs.operation == 'material_apply'
+        if: inputs.operation == 'material' || inputs.operation == 'material_apply' || inputs.operation == 'material_inspect'
         env:
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           FOOTAGE_PROVIDER: pexels
+          MS_MATERIAL_INSPECT: ${{ inputs.operation == 'material_inspect' && '1' || '0' }}
           MS_MATERIAL_APPLY: ${{ inputs.operation == 'material_apply' && '1' || '0' }}
         run: |
           umask 077
