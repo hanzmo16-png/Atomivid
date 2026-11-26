@@ -49,6 +49,7 @@ jobs:
     timeout-minutes: 65
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      GITHUB_TOKEN: ${{ github.token }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       MS_NATIVE_TARGET_MATCHES: ${{ needs.native-config.outputs.target_matches }}
       MS_NATIVE_QA_ENABLED: ${{ needs.native-config.outputs.qa_enabled }}

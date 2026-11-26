@@ -1,3 +1,4 @@
+import {createClient} from "@supabase/supabase-js";
 import {createHmac,randomUUID} from "node:crypto";
 import path from "node:path";
 import {writeFile} from "node:fs/promises";
@@ -47,6 +48,8 @@ export async function runVideoPodcastReal(c:RealCtx){
   const probe=await p.request.post(`${c.baseUrl}/api/internal/provider-config`,{timeout:60000,maxRedirects:0,data:{},headers:{'x-probe-nonce':nonce,'x-probe-time':time,'x-probe-signature':signature}}).catch(()=>null);
   const config=probe?.ok()?await probe.json().catch(()=>null):null;
   if(config?.vercelEnv!=='production'||config?.commit!==expected!.slice(0,7)){c.setHumanGate('La versión activa cambió o no se pudo verificar; no se autoriza.');return;}
+  const branch=await fetch('https://api.github.com/repos/hanzmo16-png/Atomivid/git/ref/heads/claude/atomivid-mvp-setup-0079jv',{headers:{Authorization:`Bearer ${process.env.GITHUB_TOKEN??''}`,Accept:'application/vnd.github+json'},redirect:'error',signal:AbortSignal.timeout(15000)}).catch(()=>null);
+  const ref=branch?.ok?await branch.json().catch(()=>null):null;if(ref?.object?.sha!==expected){c.setHumanGate('La rama activa cambió o no se pudo verificar; no se autoriza.');return;}
   await writeFile(path.join(c.out,'av-build.json'),JSON.stringify({expectedSha:expected,observedCommit:config.commit,verifiedBeforeReservation:true}));
  }
  const r=await c.ledger.reserve({key,module:'video-podcast',jobId:c.jobId,reservedUsd:3,at:new Date().toISOString()});if(!r.ok){c.setHumanGate(r.reason);return;}
@@ -55,7 +58,9 @@ export async function runVideoPodcastReal(c:RealCtx){
   const response=p.waitForResponse((x:any)=>{try{return /\/api\/podcast\/v3\/[0-9a-f-]{36}$/.test(new URL(x.url()).pathname)&&x.request().method()==='POST'&&x.request().postDataJSON()?.confirm===true&&x.request().postDataJSON()?.authorizedUsd===3;}catch{return false;}},{timeout:45000}).catch(()=>null);
   await w.getByLabel('Autorizo el cargo',{exact:true}).check();await w.getByRole('button',{name:'Generar episodio',exact:true}).click();const res=await response;
   if(!res||!res.ok())return {state:'BLOCKED',detail:'No se acreditó aceptación. No se reenvía y la reserva permanece.'};episodeId=new URL(res.url()).pathname.split('/').at(-1)!;
-  await writeFile(path.join(c.out,'av-episode.json'),JSON.stringify({episodeId}));return {state:'PASS',detail:'La API confirmó la autorización del episodio. MP4 pendiente.'};
+  await writeFile(path.join(c.out,'av-episode.json'),JSON.stringify({episodeId}));
+  try{const sb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.SUPABASE_SERVICE_ROLE_KEY!,{auth:{persistSession:false,autoRefreshToken:false}}),privacy=await sb.storage.getBucket('videos');if(privacy.error||privacy.data.public!==false)throw Error('privacy');const receipt={kind:'AV_POST_ACCEPTED',episodeId,accepted:true,authorizedUsd:3,productionSha:process.env.MS_PRODUCTION_SHA,at:new Date().toISOString()};const saved=await sb.storage.from('videos').upload(`mystery-shopper/v3/receipts/av-accepted-${process.env.GITHUB_RUN_ID}.json`,JSON.stringify(receipt),{contentType:'application/json',upsert:false,metadata:receipt});if(saved.error)throw Error('receipt');}catch{/* The API accepted already: preserve local proof and keep polling; never resubmit. */}
+  return {state:'PASS',detail:'La API confirmó la autorización del episodio. MP4 pendiente.'};
  });if(accepted.state!=='PASS')return;
  c.mark(c.cIdx(/Aceptación API/),true,'Confirmación autenticada de la API, sin reenvío.');
  const end=Date.now()+35*60000;
