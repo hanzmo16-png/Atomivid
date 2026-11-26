@@ -6,7 +6,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
-import { finalizeLongFormOutput, memoryOutputDeps, reconcileExistingOutput } from "./output-finalize";
+import { finalizeLongFormOutput, memoryOutputDeps, reconcileExistingOutput, NativeOutputQcError, assertNativeOutputQc } from "./output-finalize";
 
 import { probeOutput } from "./output-media";
 
@@ -68,10 +68,13 @@ test("legacy delivery records cannot bypass object QC through the trusted-state 
   const out = memoryOutputDeps();
   out.objects.set(`${requestId}/output/final.mp4`, 100);
   out.deps.readState = async () => ({ status: "UPLOADED", delivered: { bytes: 100, durationSeconds: 4, videoCodec: "h264" } } as never);
-  let checked = false;
-  out.deps.probeObject = async () => { checked = true; throw new Error("black interval in legacy output"); };
-  assert.equal(await reconcileExistingOutput(requestId, out.deps), null);
-  assert.equal(checked, true);
+  const blocked = new NativeOutputQcError(new Error("black interval in legacy output"));
+  out.deps.probeObject = async () => { throw blocked; };
+  await assert.rejects(reconcileExistingOutput(requestId, out.deps), (err) => err === blocked);
+  assert.equal(out.calls.upload, 0);
+  assert.equal(out.calls.transcode, 0);
+  assert.equal(out.objects.get(`${requestId}/output/final.mp4`), 100);
+  assert.equal(out.states.size, 0, "reconciliation preserves existing state");
 });
 
 // Real local MP4s exercise the default delivery gate. These are offline detector
@@ -88,7 +91,11 @@ for (const color of ["black", "white"]) {
       if (color === "black") {
         await assert.rejects(finalizeLongFormOutput({ requestId, attempt: 1, filePath }, out.deps));
         assert.equal(out.calls.upload, 0);
-        assert.match(String(out.states.get(requestId)?.failure?.detail.message), /black_interval_too_long/);
+        assert.match(String(out.states.get(requestId)?.failure?.detail.message), /native_black_qc_failed|black_interval_too_long/);
+        out.objects.set(`${requestId}/output/final.mp4`, (await fs.stat(filePath)).size);
+        out.deps.probeObject = async () => { await assertNativeOutputQc(filePath); return probeOutput(filePath); };
+        await assert.rejects(reconcileExistingOutput(requestId, out.deps), NativeOutputQcError);
+        assert.equal(out.calls.upload, 0);
       } else {
         const result = await finalizeLongFormOutput({ requestId, attempt: 1, filePath }, out.deps);
         assert.equal(result.state.nativeBlackQc, "passed-v1");

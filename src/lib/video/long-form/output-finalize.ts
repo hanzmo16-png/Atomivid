@@ -31,9 +31,24 @@ import { OutputUploadError, uploadOutputFile, type UploadAttemptLog } from "./ou
 import { generateDiagnosticId } from "../render-error";
 import { assertNoLongBlackIntervals } from "./long-form-qc";
 
+/** A failed check of an existing canonical object must block before production can restart. */
+export class NativeOutputQcError extends LongFormOutputError {
+  constructor(public readonly cause: unknown) {
+    super("output_invalid", generateDiagnosticId(), {
+      reason: "native_black_qc_failed",
+      message: cause instanceof Error ? cause.message.slice(0, 500) : String(cause).slice(0, 500),
+    });
+    this.name = "NativeOutputQcError";
+  }
+}
+
 /** Full decode is bounded; analysis errors block delivery just like detected black gaps. */
 export async function assertNativeOutputQc(filePath: string): Promise<void> {
-  await assertNoLongBlackIntervals(filePath, 2, { timeoutMs: 600_000 });
+  try {
+    await assertNoLongBlackIntervals(filePath, 2, { timeoutMs: 600_000 });
+  } catch (err) {
+    throw new NativeOutputQcError(err);
+  }
 }
 
 export const OUTPUT_BUCKET = "videos";
@@ -162,7 +177,12 @@ export async function reconcileExistingOutput(requestId: string, deps: Pick<Outp
   // No validated delivery record (state write failed, or the object was placed by a recovery):
   // "completed" must never point at something that does not play, so measure it before reusing it.
   if (!deps.probeObject) return null;
-  const measured = await deps.probeObject(objectPath).catch(() => null);
+  const measured = await deps.probeObject(objectPath).catch((err: unknown) => {
+    // Definitive QC failure (including inability to analyze) is not a missing output.
+    // Propagate before produce() can render or call providers; preserve the object/state.
+    if (err instanceof NativeOutputQcError) throw err;
+    return null;
+  });
   return measured && measured.bytes === size && playable(measured) ? { videoPath: objectPath, state } : null;
 }
 
@@ -285,7 +305,7 @@ export async function finalizeLongFormOutput(
     try {
       await (deps.assertFileQc ?? assertNativeOutputQc)(uploadPath);
     } catch (err) {
-      return fail("output_invalid", { reason: "native_black_qc_failed", message: err instanceof Error ? err.message.slice(0, 500) : String(err).slice(0, 500) });
+      return fail("output_invalid", { reason: "native_black_qc_failed", message: err instanceof NativeOutputQcError ? err.adminDetail.message : err instanceof Error ? err.message.slice(0, 500) : String(err).slice(0, 500) });
     }
     const tu = now();
     try {
