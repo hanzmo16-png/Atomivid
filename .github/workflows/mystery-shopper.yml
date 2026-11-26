@@ -4,8 +4,10 @@ on:
     inputs:
       operation:
         type: choice
-        options: [prepare, admission, production-admission, preflight, budget, delivery, run]
+        options: [prepare, admission, production-admission, preflight, budget, delivery, audit, run]
         default: prepare
+      av_run:
+        type: string
       production_sha:
         type: string
       admission_run:
@@ -122,3 +124,8 @@ jobs:
       - name: Prepare five-minute canonical private AV locator for owner delivery
         if: inputs.operation == 'delivery'
         run: node scripts/mystery-shopper/private-av-delivery-locator.mjs
+      - name: Read back the unchanged final AV settlement and cumulative caps
+        if: inputs.operation == 'audit'
+        env:
+          MS_AV_RUN_ID: ${{ inputs.av_run }}
+        run: node --import tsx scripts/mystery-shopper/private-av-final-audit.mjs
