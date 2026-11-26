@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { incrementalRenderReserve, verifiedReusableScript } from "../../../../scripts/mystery-shopper/long-form-incremental-reserve";
+import { incrementalRenderReserve, verifiedReusableScript, verifiedExistingRenderFunding } from "../../../../scripts/mystery-shopper/long-form-incremental-reserve";
 import { canReserve } from "./ledger";
 test("a total quote does not charge the already settled script twice", () => {
   const amount = incrementalRenderReserve(1.96, .33, .33);
@@ -29,3 +29,5 @@ test("resume requires an unambiguous settled YouTube script and never forgives a
   assert.equal(verifiedReusableScript({reservations:[r],settlements:[{...s,spentUsd:1}]},key),null);
   assert.equal(verifiedReusableScript({reservations:[{...r,module:"reels"}],settlements:[s]},key),null);
 });
+
+test('same already-accounted render ceiling cannot be expanded, credited twice or substituted',()=>{const key='ms-fixture-yt-render',r={key,jobId:'ms-fixture',module:'youtube' as const,reservedUsd:1.67,at:'fixture'},s={key,spentUsd:1.67,at:'fixture',source:'fixture'},state={reservations:[r],settlements:[s]};assert.equal(verifiedExistingRenderFunding(state,key,1.67),true);for(const amount of [1.68,NaN,0,-1])assert.equal(verifiedExistingRenderFunding(state,key,amount),false);assert.equal(verifiedExistingRenderFunding({...state,settlements:[{...s,spentUsd:0}]},key,1),false);assert.equal(verifiedExistingRenderFunding({...state,reservations:[r,r]},key,1),false);assert.equal(verifiedExistingRenderFunding({...state,reservations:[{...r,jobId:'other'}]},key,1),false);});
