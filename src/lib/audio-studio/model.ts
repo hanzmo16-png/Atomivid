@@ -6,6 +6,7 @@
  * sus tablas. La generación real con un proveedor de voz no se ejecuta en 1.0 sin una autorización posterior; el
  * proyecto solo puede quedar «listo para autorizar».
  */
+import { narrationIssues, parseScriptJob, scriptJobActive, type ScriptJob } from "./script-ai";
 
 export const MODULE_VERSION = "audio-studio-1.0";
 export const MAX_TITLE = 200;
@@ -119,6 +120,8 @@ export type AudioProject = {
   audio: AudioResult | null;
   /** Estado de la generación (lo escribe el servidor). */
   generation: Generation;
+  /** Guion con IA en curso o último terminado (lo escribe el servidor; script-ai.ts). */
+  scriptJob?: ScriptJob | null;
   revision: number;
   archivedAt: string | null;
   createdAt: string;
@@ -314,6 +317,7 @@ export function parseStored(raw: unknown, ownerId: string): AudioProject | null 
       spentUsd: typeof r.spentUsd === "number" && Number.isFinite(r.spentUsd) && r.spentUsd >= 0 ? r.spentUsd : 0,
       audio: parseAudio(r.audio),
       generation: parseGeneration(r.generation),
+      scriptJob: parseScriptJob(r.scriptJob),
     };
   } catch {
     return null;
@@ -482,26 +486,9 @@ export function readinessIssues(p: AudioProject, e: Estimate): string[] {
   if (p.voiceCount === 2 && e.perVoiceCharacters[1] === 0) issues.push("Con dos voces, marca las intervenciones de la segunda con «Voz 2:».");
   if (!e.withinBudget) issues.push(`El costo estimado (USD ${e.estimatedUsd.toFixed(2)}) supera el tope (USD ${p.budgetUsd.toFixed(2)}).`);
   if (Math.abs(e.durationGapMinutes) > Math.max(2, p.targetMinutes * 0.2)) issues.push(`La duración estimada (${e.estimatedMinutes} min) se aleja del objetivo (${p.targetMinutes} min).`);
+  // Validación previa al consumo de créditos de voz: nunca se narran pautas, instrucciones ni marcadores de plantilla.
+  issues.push(...narrationIssues(p.script));
+  if (scriptJobActive(p.scriptJob)) issues.push("La IA está escribiendo el guion: espera a que termine para generar el audio.");
   return issues;
 }
 
-/**
- * Estructura inicial de guion (sin IA ni costo): secciones con pautas que la persona reemplaza por su texto.
- * Con dos voces alterna «Voz 1:» y «Voz 2:». La cantidad de secciones crece con la duración objetivo.
- */
-export function draftOutline(title: string, minutes: number, voiceCount: 1 | 2, language: StudioLanguage = "es"): string {
-  if (language === "en") {
-    return ["Opening", "Main idea", "Conclusion"].map((heading, i) => `## ${heading}\n\n${voiceCount === 2 ? "Voice 1: " : ""}${i === 0 ? `Introduce ${title}.` : i === 2 ? "Summarize the key idea and suggest one practical action." : "Develop the idea with an everyday example."} Replace this outline with your English script.${voiceCount === 2 ? "\n\nVoice 2: Add a question or another perspective." : ""}`).join("\n\n");
-  }
-  const n = Math.min(12, Math.max(3, Math.round(minutes / 3)));
-  const middle = Array.from({ length: n - 2 }, (_, i) => `Idea ${i + 1}`);
-  const heads = ["Apertura", ...middle, "Cierre"];
-  const wordsPer = Math.round((minutes * WORDS_PER_MINUTE) / heads.length);
-  const v = (k: number) => (voiceCount === 2 ? `Voz ${(k % 2) + 1}: ` : "");
-  return heads.map((h, i) => {
-    const cue = i === 0 ? `Presenta «${title.trim() || "el episodio"}» y cuenta por qué importa hoy.`
-      : i === heads.length - 1 ? "Resume lo esencial y deja una acción concreta para quien escucha."
-      : "Desarrolla esta idea con un ejemplo cotidiano.";
-    return `## ${h}\n\n${v(0)}${cue} (Reemplaza esta pauta por unas ${wordsPer} palabras.)${voiceCount === 2 ? `\n\n${v(1)}Responde, pregunta o añade un matiz.` : ""}`;
-  }).join("\n\n");
-}

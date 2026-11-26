@@ -6,6 +6,7 @@ import {
 import { DEMO_VOICE_LABEL, PAID_BLOCKED, type VoiceAvailability } from "./voice";
 import type { ProjectStore } from "./store";
 import { SEED_EPISODE } from "./seed";
+import { scriptJobActive } from "./script-ai";
 
 export type Result<T> = { ok: true; status: number; body: T } | { ok: false; status: number; body: { error: string; field?: string; current?: ProjectView } };
 export type ProjectView = AudioProject & { estimate: Estimate; musicPlan: MusicSection[]; readiness: string[]; rate: ModelRate; rates: ModelRate[] };
@@ -63,6 +64,7 @@ export const saveProject = (d: Deps, ownerId: string, id: string, body: unknown)
   if (!b || typeof b.revision !== "number") return fail(400, "Falta la revisión del proyecto.", { field: "revision" });
   if (cur.archivedAt) return fail(409, "El proyecto está archivado. Restáuralo para editarlo.", { current: view(cur, d.env, d.voice) });
   if (generationActive(cur.generation, Date.parse(nowOf(d)))) return fail(409, "Se está generando el audio: espera a que termine para editar.", { current: view(cur, d.env, d.voice) });
+  if (scriptJobActive(cur.scriptJob)) return fail(409, "La IA está escribiendo el guion: espera a que termine o cancélalo para editar.", { current: view(cur, d.env, d.voice) });
   if (b.revision !== cur.revision) return fail(409, "El proyecto cambió en otra pestaña o dispositivo. Recarga para ver la última versión.", { current: view(cur, d.env, d.voice) });
   const { title, language, voiceCount, voices, targetMinutes, script, notes, music, budgetUsd, ttsModel: model } = b;
   const next = applyInput(cur, { title, language, voiceCount, voices, targetMinutes, script, notes, music, budgetUsd, ttsModel: model }, nowOf(d));

@@ -1,13 +1,15 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AudioGenerationProgress } from "./AudioGenerationProgress";
+import { AiScriptPanel, type ScriptAiState } from "./AiScriptPanel";
+import { scriptJobActive } from "@/lib/audio-studio/script-ai";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { INPUT_CLASS } from "@/components/ui/Field";
 import { commitTargetMinutes, parseTargetMinutes, voiceReplacements } from "@/lib/audio-studio/editor-rules";
 import {
-  LANGUAGES, defaultSecondVoice, draftOutline, estimate, GENERATION_LABEL, generationActive, MAX_BUDGET_USD, MAX_SCRIPT, MAX_TARGET_MINUTES, MAX_TITLE, MIN_TARGET_MINUTES, MOOD_LABEL, MUSIC_MOODS,
+  LANGUAGES, defaultSecondVoice, estimate, GENERATION_LABEL, generationActive, MAX_BUDGET_USD, MAX_SCRIPT, MAX_TARGET_MINUTES, MAX_TITLE, MIN_TARGET_MINUTES, MOOD_LABEL, MUSIC_MOODS,
   audioProviderNote, DEMO_VOICE_LABEL, downloadFileName, formatAudioDuration, FALLBACK_TTS_MODEL, musicPlan, readinessIssues, STATUS_LABEL, TTS_MODELS, ttsModel, VOICE_PRESETS, voicePreset, type StudioLanguage, type AudioProject, type MusicConfig, type MusicMood, type TtsModelId,
 } from "@/lib/audio-studio/model";
 import type { StudioCatalogVoice } from "@/lib/audio-studio/catalog";
@@ -25,7 +27,9 @@ const AUTOSAVE_MS = 2500;
  */
 export type Synthesis = "real" | "local" | "demo" | "inactiva";
 
-export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { initial: ProjectView; synthesis?: Synthesis | null }) {
+const AI_OFF: ScriptAiState = { available: false, reason: "La escritura del guion con IA no está disponible en este momento. Puedes escribir o pegar tu guion." };
+
+export function AudioEditor({ initial, synthesis: initialSynthesis = null, scriptAi = AI_OFF }: { initial: ProjectView; synthesis?: Synthesis | null; scriptAi?: ScriptAiState }) {
   const [saved, setSaved] = useState<ProjectView>(initial);
   const [draft, setDraft] = useState<Draft>(() => draftOf(initial));
   const [state, setState] = useState<"idle" | "saving" | "error" | "conflict">("idle");
@@ -62,7 +66,8 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
   const running = generationActive(g, clock);
   const submitting = busy === "generar" || busy === "reanudar" || busy === "remezclar";
   const checking = uncertain || monitorError;
-  const locked = archived || running || submitting || checking;
+  const writingScript = scriptJobActive(saved.scriptJob);
+  const locked = archived || running || submitting || checking || writingScript;
   useEffect(() => {
     if (submitting) productionRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [submitting]);
@@ -287,14 +292,14 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
           <span className="text-xs text-ink-muted" data-testid="audio-script-stats">{live.words.toLocaleString("es")} palabras · {live.characters.toLocaleString("es")} caracteres · ≈ {live.estimatedMinutes} min</span>
         </div>
         <p className="text-xs text-ink-muted">Las líneas que empiezan con «## » son títulos de sección: organizan la música y no se narran.</p>
-        {!draft.script.trim() && !locked && (
-          <Button type="button" variant="secondary" className="min-h-11" data-testid="audio-outline" onClick={() => set("script", draftOutline(draft.title, draft.targetMinutes, draft.voiceCount, draft.language))}>
-            Generar estructura de guion
-          </Button>
+        <label htmlFor="audio-notes" className="block text-sm font-medium text-ink">Notas de dirección</label>
+        <p className="text-xs text-ink-muted" id="audio-notes-help">Tono, enfoque, público, qué incluir o evitar. La IA las sigue al escribir; no se leen en voz alta.</p>
+        <textarea id="audio-notes" data-testid="audio-notes" aria-describedby="audio-notes-help" className={`${INPUT_CLASS} min-h-24`} value={draft.notes} maxLength={2000} disabled={locked} onChange={(e) => set("notes", e.target.value)} />
+        {!archived && (
+          <AiScriptPanel project={saved} ai={scriptAi} dirty={dirty} blocked={running || submitting || checking || state === "saving"} save={save}
+            onProject={(p) => { setSaved(p); setDraft(draftOf(p)); setState("idle"); }} />
         )}
         <textarea id="audio-script" data-testid="audio-script" className={`${INPUT_CLASS} min-h-[50vh] font-mono leading-relaxed`} value={draft.script} maxLength={MAX_SCRIPT} disabled={locked} onChange={(e) => set("script", e.target.value)} />
-        <label htmlFor="audio-notes" className="block text-sm font-medium text-ink">Notas de dirección</label>
-        <textarea id="audio-notes" data-testid="audio-notes" className={`${INPUT_CLASS} min-h-24`} value={draft.notes} maxLength={2000} disabled={locked} onChange={(e) => set("notes", e.target.value)} />
       </Card>
 
       <Card className="space-y-3 p-4" data-testid="audio-music">
