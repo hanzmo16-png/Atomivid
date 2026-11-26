@@ -1,8 +1,12 @@
 {
   "version": "quality-loop/1",
   "enabled": true,
-  "updatedAt": "2026-11-26T21:54:40.356Z",
-  "lease": null,
+  "updatedAt": "2026-11-26T22:13:36.684Z",
+  "lease": {
+    "cycleId": "manual-45903276484",
+    "token": "878292ff-c8c0-48c6-893b-5ae391e8f7b2",
+    "expiresAt": "2026-11-26T22:33:36.684Z"
+  },
   "cycles": [
     {
       "id": "manual-45886485209",
@@ -3272,6 +3276,10 @@
     {
       "at": "2026-11-26T21:54:40.356Z",
       "text": "b79566f7308125968f1235fa INTEGRATED"
+    },
+    {
+      "at": "2026-11-26T22:13:36.684Z",
+      "text": "Cycle manual-45903276484 claimed"
     }
   ],
   "lastAlert": "47a33b04655e5fedaf4796d87608988519b8ca16ea6bd83aff9dabc8d3d621d0",
