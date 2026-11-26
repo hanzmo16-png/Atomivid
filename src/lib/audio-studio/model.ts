@@ -6,6 +6,7 @@
  * sus tablas. La generación real con un proveedor de voz no se ejecuta en 1.0 sin una autorización posterior; el
  * proyecto solo puede quedar «listo para autorizar».
  */
+import { narrationIssues, parseScriptJob, scriptJobActive, type ScriptJob } from "./script-ai";
 
 export const MODULE_VERSION = "audio-studio-1.0";
 export const MAX_TITLE = 200;
@@ -119,6 +120,8 @@ export type AudioProject = {
   audio: AudioResult | null;
   /** Estado de la generación (lo escribe el servidor). */
   generation: Generation;
+  /** Guion con IA en curso o último terminado (lo escribe el servidor; script-ai.ts). */
+  scriptJob?: ScriptJob | null;
   revision: number;
   archivedAt: string | null;
   createdAt: string;
@@ -150,6 +153,40 @@ export function generationActive(g: Generation, now: number): boolean {
   return Number.isFinite(beat) ? now - beat < STALE_MS : false;
 }
 export const GENERATION_LABEL: Record<GenerationStatus, string> = { inactiva: "Sin generar", en_cola: "En cola", generando: "Generando", terminada: "Audio listo", fallida: "Falló" };
+
+/** «m min s s» redondeando el total: 239.6 s es «4 min 0 s», nunca «3 min 60 s». */
+export function formatAudioDuration(seconds: number): string {
+  const s = Math.max(0, Math.round(Number.isFinite(seconds) ? seconds : 0));
+  return `${Math.floor(s / 60)} min ${s % 60} s`;
+}
+
+/**
+ * Nombre del MP3 descargado, sólo ASCII. supabase-js codifica `download` dos veces (URLSearchParams y después encodeURI),
+ * así que «Conversación» llegaba al Storage como «Conversaci%C3%B3n» y el navegador guardaba «download» sin extensión.
+ * Se quitan tildes y signos (ñ → n) y siempre termina en .mp3.
+ */
+export function downloadFileName(title: string): string {
+  const base = title.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z0-9 _-]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80).trim();
+  return `${base || "episodio"}.mp3`;
+}
+
+export const languageLabel = (id: StudioLanguage): string => LANGUAGES.find((l) => l.id === id)?.label ?? id;
+
+export type AudioStateTone = "success" | "danger" | "info" | "warning" | "neutral";
+/**
+ * Estado del AUDIO para la biblioteca (no el del borrador): verde sólo con el MP3 guardado, en curso sólo con latido
+ * reciente del servidor; un trabajo sin latido se muestra como interrumpido, nunca como verde ni como «Generando».
+ */
+export function libraryAudioState(g: Generation, hasAudio: boolean, now: number): { label: string; tone: AudioStateTone; hint: string } {
+  if (generationActive(g, now)) {
+    const total = g.progress?.total ?? 0, done = Math.max(0, Math.min(total, g.progress?.done ?? 0));
+    return { label: g.status === "en_cola" ? "En cola" : total > 0 ? `Generando · ${Math.floor(done / total * 100)}%` : "Generando", tone: "info", hint: "Abre el episodio para seguir el avance; no vuelvas a generarlo." };
+  }
+  if (g.status === "en_cola" || g.status === "generando") return { label: "Interrumpida", tone: "warning", hint: "La generación dejó de informar avances. Abre el episodio para revisar el estado antes de reanudar." };
+  if (g.status === "fallida") return { label: "Falló", tone: "danger", hint: hasAudio ? "El último intento falló; el MP3 anterior sigue disponible. Abre el episodio para ver el motivo." : "Abre el episodio para ver el motivo antes de reanudar." };
+  if (hasAudio) return { label: "Audio listo", tone: "success", hint: "" };
+  return { label: GENERATION_LABEL[g.status], tone: "neutral", hint: "Generar requiere tu autorización del gasto." };
+}
 
 export type ProjectInput = Partial<Pick<AudioProject, "title" | "language" | "voiceCount" | "voices" | "targetMinutes" | "script" | "notes" | "music" | "budgetUsd" | "ttsModel">>;
 
@@ -280,6 +317,7 @@ export function parseStored(raw: unknown, ownerId: string): AudioProject | null 
       spentUsd: typeof r.spentUsd === "number" && Number.isFinite(r.spentUsd) && r.spentUsd >= 0 ? r.spentUsd : 0,
       audio: parseAudio(r.audio),
       generation: parseGeneration(r.generation),
+      scriptJob: parseScriptJob(r.scriptJob),
     };
   } catch {
     return null;
@@ -448,26 +486,9 @@ export function readinessIssues(p: AudioProject, e: Estimate): string[] {
   if (p.voiceCount === 2 && e.perVoiceCharacters[1] === 0) issues.push("Con dos voces, marca las intervenciones de la segunda con «Voz 2:».");
   if (!e.withinBudget) issues.push(`El costo estimado (USD ${e.estimatedUsd.toFixed(2)}) supera el tope (USD ${p.budgetUsd.toFixed(2)}).`);
   if (Math.abs(e.durationGapMinutes) > Math.max(2, p.targetMinutes * 0.2)) issues.push(`La duración estimada (${e.estimatedMinutes} min) se aleja del objetivo (${p.targetMinutes} min).`);
+  // Validación previa al consumo de créditos de voz: nunca se narran pautas, instrucciones ni marcadores de plantilla.
+  issues.push(...narrationIssues(p.script));
+  if (scriptJobActive(p.scriptJob)) issues.push("La IA está escribiendo el guion: espera a que termine para generar el audio.");
   return issues;
 }
 
-/**
- * Estructura inicial de guion (sin IA ni costo): secciones con pautas que la persona reemplaza por su texto.
- * Con dos voces alterna «Voz 1:» y «Voz 2:». La cantidad de secciones crece con la duración objetivo.
- */
-export function draftOutline(title: string, minutes: number, voiceCount: 1 | 2, language: StudioLanguage = "es"): string {
-  if (language === "en") {
-    return ["Opening", "Main idea", "Conclusion"].map((heading, i) => `## ${heading}\n\n${voiceCount === 2 ? "Voice 1: " : ""}${i === 0 ? `Introduce ${title}.` : i === 2 ? "Summarize the key idea and suggest one practical action." : "Develop the idea with an everyday example."} Replace this outline with your English script.${voiceCount === 2 ? "\n\nVoice 2: Add a question or another perspective." : ""}`).join("\n\n");
-  }
-  const n = Math.min(12, Math.max(3, Math.round(minutes / 3)));
-  const middle = Array.from({ length: n - 2 }, (_, i) => `Idea ${i + 1}`);
-  const heads = ["Apertura", ...middle, "Cierre"];
-  const wordsPer = Math.round((minutes * WORDS_PER_MINUTE) / heads.length);
-  const v = (k: number) => (voiceCount === 2 ? `Voz ${(k % 2) + 1}: ` : "");
-  return heads.map((h, i) => {
-    const cue = i === 0 ? `Presenta «${title.trim() || "el episodio"}» y cuenta por qué importa hoy.`
-      : i === heads.length - 1 ? "Resume lo esencial y deja una acción concreta para quien escucha."
-      : "Desarrolla esta idea con un ejemplo cotidiano.";
-    return `## ${h}\n\n${v(0)}${cue} (Reemplaza esta pauta por unas ${wordsPer} palabras.)${voiceCount === 2 ? `\n\n${v(1)}Responde, pregunta o añade un matiz.` : ""}`;
-  }).join("\n\n");
-}

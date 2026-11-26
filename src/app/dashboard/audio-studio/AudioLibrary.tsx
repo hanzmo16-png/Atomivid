@@ -1,19 +1,24 @@
 import Link from "next/link";
-import { audioProviderNote, GENERATION_LABEL, STATUS_LABEL, voicePreset } from "@/lib/audio-studio/model";
+import { audioProviderNote, downloadFileName, formatAudioDuration, languageLabel, libraryAudioState, STATUS_LABEL, voicePreset } from "@/lib/audio-studio/model";
 import type { ProjectView } from "@/lib/audio-studio/service";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 
 const usd = (n: number) => `USD ${n.toFixed(2)}`;
 
-/** Lista de episodios de audio de la cuenta. El reproductor no descarga nada hasta pulsar reproducir (preload="none"). */
-export function AudioLibrary({ projects, archived }: { projects: ProjectView[]; archived: boolean }) {
+/**
+ * Lista de episodios de audio de la cuenta. El reproductor no descarga nada hasta pulsar reproducir (preload="none").
+ * La insignia muestra el estado del AUDIO (listo, en curso, interrumpido, fallido); el del borrador va en el texto.
+ */
+export function AudioLibrary({ projects, archived, now }: { projects: ProjectView[]; archived: boolean; now: number }) {
   if (!projects.length) {
     return <Card className="p-5 text-sm text-ink-muted" data-testid="audio-library-empty">{archived ? "No hay episodios archivados." : "Aún no tienes episodios de audio. Crea el primero arriba."}</Card>;
   }
   return (
     <ul className="space-y-3" data-testid="audio-library">
-      {projects.map((p) => (
+      {projects.map((p) => {
+        const state = libraryAudioState(p.generation, !!p.audio, now);
+        return (
         <li key={p.id}>
           <Card className="p-4">
             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -22,27 +27,29 @@ export function AudioLibrary({ projects, archived }: { projects: ProjectView[]; 
                   {p.title}
                 </Link>
                 <p className="text-xs text-ink-muted">
-                  {p.voiceCount === 1 ? "1 voz" : "2 voces"} · {p.voices.map((v) => voicePreset(v)?.label.split(" — ")[0] ?? v).join(" y ")} · objetivo {p.targetMinutes} min · estimado {p.estimate.estimatedMinutes} min
+                  {languageLabel(p.language)} · {p.voiceCount === 1 ? "1 voz" : "2 voces"} · {p.voices.map((v) => voicePreset(v)?.label.split(" — ")[0] ?? v).join(" y ")} · objetivo {p.targetMinutes} min · estimado {p.estimate.estimatedMinutes} min
                 </p>
-                <p className="text-xs text-ink-muted">Costo estimado {usd(p.estimate.estimatedUsd)} · tope {usd(p.budgetUsd)} · gastado {usd(p.spentUsd)}</p>
+                <p className="text-xs text-ink-muted">Costo estimado {usd(p.estimate.estimatedUsd)} · tope {usd(p.budgetUsd)} · gastado {usd(p.spentUsd)} · {STATUS_LABEL[p.status]}</p>
               </div>
-              <Badge tone={p.status === "listo_para_autorizar" ? "success" : "neutral"}>{STATUS_LABEL[p.status]}</Badge>
+              <Badge tone={state.tone}><span data-testid="audio-library-state">{state.label}</span></Badge>
             </div>
             {p.audio ? (
               <div className="mt-2 space-y-1" data-testid="audio-library-audio">
                 <audio controls preload="none" className="w-full" src={`/api/audio-studio/projects/${p.id}/audio`} />
                 <p className="text-xs text-ink-muted">
-                  MP3 · {Math.floor(p.audio.durationSeconds / 60)} min {Math.round(p.audio.durationSeconds % 60)} s · {p.audio.lufs} LUFS
+                  MP3 · {formatAudioDuration(p.audio.durationSeconds)} · {p.audio.lufs} LUFS
                   {audioProviderNote(p.audio.provider)}
                 </p>
-                <a href={`/api/audio-studio/projects/${p.id}/audio?descargar=1`} className="inline-flex min-h-11 items-center text-sm text-accent underline">Descargar MP3</a>
+                <a href={`/api/audio-studio/projects/${p.id}/audio?descargar=1`} download={downloadFileName(p.title)} className="inline-flex min-h-11 items-center text-sm text-accent underline">Descargar MP3</a>
+                {state.hint && <p className="text-xs text-ink-muted" data-testid="audio-library-hint">{state.hint}</p>}
               </div>
             ) : (
-              <p className="mt-2 text-xs text-ink-muted">Audio: {GENERATION_LABEL[p.generation.status].toLowerCase()}. Generar requiere tu autorización del gasto.</p>
+              <p className="mt-2 text-xs text-ink-muted" data-testid="audio-library-hint">{state.hint}</p>
             )}
           </Card>
         </li>
-      ))}
+        );
+      })}
     </ul>
   );
 }

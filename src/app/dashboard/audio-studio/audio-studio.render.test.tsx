@@ -14,7 +14,7 @@ const seed = () => view(applyInput(newProject({ id: "aaaaaaaa-aaaa-4aaa-8aaa-000
 }, NOW), {});
 
 test("biblioteca de audio: título, voces, duración, costo estimado, tope, gastado USD 0.00 y estado", () => {
-  const html = renderToStaticMarkup(<AudioLibrary projects={[seed()]} archived={false} />);
+  const html = renderToStaticMarkup(<AudioLibrary projects={[seed()]} archived={false} now={Date.parse(NOW)} />);
   assert.match(html, /El día que entiendes que no puedes controlarlo todo/);
   assert.match(html, /1 voz · Víctor · objetivo 18 min/);
   assert.match(html, /Costo estimado USD 3\.\d\d · tope USD 6\.00 · gastado USD 0\.00/);
@@ -24,8 +24,8 @@ test("biblioteca de audio: título, voces, duración, costo estimado, tope, gast
 });
 
 test("biblioteca vacía y archivados vacíos tienen su mensaje", () => {
-  assert.match(renderToStaticMarkup(<AudioLibrary projects={[]} archived={false} />), /Aún no tienes episodios de audio/);
-  assert.match(renderToStaticMarkup(<AudioLibrary projects={[]} archived />), /No hay episodios archivados/);
+  assert.match(renderToStaticMarkup(<AudioLibrary projects={[]} archived={false} now={0} />), /Aún no tienes episodios de audio/);
+  assert.match(renderToStaticMarkup(<AudioLibrary projects={[]} archived now={0} />), /No hay episodios archivados/);
 });
 
 test("editor: guion, voces, música inteligente con plan por sección, presupuesto y generación real explicada", () => {

@@ -38,11 +38,11 @@ test("audio producido con la voz demo: marcado en el editor y en la biblioteca",
   const h = html("demo", { audio: AUDIO });
   assert.match(h, /data-testid="audio-result"/);
   assert.match(h, /· Voz de demostración — no es la voz final; USD 0/);
-  const lib = renderToStaticMarkup(<AudioLibrary projects={[view({ ...base(), audio: AUDIO }, {}, DEMO)]} archived={false} />);
+  const lib = renderToStaticMarkup(<AudioLibrary projects={[view({ ...base(), audio: AUDIO }, {}, DEMO)]} archived={false} now={0} />);
   assert.match(lib, LABEL);
   assert.match(lib, /Costo estimado USD 0\.00/);
   // El mismo audio visto por una cuenta sin demo sigue marcado como demo (nunca pasa por voz real).
-  const real = renderToStaticMarkup(<AudioLibrary projects={[view({ ...base(), audio: { ...AUDIO, provider: "elevenlabs" } }, {})]} archived={false} />);
+  const real = renderToStaticMarkup(<AudioLibrary projects={[view({ ...base(), audio: { ...AUDIO, provider: "elevenlabs" } }, {})]} archived={false} now={0} />);
   assert.doesNotMatch(real, LABEL);
 });
 

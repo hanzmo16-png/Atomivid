@@ -67,7 +67,8 @@ jobs:
         env:
           AUDIO_STUDIO_VOICE: fixture
           AUDIO_STUDIO_WORKER: inline
-          AUDIO_STUDIO_FIXTURE_FAIL_MARK: "[[falla-proveedor]]"
+          AUDIO_STUDIO_FIXTURE_FAIL_MARK: "FALLAPROVEEDORSIMULADA"
+          AUDIO_STUDIO_SCRIPT_AI: fixture
         run: bash scripts/harness/e2e/podcast/start.sh
       - name: Progreso visible y respuesta perdida (390x844 y 1440x844, API simulada)
         run: |
@@ -83,6 +84,22 @@ jobs:
             timeout 3600 node scripts/harness/e2e/audio-studio/audio-studio-e2e.cjs 2>&1 | tee "$E2E_HOME/out/audio-studio.log"
           grep -q '^RESULTADO OK' "$E2E_HOME/out/audio-studio.log"
           echo "::notice title=audio-podcast-studio::$(grep -E '^RESULTADO' "$E2E_HOME/out/audio-studio.log" | tail -1)"
+      - name: Recorrido de cliente no mutante (proyecto terminado, MP3, móvil 390x844 y 412x915)
+        run: |
+          set -o pipefail
+          . "$E2E_HOME/paths.env"; mkdir -p "$E2E_HOME/out/audio-studio/lanzamiento"
+          E2E_OUT="$E2E_HOME/out/audio-studio/lanzamiento" E2E_BASE=http://127.0.0.1:3300 \
+            E2E_CHROME="$CHROME" PLAYWRIGHT_MODULE="$E2E_HOME/deps/node_modules/playwright" \
+            timeout 900 node scripts/harness/e2e/audio-studio/launch-candidate-e2e.cjs 2>&1 | tee "$E2E_HOME/out/audio-studio-lanzamiento.log"
+          grep -q '^RESULTADO OK' "$E2E_HOME/out/audio-studio-lanzamiento.log"
+      - name: Guion completo con IA (escritura local sin red, caso Nazca 30 min, móvil 390x844 y 412x915)
+        run: |
+          set -o pipefail
+          . "$E2E_HOME/paths.env"; mkdir -p "$E2E_HOME/out/audio-studio/guion-ia"
+          E2E_OUT="$E2E_HOME/out/audio-studio/guion-ia" E2E_BASE=http://127.0.0.1:3300 \
+            E2E_CHROME="$CHROME" PLAYWRIGHT_MODULE="$E2E_HOME/deps/node_modules/playwright" \
+            timeout 900 node scripts/harness/e2e/audio-studio/guion-ia-e2e.cjs 2>&1 | tee "$E2E_HOME/out/audio-studio-guion-ia.log"
+          grep -q '^RESULTADO OK' "$E2E_HOME/out/audio-studio-guion-ia.log"
       - name: Ningún proveedor real contactado
         if: always()
         run: |
@@ -99,5 +116,7 @@ jobs:
             audio-studio-tests.log
             .e2e-local/out/audio-studio
             .e2e-local/out/audio-studio.log
+            .e2e-local/out/audio-studio-lanzamiento.log
+            .e2e-local/out/audio-studio-guion-ia.log
             .e2e-local/logs/next.log
             .e2e-local/logs/gateway.jsonl

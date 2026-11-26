@@ -1,14 +1,16 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AudioGenerationProgress } from "./AudioGenerationProgress";
+import { AiScriptPanel, type ScriptAiState } from "./AiScriptPanel";
+import { scriptJobActive } from "@/lib/audio-studio/script-ai";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { INPUT_CLASS } from "@/components/ui/Field";
 import { commitTargetMinutes, parseTargetMinutes, voiceReplacements } from "@/lib/audio-studio/editor-rules";
 import {
-  LANGUAGES, defaultSecondVoice, draftOutline, estimate, GENERATION_LABEL, generationActive, MAX_BUDGET_USD, MAX_SCRIPT, MAX_TARGET_MINUTES, MAX_TITLE, MIN_TARGET_MINUTES, MOOD_LABEL, MUSIC_MOODS,
-  audioProviderNote, DEMO_VOICE_LABEL, FALLBACK_TTS_MODEL, musicPlan, readinessIssues, STATUS_LABEL, TTS_MODELS, ttsModel, VOICE_PRESETS, voicePreset, type StudioLanguage, type AudioProject, type MusicConfig, type MusicMood, type TtsModelId,
+  LANGUAGES, defaultSecondVoice, estimate, GENERATION_LABEL, generationActive, MAX_BUDGET_USD, MAX_SCRIPT, MAX_TARGET_MINUTES, MAX_TITLE, MIN_TARGET_MINUTES, MOOD_LABEL, MUSIC_MOODS,
+  audioProviderNote, DEMO_VOICE_LABEL, downloadFileName, formatAudioDuration, FALLBACK_TTS_MODEL, musicPlan, readinessIssues, STATUS_LABEL, TTS_MODELS, ttsModel, VOICE_PRESETS, voicePreset, type StudioLanguage, type AudioProject, type MusicConfig, type MusicMood, type TtsModelId,
 } from "@/lib/audio-studio/model";
 import type { StudioCatalogVoice } from "@/lib/audio-studio/catalog";
 import type { ProjectView } from "@/lib/audio-studio/service";
@@ -25,7 +27,9 @@ const AUTOSAVE_MS = 2500;
  */
 export type Synthesis = "real" | "local" | "demo" | "inactiva";
 
-export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { initial: ProjectView; synthesis?: Synthesis | null }) {
+const AI_OFF: ScriptAiState = { available: false, reason: "La escritura del guion con IA no está disponible en este momento. Puedes escribir o pegar tu guion." };
+
+export function AudioEditor({ initial, synthesis: initialSynthesis = null, scriptAi = AI_OFF }: { initial: ProjectView; synthesis?: Synthesis | null; scriptAi?: ScriptAiState }) {
   const [saved, setSaved] = useState<ProjectView>(initial);
   const [draft, setDraft] = useState<Draft>(() => draftOf(initial));
   const [state, setState] = useState<"idle" | "saving" | "error" | "conflict">("idle");
@@ -53,13 +57,17 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
   // Texto libre del campo de duración: se puede borrar y reescribir; se valida al salir del campo.
   const [targetText, setTargetText] = useState<string | null>(null);
   const [clock, setClock] = useState(() => Date.now());
+  // MP3 que no carga (URL firmada caducada, red caída): se explica y se reintenta en vez de dejar un reproductor mudo.
+  const [playerError, setPlayerError] = useState(false);
+  const [playerKey, setPlayerKey] = useState(0);
   const dirty = !same(draft, draftOf(saved));
   const archived = !!saved.archivedAt;
   const g = saved.generation;
   const running = generationActive(g, clock);
   const submitting = busy === "generar" || busy === "reanudar" || busy === "remezclar";
   const checking = uncertain || monitorError;
-  const locked = archived || running || submitting || checking;
+  const writingScript = scriptJobActive(saved.scriptJob);
+  const locked = archived || running || submitting || checking || writingScript;
   useEffect(() => {
     if (submitting) productionRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [submitting]);
@@ -284,14 +292,14 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
           <span className="text-xs text-ink-muted" data-testid="audio-script-stats">{live.words.toLocaleString("es")} palabras · {live.characters.toLocaleString("es")} caracteres · ≈ {live.estimatedMinutes} min</span>
         </div>
         <p className="text-xs text-ink-muted">Las líneas que empiezan con «## » son títulos de sección: organizan la música y no se narran.</p>
-        {!draft.script.trim() && !locked && (
-          <Button type="button" variant="secondary" className="min-h-11" data-testid="audio-outline" onClick={() => set("script", draftOutline(draft.title, draft.targetMinutes, draft.voiceCount, draft.language))}>
-            Generar estructura de guion
-          </Button>
+        <label htmlFor="audio-notes" className="block text-sm font-medium text-ink">Notas de dirección</label>
+        <p className="text-xs text-ink-muted" id="audio-notes-help">Tono, enfoque, público, qué incluir o evitar. La IA las sigue al escribir; no se leen en voz alta.</p>
+        <textarea id="audio-notes" data-testid="audio-notes" aria-describedby="audio-notes-help" className={`${INPUT_CLASS} min-h-24`} value={draft.notes} maxLength={2000} disabled={locked} onChange={(e) => set("notes", e.target.value)} />
+        {!archived && (
+          <AiScriptPanel project={saved} ai={scriptAi} dirty={dirty} blocked={running || submitting || checking || state === "saving"} save={save}
+            onProject={(p) => { setSaved(p); setDraft(draftOf(p)); setState("idle"); }} />
         )}
         <textarea id="audio-script" data-testid="audio-script" className={`${INPUT_CLASS} min-h-[50vh] font-mono leading-relaxed`} value={draft.script} maxLength={MAX_SCRIPT} disabled={locked} onChange={(e) => set("script", e.target.value)} />
-        <label htmlFor="audio-notes" className="block text-sm font-medium text-ink">Notas de dirección</label>
-        <textarea id="audio-notes" data-testid="audio-notes" className={`${INPUT_CLASS} min-h-24`} value={draft.notes} maxLength={2000} disabled={locked} onChange={(e) => set("notes", e.target.value)} />
       </Card>
 
       <Card className="space-y-3 p-4" data-testid="audio-music">
@@ -383,12 +391,19 @@ export function AudioEditor({ initial, synthesis: initialSynthesis = null }: { i
         {g.error && !running && <p role="alert" className="text-sm text-danger" data-testid="audio-generation-error">{g.error}</p>}
         {saved.audio && (
           <div className="space-y-2 rounded-md border border-border p-3" data-testid="audio-result">
-            <audio controls preload="none" className="w-full" src={`/api/audio-studio/projects/${saved.id}/audio`} data-testid="audio-player" />
+            <audio key={playerKey} controls preload="none" className="w-full" src={`/api/audio-studio/projects/${saved.id}/audio`} data-testid="audio-player"
+              onError={() => setPlayerError(true)} onCanPlay={() => setPlayerError(false)} />
+            {playerError && (
+              <p role="alert" className="text-sm text-danger" data-testid="audio-player-error">
+                No se pudo cargar el MP3. Tu episodio sigue guardado y no se vuelve a generar ni a cobrar.{" "}
+                <button type="button" className="inline-flex min-h-11 items-center font-medium underline" data-testid="audio-player-retry" onClick={() => { setPlayerError(false); setPlayerKey((k) => k + 1); }}>Reintentar</button>
+              </p>
+            )}
             <p className="text-xs text-ink-muted">
-              {Math.floor(saved.audio.durationSeconds / 60)} min {Math.round(saved.audio.durationSeconds % 60)} s · {saved.audio.lufs} LUFS · pico {saved.audio.truePeak} dBTP · {(saved.audio.bytes / 1e6).toFixed(1)} MB
+              {formatAudioDuration(saved.audio.durationSeconds)} · {saved.audio.lufs} LUFS · pico {saved.audio.truePeak} dBTP · {(saved.audio.bytes / 1e6).toFixed(1)} MB
               {audioProviderNote(saved.audio.provider)}{saved.audio.revision !== saved.revision ? " · de una versión anterior del guion" : ""}
             </p>
-            <a href={`/api/audio-studio/projects/${saved.id}/audio?descargar=1`} className="inline-flex min-h-11 items-center text-sm font-medium text-accent underline" data-testid="audio-download">Descargar MP3</a>
+            <a href={`/api/audio-studio/projects/${saved.id}/audio?descargar=1`} download={downloadFileName(saved.title)} className="inline-flex min-h-11 items-center text-sm font-medium text-accent underline" data-testid="audio-download">Descargar MP3</a>
           </div>
         )}
         {canPay && !archived && !running && !checking && (g.status === "inactiva" || g.status === "terminada") && (

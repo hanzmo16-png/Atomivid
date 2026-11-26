@@ -25,6 +25,10 @@ export default async function AudioStudioPage({ searchParams }: { searchParams: 
   const showArchived = archivados === "1";
   const shown = all.filter((p) => !!p.archivedAt === showArchived);
   const archivedCount = all.filter((p) => p.archivedAt).length;
+  // Server Component: se evalúa una sola vez por request (force-dynamic), así que Date.now() aquí es seguro pese a la
+  // regla de pureza de React. Sirve para distinguir una generación en curso de una interrumpida (latido viejo).
+  // eslint-disable-next-line react-hooks/purity -- ver comentario arriba
+  const now = Date.now();
 
   return (
     <div className="space-y-6" data-testid="audio-studio">
@@ -43,7 +47,7 @@ export default async function AudioStudioPage({ searchParams }: { searchParams: 
             <Link href="/dashboard/audio-studio?archivados=1" aria-current={showArchived ? "page" : undefined} className={`inline-flex min-h-11 items-center rounded-md px-3 ${showArchived ? "bg-surface-raised text-ink" : "text-ink-muted"}`}>Archivados ({archivedCount})</Link>
           </nav>
         </div>
-        <AudioLibrary projects={shown} archived={showArchived} />
+        <AudioLibrary projects={shown} archived={showArchived} now={now} />
       </section>
     </div>
   );

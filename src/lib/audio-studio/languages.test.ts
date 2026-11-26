@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyInput, draftOutline, estimate, newProject, parseStored, readinessIssues, scriptLines, VOICE_PRESETS } from "./model";
+import { applyInput, estimate, newProject, parseStored, readinessIssues, scriptLines, VOICE_PRESETS } from "./model";
 import { catalogFrom, studioCatalog } from "./catalog";
 import { createProject, saveProject } from "./service";
 import { memoryStore } from "./store";
@@ -31,7 +31,6 @@ test("language edit changes revision and readiness, English dialogue parses two 
   assert.equal(edited.revision, base.revision + 1);
   assert.ok(readinessIssues(edited, estimate(edited)).includes("Elige voces del idioma seleccionado."));
   assert.deepEqual(scriptLines("## Welcome\nVoice 1: Hello there.\nVoice 2: Good morning.", 2).map(l => [l.voice, l.text]), [[0, "Hello there."], [1, "Good morning."]]);
-  assert.match(draftOutline("A new beginning", 5, 2, "en"), /Voice 2:/);
   for (const language of ["es", "en"]) {
     for (const gender of ["masculina", "femenina"]) {
       assert.ok(VOICE_PRESETS.filter(v => v.language === language && v.gender === gender).length >= 6);

@@ -17,7 +17,7 @@ const p2 = view(applyInput(newProject({ id: "aaaaaaaa-aaaa-4aaa-8aaa-0000000000c
 
 test("Audio Studio no usa text-ink-faint (contraste < 4.5:1) en editor ni biblioteca, en ningún estado de síntesis", () => {
   const html = [
-    renderToStaticMarkup(<AudioLibrary projects={[p1, p2]} archived={false} />),
+    renderToStaticMarkup(<AudioLibrary projects={[p1, p2]} archived={false} now={0} />),
     ...[null, "inactiva", "local", "real", "demo"].flatMap((s) => [p1, p2].map((p) => renderToStaticMarkup(<AudioEditor initial={p} synthesis={s as never} />))),
   ].join("\n");
   // Solo la clase de texto directa: «placeholder:text-ink-faint» (Field) y «bg-ink-faint» (punto del Badge) son
