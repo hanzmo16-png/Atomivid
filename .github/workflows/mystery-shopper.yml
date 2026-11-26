@@ -129,10 +129,7 @@ jobs:
         env:
           MS_AV_RUN_ID: ${{ inputs.av_run }}
         run: node --import tsx scripts/mystery-shopper/private-av-final-audit.mjs
-      - name: Install free raw-voice inspector
-        if: inputs.operation == 'voice-tail'
-        run: sudo apt-get update -q && sudo apt-get install -yq ffmpeg
-      - name: Inspect cached TTS alignment and true voice tail without generation
+      - name: Read only aggregate word alignment floats into a private receipt
         if: inputs.operation == 'voice-tail'
         env:
           MS_AV_RUN_ID: ${{ inputs.av_run }}
