@@ -30,7 +30,7 @@ async function main() {
   const browser = await chromium.launch({headless:true});
   try {
     for (const width of [390,412]) {
-      const context = await browser.newContext({viewport:{width,height:915},isMobile:true,hasTouch:true,serviceWorkers:'block'});
+      const context = await browser.newContext({viewport:{width,height:width === 390 ? 844 : 915},isMobile:true,hasTouch:true,serviceWorkers:'block'});
       let authenticated = false;
       await context.route('**/*', async route => {
         const req = route.request();
