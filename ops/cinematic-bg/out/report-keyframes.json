@@ -1,0 +1,46 @@
+{
+  "stage": "keyframes",
+  "startedAt": "2026-11-24T16:31:01.424Z",
+  "items": [
+    {
+      "id": "kf-land-d",
+      "model": "fal-ai/flux-pro/v1.1-ultra",
+      "aspect": "16:9",
+      "seed": 4404,
+      "requestId": "01a20e65-7bd0-7790-8fbe-bda9873130fd",
+      "ok": true,
+      "width": 2752,
+      "height": 1536,
+      "bytes": 801455,
+      "usd": 0.06
+    },
+    {
+      "id": "kf-land-e",
+      "model": "fal-ai/flux-pro/v1.1-ultra",
+      "aspect": "16:9",
+      "seed": 5505,
+      "requestId": "01a20e65-adae-79a2-afe0-fca3bc449040",
+      "ok": true,
+      "width": 2752,
+      "height": 1536,
+      "bytes": 953865,
+      "usd": 0.06
+    },
+    {
+      "id": "kf-land-f",
+      "model": "fal-ai/flux-pro/v1.1-ultra",
+      "aspect": "16:9",
+      "seed": 6606,
+      "requestId": "01a20e65-dfb3-7c91-8032-34d2d1b19ed6",
+      "ok": true,
+      "width": 2752,
+      "height": 1536,
+      "bytes": 695178,
+      "usd": 0.06
+    }
+  ],
+  "estimatedMaxUsd": 0.18,
+  "capUsd": 1,
+  "finishedAt": "2026-11-24T16:31:36.679Z",
+  "spentUsd": 0.18
+}

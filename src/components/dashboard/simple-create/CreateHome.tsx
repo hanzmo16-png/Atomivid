@@ -35,7 +35,7 @@ export function CreateHome({ formats, subscriptionNeeded = false }: { formats: F
   const note = ideaNote(format, idea);
   return (
     <section aria-labelledby="crear-titulo" className="mx-auto w-full min-w-0 max-w-2xl [text-shadow:0_1px_2px_rgb(0_0_0/0.85),0_0_12px_rgb(0_0_0/0.55)]" data-testid="crear-inicio">
-      <h1 id="crear-titulo" className="text-2xl font-bold text-ink sm:text-3xl">¿Qué quieres crear hoy?</h1>
+      <h2 id="crear-titulo" className="text-2xl font-bold text-ink sm:text-3xl">¿Qué quieres crear hoy?</h2>
       <div role="radiogroup" aria-label="Formato" className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
         {formats.map((f) => {
           const on = format === f.id;

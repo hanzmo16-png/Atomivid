@@ -1,0 +1,298 @@
+<!doctype html>
+<!--
+  ATOMIVID · Ambiente COSMOS «VANGUARD» — producción propia (USD 0, sin material de terceros ni proveedores de pago).
+  Escena 3D real (Three.js, PBR + bloom): una fragata espacial de casco afilado cruza frente a un gigante gaseoso anillado,
+  entre nebulosas y polvo que pasa a velocidad. Todo es determinista y periódico en LOOP segundos: la cámara orbita y
+  vuelve, el polvo recorre su caja un número entero de veces, el balanceo y los destellos son senos de periodo entero.
+  El último fotograma enlaza con el primero sin corte. Renderizado fotograma a fotograma por scripts/cinematic/render-ambient.cjs.
+-->
+<html><head><meta charset="utf-8"><style>html,body{margin:0;background:#000;overflow:hidden}canvas{display:block}</style>
+<script type="importmap">{ "imports": { "three": "./three/build/three.module.js", "three/addons/": "./three/examples/jsm/" } }</script>
+</head><body>
+<script type="module">
+import * as THREE from "three";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+
+const LOOP = 10; window.LOOP_SECONDS = LOOP;
+const TAU = Math.PI * 2;
+function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+
+let renderer, scene, camera, composer, grade, ship, dust, dustBase, plumes = [], strobes = [], W, H, portrait;
+const SUN = new THREE.Vector3(0, 1, 0); // se orienta en setup respecto a la cámara (luz principal de 3/4 frontal)
+
+// ───────────────────────── texturas procedurales ─────────────────────────
+function canvasTex(w, h, paint, srgb = true) {
+  const c = document.createElement("canvas"); c.width = w; c.height = h; paint(c.getContext("2d"), w, h);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; return t;
+}
+function hullTextures() {
+  const r = rng(77);
+  const albedo = canvasTex(1024, 1024, (g, w, h) => {
+    g.fillStyle = "#7d828c"; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 900; i++) { // paneles de distinto tono
+      const x = Math.floor(r() * 32) * 32, y = Math.floor(r() * 64) * 16, pw = 32 * (1 + Math.floor(r() * 4)), ph = 16 * (1 + Math.floor(r() * 3));
+      const v = 112 + Math.floor((r() - 0.5) * 34); g.fillStyle = `rgb(${v},${v + 3},${v + 9})`; g.fillRect(x, y, pw, ph);
+    }
+    g.strokeStyle = "rgba(20,22,28,0.85)"; g.lineWidth = 1.4;
+    for (let i = 0; i < 700; i++) { const x = Math.floor(r() * 32) * 32, y = Math.floor(r() * 64) * 16; g.strokeRect(x + 0.5, y + 0.5, 32 * (1 + Math.floor(r() * 3)), 16 * (1 + Math.floor(r() * 2))); }
+    for (let i = 0; i < 120; i++) { g.fillStyle = r() < 0.5 ? "rgba(214,190,140,0.55)" : "rgba(40,44,54,0.9)"; g.fillRect(r() * w, r() * h, 2 + r() * 10, 2 + r() * 3); }
+  });
+  const rough = canvasTex(512, 512, (g, w, h) => {
+    g.fillStyle = "#6e6e6e"; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 500; i++) { const v = 80 + Math.floor(r() * 110); g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(Math.floor(r() * 16) * 32, Math.floor(r() * 32) * 16, 32 * (1 + Math.floor(r() * 3)), 16); }
+  }, false);
+  albedo.repeat.set(3, 1.5); rough.repeat.set(3, 1.5);
+  return { albedo, rough };
+}
+function planetTexture() {
+  const r = rng(9);
+  return canvasTex(2048, 1024, (g, w, h) => {
+    // Bandas de un gigante gaseoso: tonos crema, ámbar, óxido y gris azulado, con turbulencia.
+    const pal = [[232, 214, 178], [214, 176, 122], [176, 120, 78], [198, 160, 118], [150, 146, 150], [226, 200, 158], [122, 92, 70], [210, 186, 150]];
+    const bands = Array.from({ length: 46 }, () => ({ c: pal[Math.floor(r() * pal.length)], w: 6 + r() * 34 }));
+    let y = 0; const rows = [];
+    while (y < h) for (const b of bands) { rows.push([y, b]); y += b.w; if (y >= h) break; }
+    for (let i = 0; i < rows.length; i++) { const [y0, b] = rows[i]; const grd = g.createLinearGradient(0, y0, 0, y0 + b.w);
+      const n = rows[i + 1] ? rows[i + 1][1].c : b.c; grd.addColorStop(0, `rgb(${b.c})`); grd.addColorStop(1, `rgb(${n})`); g.fillStyle = grd; g.fillRect(0, y0, w, b.w + 1); }
+    // turbulencia: remolinos alargados
+    for (let i = 0; i < 1400; i++) { const x = r() * w, yy = r() * h, len = 40 + r() * 220; const a = 0.03 + r() * 0.06;
+      g.strokeStyle = r() < 0.5 ? `rgba(255,240,215,${a})` : `rgba(90,60,40,${a})`; g.lineWidth = 1 + r() * 3; g.beginPath(); g.moveTo(x, yy);
+      g.bezierCurveTo(x + len * 0.3, yy + (r() - 0.5) * 6, x + len * 0.7, yy + (r() - 0.5) * 6, x + len, yy + (r() - 0.5) * 4); g.stroke(); }
+    g.filter = "blur(3px)"; g.drawImage(g.canvas, 0, 0); g.filter = "none";
+    // gran tormenta ovalada
+    const sx = w * 0.62, sy = h * 0.58; const sg = g.createRadialGradient(sx, sy, 2, sx, sy, 70); sg.addColorStop(0, "rgba(190,110,70,0.9)"); sg.addColorStop(0.6, "rgba(220,170,120,0.5)"); sg.addColorStop(1, "rgba(220,170,120,0)");
+    g.save(); g.translate(sx, sy); g.scale(2.2, 1); g.translate(-sx, -sy); g.fillStyle = sg; g.beginPath(); g.arc(sx, sy, 70, 0, TAU); g.fill(); g.restore();
+  });
+}
+
+// ───────────────────────── entorno, cielo y estrellas ─────────────────────────
+const NOISE = `
+  vec3 hash3(vec3 p){ p = vec3(dot(p,vec3(127.1,311.7,74.7)), dot(p,vec3(269.5,183.3,246.1)), dot(p,vec3(113.5,271.9,124.6))); return -1.0 + 2.0*fract(sin(p)*43758.5453123); }
+  float noise(vec3 p){ vec3 i = floor(p); vec3 f = fract(p); vec3 u = f*f*(3.0-2.0*f);
+    return mix(mix(mix(dot(hash3(i+vec3(0,0,0)),f-vec3(0,0,0)),dot(hash3(i+vec3(1,0,0)),f-vec3(1,0,0)),u.x),
+                   mix(dot(hash3(i+vec3(0,1,0)),f-vec3(0,1,0)),dot(hash3(i+vec3(1,1,0)),f-vec3(1,1,0)),u.x),u.y),
+               mix(mix(dot(hash3(i+vec3(0,0,1)),f-vec3(0,0,1)),dot(hash3(i+vec3(1,0,1)),f-vec3(1,0,1)),u.x),
+                   mix(dot(hash3(i+vec3(0,1,1)),f-vec3(0,1,1)),dot(hash3(i+vec3(1,1,1)),f-vec3(1,1,1)),u.x),u.y),u.z); }
+  float fbm(vec3 p){ float a = 0.5, s = 0.0; for (int i = 0; i < 6; i++){ s += a*noise(p); p *= 2.03; a *= 0.5; } return s; }`;
+
+function sky() {
+  const m = new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, uniforms: { uSun: { value: SUN } },
+    vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+    fragmentShader: `${NOISE} varying vec3 vDir; uniform vec3 uSun;
+      void main(){ vec3 d = normalize(vDir);
+        float n1 = fbm(d*2.2 + vec3(3.1,0.0,1.7)); float n2 = fbm(d*4.5 + vec3(-2.0,5.0,0.4)); float n3 = fbm(d*9.0 + 11.0);
+        float band = exp(-pow((d.y*0.9 - d.x*0.35 - 0.05)/0.42, 2.0));     // banda de la galaxia, en diagonal
+        float cloud = smoothstep(-0.05, 0.55, n1*0.9 + n2*0.45) * (0.35 + band);
+        vec3 deep = vec3(0.006, 0.010, 0.028);
+        vec3 c = deep;
+        c += vec3(0.07, 0.10, 0.30) * cloud;                                  // medianoche
+        c += vec3(0.20, 0.07, 0.26) * smoothstep(0.25, 0.75, n2) * band * 0.9; // violeta
+        c += vec3(0.05, 0.22, 0.26) * smoothstep(0.35, 0.85, n3) * cloud * 0.6; // turquesa
+        float dust = smoothstep(0.1, 0.6, fbm(d*6.0 - 4.0)) * band;            // polvo oscuro que recorta la nebulosa
+        c *= 1.0 - 0.65*dust;
+        float s = max(dot(d, uSun), 0.0); c += vec3(1.0,0.78,0.52) * (pow(s, 64.0)*0.9 + pow(s, 6.0)*0.10); // resplandor del sol fuera de cuadro
+        gl_FragColor = vec4(c, 1.0); }` });
+  return new THREE.Mesh(new THREE.SphereGeometry(4000, 64, 32), m);
+}
+function stars() {
+  const r = rng(5), n = 6000, pos = new Float32Array(n * 3), col = new Float32Array(n * 3), size = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const u = r() * 2 - 1, a = r() * TAU, s = Math.sqrt(1 - u * u); pos.set([3500 * s * Math.cos(a), 3500 * u, 3500 * s * Math.sin(a)], i * 3);
+    const t = r(); const c = t < 0.12 ? [1.0, 0.85, 0.65] : t < 0.3 ? [0.7, 0.8, 1.0] : [1, 1, 1]; const b = 0.35 + Math.pow(r(), 6) * 2.4; col.set(c.map((x) => x * b), i * 3); size[i] = 1.0 + Math.pow(r(), 8) * 3.2; }
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(pos, 3)); g.setAttribute("color", new THREE.BufferAttribute(col, 3)); g.setAttribute("size", new THREE.BufferAttribute(size, 1));
+  const m = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { uScale: { value: 1 } },
+    vertexShader: `attribute float size; attribute vec3 color; varying vec3 vC; uniform float uScale; void main(){ vC = color; gl_PointSize = size*uScale; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+    fragmentShader: `varying vec3 vC; void main(){ vec2 q = gl_PointCoord - 0.5; float d = length(q); float a = smoothstep(0.5, 0.0, d); gl_FragColor = vec4(vC*a, a); }` });
+  const p = new THREE.Points(g, m); p.userData.mat = m; return p;
+}
+
+// ───────────────────────── planeta anillado ─────────────────────────
+function planet() {
+  const grp = new THREE.Group(); const R = 300;
+  const body = new THREE.Mesh(new THREE.SphereGeometry(R, 192, 96), new THREE.MeshStandardMaterial({ map: planetTexture(), roughness: 0.92, metalness: 0 }));
+  body.rotation.z = 0.32; grp.add(body);
+  // atmósfera: borde iluminado (fresnel) más intenso del lado del sol
+  const atm = new THREE.Mesh(new THREE.SphereGeometry(R * 1.02, 128, 64), new THREE.ShaderMaterial({ transparent: true, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false,
+    uniforms: { uSun: { value: SUN } },
+    vertexShader: `varying vec3 vN; varying vec3 vW; void main(){ vN = normalize(mat3(modelMatrix)*normal); vec4 w = modelMatrix*vec4(position,1.0); vW = w.xyz; gl_Position = projectionMatrix*viewMatrix*w; }`,
+    fragmentShader: `varying vec3 vN; varying vec3 vW; uniform vec3 uSun; void main(){ vec3 v = normalize(cameraPosition - vW); float f = pow(1.0 - abs(dot(v, vN)), 4.0) * 0.55;
+      float lit = smoothstep(-0.25, 0.6, dot(-vN, uSun)); gl_FragColor = vec4(vec3(1.0,0.80,0.55)*f*lit + vec3(0.20,0.35,0.75)*f*0.15, f*lit); }` }));
+  grp.add(atm);
+  // anillos: bandas procedurales, iluminados y con la sombra del planeta
+  const ringGeo = new THREE.RingGeometry(R * 1.28, R * 2.35, 512, 1);
+  const ring = new THREE.Mesh(ringGeo, new THREE.ShaderMaterial({ transparent: true, side: THREE.DoubleSide, depthWrite: false,
+    uniforms: { uSun: { value: SUN }, uC: { value: new THREE.Vector3() }, uR: { value: R }, uIn: { value: R * 1.28 }, uOut: { value: R * 2.35 } },
+    vertexShader: `varying vec3 vW; varying vec2 vL; void main(){ vL = position.xy; vec4 w = modelMatrix*vec4(position,1.0); vW = w.xyz; gl_Position = projectionMatrix*viewMatrix*w; }`,
+    fragmentShader: `${NOISE} varying vec3 vW; varying vec2 vL; uniform vec3 uSun; uniform vec3 uC; uniform float uR, uIn, uOut;
+      void main(){ float r = (length(vL) - uIn) / (uOut - uIn);
+        float b = 0.6 + 0.4*sin(r*92.0) * sin(r*31.0+1.3); b *= 0.6 + 0.4*noise(vec3(r*80.0, 0.0, 0.0));
+        float gap = smoothstep(0.0, 0.02, abs(r-0.58)) * smoothstep(0.0, 0.01, abs(r-0.31));   // divisiones tipo Cassini
+        float edge = smoothstep(0.0, 0.05, r) * smoothstep(1.0, 0.86, r);
+        float a = clamp(b*gap*edge, 0.0, 1.0) * 0.55;
+        vec3 col = mix(vec3(0.78,0.70,0.58), vec3(0.95,0.88,0.74), b);
+        // sombra del planeta: ¿el rayo hacia el sol atraviesa la esfera?
+        vec3 oc = vW - uC; float bb = dot(oc, uSun); float cc = dot(oc,oc) - uR*uR; float disc = bb*bb - cc;
+        float shadow = (disc > 0.0 && -bb - sqrt(disc) > 0.0) ? 0.08 : 1.0;
+        float lit = 0.35 + 0.65*shadow;
+        gl_FragColor = vec4(col*lit*0.78, a); }` }));
+  ring.rotation.x = -Math.PI / 2 + 0.30; ring.rotation.y = 0.32; grp.add(ring);
+  grp.userData = { ring, R };
+  return grp;
+}
+
+// ───────────────────────── la nave «VANGUARD» ─────────────────────────
+const HALF = [[62, 0], [44, 3.0], [18, 6.2], [-8, 7.8], [-24, 18.5], [-35, 20.5], [-37, 12], [-47, 10], [-52, 7]];
+const hw = (x) => { for (let i = 0; i < HALF.length - 1; i++) { const [x0, w0] = HALF[i], [x1, w1] = HALF[i + 1]; if (x <= x0 && x >= x1) return w0 + (w1 - w0) * (x0 - x) / (x0 - x1); } return 0; };
+function buildShip() {
+  const grp = new THREE.Group(); const r = rng(1337); const { albedo, rough } = hullTextures();
+  const hull = new THREE.MeshPhysicalMaterial({ color: 0xc8ccd5, map: albedo, roughnessMap: rough, roughness: 0.42, metalness: 0.45, clearcoat: 0.5, clearcoatRoughness: 0.4 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x3a3e47, roughness: 0.55, metalness: 0.5 });
+  const gold = new THREE.MeshStandardMaterial({ color: 0xc9a868, roughness: 0.3, metalness: 1.0 });
+  // casco: planta en flecha, extruida y biselada
+  const sh = new THREE.Shape(); sh.moveTo(HALF[0][0], 0); for (const [x, w] of HALF.slice(1)) sh.lineTo(x, w); for (const [x, w] of [...HALF].reverse().slice(0, -1)) sh.lineTo(x, -w); sh.closePath();
+  const T = 4.6; const hg = new THREE.ExtrudeGeometry(sh, { depth: T, bevelEnabled: true, bevelThickness: 1.8, bevelSize: 1.6, bevelSegments: 5, curveSegments: 8 });
+  hg.rotateX(-Math.PI / 2); hg.translate(0, -T / 2, 0); hg.computeVertexNormals();
+  const hullMesh = new THREE.Mesh(hg, hull); grp.add(hullMesh);
+  // cubierta superior escalonada: misma planta, más estrecha y corta → silueta de fragata, no de barcaza
+  const sh2 = new THREE.Shape(); const UP = HALF.filter(([x]) => x < 40 && x > -40).map(([x, w]) => [x, w * 0.62]);
+  sh2.moveTo(40, 0); for (const [x, w] of UP) sh2.lineTo(x, w); sh2.lineTo(-40, 5.2); sh2.lineTo(-40, -5.2); for (const [x, w] of [...UP].reverse()) sh2.lineTo(x, -w); sh2.closePath();
+  const dg = new THREE.ExtrudeGeometry(sh2, { depth: 2.6, bevelEnabled: true, bevelThickness: 1.0, bevelSize: 1.0, bevelSegments: 4 }); dg.rotateX(-Math.PI / 2); dg.translate(0, T / 2 + 1.6, 0); dg.computeVertexNormals();
+  grp.add(new THREE.Mesh(dg, hull));
+  const top = T / 2 + 1.6 + 2.6 + 1.0;
+  const add = (geo, mat, x, y, z, ry = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.y = ry; grp.add(m); return m; };
+  // lomo central, superestructura y puente
+  add(new RoundedBoxGeometry(70, 2.4, 4.2, 3, 0.8), hull, 12, top + 0.9, 0);
+  add(new RoundedBoxGeometry(26, 5, 10, 4, 1.4), hull, -20, top + 2.4, 0);
+  add(new RoundedBoxGeometry(12, 4, 7, 4, 1.2), hull, -24, top + 6.4, 0);
+  add(new RoundedBoxGeometry(5, 1.2, 6.4, 2, 0.4), dark, -18.2, top + 7.6, 0);
+  add(new RoundedBoxGeometry(46, 3.2, 6, 3, 1.0), dark, -6, -top - 1.2, 0); // quilla
+  add(new THREE.BoxGeometry(10, 0.2, 0.35), gold, 30, top + 2.15, 0);        // filete dorado del lomo
+  // greebles sobre el casco
+  for (let i = 0; i < 240; i++) { const x = Math.round((-44 + r() * 96) / 2) * 2; const w = hw(x) * 0.72; if (w < 1.5) continue; const z = Math.round(((r() * 2 - 1) * w) / 1.5) * 1.5;
+    const sx = 0.8 + r() * 2.4, sy = 0.2 + r() * 0.7, sz = 0.6 + r() * 1.4; const m = add(new THREE.BoxGeometry(sx, sy, sz), r() < 0.7 ? hull : dark, x, (r() < 0.92 ? 1 : -1) * (top - 0.2 + sy / 2), z); m.rotation.y = r() < 0.15 ? 0.3 : 0; }
+  // góndolas de motor y toberas
+  const nacG = new THREE.CylinderGeometry(3.4, 3.8, 18, 48, 1); nacG.rotateZ(Math.PI / 2);
+  const nozG = new THREE.CylinderGeometry(3.0, 3.6, 3, 48, 1, true); nozG.rotateZ(Math.PI / 2);
+  const glowTex = canvasTex(128, 128, (g, w, h) => { const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.25, "rgba(170,215,255,0.6)"); gr.addColorStop(1, "rgba(80,140,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
+  for (const z of [-8.5, 0, 8.5]) {
+    add(nacG, hull, -50, 0, z); add(nozG, dark, -60.4, 0, z);
+    const disc = add(new THREE.CircleGeometry(2.9, 48), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.7, 0.88, 1.0).multiplyScalar(6), toneMapped: false }), -61.4, 0, z, -Math.PI / 2);
+    disc.rotation.set(0, -Math.PI / 2, 0);
+    // estela: cono aditivo con gradiente
+    const plG = new THREE.ConeGeometry(2.9, 34, 48, 1, true); plG.rotateZ(Math.PI / 2); plG.translate(-61.4 - 17, 0, 0);
+    const pl = new THREE.Mesh(plG, new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, uniforms: { uI: { value: 1 } },
+      vertexShader: `varying float vT; varying vec3 vN; varying vec3 vV; void main(){ vT = clamp((-(position.x) - 61.4)/34.0, 0.0, 1.0); vN = normalize(normalMatrix*normal); vec4 mv = modelViewMatrix*vec4(position,1.0); vV = normalize(-mv.xyz); gl_Position = projectionMatrix*mv; }`,
+      fragmentShader: `varying float vT; varying vec3 vN; varying vec3 vV; uniform float uI; void main(){ float core = pow(abs(dot(vN, vV)), 1.5); float a = (1.0 - vT)*(1.0-vT) * core * 0.9 * uI; gl_FragColor = vec4(vec3(0.55,0.78,1.0)*a*2.2, a); }` }));
+    pl.position.z = z; grp.add(pl); plumes.push(pl);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xbfe0ff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })); sp.position.set(-62.5, 0, z); sp.scale.set(14, 14, 1); grp.add(sp); plumes.push(sp);
+  }
+  // cientos de ventanas iluminadas: dan la escala de una nave colosal
+  const winG = new THREE.BoxGeometry(0.42, 0.16, 0.1); const winM = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.82, 0.55).multiplyScalar(2.0), toneMapped: false });
+  const wins = [];
+  for (const side of [-1, 1]) for (let row = 0; row < 3; row++) { let on = true, run = 0;
+    for (let x = -42; x < 46; x += 0.95) { if (run-- <= 0) { on = r() < 0.72; run = 4 + Math.floor(r() * 14); } if (!on) continue; const w = hw(x); if (w < 3) continue;
+      wins.push([x, -T / 2 + 0.7 + row * 1.05, side * (w + 1.6 - 0.04), side]); } }
+  const inst = new THREE.InstancedMesh(winG, winM, wins.length); const o = new THREE.Object3D();
+  wins.forEach(([x, y, z], i) => { o.position.set(x, y, z); o.updateMatrix(); inst.setMatrixAt(i, o.matrix); }); grp.add(inst);
+  // luces de navegación (babor roja, estribor verde) y estroboscopios blancos
+  const lamp = (c, x, y, z, s) => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: c, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })); sp.position.set(x, y, z); sp.scale.set(s, s, 1); grp.add(sp); return sp; };
+  lamp(0xff3a2a, -35, 0, -20.8, 4); lamp(0x2aff7a, -35, 0, 20.8, 4);
+  strobes.push(lamp(0xffffff, 62.5, 0, 0, 7), lamp(0xffffff, -26, top + 9, 0, 6));
+  return grp;
+}
+
+// ───────────────────────── polvo espacial que pasa ─────────────────────────
+const BOX = { x: 900, y: 220, z: 520 };
+function buildDust() {
+  const r = rng(42), n = 900, base = new Float32Array(n * 4); const pos = new Float32Array(n * 2 * 3);
+  for (let i = 0; i < n; i++) base.set([r(), (r() - 0.5) * BOX.y, (r() - 0.5) * BOX.z, 3 + r() * 6], i * 4);
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(pos, 3)); const a = new Float32Array(n * 2); g.setAttribute("alpha", new THREE.BufferAttribute(a, 1));
+  const m = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    vertexShader: `attribute float alpha; varying float vA; void main(){ vA = alpha; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+    fragmentShader: `varying float vA; void main(){ gl_FragColor = vec4(vec3(0.75,0.82,1.0)*vA, vA); }` });
+  dustBase = base; return new THREE.LineSegments(g, m);
+}
+function updateDust(p) {
+  const pos = dust.geometry.attributes.position.array, al = dust.geometry.attributes.alpha.array, n = dustBase.length / 4;
+  for (let i = 0; i < n; i++) { const [u0, y, z, len] = dustBase.subarray(i * 4, i * 4 + 4);
+    const u = (u0 + p * 2) % 1;                       // dos pasadas exactas por bucle → periódico
+    const x = BOX.x / 2 - u * BOX.x;                  // de proa a popa: la nave avanza hacia +X
+    const fade = Math.min(1, u / 0.08, (1 - u) / 0.08) * 0.32;
+    pos.set([x, y, z, x + len * 1.0, y, z], i * 6); al[i * 2] = fade; al[i * 2 + 1] = 0; }
+  dust.geometry.attributes.position.needsUpdate = true; dust.geometry.attributes.alpha.needsUpdate = true;
+}
+
+// ───────────────────────── etalonaje final: viñeta, grano, aberración ─────────────────────────
+const GradeShader = { uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uAspect: { value: 1 } },
+  vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float uTime; uniform float uAspect; varying vec2 vUv;
+    float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233)))*43758.5453); }
+    void main(){ vec2 c = vUv - 0.5; float d = length(c*vec2(uAspect,1.0));
+      vec2 off = c * 0.0022;
+      vec3 col = vec3(texture2D(tDiffuse, vUv + off).r, texture2D(tDiffuse, vUv).g, texture2D(tDiffuse, vUv - off).b);
+      col = mix(col, col*vec3(1.03,1.0,0.96), 0.6);                    // calidez suave en altas luces
+      col = pow(col, vec3(0.97)) * 1.02;
+      col *= mix(1.0, 0.42, smoothstep(0.35, 1.05, d));                  // viñeta
+      col += (h(vUv*vec2(1913.0,1471.0) + uTime) - 0.5) * 0.028;         // grano de película
+      gl_FragColor = vec4(col, 1.0); }` };
+
+// ───────────────────────── setup / draw ─────────────────────────
+window.setup = async (w, h) => {
+  W = w; H = h; portrait = h > w;
+  renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); renderer.setPixelRatio(1); renderer.setSize(w, h);
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05; renderer.outputColorSpace = THREE.SRGBColorSpace;
+  document.body.appendChild(renderer.domElement);
+  scene = new THREE.Scene();
+  { const b = camPose(0); const fwd = b.look.clone().sub(b.pos).normalize(); const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize(); const up = new THREE.Vector3().crossVectors(right, fwd);
+    SUN.copy(right.clone().multiplyScalar(0.62).add(up.clone().multiplyScalar(0.62)).add(fwd.clone().multiplyScalar(-0.48))).normalize();
+    window.__planetAt = b.pos.clone().add(fwd.clone().multiplyScalar(portrait ? 2600 : 2900)).add(right.clone().multiplyScalar(portrait ? 40 : 330)).add(up.clone().multiplyScalar(portrait ? 700 : 470)); }
+  // entorno para reflejos metálicos: el propio cielo + sol, prefiltrado
+  const envScene = new THREE.Scene(); envScene.add(sky()); const sunBall = new THREE.Mesh(new THREE.SphereGeometry(200, 16, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(14, 11, 8) })); sunBall.position.copy(SUN).multiplyScalar(2500); envScene.add(sunBall);
+  const pm = new THREE.PMREMGenerator(renderer); scene.environment = pm.fromScene(envScene, 0.02).texture; scene.environmentIntensity = 1.0;
+  scene.add(sky()); const st = stars(); scene.add(st); st.userData.mat.uniforms.uScale.value = Math.max(w, h) / 1280;
+  const pl = planet(); scene.add(pl);
+  // composición: planeta detrás, a la izquierda (horizontal) o arriba (vertical); la nave a la derecha / al centro
+  pl.position.copy(window.__planetAt);
+  pl.userData.ring.material.uniforms.uC.value.copy(pl.position);
+  scene.add(new THREE.HemisphereLight(0x4a5f9a, 0x0a0c12, 0.35));
+  const sun = new THREE.DirectionalLight(0xffe6c2, 4.2); sun.position.copy(SUN).multiplyScalar(500); scene.add(sun);
+  const rim = new THREE.DirectionalLight(0x7fb4ff, 1.8); rim.position.set(200, 80, 600); scene.add(rim);
+  ship = buildShip(); scene.add(ship);
+  dust = buildDust(); scene.add(dust);
+  camera = new THREE.PerspectiveCamera(portrait ? 44 : 30, w / h, 1, 9000);
+  composer = new EffectComposer(renderer); composer.addPass(new RenderPass(scene, camera));
+  composer.addPass(new UnrealBloomPass(new THREE.Vector2(w, h), 0.62, 0.5, 0.9));
+  composer.addPass(new OutputPass());
+  grade = new ShaderPass(GradeShader); grade.uniforms.uAspect.value = w / h; composer.addPass(grade);
+  window.__ready = true;
+};
+
+function camPose(p) {
+  const s = Math.sin(TAU * p), c = Math.cos(TAU * p);
+  const az = (portrait ? -1.0 : -1.10) + 0.10 * s, el = 0.52 + 0.035 * Math.sin(TAU * p + 0.8), d = (portrait ? 255 : 250) * (1 + 0.045 * c);
+  const pos = new THREE.Vector3(Math.cos(az) * Math.cos(el) * d, Math.sin(el) * d, Math.sin(az) * Math.cos(el) * d);
+  const look = portrait ? new THREE.Vector3(4, -48, 6) : new THREE.Vector3(50, -2, 8);
+  return { pos, look };
+}
+
+window.draw = (t) => {
+  const p = (t % LOOP) / LOOP, s = Math.sin(TAU * p), c = Math.cos(TAU * p);
+  // la nave: leve balanceo y cabeceo (periódicos)
+  ship.rotation.set(0.05 * s, -0.12 + 0.03 * Math.sin(TAU * p + 0.7), 0.035 * Math.sin(TAU * p + 1.9));
+  // cámara: órbita lenta de 3/4 frontal desde arriba que vuelve a su punto, con leve empuje
+  const pose = camPose(p); camera.position.copy(pose.pos); camera.lookAt(pose.look);
+  // motores y destellos
+  const flick = 1 + 0.07 * Math.sin(TAU * p * 23) + 0.04 * Math.sin(TAU * p * 37 + 1.1);
+  for (const pl of plumes) { if (pl.material.uniforms) pl.material.uniforms.uI.value = flick; else pl.material.opacity = 0.85 * flick; }
+  const blink = (k, ph) => { const f = (p * k + ph) % 1; return f < 0.035 ? 1 : f < 0.06 ? 0.25 : 0; };
+  strobes[0].material.opacity = blink(5, 0.0); strobes[1].material.opacity = blink(5, 0.5);
+  updateDust(p);
+  grade.uniforms.uTime.value = (t * 24) % 97;
+  composer.render();
+};
+</script></body></html>
