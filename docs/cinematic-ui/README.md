@@ -6,7 +6,7 @@ Solo cambia la capa de presentación y navegación. No toca autenticación, susc
 
 ## Integración con COSMOS 2 v4
 
-La portada usa el fondo `VideoBackground` de COSMOS 2 v4 y el formulario de vidrio de la base actual. `CinematicBackground` y el material COSMOS original se conservan como alternativa, sin montarse ni descargarse en la portada. Solo hay un reproductor de fondo. Se conservan el hero, las tarjetas, la galería y la navegación móvil de esta entrega. Con movimiento reducido, ahorro de datos o 2G, COSMOS 2 v4 muestra su póster.
+La portada usa el fondo `VideoBackground` de COSMOS 2 v4 y el formulario de vidrio de la base actual. `CinematicBackground` y el material COSMOS original se conservan como alternativa, sin montarse ni descargarse en la portada. Solo hay un reproductor de fondo. El arnés original `cinematic-e2e.cjs` conserva el contrato COSMOS 1 (pausa por visibilidad y selectores anteriores); no valida la integración v4 ni se declara aprobado para ella. La prueba vigente de v4 es `v4-integration.cjs`: 320×658, 1440×900 y movimiento reducido a 390×844, con cuenta fixture, reproducción real, un solo fondo, CTA, estudios, navegación y capturas. Ejecución: `E2E_BASE=http://127.0.0.1:3300 E2E_CHROME=… PLAYWRIGHT_MODULE=… E2E_OUT=… node scripts/harness/e2e/cinematic/v4-integration.cjs`. Se conservan el hero, las tarjetas, la galería y la navegación móvil de esta entrega. Con movimiento reducido, ahorro de datos o 2G, COSMOS 2 v4 muestra su póster.
 
 ## Qué hay
 
