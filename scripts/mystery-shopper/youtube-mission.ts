@@ -15,7 +15,7 @@ import { provedUnstartedRender, matchesRenderStartResponse } from "./start-respo
  */
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
-import { canReserve, MODULE_CAP_USD, type LedgerState } from "../../src/lib/mystery-shopper/v3/ledger";
+import { canReserve, MODULE_CAP_USD, totals, REAL_CUMULATIVE_CAP_USD, type LedgerState } from "../../src/lib/mystery-shopper/v3/ledger";
 import { incrementalRenderReserve, verifiedReusableScript, verifiedExistingRenderFunding } from "./long-form-incremental-reserve";
 import { detectAv, detectMedia, detectProgress, type Incident } from "../../src/lib/mystery-shopper/v3/detect";
 import { measureVideo, type VideoMeasure } from "./av-check";
@@ -252,6 +252,9 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
     return;
   }
   if (existingRenderKey) {
+    const stopped = c.ledger?.stopped ? await c.ledger.stopped().catch(()=>true) : true;
+    const exposure = state ? totals(state) : null;
+    if(!c.real || !killSwitch() || stopped || !exposure || exposure.committedUsd>REAL_CUMULATIVE_CAP_USD || (exposure.byModule.youtube??0)>MODULE_CAP_USD.youtube){c.setHumanGate("El freno o el presupuesto acumulado impiden reutilizar la cobertura; no se inicia.");return;}
     if (!alreadyConfirmed || !verifiedExistingRenderFunding(state,existingRenderKey,renderReserve)) { c.setHumanGate("No se acredita la cobertura previa del mismo pedido; no se inicia."); return; }
     runCommitted += renderReserve;
     if(runCommitted>runCap){c.setHumanGate("La cobertura previa excede el tope de esta ejecución; no se inicia.");return;}
