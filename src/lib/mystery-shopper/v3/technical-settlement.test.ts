@@ -19,3 +19,9 @@ test("settlement operation defaults deny and non-root actor cannot reach storage
     assert.equal(result.status, 1); assert.match(result.stderr, /Private settlement blocked/);
   }
 });
+test("free final ledger reader defaults deny and non-root cannot mutate or inspect financial state", () => {
+  for (const extra of [{ MS_TECHNICAL_OPERATION: "deny" }, { MS_TECHNICAL_OPERATION: "read-final-ledger", GITHUB_ACTOR: "collaborator", GITHUB_REPOSITORY_OWNER: "owner" }]) {
+    const result = spawnSync(process.execPath, ["--import", "tsx", "scripts/mystery-shopper/read-technical-final-ledger.mjs"], { env: { ...process.env, ...extra }, encoding: "utf8" });
+    assert.equal(result.status, 1); assert.match(result.stderr, /Private final-ledger readback unavailable/);
+  }
+});

@@ -4,7 +4,7 @@ on:
     inputs:
       operation:
         type: choice
-        options: [deny, review-closed-native-cost, settle-root-reviewed-native-cost]
+        options: [deny, review-closed-native-cost, settle-root-reviewed-native-cost, read-final-ledger]
         default: deny
       request_id:
         type: string
@@ -31,7 +31,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   private-cost:
-    if: inputs.operation == 'review-closed-native-cost' || inputs.operation == 'settle-root-reviewed-native-cost'
+    if: inputs.operation == 'review-closed-native-cost' || inputs.operation == 'settle-root-reviewed-native-cost' || inputs.operation == 'read-final-ledger'
     environment: Preview
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -41,6 +41,7 @@ jobs:
         with: { node-version: 22, cache: npm }
       - run: npm ci --no-audit --no-fund
       - name: ROOT ONLY exact closed-native private journal review or create-only settlement
+        if: inputs.operation == 'review-closed-native-cost' || inputs.operation == 'settle-root-reviewed-native-cost'
         env:
           MS_TECHNICAL_OPERATION: ${{ inputs.operation }}
           MS_ROOT_COST_REVIEWED: ${{ inputs.operation == 'settle-root-reviewed-native-cost' && '1' || '0' }}
@@ -60,3 +61,18 @@ jobs:
           umask 077
           node --import tsx scripts/mystery-shopper/settle-technical-native-once.mjs > "$RUNNER_TEMP/technical-cost-private.log" 2>&1 || { echo 'Private native accounting blocked or uncertain. Inspect immutable state; never retry automatically.'; exit 1; }
           echo 'Exact closed-native accounting operation recorded privately. No financial values or quality approval published.'
+      - name: FREE root-bound final full-ledger readback; no settlement or original media binding
+        if: inputs.operation == 'read-final-ledger'
+        env:
+          MS_TECHNICAL_OPERATION: read-final-ledger
+          MS_NEW_REQUEST_ID: ${{ inputs.request_id }}
+          MS_ACCEPTED_REVIEW_SHA: ${{ inputs.review_sha }}
+          MS_REVIEW_RECEIPT: ${{ inputs.review_receipt }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          MYSTERY_SHOPPER_QA_EMAIL: ${{ secrets.MYSTERY_SHOPPER_QA_EMAIL }}
+          MYSTERY_SHOPPER_QA_PASSWORD: ${{ secrets.MYSTERY_SHOPPER_QA_PASSWORD }}
+        run: |
+          umask 077
+          node --import tsx scripts/mystery-shopper/read-technical-final-ledger.mjs > "$RUNNER_TEMP/technical-final-ledger-private.log" 2>&1 || { echo 'Private full-ledger readback unavailable or changed; no financial writes.'; exit 1; }
+          echo 'Full current ledger snapshot saved privately. No ledger, media or request writes.'
