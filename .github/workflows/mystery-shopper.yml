@@ -4,7 +4,7 @@ on:
     inputs:
       operation:
         type: choice
-        options: [prepare, preflight, run, inspect, reconcile, repair, material, material_apply, material_inspect]
+        options: [prepare, preflight, run, inspect, reconcile, repair, material, material_apply, material_inspect, delivery_locator]
         default: prepare
       target:
         type: string
@@ -113,3 +113,7 @@ jobs:
           umask 077
           node --import tsx scripts/mystery-shopper/qa-weather-material.mjs > "$RUNNER_TEMP/material-private.log" 2>&1 || { echo 'Free material proof blocked; no paid call or render.'; exit 1; }
           echo 'Private stock availability receipt saved. No paid call or render.'
+
+      - name: Prepare short-lived private Storage locator for authorized owner delivery
+        if: inputs.operation == 'delivery_locator'
+        run: node scripts/mystery-shopper/private-delivery-locator.mjs
