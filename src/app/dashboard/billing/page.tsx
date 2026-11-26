@@ -44,7 +44,7 @@ export default async function BillingPage({
             <li>Acceso al Command Center para revisar producción, saldos y costos.</li>
             <li>Los topes de gasto, saldos mínimos y límites de concurrencia siguen aplicándose.</li>
           </ul>
-          <p className="mt-4 text-sm text-ink-muted">La generación necesita proveedores habilitados y saldo suficiente. El estudio de audio y la publicación directa de podcasts todavía no están integrados.</p>
+          <p className="mt-4 text-sm text-ink-muted">La generación necesita proveedores habilitados y saldo suficiente. El acceso al estudio de audio depende de los permisos de la cuenta; la publicación directa de podcasts todavía no está integrada.</p>
           <div className="mt-6 flex flex-wrap gap-4">
             <Link className="font-medium text-accent underline" href="/dashboard/new">Crear contenido</Link>
             <Link className="font-medium text-accent underline" href="/dashboard/command-center">Ver saldos y costos</Link>
