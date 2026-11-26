@@ -3,6 +3,7 @@ import {createClient} from '@supabase/supabase-js';
 import {ledgerStore,canReserve,totals} from '../../src/lib/mystery-shopper/v3/ledger.ts';
 const e=process.env;
 async function main(){
+ if(e.MS_NATIVE_TARGET_MATCHES!=="true"||e.MS_NATIVE_QA_ENABLED!=="true"||e.MS_NATIVE_OWNER_GATE_ENABLED!=="true")throw Error("native-config");
  const sb=createClient(e.NEXT_PUBLIC_SUPABASE_URL,e.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
  const privacy=await sb.storage.getBucket('videos');if(privacy.error||privacy.data.public!==false)throw Error('privacy');
  const b=sb.storage.from('videos');
