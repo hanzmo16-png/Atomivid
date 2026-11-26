@@ -2,13 +2,15 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { studioOwnerPilot } from "@/lib/podcast/v3/studio";
 import { validStudioOwnerSignature } from "@/lib/podcast/v3/owner-check";
 import { isInternalProductionOwner } from "@/lib/billing/internal-production";
+import { studioQaPilot } from "@/lib/podcast/v3/qa-pilot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
  * Generador → app: ¿esta cuenta es la del dueño con el piloto del estudio activo (`owner`)? ¿Es la cuenta interna del dueño
- * (`internalOwner`, el mismo criterio con el que la app ofrece Recraft)? Firmado (HMAC, clave de servicio); solo sí/no.
+ * (`internalOwner`, el mismo criterio con el que la app ofrece Recraft)? `qaPilot` es una admisión independiente,
+ * limitada a la única cuenta QA confirmada; nunca cambia esos derechos. Firmado (HMAC); solo booleanos.
  */
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as { userId?: unknown } | null;
@@ -17,5 +19,5 @@ export async function POST(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   const { data } = await createServiceClient().auth.admin.getUserById(userId);
   const user = data?.user ? { id: data.user.id, email_confirmed_at: data.user.email_confirmed_at ?? null } : null;
-  return Response.json({ owner: studioOwnerPilot(user), internalOwner: isInternalProductionOwner(user ? { id: user.id, email_confirmed_at: user.email_confirmed_at ?? undefined } : null) });
+  return Response.json({ owner: studioOwnerPilot(user), internalOwner: isInternalProductionOwner(user ? { id: user.id, email_confirmed_at: user.email_confirmed_at ?? undefined } : null), qaPilot: studioQaPilot(user) });
 }

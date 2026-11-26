@@ -12,10 +12,11 @@ import { RECRAFT_USD_PER_IMAGE } from "@/lib/providers/image/recraft";
 import { isInternalProductionOwner } from "@/lib/billing/internal-production";
 import type { StudioMode } from "./spec";
 import type { Turn } from "./script";
+import { studioQaPilot } from "./qa-pilot";
 
 type Env = Record<string, string | undefined>;
 
-export type StudioFlag = { enabled: boolean; source: "env" | "owner" | "preview" | "off"; reason: string };
+export type StudioFlag = { enabled: boolean; source: "env" | "owner" | "qa" | "preview" | "off"; reason: string };
 type StudioUser = { id?: string; email_confirmed_at?: string | null } | null | undefined;
 /** Piloto del dueño: el estudio genera solo para la cuenta INTERNAL_PRODUCTION_OWNER_USER_ID (email confirmado), sin abrirlo a
  *  ninguna otra; se apaga con PODCAST_V3_OWNER_PILOT=0. Los topes de gasto y la autorización por episodio no cambian. */
@@ -24,7 +25,7 @@ export function studioOwnerPilot(user: StudioUser, env: Env = process.env): bool
 }
 /** La GENERACIÓN del estudio (despacho de trabajos y cobros autorizados): PODCAST_V3_ENABLED=1 o el piloto del dueño. */
 export function studioGenerationEnabled(user: StudioUser, env: Env = process.env): boolean {
-  return env.PODCAST_V3_ENABLED === "1" || studioOwnerPilot(user, env);
+  return env.PODCAST_V3_ENABLED === "1" || studioOwnerPilot(user, env) || studioQaPilot(user, env);
 }
 /** Visibilidad del estudio para una cuenta concreta (navegación y página): mismo criterio que `studioFlag`. */
 export function studioFlagFor(user: StudioUser, env: Env = process.env): StudioFlag {
@@ -34,6 +35,7 @@ export function studioFlagFor(user: StudioUser, env: Env = process.env): StudioF
 export function studioFlag(env: Env = process.env, user?: StudioUser): StudioFlag {
   if (env.PODCAST_V3_ENABLED === "1") return { enabled: true, source: "env", reason: "PODCAST_V3_ENABLED=1" };
   if (studioOwnerPilot(user, env)) return { enabled: true, source: "owner", reason: "Piloto del dueño (solo esta cuenta)" };
+  if (studioQaPilot(user, env)) return { enabled: true, source: "qa", reason: "Piloto QA autorizado (una sola cuenta confirmada)" };
   if (env.VERCEL_ENV === "preview" && env.PODCAST_STUDIO_PREVIEW !== "0") return { enabled: true, source: "preview", reason: "Vercel Preview: activado por defecto solo en Preview" };
   return { enabled: false, source: "off", reason: "Apagado (producción sin PODCAST_V3_ENABLED=1)" };
 }
