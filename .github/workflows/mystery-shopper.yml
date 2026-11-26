@@ -2,7 +2,7 @@
 # Gratuito por defecto; campaign-real exige despacho explícito, topes y ledger acumulado existente.
 #
 #  - repository_dispatch «mystery-shopper-run»: lo envía el panel (Command Center) al crear una evaluación.
-#  - deployment_status: Vercel avisa de un Preview listo; si el CI del SHA está verde, corren las misiones automáticas.
+#  - deployment_status: solo Production success; el runner verifica el SHA servido, sin generaciones.
 #  - workflow_dispatch: repetir a mano un trabajo existente por su id.
 #  - pull_request: pruebas del módulo y E2E autenticado en el arnés local (cuenta QA local, USD 0).
 name: Mystery Shopper AI
@@ -164,8 +164,7 @@ jobs:
       github.event_name == 'schedule' ||
       (github.event_name == 'workflow_dispatch' && inputs.operation == 'quality-loop') ||
       (github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success' &&
-       github.event.deployment.environment == 'Production' &&
-       github.event.deployment.ref == github.event.repository.default_branch)
+       github.event.deployment.environment == 'Production')
     environment: Preview
     runs-on: ubuntu-24.04
     timeout-minutes: 15
