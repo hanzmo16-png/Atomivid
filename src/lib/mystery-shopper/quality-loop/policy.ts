@@ -35,3 +35,6 @@ export function providerReadiness(product: keyof typeof PRODUCT_PROVIDER_IMPACT,
  if(!providers.every(p=>accounts.some(a=>a.providers?.includes(p)&&a.operationalLevel==='GREEN'&&a.balanceStatus==='REAL'&&typeof a.free==='number'&&Number.isFinite(a.free)&&a.free>0)))return false;
  return !!d.sentinel?.resources?.some(r=>r.resource==='workers'&&r.state==='VERIFIED'&&typeof r.used==='number'&&typeof r.limit==='number'&&r.used<r.limit);
 }
+
+/** No recurring storage payload reads without verified free egress; explicit manual QA stays bounded. */
+export function allowMediaProbe(trigger: string, localFixture: boolean): boolean { return localFixture || trigger === 'workflow_dispatch'; }

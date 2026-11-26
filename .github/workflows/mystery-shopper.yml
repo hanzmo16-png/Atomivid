@@ -161,10 +161,11 @@ jobs:
   # Periodic and post-deployment entrypoint. No production Storage jobs or paid work.
   quality-loop:
     if: >-
+      github.event.repository.private == false && (
       github.event_name == 'schedule' ||
       (github.event_name == 'workflow_dispatch' && inputs.operation == 'quality-loop') ||
       (github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success' &&
-       github.event.deployment.environment == 'Production')
+       github.event.deployment.environment == 'Production'))
     environment: Preview
     runs-on: ubuntu-24.04
     timeout-minutes: 15

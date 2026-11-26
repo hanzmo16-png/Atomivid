@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { initialQueue, claimCycle, finishCycle, claimDefect, transition, fingerprint, publicView, type Cycle, type Check } from './model';
-import { allowBrowserRequest, targetOrigin, sentinelStatus, providerReadiness } from './policy';
+import { allowBrowserRequest, targetOrigin, sentinelStatus, providerReadiness, allowMediaProbe } from './policy';
 import { update, Conflict, type QueueStore } from './github-store';
 const at='2026-11-26T20:00:00.000Z', end='2026-11-26T20:01:00.000Z', sha='a'.repeat(40);
 const check:Check={id:'download',product:'reels',state:'FAIL',severity:'P1',owner:'codex',module:'delivery',detail:'controlled failure'};
@@ -69,4 +69,10 @@ test('one defect across viewports; a desktop pass cannot hide the mobile failure
 });
 test('recurrence reopens same defect and creates one linked follow-up, not a duplicate root task',()=>{
  const q=initialQueue(at);add(q,cycle('first'));const d=q.defects[0],root=d.taskId;d.driveId='prior-task-file';const t=claimDefect(q,d.id,'codex','active',end);transition(q,d.id,t,'FIXED_IN_BRANCH',sha,end);transition(q,d.id,t,'INTEGRATED',sha,end);add(q,cycle('good',[{...check,state:'PASS'}]));add(q,cycle('recur'));const follow=q.defects[0].taskId;assert.notEqual(follow,root);assert.equal(q.defects[0].rootTaskId,root);assert.equal(q.defects[0].driveId,null);add(q,cycle('same-fail'));assert.equal(q.defects.length,1);assert.equal(q.defects[0].taskId,follow);
+});
+
+test('unverified egress cannot be consumed by periodic/deployment media probes; fixture flag cannot target production',()=>{
+ for(const trigger of ['schedule','deployment_status','unknown'])assert.equal(allowMediaProbe(trigger,false),false);
+ assert.equal(allowMediaProbe('workflow_dispatch',false),true);assert.equal(allowMediaProbe('fixture',true),true);
+ assert.throws(()=>targetOrigin('https://atomivid.vercel.app',true),/LOCAL/);
 });

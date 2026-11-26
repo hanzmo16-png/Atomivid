@@ -2,7 +2,7 @@
 import { findingsFrom, technicalTerms, type PageMetrics } from '../../../src/lib/mystery-shopper/live';
 import { inspectCampaign320SurfaceReadOnly } from '../../../src/lib/mystery-shopper/v3/campaign-320-readonly-preflight';
 import { classifyAuth } from '../../../src/lib/mystery-shopper/v3/auth-outcome';
-import { allowBrowserRequest, sentinelStatus, targetOrigin, providerReadiness } from '../../../src/lib/mystery-shopper/quality-loop/policy';
+import { allowBrowserRequest, sentinelStatus, targetOrigin, providerReadiness, allowMediaProbe } from '../../../src/lib/mystery-shopper/quality-loop/policy';
 import { sampleMedia } from './media';
 import { smoke } from '../smoke';
 import { PRODUCTS, type Cycle, type Check } from '../../../src/lib/mystery-shopper/quality-loop/model';
@@ -94,6 +94,10 @@ export async function observe(env: Record<string,string|undefined>, input: Pick<
     // One bounded sample per product per cycle: <=1MiB total payload, no provider or SDK request.
     for(const product of PRODUCTS){
       if(await stopped())throw new Error('STOPPED');
+      if(!allowMediaProbe(input.trigger,fixture)){
+        for(const id of ['download-sample','playback-sample','full-file-integrity'])add({id,product,state:'BLOCKED',severity:'P1',owner:'codex',module:'delivery',detail:'Recurring production media payload read not executed: free egress quota unverified; isolated fixtures remain available'});
+        continue;
+      }
       let assetPage=product==='audio-podcast'?'/dashboard/audio-studio':product==='video-podcast'?'/dashboard/podcast':null;
       if(!assetPage){
         await page.goto('/dashboard',{waitUntil:'domcontentloaded'});
