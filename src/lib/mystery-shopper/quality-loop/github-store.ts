@@ -28,7 +28,7 @@ export class GitHubQueueStore implements QueueStore {
     const content = JSON.stringify(q, null, 2)+'\n';
     if (!revision) {
       // Orphan state branch: no application sources, no production-branch commit.
-      const tree = await this.api('/git/trees', {method:'POST',body:JSON.stringify({tree:[{path:'state.json',mode:'100644',type:'blob',content}]})});
+      const tree = await this.api('/git/trees', {method:'POST',body:JSON.stringify({tree:[{path:'state.json',mode:'100644',type:'blob',content},{path:'vercel.json',mode:'100644',type:'blob',content:JSON.stringify({git:{deploymentEnabled:{[STATE_BRANCH]:false}}})}]})});
       if (!tree.ok) throw new Error(`QUEUE_TREE_${tree.status}`);
       const commit = await this.api('/git/commits',{method:'POST',body:JSON.stringify({message:'Quality loop state',tree:(await tree.json()).sha,parents:[]})});
       if (!commit.ok) throw new Error(`QUEUE_COMMIT_${commit.status}`);
