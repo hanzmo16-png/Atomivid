@@ -1,7 +1,7 @@
 /** Read-only browser quote for the reviewed operator QA row. No confirm or render requests allowed. */
 import { chromium } from 'playwright';
 import { createClient } from '@supabase/supabase-js';
-import { SOURCE_ID, ANCHOR_ID, prepareTechnicalRerender, verifiedReview, snapshotSha } from './technical-long-form-rerender.ts';
+import { SOURCE_ID, ANCHOR_ID, prepareTechnicalRerender, verifiedReview, snapshotSha, reviewSummary } from './technical-long-form-rerender.ts';
 
 async function main() {
   const e = process.env;
@@ -74,7 +74,7 @@ async function main() {
   } catch (error) { receipt.reason = String(error.message).replace(/https?:\/\/\S+/g, '[URL]').slice(0, 600); }
   finally {
     await browser.close();
-    const saved = await bucket.upload(`mystery-shopper/v3/receipts/technical-rerender-quote-${e.GITHUB_RUN_ID}.json`, JSON.stringify(receipt), { contentType: 'application/json', upsert: false });
+    const saved = await bucket.upload(`mystery-shopper/v3/receipts/technical-rerender-quote-${e.GITHUB_RUN_ID}.json`, JSON.stringify(receipt), { contentType: 'application/json', upsert: false, metadata: { ...reviewSummary(plan), status: receipt.status, ceilingUsd: receipt.ceilingUsd ?? null, quoteWithinTwoDollars: receipt.quoteWithinTwoDollars ?? false, zeroPaidAiVisuals: receipt.zeroPaidAiVisuals ?? false, confirmed: false, renderStarted: false } });
     if (saved.error || receipt.status !== 'PASS') process.exitCode = 1;
     console.log('UI quote recorded privately; no confirmation, reservation or generation.');
   }

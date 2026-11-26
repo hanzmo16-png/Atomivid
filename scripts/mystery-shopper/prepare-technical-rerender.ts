@@ -2,7 +2,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { SOURCE_ID, ANCHOR_ID, prepareTechnicalRerender, verifiedReview, snapshotSha } from "./technical-long-form-rerender";
+import { SOURCE_ID, ANCHOR_ID, prepareTechnicalRerender, verifiedReview, snapshotSha, reviewSummary } from "./technical-long-form-rerender";
 
 async function main() {
   const e = process.env;
@@ -33,7 +33,7 @@ async function main() {
       const insert = await service.from("video_requests").insert(plan.payload).select("id,user_id,status,mode,duration_seconds,render_attempts,script_json,long_form_confirmed_at,long_form_production_plan,video_path").single();
       if (insert.error || insert.data.id !== e.MS_NEW_REQUEST_ID || insert.data.user_id !== login.data.user.id || insert.data.status !== "script_ready" || insert.data.mode !== "long_form" || insert.data.duration_seconds !== 180 || insert.data.render_attempts !== 0 || insert.data.long_form_confirmed_at || insert.data.long_form_production_plan || insert.data.video_path || snapshotSha(insert.data.script_json) !== plan.provenance.sourceScriptSha256) throw Error("insert verification unavailable; never retry automatically");
       if (!e.GITHUB_RUN_ID) throw Error("private insert receipt requires workflow identity");
-      const saved = await service.storage.from("videos").upload(`mystery-shopper/v3/receipts/technical-rerender-insert-${e.GITHUB_RUN_ID}.json`, JSON.stringify({ ...plan.provenance, reviewSha256: plan.reviewSha256, sourceReviewReceipt: e.MS_REVIEW_RECEIPT, inserted: true, confirmed: false, renderStarted: false }), { contentType: "application/json", upsert: false });
+      const saved = await service.storage.from("videos").upload(`mystery-shopper/v3/receipts/technical-rerender-insert-${e.GITHUB_RUN_ID}.json`, JSON.stringify({ ...plan.provenance, reviewSha256: plan.reviewSha256, sourceReviewReceipt: e.MS_REVIEW_RECEIPT, inserted: true, confirmed: false, renderStarted: false }), { contentType: "application/json", upsert: false, metadata: { ...reviewSummary(plan), inserted: true, confirmed: false, renderStarted: false } });
       if (saved.error) throw Error("insert receipt unavailable; never retry automatically");
       console.log("New QA row inserted from exact reviewed real source. No confirmation, reservation or generation.");
       return;
@@ -41,7 +41,7 @@ async function main() {
     await mkdir(e.MS_OUT_DIR, { recursive: true, mode: 0o700 });
     await writeFile(path.join(e.MS_OUT_DIR, "technical-rerender-review.json"), JSON.stringify(plan, null, 2), { mode: 0o600, flag: "wx" });
     if (e.GITHUB_RUN_ID) {
-      const receipt = await service.storage.from("videos").upload(`mystery-shopper/v3/receipts/technical-rerender-review-${e.GITHUB_RUN_ID}.json`, JSON.stringify(plan), { contentType: "application/json", upsert: false });
+      const receipt = await service.storage.from("videos").upload(`mystery-shopper/v3/receipts/technical-rerender-review-${e.GITHUB_RUN_ID}.json`, JSON.stringify(plan), { contentType: "application/json", upsert: false, metadata: reviewSummary(plan) });
       if (receipt.error) throw Error("private review receipt unavailable");
     }
     console.log("Private review plan prepared. No QA row inserted or provider called. Root review required before execution.");

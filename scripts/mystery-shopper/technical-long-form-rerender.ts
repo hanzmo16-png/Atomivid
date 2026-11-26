@@ -15,6 +15,15 @@ export function verifiedReview(plan: ReturnType<typeof prepareTechnicalRerender>
   if (!/^[0-9a-f]{64}$/.test(acceptedSha) || acceptedSha !== plan.reviewSha256 || snapshotSha(review) !== snapshotSha(plan)) throw Error("exact reviewed payload and fresh source required");
 }
 
+/** Readback metadata exposes hashes and validated structure, never owner IDs or script content. */
+export function reviewSummary(plan: ReturnType<typeof prepareTechnicalRerender>) {
+  return { reviewSha256: plan.reviewSha256, sourceScriptSha256: plan.provenance.sourceScriptSha256,
+    sourceOutputSha256: plan.provenance.sourceOutputSha256, newRequestId: plan.provenance.newRequestId,
+    ownerVerified: true, payloadKeys: Object.keys(plan.payload).sort(), status: plan.payload.status,
+    mode: plan.payload.mode, attempts: plan.payload.render_attempts, durationSeconds: plan.payload.duration_seconds,
+    paidCalls: 0, hasCopiedPlan: false, hasCopiedOutput: false, customerFreshScriptFlowProved: false };
+}
+
 export function prepareTechnicalRerender(source: any, output: any, qaUserId: string, anchorUserId: string, newId: string) {
   if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(newId) || [SOURCE_ID, ANCHOR_ID].includes(newId)) throw Error("new identity required");
   if (!qaUserId || source.id !== SOURCE_ID || source.user_id !== qaUserId || anchorUserId !== qaUserId || source.status !== "completed" || source.render_attempts !== 3 || source.mode !== "long_form" || source.duration_seconds !== 180 || source.language !== "es" || source.style !== "Documental" || source.aspect_ratio !== "16:9" || source.video_path !== `${SOURCE_ID}/output/final.mp4`) throw Error("source scope mismatch");
