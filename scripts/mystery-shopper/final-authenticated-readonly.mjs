@@ -63,10 +63,10 @@ async function main() {
           if (!downloaded.ok || !downloaded.bytes) throw Error('download failed');
         }
         if (route === `/dashboard/audio-studio/${audioId}`) {
-          const audio = page.locator('audio').first();
+          const audio = page.getByTestId('audio-player');
           await audio.waitFor();
           await audio.evaluate(async a => { a.muted=true; await a.play(); });
-          await page.waitForFunction(() => { const a=document.querySelector('audio'); return a && a.currentTime>0 && a.duration>180; });
+          await page.waitForFunction(() => { const a=document.querySelector('[data-testid=audio-player]'); return a && a.currentTime>0 && a.duration>180; });
           await audio.evaluate(a=>a.pause());
           const href = await page.getByRole('link',{name:'Descargar MP3',exact:true}).getAttribute('href');
           if (!href || !allowedRequest(new URL(href,ORIGIN).href,'GET',true,storageOrigin)) throw Error('unsafe audio delivery');
