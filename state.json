@@ -1,8 +1,12 @@
 {
   "version": "quality-loop/1",
   "enabled": true,
-  "updatedAt": "2026-11-26T23:10:14.272Z",
-  "lease": null,
+  "updatedAt": "2026-11-26T23:13:33.863Z",
+  "lease": {
+    "cycleId": "deployment-8097727135-6815e4831492d5d51af2cd8be2cd8c0b26b0b031",
+    "token": "87435bae-019b-4a13-9a3a-00699ad66839",
+    "expiresAt": "2026-11-26T23:33:33.863Z"
+  },
   "cycles": [
     {
       "id": "manual-45886485209",
@@ -5755,6 +5759,10 @@
     {
       "at": "2026-11-26T23:10:14.272Z",
       "text": "Scheduler P1 remains blocked: no schedule event, service cause unexposed; active Codex diagnosis recorded, module claim released without declaring a fix"
+    },
+    {
+      "at": "2026-11-26T23:13:33.863Z",
+      "text": "Cycle deployment-8097727135-6815e4831492d5d51af2cd8be2cd8c0b26b0b031 claimed"
     }
   ],
   "lastAlert": "29d09ef8233d615c556df903c74477e0640b35639dd48934ce0a39752fcc9a6b",
