@@ -10,8 +10,12 @@ export async function installPrivateStockSearchCache(storage,{runId,deadlineMs=9
   if(url.origin!=='https://api.pexels.com'||!['/videos/search','/v1/search'].includes(url.pathname)||(init?.method??'GET').toUpperCase()!=='GET')return original(input,init);
   const keys=[...url.searchParams.keys()];if(keys.some(k=>!['query','orientation','per_page','size','locale','page'].includes(k)))throw Error('unexpected stock search parameters');
   url.searchParams.sort();const canonical=url.href,key=createHash('sha256').update(canonical).digest('hex'),hour=new Date(now()).toISOString().slice(0,13),path=`mystery-shopper/v3/stock-search-cache/${hour}/${key}.json`;
-  const found=await bucket.download(path);
-  if(!found.error&&found.data){const entry=JSON.parse(await found.data.text());if(entry.url!==canonical||typeof entry.body!=='string'||createHash('sha256').update(entry.body).digest('hex')!==entry.sha256)throw Error('stock cache integrity mismatch');if(entry.expiresAt>now()&&entry.createdAt<=now()){await event({key,cached:true,status:200});return new Response(entry.body,{status:200,headers:{'content-type':'application/json'}});}}
+  // A one-hour-valid entry may have been written before an hour boundary. Do not discard it at :00.
+  const previousHour=new Date(now()-3600000).toISOString().slice(0,13);
+  for(const candidatePath of [path,`mystery-shopper/v3/stock-search-cache/${previousHour}/${key}.json`]){
+   const found=await bucket.download(candidatePath);
+   if(!found.error&&found.data){const entry=JSON.parse(await found.data.text());if(entry.url!==canonical||typeof entry.body!=='string'||createHash('sha256').update(entry.body).digest('hex')!==entry.sha256)throw Error('stock cache integrity mismatch');if(entry.expiresAt>now()&&entry.createdAt<=now()){await event({key,cached:true,status:200});return new Response(entry.body,{status:200,headers:{'content-type':'application/json'}});}}
+  }
   // Sequential stock requests are paced; 429 backoff follows the provider window and is bounded by this free operation.
   if((rateFailures.get(key)??0)>=2)throw Error('stock quota retry limit reached');
   let response;
