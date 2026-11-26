@@ -14,7 +14,10 @@ test('real Chromium: four products, controlled defect detected then corrected/re
    otherWrites++;res.writeHead(500);return res.end();
   }
   if(p==='/api/build-info'){res.setHeader('content-type','application/json');return res.end(JSON.stringify({sha}));}
-  if(p==='/api/command-center/resource-sentinel'){res.setHeader('content-type','application/json');return res.end(JSON.stringify({observedAt:new Date().toISOString(),sentinel:{accountingScope:'READ_ONLY_NOT_ATOMIC_ADMISSION',accounts:[]},admission:[]}));}
+  if(p==='/api/command-center/resource-sentinel'){
+   if(broken){res.writeHead(404,{'content-type':'text/html'});return res.end('<h1>Not Found</h1>');}
+   res.setHeader('content-type','application/json');return res.end(JSON.stringify({observedAt:new Date().toISOString(),sentinel:{accountingScope:'READ_ONLY_NOT_ATOMIC_ADMISSION',accounts:[]},admission:[]}));
+  }
   if(p==='/api/admin/mystery-shopper'){res.writeHead(401);return res.end('{}');}
   if(p.startsWith('/dashboard')&&!req.headers.cookie?.includes('qa=1')){res.writeHead(307,{location:'/login'});return res.end();}
   res.setHeader('content-type','text/html; charset=utf-8');
@@ -28,6 +31,7 @@ test('real Chromium: four products, controlled defect detected then corrected/re
   const first=await observe(env,{id:'fixture-1',trigger:'fixture',runnerSha:sha,url:'http://local/fixture-1'});
   assert.equal(first.scope,'fixture');assert.equal(first.authenticated,true);assert.equal(first.sha,sha);
   assert.equal(first.checks.find(c=>c.id==='controls-reels-412')?.state,'FAIL');
+  assert.match(first.checks.find(c=>c.id==='sentinel-read')?.detail||'',/HTTP 404; backend route absent/);
   broken=false;
   const second=await observe(env,{id:'fixture-2',trigger:'fixture',runnerSha:sha,url:'http://local/fixture-2'});
   assert.equal(second.checks.find(c=>c.id==='controls-reels-412')?.state,'PASS');

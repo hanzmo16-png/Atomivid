@@ -46,7 +46,7 @@ export async function observe(env: Record<string,string|undefined>, input: Pick<
     authenticated=outcome.kind==='ok';
     add({id:'qa-auth',product:'account-nav',state:authenticated?'PASS':outcome.state==='BLOCKED'?'BLOCKED':'FAIL',severity:'P1',owner:'codex',module:'auth',detail:authenticated?'Fresh QA browser login confirmed':'QA login unsuccessful; credentials and response omitted'});
     if(!authenticated)return finish();
-    const getJSON=async(p:string)=>page.evaluate(async(p:string)=>{try{const r=await fetch(p,{cache:'no-store',signal:AbortSignal.timeout(15000)});return {status:r.status,data:await r.json()};}catch{return {status:0,data:null};}},p);
+    const getJSON=async(p:string)=>page.evaluate(async(p:string)=>{try{const r=await fetch(p,{cache:'no-store',signal:AbortSignal.timeout(15000)});return {status:r.status,data:await r.json().catch(()=>null)};}catch{return {status:0,data:null};}},p);
     const build=await getJSON('/api/build-info');
     if(build.status===200&&/^[a-f0-9]{40}$/.test(build.data?.sha))sha=build.data.sha;
     add({id:'deployed-sha',product:'account-nav',state:sha?'PASS':'BLOCKED',severity:'P1',owner:'codex',module:'deployment',detail:sha?'SHA returned by the evaluated application':'Evaluated application SHA unavailable; runner SHA is not production identity'});
