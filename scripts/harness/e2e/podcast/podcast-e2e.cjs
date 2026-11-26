@@ -709,7 +709,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     for (const [dev, opt] of Object.entries(DEV)) {
       const M = await session(OWNER, `c11-${dev}`, opt);
       await M.p.goto(`${BASE}/dashboard`); await shot(M.p, `c11-${dev}-00-dashboard`);
-      const link = M.p.locator('header div.sm\\:hidden a[href="/dashboard/podcast"]');
+      const link = M.p.locator('header [data-testid=studio-strip] a[href="/dashboard/podcast"]');
       ok(`c11-${dev}: menú móvil muestra «Podcast»`, await link.isVisible());
       await link.click(); await M.p.waitForURL(/\/dashboard\/podcast$/);
       const overflow = await M.p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

@@ -10,9 +10,10 @@ import path from "node:path";
 /** Mismo interruptor que la app: PODCAST_V3_ENABLED=1, o el piloto del dueño (PODCAST_V3_OWNER_PILOT=0 lo apaga) para
  *  episodios del dueño, verificado aquí de forma independiente: por PODCAST_V3_OWNER_USER_ID (secreto
  *  INTERNAL_PRODUCTION_OWNER_USER_ID, si existe en GitHub) o, si no, preguntando a la app con una petición firmada (la app
- *  sí conoce al dueño). Cualquier otra cuenta, error o falta de respuesta: no se genera ni se cobra. */
+ *  sí conoce al dueño). El piloto QA se consulta con una respuesta firmada SEPARADA, sin conceder derechos de dueño.
+ *  Cualquier otra cuenta, error o falta de respuesta: no se genera ni se cobra. */
 export async function studioWorkerEnabled(episodeId: string, env: Record<string, string | undefined> = process.env,
-  deps: { ownerOf?: (id: string) => Promise<string | null>; askApp?: (userId: string) => Promise<boolean> } = {}): Promise<boolean> {
+  deps: { ownerOf?: (id: string) => Promise<string | null>; askApp?: (userId: string) => Promise<boolean>; askQa?: (userId: string) => Promise<boolean> } = {}): Promise<boolean> {
   if (env.PODCAST_V3_ENABLED === "1") return true;
   if (env.PODCAST_V3_OWNER_PILOT === "0" || !/^[0-9a-f-]{36}$/i.test(episodeId)) return false;
   const ownerId = env.PODCAST_V3_OWNER_USER_ID?.trim().toLowerCase();
@@ -25,9 +26,14 @@ export async function studioWorkerEnabled(episodeId: string, env: Record<string,
   });
   const uid = (await read(episodeId))?.toLowerCase();
   if (!uid) return false;
-  if (ownerId) return uid === ownerId;
-  const ask = deps.askApp ?? (async (u: string) => (await import("../../src/lib/podcast/v3/owner-check")).askAppIsStudioOwner(u, env));
-  return ask(uid);
+  if (ownerId && uid === ownerId) return true;
+  if (!ownerId) {
+    const ask = deps.askApp ?? (async (u: string) => (await import("../../src/lib/podcast/v3/owner-check")).askAppIsStudioOwner(u, env));
+    if (await ask(uid)) return true;
+  }
+  if (env.PODCAST_V3_QA_PILOT === "0") return false;
+  const askQa = deps.askQa ?? (async (u: string) => (await import("../../src/lib/podcast/v3/owner-check")).askAppIsStudioQaPilot(u, env));
+  return askQa(uid).catch(() => false);
 }
 
 export async function runStudioJob(episodeId: string) {
@@ -120,7 +126,7 @@ export async function runStudioJob(episodeId: string) {
     const demands = studioSupplyDemands(needs, studioSpendByProvider(recent ?? []));
     if (!demands.length) return null;
     const r = await ensureJobSupplyReady(service, demands);
-    console.log("STUDIO_READINESS", JSON.stringify({ demands, ready: r.ready, failure: r.failure ?? null, providers: r.providers.map((p) => ({ p: p.provider, level: p.level, free: p.free, ok: p.ok, failure: p.failure ?? null })) }));
+    console.log("STUDIO_READINESS", JSON.stringify(publicStudioReadiness(r)));
     return r.ready ? null : readinessMessage(r.failure);
   };
   // Arnés E2E local: proveedores simulados (nunca en producción).
@@ -130,7 +136,7 @@ export async function runStudioJob(episodeId: string) {
   const est = (row.estimate ?? {}) as { rates?: { voiceUsdPer1kChars?: number } };
   const voiceRate = Number(est.rates?.voiceUsdPer1kChars);
   const rates = Number.isFinite(voiceRate) && voiceRate > 0 ? { voiceUsdPer1kChars: voiceRate } : undefined;
-  console.log("STUDIO_RATES", JSON.stringify(rates ?? { source: "config" }));
+  console.log("STUDIO_RATES", rates ? "episode estimate configured" : "project configuration");
   // Lo pagado se guarda en Storage (privado, carpeta del dueño): un reintento en otro runner lo reutiliza sin pagar.
   const artifacts = {
     async put(key: string, local: string) { const p = `${base}/paid/${key.slice(0, 32)}${path.extname(local) || ".bin"}`; await upload(p, local, local.endsWith(".mp4") ? "video/mp4" : local.endsWith(".png") ? "image/png" : "audio/mpeg"); return `storage:${p}`; },
@@ -206,14 +212,15 @@ export async function runStudioJob(episodeId: string) {
       result: { duration: r.durationSeconds, duration_check: deliveredDuration(spec, r.durationSeconds), lufs: r.lufs, true_peak: r.truePeak, music: r.musicTrack, mood: r.mood, shots: r.plan.shots.map((s) => ({ kind: s.kind, speaker: s.speaker, start: s.start, end: s.end, label: s.label ?? null })), providers: r.providers,
         // Podcast 2.1: línea de tiempo de labios por segmento y su verificación contra la voz real (nadie habla fuera de su turno).
         lips: lipTimeline(r.plan).map((x) => ({ start: x.start, end: x.end, shot: x.shot, A: x.lips.A, B: x.lips.B })), lip_violations: lipViolations(lipTimeline(r.plan), r.timeline), coverage: shotCoverage(r.plan) }, error: null, updated_at: new Date().toISOString() }).eq("id", episodeId);
-    console.log("STUDIO_READY", JSON.stringify({ usd: r.spentUsd, paid: r.paidOps, reused: r.reusedOps, progress: writer.stats, duration: deliveredDuration(spec, r.durationSeconds) }));
+    console.log("STUDIO_READY", JSON.stringify(publicStudioCompletion(r)));
   } catch (e) {
     clearInterval(beat);
     await writer.flush();
     if (!studioRunErrorFailsEpisode(e)) { console.log("STUDIO_DUPLICATE"); return; }
     const msg = e instanceof Error ? e.message.slice(0, 400) : "Error";
     await service.from(STUDIO_TABLE).update({ status: "failed", error: msg, updated_at: new Date().toISOString() }).eq("id", episodeId);
-    console.log("STUDIO_FAILED", e instanceof Error ? e.name : "unknown", e instanceof Error && "detail" in e ? String((e as { detail?: string }).detail ?? "").slice(0, 200) : "");
+    console.log("STUDIO_FAILED");
     throw e;
   }
 }
+import { publicStudioCompletion, publicStudioReadiness } from "./public-log";

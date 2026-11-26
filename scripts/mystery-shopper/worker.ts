@@ -1,3 +1,5 @@
+import { validatePreviewShare } from "./preview-share";
+import { previewAccessBlocked, previewProtectionHeaders } from "./preview-access";
 /**
  * Mystery Shopper 2.0 — worker real. Corre en GitHub Actions (o en el arnés local), nunca en Vercel serverless.
  *
@@ -51,7 +53,7 @@ function bucket(): StorageApi {
 /** Nunca deja pasar la contraseña, correos ni tokens a un log o informe. */
 function redact(text: string): string {
   let t = text.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[correo]").replace(/\b(eyJ[\w-]{10,}|sk-[\w-]{8,}|ghp_[\w]{10,})/g, "[secreto]");
-  for (const s of [env.MYSTERY_SHOPPER_QA_PASSWORD, env.VERCEL_AUTOMATION_BYPASS_SECRET, env.SUPABASE_SERVICE_ROLE_KEY]) if (s && s.length >= 4) t = t.split(s).join("[secreto]");
+  for (const s of [env.MYSTERY_SHOPPER_QA_PASSWORD, env.VERCEL_AUTOMATION_BYPASS_SECRET, env.SUPABASE_SERVICE_ROLE_KEY, env.MS_PREVIEW_ACCESS_URL]) if (s && s.length >= 4) t = t.split(s).join("[secreto]");
   return t;
 }
 
@@ -105,13 +107,25 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- playwright no es dependencia de la app; el worker lo instala aparte.
   const pw = (pwMod.chromium ? pwMod : pwMod.default) as any;
   const browser = await pw.chromium.launch({ headless: true, executablePath: env.MS_CHROME || undefined });
-  const headers: Record<string, string> = {};
-  if (job.target.kind === "preview") {
-    if (env.VERCEL_AUTOMATION_BYPASS_SECRET) { headers["x-vercel-protection-bypass"] = env.VERCEL_AUTOMATION_BYPASS_SECRET; headers["x-vercel-set-bypass-cookie"] = "true"; }
-  }
-  const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, isMobile: vp.mobile, hasTouch: vp.mobile, locale: "es-MX", extraHTTPHeaders: headers });
-  const sessionId = randomUUID();
+  const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, isMobile: vp.mobile, hasTouch: vp.mobile, locale: "es-MX" });
   const fresh = (await context.cookies()).length === 0;
+  // Bootstrap only the exact Preview origin through the cookie-sharing API context.
+  // Do not attach a bearer header globally: Playwright forwards continue() headers across redirects.
+  if (job.target.kind === "preview" && env.VERCEL_AUTOMATION_BYPASS_SECRET) {
+    const bootstrap = await context.request.get(job.target.url, {
+      headers: previewProtectionHeaders(job.target.url, job.target.url, env.VERCEL_AUTOMATION_BYPASS_SECRET),
+      maxRedirects: 0,
+    });
+    await bootstrap.dispose();
+  }
+  if (job.target.kind === "preview" && env.MS_PREVIEW_ACCESS_URL) {
+    try {
+      const access = validatePreviewShare(job.target.url, env.MS_PREVIEW_ACCESS_URL);
+      const response = await context.request.get(access, { maxRedirects: 0 });
+      await response.dispose();
+    } catch { throw new Error("Temporary Preview access failed; protected details withheld."); }
+  }
+  const sessionId = randomUUID();
   await save({ stage: "Navegador nuevo abierto", browser: { sessionId, version: browser.version(), freshContext: fresh } });
   act("navegador", `sesión ${sessionId} · ${browser.version()} · contexto nuevo=${fresh} · ${vp.width}×${vp.height} · perfil ${job.profile}`);
   await context.route("**/*", (route: { request(): { url(): string }; abort(r?: string): Promise<void>; continue(): Promise<void> }) => {
@@ -120,6 +134,8 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
     return route.continue();
   });
   const page = await context.newPage();
+  // A deferred welcome dialog may appear after route navigation; dismiss it as a customer would.
+  await page.addLocatorHandler(page.locator('[role="dialog"][aria-labelledby="onboarding-title"]').getByRole("button", { name: "Omitir", exact: true }).first(), async (button: { click(): Promise<void> }) => { await button.click(); });
   let consoleErrors = 0;
   page.on("console", (m: { type(): string }) => { if (m.type() === "error") consoleErrors++; });
   // 3.0: excepciones sin capturar quedan en el registro de acciones (sanitizado por redact al guardar).
@@ -191,6 +207,10 @@ async function evaluate(store: ReturnType<typeof jobStore>, view: NonNullable<Aw
     // 1. Acceso
     const access = await step("Abrir ATOMIVID", async () => {
       const m = await goto("/login");
+      if (job.target.kind === "preview" && previewAccessBlocked(job.target.url, page.url(), m.httpStatus)) {
+        humanGate = "El Preview requiere acceso autorizado de Vercel para el runner. No se envían credenciales QA a una página externa ni se desactiva la protección.";
+        return { state: "BLOCKED", detail: "El Preview no entregó el formulario de ATOMIVID en su origen autorizado." };
+      }
       if (!m.httpStatus || m.httpStatus >= 400) {
         if (job.target.kind === "preview" && (m.httpStatus === 401 || m.httpStatus === 403)) { humanGate = "El Preview está protegido por Vercel: falta el secreto VERCEL_AUTOMATION_BYPASS_SECRET en el worker."; return { state: "BLOCKED", detail: `HTTP ${m.httpStatus}: Preview protegido.` }; }
         return { state: "FAIL", detail: `HTTP ${m.httpStatus}` };

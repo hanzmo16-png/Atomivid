@@ -1,0 +1,69 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { studioQaPilot } from "./qa-pilot";
+import { studioGenerationEnabled, studioFlag } from "./studio";
+import { isInternalProductionOwner } from "@/lib/billing/internal-production";
+import { studioWorkerEnabled } from "../../../../scripts/podcast-3-0/studio-worker";
+import { askAppIsStudioQaPilot, askAppIsStudioOwner, askAppIsInternalOwner } from "./owner-check";
+const qa = { id: "11111111-2222-4333-8444-555555555555", email_confirmed_at: "2026-01-01T00:00:00Z" };
+const other = { ...qa, id: "99999999-2222-4333-8444-555555555555" };
+test("authorized QA pilot grants one confirmed account without global or owner privileges", () => {
+  const env = { BETA_QA_USER_IDS: qa.id };
+  assert.equal(studioQaPilot(qa,env),true);
+  assert.equal(studioGenerationEnabled(qa,env),true);
+  assert.equal(studioFlag(env,qa).source,"qa");
+  assert.equal(isInternalProductionOwner(qa,env),false);
+  assert.equal(studioGenerationEnabled(other,env),false);
+  assert.equal(studioFlag(env,other).enabled,false);
+});
+test("missing, malformed, multiple, disabled and unconfirmed QA fail closed", () => {
+  for(const env of [{},{BETA_QA_USER_IDS:"invalid"},{BETA_QA_USER_IDS:`${qa.id},invalid`},{BETA_QA_USER_IDS:`${qa.id},${other.id}`},{BETA_QA_USER_IDS:qa.id,PODCAST_V3_QA_PILOT:"0"}]) assert.equal(studioQaPilot(qa,env),false);
+  for(const user of [null,undefined,{id:qa.id},{...qa,email_confirmed_at:null},other]) assert.equal(studioQaPilot(user,{BETA_QA_USER_IDS:qa.id}),false);
+});
+test("Preview visibility alone still cannot authorize another account to generate", () => {
+  const env = { VERCEL_ENV:"preview", BETA_QA_USER_IDS:qa.id };
+  assert.equal(studioFlag(env,other).source,"preview");
+  assert.equal(studioGenerationEnabled(other,env),false);
+  assert.equal(studioGenerationEnabled(qa,env),true);
+});
+test("native admission uses the separately signed QA answer, never an owner grant", async () => {
+  const episode="aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",env={PODCAST_V3_OWNER_USER_ID:other.id};
+  assert.equal(await studioWorkerEnabled(episode,env,{ownerOf:async()=>qa.id,askQa:async id=>id===qa.id}),true);
+  assert.equal(await studioWorkerEnabled(episode,env,{ownerOf:async()=>qa.id,askQa:async()=>false}),false);
+  assert.equal(await studioWorkerEnabled(episode,env,{ownerOf:async()=>qa.id,askQa:async()=>{throw Error('fixture network failure');}}),false);
+  assert.equal(await studioWorkerEnabled(episode,{...env,PODCAST_V3_QA_PILOT:"0"},{ownerOf:async()=>qa.id,askQa:async()=>true}),false);
+});
+test("QA answer is not owner/internal-owner; missing or malformed QA boolean blocks", async () => {
+  const env={SUPABASE_SERVICE_ROLE_KEY:"fixture-secret-only-for-synthetic-hmac",PODCAST_V3_APP_URL:"https://preview.example.test"};
+  const response=(body:unknown)=>async()=>new Response(JSON.stringify(body),{status:200,headers:{"Content-Type":"application/json"}});
+  const fetchQa=response({qaPilot:true,owner:false,internalOwner:false});
+  assert.equal(await askAppIsStudioQaPilot(qa.id,env,fetchQa),true);
+  assert.equal(await askAppIsStudioOwner(qa.id,env,fetchQa),false);
+  assert.equal(await askAppIsInternalOwner(qa.id,env,fetchQa),false);
+  for(const body of [{owner:true},{qaPilot:"true"},{qaPilot:false},null]) assert.equal(await askAppIsStudioQaPilot(qa.id,env,response(body)),false);
+});
+test("QA worker requires an explicit app URL and never falls back to production", async () => {
+  const base={SUPABASE_SERVICE_ROLE_KEY:"fixture-secret-only-for-synthetic-hmac"};
+  let calls=0,seen="";
+  const answer=(async(url:string)=>{calls++;seen=url;return new Response(JSON.stringify({qaPilot:true}),{status:200,headers:{"Content-Type":"application/json"}});}) as unknown as typeof fetch;
+  assert.equal(await askAppIsStudioQaPilot(qa.id,base,answer),false);
+  assert.equal(await askAppIsStudioQaPilot(qa.id,{...base,PODCAST_V3_APP_URL:"   "},answer),false);
+  assert.equal(calls,0,"missing Preview URL makes no request, including to production");
+  assert.equal(await askAppIsStudioQaPilot(qa.id,{...base,PODCAST_V3_APP_URL:"https://preview.example.test"},answer),true);
+  assert.equal(calls,1);
+  assert.equal(seen,"https://preview.example.test/api/internal/studio-owner");
+});
+import { readFileSync } from "node:fs";
+
+test("native workflow defaults only its default-branch worker to the public app", () => {
+  const workflow = readFileSync(new URL("../../../../.github/workflows/podcast-video.yml", import.meta.url), "utf8");
+  const expression = workflow.match(/^\s+PODCAST_V3_APP_URL: \$\{\{ (.+) \}\}$/m)?.[1];
+  assert.ok(expression, "the actual worker must declare its app target");
+  // GitHub's &&/||/== subset here has the same behavior for these string inputs.
+  const evaluate = new Function("vars", "github", `return (${expression});`) as (vars: { PODCAST_V3_APP_URL: string }, github: unknown) => string;
+  const target = (ref: string, configured = "") => evaluate({ PODCAST_V3_APP_URL: configured }, { ref_name: ref, event: { repository: { default_branch: "production" } } });
+  assert.equal(target("production"), "https://atomivid.vercel.app");
+  assert.equal(target("preview"), "");
+  assert.equal(target("production", "https://configured.example.test"), "https://configured.example.test");
+  assert.equal(target("preview", "https://preview.example.test"), "https://preview.example.test");
+});

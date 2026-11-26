@@ -23,6 +23,13 @@ import { CreateHome } from "@/components/dashboard/simple-create/CreateHome";
 import { createFormats, midFlow, splitHistory } from "@/components/dashboard/simple-create/home";
 import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
 import { studioFlagFor } from "@/lib/podcast/v3/studio";
+import { canAccessAudioStudio } from "@/lib/audio-studio/access";
+import { isCommandCenterAdmin } from "@/lib/command-center/access";
+import { CinematicHero } from "@/components/cinematic/CinematicHero";
+import { StudioCards } from "@/components/cinematic/StudioCards";
+import { Showcase } from "@/components/cinematic/Showcase";
+import { studiosFor } from "@/components/cinematic/studios";
+import { showcaseItems } from "@/components/cinematic/showcase";
 import { VideoBackground } from "@/components/dashboard/VideoBackground";
 
 export default async function DashboardPage({
@@ -101,6 +108,15 @@ export default async function DashboardPage({
   const hasProcessing = (requests ?? []).some((r) => r.status === "processing");
   const internalOwner = isInternalProductionOwner(user);
   const formats = createFormats({ podcast: canAccessLongFormBeta(user) && studioFlagFor(user).enabled, youtube: canAccessLongFormBeta(user) });
+  // Cinematic UI 1.0: mismos permisos que la cabecera (layout.tsx) y las páginas de cada estudio; aquí solo se leen.
+  const studios = user ? studiosFor({
+    longForm: canAccessLongFormBeta(user),
+    podcast: canAccessLongFormBeta(user) && studioFlagFor(user).enabled,
+    audioStudio: canAccessAudioStudio(user),
+    commandCenter: isCommandCenterAdmin(user),
+  }) : [];
+  // Galería: solo producciones terminadas de esta cuenta, con las URLs ya firmadas arriba (nada nuevo se firma aquí).
+  const showcase = showcaseItems(requests ?? [], (path) => videoUrlByPath.get(path));
   // Server Component: se evalúa una sola vez por request en el servidor
   // (no hay re-render en el cliente que pueda desincronizarse), así que
   // Date.now() aquí es seguro pese a la regla de pureza de React.
@@ -119,12 +135,17 @@ export default async function DashboardPage({
       <AutoRefresh active={hasProcessing || (scriptJobs ?? []).some(job => scriptJobView(job, nowMs).refresh)} />
 
       {!mid && (
-        <div id="crear" className="scroll-mt-20">
-          <CreateHome formats={formats} subscriptionNeeded={!subscribed && !internalOwner} />
-        </div>
+        <>
+          <CinematicHero />
+          <div id="crear" className="glass max-w-3xl scroll-mt-24 rounded-3xl p-5 sm:p-8">
+            <CreateHome formats={formats} subscriptionNeeded={!subscribed && !internalOwner} />
+          </div>
+          <div className="mt-16"><StudioCards studios={studios} /></div>
+          <div className="mt-16"><Showcase items={showcase} /></div>
+        </>
       )}
 
-      <h2 id="proyectos" className={`${mid ? "" : "mt-12 "}text-xl font-semibold text-ink`}>Mis proyectos</h2>
+      <h2 id="proyectos" className={`${mid ? "" : "mt-16 "}scroll-mt-24 text-xl font-semibold text-ink`}>Mis proyectos</h2>
       {mid && <p className="mt-1 text-sm"><Link href="/dashboard#crear" className="text-accent underline">Crear algo nuevo</Link></p>}
 
       <div className="mt-4 space-y-3">

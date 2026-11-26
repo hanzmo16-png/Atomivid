@@ -92,8 +92,19 @@ jobs:
           esac
       - name: Renderizar video
         timeout-minutes: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && (steps.timeout.outputs.step && fromJSON(steps.timeout.outputs.step)) || (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 300 || 12 }}
-        run: npx tsx scripts/render-worker.ts
+        run: |
+          if [[ "$RENDER_MODE" == "long_form" ]]; then
+            umask 077
+            set +e
+            npx tsx scripts/render-worker.ts > "$RUNNER_TEMP/long-form-private.log" 2>&1
+            native_exit=$?
+            set -e
+            echo "LONG_FORM_PROCESS_FINISHED: exit=$native_exit; details remain private."
+            exit "$native_exit"
+          fi
+          npx tsx scripts/render-worker.ts
         env:
+          RENDER_MODE: ${{ (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form') && 'long_form' || '' }}
           ATOMIVID_RUNTIME: production
           LONG_FORM_RENDER_JOB_TIMEOUT_MIN: ${{ github.event.client_payload.longFormJobTimeoutMin || inputs.long_form_timeout_minutes || '330' }}
           REQUEST_ID: ${{ github.event.client_payload.requestId || inputs.request_id }}
@@ -199,13 +210,6 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
-      - name: Conservar la salida de Long Form si la entrega falló
-        if: failure() && (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form')
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: long-form-output-${{ github.event.client_payload.requestId || inputs.request_id }}-${{ github.run_id }}
-          path: ${{ runner.temp }}/long-form-output/
-          if-no-files-found: ignore
-          retention-days: 7
-          compression-level: 0
+      # Private customer media must never be uploaded to GitHub artifacts.
+      # Canonical delivery and reusable paid assets remain in the private videos bucket.
+      # On delivery failure, local diagnostic output remains ephemeral; do not publish it.
