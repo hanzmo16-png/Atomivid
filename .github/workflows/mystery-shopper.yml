@@ -2,6 +2,16 @@ name: focused-longform-readonly
 on:
   workflow_dispatch:
     inputs:
+      audio_receipt_diagnostic:
+        description: Read only pinned failed Audio receipt from closed run 45858583620; no browser
+        required: false
+        type: boolean
+        default: false
+      audio_surfaces_only:
+        description: Skip already-proven focused LF AV onboarding; run existing Audio and surfaces both widths
+        required: false
+        type: boolean
+        default: false
       continue_412:
         description: Focused LF AV onboarding only at 412; existing Audio helper still tests both widths
         required: false
@@ -44,7 +54,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   smoke:
-    if: ${{ !inputs.receipt_diagnostic }}
+    if: ${{ !inputs.receipt_diagnostic && !inputs.audio_receipt_diagnostic }}
     environment: Preview
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -71,6 +81,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: node --test scripts/mystery-shopper/final-readonly-policy.test.mjs scripts/mystery-shopper/readonly-media-stream.test.mjs
       - name: Production read-only mobile smoke; evidence exclusively in private Storage
+        if: ${{ !inputs.audio_surfaces_only }}
         run: node scripts/mystery-shopper/focused-longform-readonly.mjs
       - name: Existing authentic Audio MP3 and module surfaces; private evidence only
         run: node scripts/mystery-shopper/final-authenticated-readonly.mjs
@@ -88,6 +99,25 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Exact closed-run private receipt aggregate only
         run: node scripts/mystery-shopper/closed-run-receipt-reader.mjs
+        env:
+          MS_RECEIPT_DIAGNOSTIC: '1'
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+  audio-receipt-readback:
+    if: ${{ inputs.audio_receipt_diagnostic }}
+    environment: Preview
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Exact pinned closed-run Audio receipt aggregate only
+        run: node scripts/mystery-shopper/closed-run-audio-receipt-reader.mjs
         env:
           MS_RECEIPT_DIAGNOSTIC: '1'
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
