@@ -17,6 +17,11 @@ export type FakeSupabase = ReturnType<typeof createFakeSupabase>;
 export function createFakeSupabase(opts: { signedUrlBase: string }) {
   const tables = new Map<string, Row[]>();
   const objects = new Map<string, Buffer>();
+  // PostgreSQL system column: virtual (not part of SELECT *), advances on every row write.
+  const versions = new WeakMap<Row, string>();
+  let transaction = 100;
+  const rowVersion = (r: Row) => { if (!versions.has(r)) versions.set(r, String(++transaction)); return versions.get(r)!; };
+  const written = (r: Row) => versions.set(r, String(++transaction));
   const log: { table: string; op: string; patch?: Row }[] = [];
   const table = (name: string) => {
     if (!tables.has(name)) tables.set(name, []);
@@ -27,6 +32,8 @@ export function createFakeSupabase(opts: { signedUrlBase: string }) {
     let op: "select" | "update" | "insert" | "upsert" | "delete" = "select";
     let patch: Row | Row[] | null = null;
     let returning = false;
+    let includeVersion = false;
+    const snapshot = (r: Row) => ({ ...r, ...(includeVersion ? { script_json: structuredClone(r.script_json), xmin: rowVersion(r) } : {}) });
     let head = false;
     let count = false;
     let limitN: number | null = null;
@@ -41,7 +48,7 @@ export function createFakeSupabase(opts: { signedUrlBase: string }) {
           const key = item.id ?? item.request_id ?? item.idempotency_key;
           const existing = key !== undefined ? rows.find((r) => (r.id ?? r.request_id ?? r.idempotency_key) === key) : undefined;
           if (existing && op === "insert") return { data: null, error: { message: "duplicate key", code: "23505" } };
-          if (existing) Object.assign(existing, item);
+          if (existing) { Object.assign(existing, item); written(existing); }
           else rows.push({ ...item });
           out.push(existing ?? item);
         }
@@ -50,20 +57,21 @@ export function createFakeSupabase(opts: { signedUrlBase: string }) {
       }
       const matched = rows.filter((r) => filters.every((f) => f(r)));
       if (op === "update") {
-        for (const r of matched) Object.assign(r, patch);
+        for (const r of matched) { Object.assign(r, patch); written(r); }
         log.push({ table: name, op, patch: patch as Row });
-        return { data: returning ? matched.map((r) => ({ ...r })) : null, error: null, count: matched.length };
+        return { data: returning ? matched.map(snapshot) : null, error: null, count: matched.length };
       }
       if (op === "delete") {
         tables.set(name, rows.filter((r) => !matched.includes(r)));
         return { data: null, error: null };
       }
       const limited = limitN === null ? matched : matched.slice(0, limitN);
-      return { data: head ? null : limited.map((r) => ({ ...r })), error: null, count: count ? matched.length : null };
+      return { data: head ? null : limited.map(snapshot), error: null, count: count ? matched.length : null };
     };
 
     const q = {
       select(_cols?: string, o?: { count?: string; head?: boolean }) {
+        includeVersion = Boolean(_cols?.split(",").map((c) => c.trim()).includes("xmin"));
         if (op !== "select") returning = true;
         if (o?.head) head = true;
         if (o?.count) count = true;
@@ -74,7 +82,7 @@ export function createFakeSupabase(opts: { signedUrlBase: string }) {
       upsert(p: Row | Row[]) { op = "upsert"; patch = p; return q; },
       delete() { op = "delete"; return q; },
       // jsonb columns: PostgREST compares a JSON-text filter with the stored value (e.g. .eq("script_json", JSON.stringify(x))).
-      eq(c: string, v: unknown) { filters.push((r) => r[c] === v || (typeof v === "string" && r[c] !== null && typeof r[c] === "object" && JSON.stringify(r[c]) === v)); return q; },
+      eq(c: string, v: unknown) { filters.push((r) => (c === "xmin" ? rowVersion(r) === String(v) : r[c] === v) || (typeof v === "string" && r[c] !== null && typeof r[c] === "object" && JSON.stringify(r[c]) === v)); return q; },
       neq(c: string, v: unknown) { filters.push((r) => r[c] !== v); return q; },
       is(c: string, v: unknown) { filters.push((r) => (v === null ? r[c] === null || r[c] === undefined : r[c] === v)); return q; },
       in(c: string, v: unknown[]) { filters.push((r) => v.includes(r[c])); return q; },
