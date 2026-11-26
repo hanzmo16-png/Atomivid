@@ -21,6 +21,8 @@
  * fingir que no hay silencios).
  */
 import { execFile } from "node:child_process";
+import { statSync } from "node:fs";
+import path from "node:path";
 import { promisify } from "node:util";
 import ffprobeInstaller from "@ffprobe-installer/ffprobe";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
@@ -209,5 +211,104 @@ export async function detectAnomalousSilences(filePath: string, minSilenceSecond
       intervals.push({ startSeconds, endSeconds, durationSeconds });
     }
   }
+  return intervals;
+}
+
+// --- 4. Tramos negros / casi negros (fail-closed, ffmpeg blackdetect) ------
+
+export type BlackInterval = { startSeconds: number; endSeconds: number; durationSeconds: number };
+
+export type BlackDetectOptions = {
+  /** Duración mínima (s) para que ffmpeg reporte un tramo (`blackdetect=d`). Por defecto 1 s: ignora cortes de 1–2 fotogramas. */
+  minDurationSeconds?: number;
+  /** Fracción de píxeles «negros» que debe tener un fotograma para contar como negro (`pic_th`, 0–1). Por defecto 0.98 (valor de ffmpeg). */
+  pictureBlackRatio?: number;
+  /** Luminancia máxima de un píxel «negro» relativa al rango (`pix_th`, 0–1). Por defecto 0.10 (valor de ffmpeg, ≈ luma 16–38 en rango limitado): cubre «casi negro», no imágenes nocturnas con detalle. */
+  pixelThreshold?: number;
+  /** Tiempo máximo del análisis. Por defecto 10 min (decodifica el video completo; un Long Form de 30–60 min a 1080p cabe con margen). */
+  timeoutMs?: number;
+};
+
+export const BLACK_DETECT_DEFAULTS = { minDurationSeconds: 1, pictureBlackRatio: 0.98, pixelThreshold: 0.1, timeoutMs: 600_000 } as const;
+/** Por encima de esto un tramo negro bloquea la entrega. 2 s deja pasar fundidos a negro editoriales normales (≤ 1–2 s) y bloquea huecos como el observado (~37–42 s, ≈ 5 s). */
+export const DEFAULT_MAX_BLACK_SECONDS = 2;
+
+export class BlackDetectFailedError extends Error {
+  constructor(message: string, public readonly cause?: unknown) {
+    super(`blackdetect no pudo evaluar el video: ${message}`);
+    this.name = "BlackDetectFailedError";
+  }
+}
+
+function checkedNumber(name: string, value: number, min: number, max: number, exclusiveMin = false): string {
+  const ok = Number.isFinite(value) && (exclusiveMin ? value > min : value >= min) && value <= max;
+  if (!ok) throw new RangeError(`${name}=${value} fuera de rango (${exclusiveMin ? "(" : "["}${min}, ${max}])`);
+  return String(value);
+}
+
+/** Interpreta las líneas `black_start:… black_end:… black_duration:…` del stderr de ffmpeg. Una línea malformada lanza: nunca se descarta en silencio. */
+export function parseBlackDetectOutput(stderr: string): BlackInterval[] {
+  const intervals: BlackInterval[] = [];
+  for (const line of stderr.split(/\r?\n/)) {
+    if (!line.includes("black_start:")) continue;
+    const m = /black_start:\s*(-?[\d.]+)\s+black_end:\s*(-?[\d.]+)\s+black_duration:\s*(-?[\d.]+)/.exec(line);
+    const [startSeconds, endSeconds, durationSeconds] = m ? [Number(m[1]), Number(m[2]), Number(m[3])] : [NaN, NaN, NaN];
+    if (![startSeconds, endSeconds, durationSeconds].every(Number.isFinite) || endSeconds < startSeconds || durationSeconds < 0) {
+      throw new BlackDetectFailedError(`línea de blackdetect ilegible: ${line.trim().slice(0, 200)}`);
+    }
+    intervals.push({ startSeconds, endSeconds, durationSeconds });
+  }
+  return intervals.sort((a, b) => a.startSeconds - b.startSeconds || a.endSeconds - b.endSeconds);
+}
+
+/**
+ * Corre `ffmpeg -vf blackdetect` (binario versionado, sin shell) sobre la pista de video y devuelve los tramos negros o
+ * casi negros, ordenados. FAIL-CLOSED: si el archivo no existe, no tiene video o ffmpeg no termina bien (código ≠ 0,
+ * timeout, salida truncada), lanza `BlackDetectFailedError`; nunca devuelve `[]` sin haber analizado el video.
+ */
+export async function detectBlackIntervals(filePath: string, options: BlackDetectOptions = {}): Promise<BlackInterval[]> {
+  const o = { ...BLACK_DETECT_DEFAULTS, ...options };
+  const d = checkedNumber("minDurationSeconds", o.minDurationSeconds, 0, 3600, true);
+  const picTh = checkedNumber("pictureBlackRatio", o.pictureBlackRatio, 0, 1);
+  const pixTh = checkedNumber("pixelThreshold", o.pixelThreshold, 0, 1);
+  const timeout = Number(checkedNumber("timeoutMs", o.timeoutMs, 1000, 3_600_000));
+  const abs = path.resolve(filePath);
+  try {
+    if (!statSync(abs).isFile()) throw new Error("no es un archivo regular");
+  } catch (err) {
+    throw new BlackDetectFailedError(`archivo inaccesible (${abs}): ${(err as Error).message}`, err);
+  }
+  let stderr: string;
+  try {
+    // `file:` impide que una ruta se interprete como protocolo/opción; los umbrales son números validados arriba.
+    ({ stderr } = await run(
+      ffmpegInstaller.path,
+      ["-hide_banner", "-nostats", "-nostdin", "-i", `file:${abs}`, "-map", "0:v:0", "-vf", `blackdetect=d=${d}:pic_th=${picTh}:pix_th=${pixTh}`, "-an", "-sn", "-dn", "-f", "null", "-"],
+      { timeout, maxBuffer: 8 * 1024 * 1024, killSignal: "SIGKILL" },
+    ));
+  } catch (err) {
+    const e = err as { code?: unknown; killed?: boolean; signal?: string; stderr?: string; message?: string };
+    const tail = (e.stderr ?? "").trim().split(/\r?\n/).slice(-3).join(" | ").slice(0, 400);
+    throw new BlackDetectFailedError(e.killed ? `timeout tras ${timeout} ms` : `ffmpeg salió con ${String(e.code ?? e.signal)}: ${tail || e.message}`, err);
+  }
+  return parseBlackDetectOutput(stderr);
+}
+
+/** Gate post-render: un `QcIssue` estable (`black_interval_too_long`) por cada tramo que excede el máximo permitido. */
+export function evaluateBlackIntervals(intervals: BlackInterval[], maxAllowedSeconds = DEFAULT_MAX_BLACK_SECONDS): QcIssue[] {
+  checkedNumber("maxAllowedSeconds", maxAllowedSeconds, 0, 3600);
+  return intervals
+    .filter((i) => i.durationSeconds > maxAllowedSeconds)
+    .map((i) => ({
+      code: "black_interval_too_long",
+      message: `tramo negro/casi negro de ${i.durationSeconds.toFixed(2)}s entre ${i.startSeconds.toFixed(2)}s y ${i.endSeconds.toFixed(2)}s (máximo permitido ${maxAllowedSeconds}s)`,
+    }));
+}
+
+/** Analiza y lanza `LongFormQcFailedError` si algún tramo excede el máximo; propaga `BlackDetectFailedError` si no pudo analizar. */
+export async function assertNoLongBlackIntervals(filePath: string, maxAllowedSeconds = DEFAULT_MAX_BLACK_SECONDS, options?: BlackDetectOptions): Promise<BlackInterval[]> {
+  const intervals = await detectBlackIntervals(filePath, options);
+  const issues = evaluateBlackIntervals(intervals, maxAllowedSeconds);
+  if (issues.length > 0) throw new LongFormQcFailedError(issues);
   return intervals;
 }
