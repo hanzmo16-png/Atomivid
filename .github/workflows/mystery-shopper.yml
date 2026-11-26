@@ -2,6 +2,11 @@ name: focused-longform-readonly
 on:
   workflow_dispatch:
     inputs:
+      receipt_diagnostic:
+        description: Read only closed run 45856688839 receipts; never starts browser
+        required: false
+        type: boolean
+        default: false
       existing_av_id:
         description: Optional existing QA-owned ready audiovisual studio episode UUID
         required: false
@@ -12,27 +17,29 @@ on:
         type: string
       existing_audio_id:
         description: Existing QA-owned real Audio Studio project UUID
-        required: true
+        required: false
         type: string
       existing_lf_id:
         description: Existing QA-owned completed Long Form UUID
-        required: true
+        required: false
         type: string
       expected_sha256:
         description: Root-verified canonical full video SHA256
-        required: true
+        required: false
         type: string
       production_commit:
         description: Root-verified READY production commit
-        required: true
+        required: false
         type: string
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: focused-longform-readonly
   cancel-in-progress: false
 jobs:
   smoke:
+    if: ${{ !inputs.receipt_diagnostic }}
     environment: Preview
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -61,3 +68,22 @@ jobs:
         run: node scripts/mystery-shopper/focused-longform-readonly.mjs
       - name: Existing authentic Audio MP3 and module surfaces; private evidence only
         run: node scripts/mystery-shopper/final-authenticated-readonly.mjs
+  receipt-readback:
+    if: ${{ inputs.receipt_diagnostic }}
+    environment: Preview
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Exact closed-run private receipt aggregate only
+        run: node scripts/mystery-shopper/closed-run-receipt-reader.mjs
+        env:
+          MS_RECEIPT_DIAGNOSTIC: '1'
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
