@@ -29,6 +29,27 @@ import {
 import { probeOutput, sha256File, transcodeToFit, type OutputMediaMetrics } from "./output-media";
 import { OutputUploadError, uploadOutputFile, type UploadAttemptLog } from "./output-upload";
 import { generateDiagnosticId } from "../render-error";
+import { assertNoLongBlackIntervals } from "./long-form-qc";
+
+/** A failed check of an existing canonical object must block before production can restart. */
+export class NativeOutputQcError extends LongFormOutputError {
+  constructor(public readonly cause: unknown) {
+    super("output_invalid", generateDiagnosticId(), {
+      reason: "native_black_qc_failed",
+      message: cause instanceof Error ? cause.message.slice(0, 500) : String(cause).slice(0, 500),
+    });
+    this.name = "NativeOutputQcError";
+  }
+}
+
+/** Full decode is bounded; analysis errors block delivery just like detected black gaps. */
+export async function assertNativeOutputQc(filePath: string): Promise<void> {
+  try {
+    await assertNoLongBlackIntervals(filePath, 2, { timeoutMs: 600_000 });
+  } catch (err) {
+    throw new NativeOutputQcError(err);
+  }
+}
 
 export const OUTPUT_BUCKET = "videos";
 export const canonicalOutputPath = (requestId: string) => `${requestId}/output/final.mp4`;
@@ -52,12 +73,15 @@ export type LongFormOutputState = {
   timingsMs?: { probe?: number; fit?: number; upload?: number };
   /** Costos de generation_costs ya registrados para esta salida (una sola vez). */
   costsRecorded?: boolean;
+  nativeBlackQc?: "passed-v1";
   failure?: { category: string; diagnosticId: string; detail: Record<string, unknown> };
   keptLocalCopy?: string | null;
   updatedAtIso: string;
 };
 
 export type OutputFinalizeDeps = {
+  /** Test seam only; production defaults to full-file ffmpeg blackdetect. */
+  assertFileQc?: (filePath: string) => Promise<void>;
   probe: (filePath: string) => Promise<OutputMediaMetrics>;
   transcode: (input: { sourcePath: string; outputPath: string; videoKbps: number; audioKbps: number }) => Promise<void>;
   upload: (objectPath: string, filePath: string) => Promise<{ method: "resumable" | "standard"; attempts: UploadAttemptLog[] }>;
@@ -123,6 +147,7 @@ export function supabaseOutputDeps(supabase: SupabaseClient, env: Record<string,
       const file = path.join(dir, "existing.mp4");
       try {
         await fs.writeFile(file, Buffer.from(await data.arrayBuffer()));
+        await assertNativeOutputQc(file);
         return await probeOutput(file);
       } finally {
         await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
@@ -145,14 +170,19 @@ export async function reconcileExistingOutput(requestId: string, deps: Pick<Outp
   const state = await deps.readState(requestId).catch(() => null);
   const size = await deps.objectSize(objectPath);
   if (size === null || size <= 0) return null;
-  if (state?.status === "UPLOADED" && state.delivered) {
+  if (state?.status === "UPLOADED" && state.delivered && state.nativeBlackQc === "passed-v1") {
     // Measured with ffprobe when it was delivered: reuse only the same object.
     return state.delivered.bytes === size && playable(state.delivered) ? { videoPath: objectPath, state } : null;
   }
   // No validated delivery record (state write failed, or the object was placed by a recovery):
   // "completed" must never point at something that does not play, so measure it before reusing it.
   if (!deps.probeObject) return null;
-  const measured = await deps.probeObject(objectPath).catch(() => null);
+  const measured = await deps.probeObject(objectPath).catch((err: unknown) => {
+    // Definitive QC failure (including inability to analyze) is not a missing output.
+    // Propagate before produce() can render or call providers; preserve the object/state.
+    if (err instanceof NativeOutputQcError) throw err;
+    return null;
+  });
   return measured && measured.bytes === size && playable(measured) ? { videoPath: objectPath, state } : null;
 }
 
@@ -270,6 +300,13 @@ export async function finalizeLongFormOutput(
 
   let method: "resumable" | "standard" | undefined;
   const tryUpload = async (): Promise<OutputUploadError | null> => {
+    // Check the exact bytes being delivered, including every size-fit replacement.
+    // Keep outside the upload catch: QC failure must never become a storage retry.
+    try {
+      await (deps.assertFileQc ?? assertNativeOutputQc)(uploadPath);
+    } catch (err) {
+      return fail("output_invalid", { reason: "native_black_qc_failed", message: err instanceof NativeOutputQcError ? err.adminDetail.message : err instanceof Error ? err.message.slice(0, 500) : String(err).slice(0, 500) });
+    }
     const tu = now();
     try {
       const res = await deps.upload(objectPath, uploadPath);
@@ -320,6 +357,7 @@ export async function finalizeLongFormOutput(
     uploadAttempts,
     timingsMs,
     costsRecorded: false,
+    nativeBlackQc: "passed-v1",
     updatedAtIso: new Date(now()).toISOString(),
   };
   // El objeto ya está en Storage: un fallo al escribir el estado no invalida
@@ -356,6 +394,8 @@ export function memoryOutputDeps(opts: {
   let transientLeft = opts.transientUploadFailures ?? 0;
   const durationSeconds = opts.durationSeconds ?? 300;
   const deps: OutputFinalizeDeps = {
+    // Synthetic bytes are exclusively a deterministic test seam, never production QC evidence.
+    async assertFileQc() {},
     async probe(filePath) {
       calls.probe += 1;
       const bytes = (await fs.stat(filePath)).size;
