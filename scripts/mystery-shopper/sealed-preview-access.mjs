@@ -17,7 +17,7 @@ async function main(){
   // Reject corrupted/ambiguous accounting; never infer zero from a missing read.
   if(state.reservations.length!==new Set(state.reservations.map(x=>x.key)).size||state.settlements.length!==new Set(state.settlements.map(x=>x.key)).size||state.settlements.some(s=>!state.reservations.some(r=>r.key===s.key))||state.reservations.some(r=>!Number.isFinite(r.reservedUsd)||r.reservedUsd<0)||state.settlements.some(s=>!Number.isFinite(s.spentUsd)||s.spentUsd<0))throw Error('ledger');
   const t=totals(state);if(t.committedUsd>8.5||t.openReservedUsd!==0)throw Error('budget');
-  const receipt={kind:'SEALED_PREVIEW_ACCESS',keyId:id,origin,expiresAt:Date.now()+3600000,publicKey:keys.publicKey,ledger:t,availableUsd:Math.round((8.5-t.committedUsd)*100)/100};
+  const receipt={nativeConfig:{targetMatches:env.MS_NATIVE_TARGET_MATCHES==='true',qaEnabled:env.MS_NATIVE_QA_ENABLED==='true',nativeOwnerGateNotDisabled:env.MS_NATIVE_OWNER_GATE_ENABLED==='true'},kind:'SEALED_PREVIEW_ACCESS',keyId:id,origin,expiresAt:Date.now()+3600000,publicKey:keys.publicKey,ledger:t,availableUsd:Math.round((8.5-t.committedUsd)*100)/100};
   await write(`mystery-shopper/v3/preview-access/${id}/private.json`,JSON.stringify({privateKey:keys.privateKey}));
   await write(`mystery-shopper/v3/preview-access/${id}/receipt.json`,JSON.stringify(receipt),receipt);
   console.log('Temporary encryption recipient and fresh accounting receipt saved privately. No provider calls.');return;

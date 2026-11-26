@@ -48,6 +48,9 @@ jobs:
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      MS_NATIVE_TARGET_MATCHES: ${{ needs.native-config.outputs.target_matches }}
+      MS_NATIVE_QA_ENABLED: ${{ needs.native-config.outputs.qa_enabled }}
+      MS_NATIVE_OWNER_GATE_ENABLED: ${{ needs.native-config.outputs.owner_gate_enabled }}
       PODCAST_V3_APP_URL: https://atomivid.vercel.app
       PODCAST_V3_QA_PILOT: '1'
       MS_TARGET: https://atomivid-ifh6x9b59-atomivid.vercel.app
@@ -71,9 +74,6 @@ jobs:
       - name: Signed admission without generation
         if: inputs.operation == 'admission' || inputs.operation == 'production-admission'
         env:
-          MS_NATIVE_TARGET_MATCHES: ${{ needs.native-config.outputs.target_matches }}
-          MS_NATIVE_QA_ENABLED: ${{ needs.native-config.outputs.qa_enabled }}
-          MS_NATIVE_OWNER_GATE_ENABLED: ${{ needs.native-config.outputs.owner_gate_enabled }}
           MS_TARGET: ${{ inputs.operation == 'production-admission' && 'https://atomivid.vercel.app' || 'https://atomivid-ifh6x9b59-atomivid.vercel.app' }}
           MYSTERY_SHOPPER_QA_EMAIL: ${{ secrets.MYSTERY_SHOPPER_QA_EMAIL }}
           MYSTERY_SHOPPER_QA_PASSWORD: ${{ secrets.MYSTERY_SHOPPER_QA_PASSWORD }}
