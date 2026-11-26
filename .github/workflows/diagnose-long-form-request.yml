@@ -1,46 +1,62 @@
-name: Diagnóstico de solo lectura de solicitudes Long Form
-
-# QA real (2026-09-25, "GENERAR GUION NO HACE NADA EN PRODUCTION"). Ejecuta
-# scripts/diagnose-long-form-request.ts: SOLO LECTURA de video_requests
-# (mode='long_form') — nunca escribe nada, nunca llama a Anthropic ni a
-# ningún proveedor. Sirve para comprobar, antes de tocar código o de volver
-# a probar desde la UI, si los clicks de Hans crearon 0, 1 o 2 solicitudes.
+name: ROOT ONLY private closed-native cost review and one-shot settlement
 on:
   workflow_dispatch:
     inputs:
-      topic_contains:
-        description: "Opcional: substring del topic a buscar (ILIKE). Vacío = las long_form más recientes."
-        required: false
+      operation:
+        type: choice
+        options: [deny, review-closed-native-cost, settle-root-reviewed-native-cost]
+        default: deny
+      request_id:
         type: string
-      limit:
-        description: "Opcional: número máximo de filas a devolver (por defecto 10)."
-        required: false
+      observer_receipt:
+        description: Exact existing private closed-native observer receipt
         type: string
-
+      observer_sha:
+        description: Required only to settle; exact private body SHA approved by root after cost review
+        type: string
+      native_run_id:
+        type: string
+      canonical_sha:
+        description: Exact original native SHA reviewed by root; never a repaired replacement
+        type: string
+      review_sha:
+        type: string
+      review_receipt:
+        type: string
 permissions:
   contents: read
-
+  actions: read
+concurrency:
+  group: mystery-shopper-campaign-real-serialized
+  cancel-in-progress: false
 jobs:
-  diagnose:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+  private-cost:
+    if: inputs.operation == 'review-closed-native-cost' || inputs.operation == 'settle-root-reviewed-native-cost'
+    environment: Preview
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Configurar Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Instalar dependencias
-        run: npm ci
-
-      - name: Diagnosticar (solo lectura)
-        run: npx tsx scripts/diagnose-long-form-request.ts
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: ROOT ONLY exact closed-native private journal review or create-only settlement
         env:
-          TOPIC_CONTAINS: ${{ inputs.topic_contains }}
-          LIMIT: ${{ inputs.limit }}
+          MS_TECHNICAL_OPERATION: ${{ inputs.operation }}
+          MS_ROOT_COST_REVIEWED: ${{ inputs.operation == 'settle-root-reviewed-native-cost' && '1' || '0' }}
+          MS_NEW_REQUEST_ID: ${{ inputs.request_id }}
+          MS_OBSERVER_RECEIPT: ${{ inputs.observer_receipt }}
+          MS_OBSERVER_SHA: ${{ inputs.observer_sha }}
+          MS_NATIVE_RUN_ID: ${{ inputs.native_run_id }}
+          MS_ROOT_CANONICAL_SHA: ${{ inputs.canonical_sha }}
+          MS_ACCEPTED_REVIEW_SHA: ${{ inputs.review_sha }}
+          MS_REVIEW_RECEIPT: ${{ inputs.review_receipt }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          MYSTERY_SHOPPER_QA_EMAIL: ${{ secrets.MYSTERY_SHOPPER_QA_EMAIL }}
+          MYSTERY_SHOPPER_QA_PASSWORD: ${{ secrets.MYSTERY_SHOPPER_QA_PASSWORD }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          umask 077
+          node --import tsx scripts/mystery-shopper/settle-technical-native-once.mjs > "$RUNNER_TEMP/technical-cost-private.log" 2>&1 || { echo 'Private native accounting blocked or uncertain. Inspect immutable state; never retry automatically.'; exit 1; }
+          echo 'Exact closed-native accounting operation recorded privately. No financial values or quality approval published.'
