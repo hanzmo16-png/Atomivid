@@ -71,6 +71,7 @@ jobs:
         if: inputs.operation == 'run'
         env:
           MS_MISSION: youtube-real
+          MS_PROFILE: impaciente
           MS_MODE: real
           MS_MAX_BUDGET_USD: '2'
         run: |
