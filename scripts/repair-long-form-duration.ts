@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { createServiceClient } from "../src/lib/supabase/service";
 import { supabaseOutputDeps, canonicalOutputPath, type LongFormOutputState } from "../src/lib/video/long-form/output-finalize";
-import { assertPrivateCanonicalUrl, assertProof, ORIGINAL_BYTES, ORIGINAL_SHA256, NATIVE_RUN_ID, REPAIR_REQUEST_ID, ROOT_DRIVE_RECEIPT_SHA256, createDurationRepair, applyDurationRepair, hash, stableJson, type PreservationProof } from "../src/lib/video/long-form/free-duration-repair";
+import { assertRepairCandidateSize, assertPrivateCanonicalUrl, assertProof, ORIGINAL_BYTES, ORIGINAL_SHA256, NATIVE_RUN_ID, REPAIR_REQUEST_ID, ROOT_DRIVE_RECEIPT_SHA256, createDurationRepair, applyDurationRepair, hash, stableJson, type PreservationProof } from "../src/lib/video/long-form/free-duration-repair";
 
 let privateFailure: ((message: string) => Promise<void>) | undefined;
 async function main() {
@@ -82,8 +82,15 @@ async function main() {
   const before = await snapshot();
   await fs.writeFile(path.join(dir, "before-private.json"), stableJson({ state, snapshot: before, proofHash }));
   const media = await createDurationRepair(original, candidate, 180);
+  assertRepairCandidateSize((await fs.stat(candidate)).size, finalDeps.storageMaxBytes);
   await fs.writeFile(path.join(dir, "candidate-qc.json"), JSON.stringify(media, null, 2));
-  if (mode === "validate") { console.log(JSON.stringify({ mode, originalSha256: ORIGINAL_SHA256, candidateSha256: media.candidateHash, duration: media.after.duration, snapshotSha256: hash(stableJson(before)) })); return; }
+  if (mode === "validate") {
+    const validation = { status: "VALIDATED_NOT_APPLIED", proofSha256: proofHash, originalSha256: ORIGINAL_SHA256, candidateSha256: media.candidateHash,
+      bytes: (await fs.stat(candidate)).size, metrics: media.after, beforeSnapshotSha256: hash(stableJson(before)), runId: env.GITHUB_RUN_ID };
+    await immutable(`${prefix}/validation-${env.GITHUB_RUN_ID}.json`, Buffer.from(stableJson(validation)), validation);
+    console.log("Private candidate validated without canonical mutation.");
+    return;
+  }
   if (env.APPROVED_CANDIDATE_SHA256 !== media.candidateHash) throw new Error("explicit_validated_candidate_hash_required");
   const result = await applyDurationRepair({ requestId, original, candidate, proofHash, state, candidateHash: media.candidateHash }, {
     finalize: {

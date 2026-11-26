@@ -31,6 +31,8 @@ for (const color of ["orange", "black"]) test(`real CPU ${color} source: bounded
       assert.equal(result.after.duration, 3);
       assert.ok(result.after.avEndDelta <= 0.1);
       assert.equal(result.originalHash, originalHash);
+      const repeated = await createDurationRepair(source, path.join(dir, "repeated-candidate.mp4"), 3);
+      assert.equal(repeated.candidateHash, result.candidateHash, "fixed threads/binary/settings encode the same approved bytes on a later run");
       await assert.rejects(createDurationRepair(source, path.join(dir, "too-long.mp4"), 5), /out_of_bounds/);
     }
     assert.equal(await sha256File(source), originalHash);

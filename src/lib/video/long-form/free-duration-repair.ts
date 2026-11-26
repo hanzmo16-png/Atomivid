@@ -67,7 +67,7 @@ export async function createDurationRepair(source: string, candidate: string, ta
   if (parseBlackDetectOutput(tail.stderr).length) throw new Error("repair_terminal_frame_not_visible");
   await run(ffmpeg.path, ["-nostdin", "-n", "-i", source, "-map", "0:v:0", "-map", "0:a:0", "-map", "0:s?",
     "-vf", `tpad=stop_mode=clone:stop_duration=${extra + 0.1}`, "-af", `apad,atrim=duration=${target}`,
-    "-t", String(target), "-c:v", "libx264", "-preset", "medium", "-b:v", "2300k", "-maxrate", "2400k", "-bufsize", "4800k", "-pix_fmt", "yuv420p",
+    "-t", String(target), "-c:v", "libx264", "-preset", "medium", "-b:v", "2300k", "-maxrate", "2400k", "-bufsize", "4800k", "-threads", "2", "-pix_fmt", "yuv420p",
     "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-c:s", "copy", "-movflags", "+faststart", candidate],
   { timeout: 600_000, maxBuffer: 2 * 1024 * 1024, killSignal: "SIGKILL" });
   const after = await probeRepairMedia(candidate);
@@ -75,6 +75,10 @@ export async function createDurationRepair(source: string, candidate: string, ta
   await assertNoLongBlackIntervals(candidate);
   if (await sha256File(source) !== originalHash) throw new Error("repair_original_mutated");
   return { before, after, originalHash, candidateHash: await sha256File(candidate), target };
+}
+export function assertRepairCandidateSize(bytes: number, configuredMaxBytes?: number | null): void {
+  const ceilingBytes = Math.min(ORIGINAL_BYTES, configuredMaxBytes ?? LONG_FORM_OUTPUT_POLICY.demonstratedStorageMaxBytes, LONG_FORM_OUTPUT_POLICY.policyMaxBytes);
+  if (!(bytes > 0) || decideOutputFit({ bytes, durationSeconds: 180, ceilingBytes }).action !== "upload") throw new Error("repair_candidate_storage_cap_failed_BEFORE_INTENT");
 }
 export type RepairDeps = {
   finalize: OutputFinalizeDeps;
@@ -102,8 +106,7 @@ export async function applyDurationRepair(input: { requestId: string; original: 
     await assertNoLongBlackIntervals(candidate);
   }))(input.original, input.candidate);
   const candidateBytes = (await fs.stat(input.candidate)).size;
-  const ceilingBytes = Math.min(ORIGINAL_BYTES, deps.finalize.storageMaxBytes ?? LONG_FORM_OUTPUT_POLICY.demonstratedStorageMaxBytes, LONG_FORM_OUTPUT_POLICY.policyMaxBytes);
-  if (decideOutputFit({ bytes: candidateBytes, durationSeconds: 180, ceilingBytes }).action !== "upload") throw new Error("repair_candidate_storage_cap_failed_BEFORE_INTENT");
+  assertRepairCandidateSize(candidateBytes, deps.finalize.storageMaxBytes);
   const before = await deps.snapshot();
   const beforeHash = hash(stableJson(before));
   if (await deps.canonicalHash() !== ORIGINAL_SHA256) throw new Error("repair_canonical_changed");
