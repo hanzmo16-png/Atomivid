@@ -53,3 +53,17 @@ test("QA worker requires an explicit app URL and never falls back to production"
   assert.equal(calls,1);
   assert.equal(seen,"https://preview.example.test/api/internal/studio-owner");
 });
+import { readFileSync } from "node:fs";
+
+test("native workflow defaults only its default-branch worker to the public app", () => {
+  const workflow = readFileSync(new URL("../../../../.github/workflows/podcast-video.yml", import.meta.url), "utf8");
+  const expression = workflow.match(/^\s+PODCAST_V3_APP_URL: \$\{\{ (.+) \}\}$/m)?.[1];
+  assert.ok(expression, "the actual worker must declare its app target");
+  // GitHub's &&/||/== subset here has the same behavior for these string inputs.
+  const evaluate = new Function("vars", "github", `return (${expression});`) as (vars: { PODCAST_V3_APP_URL: string }, github: unknown) => string;
+  const target = (ref: string, configured = "") => evaluate({ PODCAST_V3_APP_URL: configured }, { ref_name: ref, event: { repository: { default_branch: "production" } } });
+  assert.equal(target("production"), "https://atomivid.vercel.app");
+  assert.equal(target("preview"), "");
+  assert.equal(target("production", "https://configured.example.test"), "https://configured.example.test");
+  assert.equal(target("preview", "https://preview.example.test"), "https://preview.example.test");
+});
