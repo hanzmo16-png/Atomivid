@@ -32,14 +32,68 @@ test("30 minutes: the render bitrate keeps the delivered file under the demonstr
   assert.equal(storageCeilingBytes({ LONG_FORM_STORAGE_MAX_OBJECT_BYTES: String(900 * MiB) }), 900 * MiB, "a configured ceiling wins");
 });
 
-test("heartbeat: beats while long work runs and stops afterwards; a failing beat never fails the work", async () => {
+test("heartbeat: beats at every interval while work is pending; beat failures never fail the work", async (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
   let beats = 0;
-  const value = await withHeartbeat(() => { beats++; throw new Error("db down"); }, 10)(() => new Promise((r) => setTimeout(() => r(42), 55)));
-  assert.equal(value, 42);
-  assert.ok(beats >= 3, `beats=${beats}`);
-  const after = beats;
-  await new Promise((r) => setTimeout(r, 40));
-  assert.equal(beats, after);
+  let complete!: (value: number) => void;
+  const pending = withHeartbeat(() => { beats++; throw new Error("db down"); }, 10)(
+    () => new Promise<number>((resolve) => { complete = resolve; }),
+  );
+  // Advance one deadline at a time and flush the heartbeat promise. Wall-clock
+  // contention can coalesce real intervals; it must not decide this assertion.
+  t.mock.timers.tick(9);
+  await Promise.resolve();
+  assert.equal(beats, 0, "no beat before the configured deadline");
+  for (const elapsed of [1, 10, 10]) {
+    t.mock.timers.tick(elapsed);
+    await Promise.resolve();
+  }
+  assert.equal(beats, 3, "each elapsed interval pulses pending work despite a failed beat");
+  complete(42);
+  assert.equal(await pending, 42);
+  t.mock.timers.tick(100);
+  await Promise.resolve();
+  assert.equal(beats, 3, "successful work clears its heartbeat");
+});
+
+test("heartbeat: async beat recovers after a failed write; rejected work clears the timer before retry", async (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  let attempts = 0;
+  let persisted = 0;
+  let failWork!: (err: Error) => void;
+  const failure = new Error("upload interrupted");
+  const pending = withHeartbeat(async () => {
+    if (++attempts === 1) throw new Error("temporary heartbeat write failure");
+    persisted++;
+  }, 10)(() => new Promise<never>((_resolve, reject) => { failWork = reject; }));
+  for (let i = 0; i < 2; i++) {
+    t.mock.timers.tick(10);
+    await Promise.resolve();
+    await Promise.resolve();
+  }
+  assert.equal(attempts, 2);
+  assert.equal(persisted, 1, "a failed async heartbeat does not stop later persistence");
+  const rejected = assert.rejects(pending, (err) => err === failure);
+  failWork(failure);
+  await rejected;
+  t.mock.timers.tick(100);
+  await Promise.resolve();
+  assert.equal(attempts, 2, "failed work leaves no stale heartbeat to race its recovery");
+
+  let retryBeats = 0;
+  let finishRetry!: () => void;
+  const retry = withHeartbeat(() => { retryBeats++; }, 10)(
+    () => new Promise<void>((resolve) => { finishRetry = resolve; }),
+  );
+  t.mock.timers.tick(10);
+  await Promise.resolve();
+  assert.equal(retryBeats, 1);
+  assert.equal(attempts, 2, "the previous attempt stays stopped while the retry runs");
+  finishRetry();
+  await retry;
+  t.mock.timers.tick(100);
+  await Promise.resolve();
+  assert.equal(retryBeats, 1, "recovered work also clears its timer");
 });
 
 test("Pexels: a 429 waits until the reset window and retries instead of failing the production", async () => {
