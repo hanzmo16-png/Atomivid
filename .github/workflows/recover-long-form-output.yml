@@ -18,6 +18,9 @@ on:
       preservation_proof_sha256:
         description: "Nonsecret exact hash returned by root proof recording"
         type: string
+      approved_candidate_sha256:
+        description: "Exact candidate hash returned by validate; mandatory for apply"
+        type: string
 permissions:
   contents: read
   actions: read
@@ -43,6 +46,7 @@ jobs:
         run: node --import tsx scripts/repair-long-form-duration.ts
         env:
           MODE: ${{ inputs.mode }}
+          APPROVED_CANDIDATE_SHA256: ${{ inputs.approved_candidate_sha256 }}
           ROOT_DRIVE_RECEIPT_SHA256: ${{ inputs.root_drive_receipt_sha256 }}
           PRIVATE_PROOF_PATH: ${{ inputs.private_proof_path }}
           PRESERVATION_PROOF_SHA256: ${{ inputs.preservation_proof_sha256 }}

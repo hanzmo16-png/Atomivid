@@ -78,6 +78,7 @@ async function main() {
   const media = await createDurationRepair(original, candidate, 180);
   await fs.writeFile(path.join(dir, "candidate-qc.json"), JSON.stringify(media, null, 2));
   if (mode === "validate") { console.log(JSON.stringify({ mode, originalSha256: ORIGINAL_SHA256, candidateSha256: media.candidateHash, duration: media.after.duration, snapshotSha256: hash(stableJson(before)) })); return; }
+  if (env.APPROVED_CANDIDATE_SHA256 !== media.candidateHash) throw new Error("explicit_validated_candidate_hash_required");
   const result = await applyDurationRepair({ requestId, original, candidate, proofHash, state, candidateHash: media.candidateHash }, {
     finalize: {
       ...finalDeps,
