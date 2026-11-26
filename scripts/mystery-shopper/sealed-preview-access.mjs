@@ -1,3 +1,4 @@
+import {strictPrivateLedger} from './strict-private-ledger.mjs';
 // Short-lived encrypted transport only. No account credentials or long-lived bypass secrets are exported.
 import { createClient } from '@supabase/supabase-js';
 import { generateKeyPairSync, privateDecrypt, constants } from 'node:crypto';
@@ -13,7 +14,7 @@ async function main(){
  if(env.MS_ACCESS_OPERATION==='prepare'){
   const id=env.GITHUB_RUN_ID;if(!/^\d+$/.test(id))throw Error('id');
   const keys=generateKeyPairSync('rsa',{modulusLength:4096,publicKeyEncoding:{type:'spki',format:'pem'},privateKeyEncoding:{type:'pkcs8',format:'pem'}});
-  const ledger=ledgerStore(b);if(await ledger.stopped())throw Error('stopped');const state=await ledger.state();
+  const ledger=ledgerStore(b);if(await ledger.stopped())throw Error('stopped');const state=await strictPrivateLedger(b);
   // Reject corrupted/ambiguous accounting; never infer zero from a missing read.
   if(state.reservations.length!==new Set(state.reservations.map(x=>x.key)).size||state.settlements.length!==new Set(state.settlements.map(x=>x.key)).size||state.settlements.some(s=>!state.reservations.some(r=>r.key===s.key))||state.reservations.some(r=>!Number.isFinite(r.reservedUsd)||r.reservedUsd<0)||state.settlements.some(s=>!Number.isFinite(s.spentUsd)||s.spentUsd<0))throw Error('ledger');
   const t=totals(state);if(t.committedUsd>8.5||t.openReservedUsd!==0)throw Error('budget');
