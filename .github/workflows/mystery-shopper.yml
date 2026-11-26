@@ -1,10 +1,10 @@
-name: Private technical Long Form QA preparation (no generation)
+name: Private technical Long Form QA (owner receipt required for production)
 on:
   workflow_dispatch:
     inputs:
       operation:
         type: choice
-        options: [review, apply-and-quote, quote]
+        options: [review, apply-and-quote, quote, record-owner-allocation, run-owner-approved]
         default: review
       new_request_id:
         description: New canonical UUID; review never inserts, apply requires exact root-reviewed receipt
@@ -16,16 +16,35 @@ on:
       accepted_review_sha:
         description: Exact review SHA256 accepted by root after reading private payload
         type: string
+      allocation_receipt:
+        description: Private explicit owner allocation receipt (paid operation only; never inferred)
+        type: string
+      allocation_receipt_sha:
+        description: Root-reviewed canonical SHA256 of explicit owner allocation receipt
+        type: string
+      deployment_receipt:
+        description: Private root proof of deployed native dark QC and private provider logs
+        type: string
+      deployment_receipt_sha:
+        description: Root-reviewed canonical SHA256 of deployed QA gate proof
+        type: string
+      owner_reply_ref:
+        description: ROOT ONLY actual owner reply reference; never pending, never raw reply text
+        type: string
+      owner_reply_sha:
+        description: ROOT ONLY SHA256 of the actual owner reply already reviewed; never inferred
+        type: string
 permissions:
   contents: read
+  deployments: read
 concurrency:
-  group: mystery-shopper-real-campaign-320
+  group: mystery-shopper-campaign-real-serialized
   cancel-in-progress: false
 jobs:
   prepare:
     environment: Preview
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: ${{ inputs.operation == 'run-owner-approved' && 80 || 15 }}
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -49,7 +68,7 @@ jobs:
           node --import tsx scripts/mystery-shopper/prepare-technical-rerender.ts > "$RUNNER_TEMP/technical-rerender-private.log" 2>&1 || { echo 'Private QA preparation blocked. Inspect state before any manual retry; no generation was sent.'; exit 1; }
           echo 'Private QA preparation completed. Root review receipt governs insertion; paid generation remains disabled.'
       - name: Install read-only quote browser
-        if: inputs.operation == 'apply-and-quote' || inputs.operation == 'quote'
+        if: inputs.operation == 'apply-and-quote' || inputs.operation == 'quote' || inputs.operation == 'run-owner-approved'
         run: npm install --no-save --no-audit --no-fund playwright@1.49.1 && npx playwright install --with-deps chromium
       - name: Read authentic UI quote; all post-login app mutations blocked
         if: inputs.operation == 'apply-and-quote' || inputs.operation == 'quote'
@@ -57,3 +76,28 @@ jobs:
           umask 077
           node --import tsx scripts/mystery-shopper/technical-rerender-quote.mjs > "$RUNNER_TEMP/technical-quote-private.log" 2>&1 || { echo 'Private quote blocked; no confirmation, reserve or generation.'; exit 1; }
           echo 'Quote and screenshot stored in private Storage only. No paid request sent.'
+      - name: ROOT ONLY record actual owner allocation reply; default operations never approve
+        if: inputs.operation == 'record-owner-allocation'
+        env:
+          MS_TECHNICAL_OPERATION: record-owner-allocation
+          MS_ROOT_ACTUAL_REPLY_REVIEWED: '1'
+          MS_OWNER_REPLY_REF: ${{ inputs.owner_reply_ref }}
+          MS_OWNER_REPLY_SHA: ${{ inputs.owner_reply_sha }}
+        run: |
+          umask 077
+          node --import tsx scripts/mystery-shopper/record-technical-owner-allocation.mjs > "$RUNNER_TEMP/technical-owner-record-private.log" 2>&1 || { echo 'Actual owner reply recording refused. No paid action or inferred approval.'; exit 1; }
+          echo 'Root-only actual reply record stored privately. No reservation or generation.'
+      - name: One owner-approved technical production; absent private authorization fails closed
+        if: inputs.operation == 'run-owner-approved'
+        env:
+          MS_TECHNICAL_OPERATION: run-owner-approved
+          MYSTERY_SHOPPER_REAL_ENABLED: '1'
+          MS_ALLOCATION_RECEIPT: ${{ inputs.allocation_receipt }}
+          MS_ALLOCATION_RECEIPT_SHA: ${{ inputs.allocation_receipt_sha }}
+          MS_DEPLOYMENT_RECEIPT: ${{ inputs.deployment_receipt }}
+          MS_DEPLOYMENT_RECEIPT_SHA: ${{ inputs.deployment_receipt_sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          umask 077
+          node --import tsx scripts/mystery-shopper/run-technical-rerender.mjs > "$RUNNER_TEMP/technical-paid-private.log" 2>&1 || { echo 'Private operator run blocked, failed or uncertain. No automatic retry. Any reservation remains open.'; exit 1; }
+          echo 'Inspect private outcome and closed-worker journal before any settlement or final QC claim.'
