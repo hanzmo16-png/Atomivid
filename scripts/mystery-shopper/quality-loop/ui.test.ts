@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { build } from 'esbuild';
@@ -13,6 +13,7 @@ import { initialQueue, publicView, claimCycle, finishCycle, claimDefect, event, 
 const load=()=>import(process.env.PLAYWRIGHT_MODULE||'playwright') as Promise<any>;
 test('admin panel renders mobile/desktop, persisted claim and stop/start via isolated API',async()=>{
  const root=process.cwd(),dir=await mkdtemp(path.join(tmpdir(),'quality-ui-'));
+ const evidenceDir=process.env.AQL_EVIDENCE_DIR||dir;await mkdir(evidenceDir,{recursive:true});
  const link=path.join(dir,'link.tsx');await writeFile(link,"import React from 'react';export default function Link(p:any){return <a {...p}/>}");
  const entry=`import React from 'react';import{createRoot}from'react-dom/client';import{QualityLoopPanel}from'${root}/src/app/dashboard/command-center/quality-loop/QualityLoopPanel';createRoot(document.getElementById('root')!).render(<QualityLoopPanel/>);`;
  const bundle=await build({stdin:{contents:entry,resolveDir:root,loader:'tsx'},bundle:true,write:false,format:'iife',alias:{'next/link':link},nodePaths:[path.join(root,'node_modules')],define:{'process.env.NODE_ENV':'"production"'}});
@@ -27,7 +28,7 @@ test('admin panel renders mobile/desktop, persisted claim and stop/start via iso
   if(p==='/api/command-center/quality-loop'){
    res.setHeader('content-type','application/json');
    if(req.method==='POST'){let body='';for await(const chunk of req)body+=chunk;const v=JSON.parse(body);if(v.action==='claim'){const token=claimDefect(q,v.id,v.owner,'controlled-claude-fixture',new Date().toISOString());return res.end(JSON.stringify({ok:true,token}));}q.enabled=v.action==='start';event(q,new Date().toISOString(),'Admin fixture toggle');return res.end('{"ok":true}');}
-   return res.end(JSON.stringify(publicView(q,new Date().toISOString())));
+   return res.end(JSON.stringify({...publicView(q,new Date().toISOString()),claimTokens:Object.fromEntries(q.defects.filter(d=>d.claim?.actor==='controlled-claude-fixture').map(d=>[d.id,d.claim!.token]))}));
   }
   res.setHeader('content-type','text/html');res.end('<!doctype html><html lang="es"><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"></head><body><div id="root"></div><script src="/app.js"></script></body></html>');
  });
@@ -39,9 +40,12 @@ test('admin panel renders mobile/desktop, persisted claim and stop/start via iso
    await page.setViewportSize({width,height:900});await page.goto(`http://127.0.0.1:${port}`);
    await page.getByRole('button',{name:'Parada de emergencia'}).waitFor();
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
-   await page.screenshot({path:`/workspace/aql-evidence/quality-loop-${width}.png`,fullPage:true}).catch(()=>{});
+   await page.screenshot({path:path.join(evidenceDir,`quality-loop-${width}.png`),fullPage:true});
   }
   await page.getByRole('button',{name:'Reclamar como claude'}).click();await page.getByLabel('SHA corregido').waitFor();assert.equal(q.defects[0].state,'CLAIMED');
+  await page.reload();await page.getByRole('button',{name:'Parada de emergencia'}).waitFor();
+  if(process.env.AQL_RELOAD_EVIDENCE)await page.screenshot({path:process.env.AQL_RELOAD_EVIDENCE,fullPage:true});
+  await page.getByLabel('SHA corregido').waitFor({timeout:1500});
   await page.getByRole('button',{name:'Parada de emergencia'}).click();await page.getByRole('button',{name:'Activar ciclo'}).waitFor();assert.equal(q.enabled,false);
   await page.getByRole('button',{name:'Activar ciclo'}).click();await page.getByRole('button',{name:'Parada de emergencia'}).waitFor();assert.equal(q.enabled,true);
  }finally{await browser.close();await new Promise<void>(r=>server.close(()=>r()));}

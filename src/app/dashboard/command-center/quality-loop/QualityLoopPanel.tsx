@@ -2,12 +2,12 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { publicView } from '@/lib/mystery-shopper/quality-loop/model';
-type View=ReturnType<typeof publicView>;
+type View=ReturnType<typeof publicView>&{claimTokens?:Record<string,string>};
 const time=(value:string|null|undefined)=>value?new Date(value).toLocaleString('es-MX'):'Sin evidencia';
 export function QualityLoopPanel(){
  const [data,setData]=useState<View|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);
  const [tokens,setTokens]=useState<Record<string,string>>({}),[shas,setShas]=useState<Record<string,string>>({});
- const load=async()=>{try{const r=await fetch('/api/command-center/quality-loop',{cache:'no-store'});if(!r.ok)throw new Error();setData(await r.json());setError('');}catch{setError('No se pudo leer el estado. La ausencia de datos no indica que el motor esté operativo.');}};
+ const load=async()=>{try{const r=await fetch('/api/command-center/quality-loop',{cache:'no-store'});if(!r.ok)throw new Error();const body=await r.json();setData(body);setTokens(body.claimTokens||{});setError('');}catch{setError('No se pudo leer el estado. La ausencia de datos no indica que el motor esté operativo.');}};
  useEffect(()=>{const first=setTimeout(()=>void load(),0);const t=setInterval(()=>void load(),30000);return()=>{clearTimeout(first);clearInterval(t);};},[]);
  const act=async(action:string,values:Record<string,string>={})=>{setBusy(true);try{const r=await fetch('/api/command-center/quality-loop',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action,...values})});const j=await r.json();if(!r.ok)throw new Error(j.error||'Operación rechazada');if(j.token)setTokens(t=>({...t,[values.id]:j.token}));await load();}catch(e){setError(e instanceof Error?e.message:'Operación no disponible');}finally{setBusy(false);}};
  const last=data?.cycles.filter(c=>c.scope!=='fixture').at(-1);

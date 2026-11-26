@@ -13,7 +13,7 @@ This extends Mystery Shopper; it does not replace the engine, create a financial
 - The state branch carries a branch-specific `vercel.json` deployment exclusion; the application config also excludes that exact branch. Queue updates must not start Vercel builds.
 - State is `state.json` on an orphan `automation/quality-loop-state` branch; never the production/source branch. Writes use the GitHub content SHA as compare-and-swap. An unreadable/corrupt state is not an empty healthy queue. Reports/history are bounded; defects are preserved and overflow stops writes rather than silently losing work.
 - Drive reuses `DriveRestChannel` and OIDC, default branch + protected `orchestrator` environment. Every snapshot/task is append-only and read back. Three task publications maximum/cycle, stable task IDs, prior ACK check, no repeated assignment. Publishing does **not** activate an agent.
-- Command Center `/dashboard/command-center/quality-loop` and API use the existing OWNER/ADMIN confirmed-account gate. Controls are same-origin admin POSTs. Integration records require the SHA of the deployed application. No secrets or migrations were added.
+- Command Center `/dashboard/command-center/quality-loop` and API use the existing OWNER/ADMIN confirmed-account gate. Controls are same-origin admin POSTs. After a reload, only the same authenticated claim actor can recover its own live fencing token; reads do not renew the lease, and another administrator cannot submit that actor's transitions. Integration records require the SHA of the deployed application. No secrets or migrations were added.
 
 ## Activation and stop
 
