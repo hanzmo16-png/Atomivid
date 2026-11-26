@@ -5,7 +5,8 @@ import {studioOwnerSignature} from '../../src/lib/podcast/v3/owner-check.ts';
 import {validatePreviewShare} from './preview-share.ts';
 const e=process.env;
 async function main(){
- const origin='https://atomivid-ifh6x9b59-atomivid.vercel.app';
+ const origin=e.MS_TARGET;
+ if(!['https://atomivid-ifh6x9b59-atomivid.vercel.app','https://atomivid.vercel.app'].includes(origin))throw Error('origin');
  if(e.MS_TARGET!==origin)throw Error('target');
  const sb=createClient(e.NEXT_PUBLIC_SUPABASE_URL,e.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
  const bucket=await sb.storage.getBucket('videos');if(bucket.error||bucket.data.public!==false)throw Error('privacy');
@@ -19,7 +20,7 @@ async function main(){
   const users=await sb.auth.admin.listUsers({page:1,perPage:1000});if(users.error)throw Error('users');
   const other=users.data.users.find(u=>u.id!==qa.id&&u.email_confirmed_at);if(!other)throw Error('nonqa');
   client=await request.newContext();
-  const access=await client.get(validatePreviewShare(origin,e.MS_PREVIEW_ACCESS_URL),{maxRedirects:0});await access.dispose();
+  if(origin!=='https://atomivid.vercel.app'){const access=await client.get(validatePreviewShare(origin,e.MS_PREVIEW_ACCESS_URL),{maxRedirects:0});await access.dispose();}
   const check=async userId=>{
    const nonce=randomUUID(),time=String(Date.now());
    const r=await client.post(origin+'/api/internal/studio-owner',{maxRedirects:0,data:{userId},headers:{'x-probe-nonce':nonce,'x-probe-time':time,'x-probe-signature':studioOwnerSignature(e.SUPABASE_SERVICE_ROLE_KEY.trim(),userId,nonce,time)}});

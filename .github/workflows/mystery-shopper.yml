@@ -4,7 +4,7 @@ on:
     inputs:
       operation:
         type: choice
-        options: [prepare, admission]
+        options: [prepare, admission, production-admission, preflight]
         default: prepare
       key_id:
         type: string
@@ -19,7 +19,7 @@ jobs:
   admission:
     environment: Preview
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 20
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -40,10 +40,42 @@ jobs:
         if: inputs.operation == 'admission'
         run: node --import tsx scripts/mystery-shopper/sealed-preview-access.mjs
       - run: npm install --no-save --no-audit --no-fund playwright@1.49.1
-        if: inputs.operation == 'admission'
+        if: inputs.operation == 'admission' || inputs.operation == 'production-admission'
       - name: Signed admission without generation
-        if: inputs.operation == 'admission'
+        if: inputs.operation == 'admission' || inputs.operation == 'production-admission'
         env:
+          MS_TARGET: ${{ inputs.operation == 'production-admission' && 'https://atomivid.vercel.app' || 'https://atomivid-ifh6x9b59-atomivid.vercel.app' }}
           MYSTERY_SHOPPER_QA_EMAIL: ${{ secrets.MYSTERY_SHOPPER_QA_EMAIL }}
           MYSTERY_SHOPPER_QA_PASSWORD: ${{ secrets.MYSTERY_SHOPPER_QA_PASSWORD }}
         run: node --import tsx scripts/mystery-shopper/private-av-admission.mjs
+      - name: Install private browser verifier
+        if: inputs.operation == 'preflight'
+        run: sudo apt-get update -q && sudo apt-get install -yq ffmpeg && npm install --no-save --no-audit --no-fund playwright@1.49.1 && npx playwright install --with-deps chromium
+      - id: create
+        name: Create free AV quote evaluation
+        if: inputs.operation == 'preflight'
+        env:
+          MS_TARGET: https://atomivid.vercel.app
+          MS_MISSION: video-podcast-real
+          MS_MODE: gratuito
+          MS_MAX_BUDGET_USD: '3'
+        run: |
+          umask 077
+          node --import tsx scripts/mystery-shopper/manual-start.ts > "$RUNNER_TEMP/manual-private.log" 2>&1 || { echo 'Private evaluation blocked.'; exit 1; }
+      - name: Free UI AV quote without authorization
+        if: inputs.operation == 'preflight'
+        env:
+          MS_JOB_ID: ${{ steps.create.outputs.job }}
+          MYSTERY_SHOPPER_REAL_ENABLED: '0'
+          MYSTERY_SHOPPER_QA_EMAIL: ${{ secrets.MYSTERY_SHOPPER_QA_EMAIL }}
+          MYSTERY_SHOPPER_QA_PASSWORD: ${{ secrets.MYSTERY_SHOPPER_QA_PASSWORD }}
+          MS_OUT_DIR: ${{ runner.temp }}/private-av
+        run: |
+          umask 077
+          node --import tsx scripts/mystery-shopper/worker.ts > "$RUNNER_TEMP/av-private.log" 2>&1 || { echo 'Quote evaluation blocked; private evidence only.'; exit 1; }
+      - name: Save quote readback privately
+        if: always() && inputs.operation == 'preflight' && steps.create.outputs.job != ''
+        env:
+          MS_JOB_ID: ${{ steps.create.outputs.job }}
+          MS_OUT_DIR: ${{ runner.temp }}/private-av
+        run: node scripts/mystery-shopper/private-av-receipt.mjs
