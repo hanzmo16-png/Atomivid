@@ -17,3 +17,29 @@ test("la ayuda solo flota desde md: en el teléfono no se superpone a las barras
   assert.ok(!tokens.includes("fixed"), `sin «fixed» en móvil: ${cls}`);
   assert.ok(tokens.includes("md:fixed") && !tokens.includes("sm:fixed"), `flota desde md, no desde sm: ${cls}`);
 });
+
+/**
+ * Regresión Mystery Shopper 26-nov-2026 (cuenta-navegacion, 412 px, producción): el recorrido de bienvenida era un
+ * modal con fondo a pantalla completa (fixed inset-0) que tapaba la cabecera, «Salir» y el dock hasta pulsar «Omitir».
+ * Ahora es un aviso no modal: sin fondo que cubra la página, el contenedor no captura toques y solo la tarjeta los recibe.
+ */
+test("el recorrido de bienvenida no bloquea la página: sin fondo a pantalla completa, solo la tarjeta recibe toques", async () => {
+  const { OnboardingTour } = await import("./Onboarding");
+  const noop = () => {};
+  const html = renderToStaticMarkup(<OnboardingTour step={0} onSkip={noop} onBack={noop} onNext={noop} />);
+  const root = html.match(/<div data-testid="onboarding-tour" class="([^"]*)"/)?.[1] ?? "";
+  const rootTokens = root.split(/\s+/);
+  assert.ok(rootTokens.includes("pointer-events-none"), `el contenedor deja pasar los toques: ${root}`);
+  assert.ok(!rootTokens.includes("inset-0") && !/bg-black/.test(root), `sin fondo que cubra la pantalla: ${root}`);
+  assert.ok(rootTokens.includes("bottom-28") && rootTokens.includes("sm:bottom-6"), `por encima del dock móvil: ${root}`);
+  const dialog = html.match(/<div[^>]*role="dialog"[^>]*>/)?.[0] ?? "";
+  assert.match(dialog, /aria-modal="false"/);
+  assert.match(dialog, /pointer-events-auto/);
+  for (const name of ["Omitir", "Siguiente"]) {
+    const btn = html.match(new RegExp(`<button[^>]*>${name}</button>`))?.[0] ?? "";
+    assert.match(btn, /min-h-11/, `«${name}» mide al menos 44 px: ${btn}`);
+  }
+  assert.match(html, /Paso 1 de \d+/);
+  const last = renderToStaticMarkup(<OnboardingTour step={99} onSkip={noop} onBack={noop} onNext={noop} />);
+  assert.match(last, />Empezar</, "un paso fuera de rango se acota al último en vez de romper la página");
+});

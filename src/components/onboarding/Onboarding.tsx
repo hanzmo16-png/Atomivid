@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { ONBOARDING_STEPS, clampStep, shouldAutoOpenOnboarding } from "@/lib/onboarding/steps";
 
@@ -56,25 +56,10 @@ export function Onboarding() {
     const previouslyFocused = document.activeElement as HTMLElement | null;
     dialogRef.current?.focus();
 
+    // El recorrido NO es modal (Mystery Shopper 26-nov: tapaba el menú y «Salir» hasta omitirlo): no atrapa el foco
+    // con Tab, para que el resto de la página siga siendo utilizable; Escape lo cierra.
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        close();
-        return;
-      }
-      if (e.key !== "Tab") return;
-      const focusables = dialogRef.current?.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-      );
-      if (!focusables || focusables.length === 0) return;
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
+      if (e.key === "Escape") close();
     }
 
     document.addEventListener("keydown", onKeyDown);
@@ -95,7 +80,6 @@ export function Onboarding() {
     setOpen(true);
   }
 
-  const current = ONBOARDING_STEPS[step];
   const isLast = step === ONBOARDING_STEPS.length - 1;
 
   return (
@@ -121,64 +105,85 @@ export function Onboarding() {
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 p-4 sm:items-center">
-          <div
-            ref={dialogRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="onboarding-title"
-            tabIndex={-1}
-            className="w-full max-w-sm rounded-lg border border-border-strong bg-surface-raised p-6 shadow-lg outline-none"
-          >
-            <div className="flex items-center gap-1.5" aria-hidden="true">
-              {ONBOARDING_STEPS.map((s, i) => (
-                <span
-                  key={s.title}
-                  className={`h-1 flex-1 rounded-full ${i <= step ? "bg-accent" : "bg-border-strong"}`}
-                />
-              ))}
-            </div>
-
-            <p className="mt-5 text-xs font-medium text-accent">
-              Paso {step + 1} de {ONBOARDING_STEPS.length}
-            </p>
-            <h2 id="onboarding-title" className="mt-1 text-lg font-semibold text-ink">
-              {current.title}
-            </h2>
-            <p className="mt-2 text-sm text-ink-muted">{current.body}</p>
-
-            <div className="mt-6 flex items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={close}
-                className="text-sm font-medium text-ink-faint hover:text-ink-muted"
-              >
-                Omitir
-              </button>
-              <div className="flex gap-2">
-                {step > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setStep((s) => clampStep(s - 1, ONBOARDING_STEPS.length))}
-                    className="rounded-md border border-border-strong px-3.5 py-2 text-sm font-medium text-ink hover:bg-surface"
-                  >
-                    Atrás
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() =>
-                    isLast ? close() : setStep((s) => clampStep(s + 1, ONBOARDING_STEPS.length))
-                  }
-                  className="rounded-md bg-accent px-3.5 py-2 text-sm font-medium text-accent-ink hover:bg-accent-hover"
-                >
-                  {isLast ? "Empezar" : "Siguiente"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <OnboardingTour
+          ref={dialogRef}
+          step={step}
+          onSkip={close}
+          onBack={() => setStep((s) => clampStep(s - 1, ONBOARDING_STEPS.length))}
+          onNext={() => (isLast ? close() : setStep((s) => clampStep(s + 1, ONBOARDING_STEPS.length)))}
+        />
       )}
     </>
   );
 }
+
+/**
+ * Tarjeta del recorrido de bienvenida. Es un aviso NO modal: sin fondo que cubra la pantalla, por encima del dock
+ * móvil (bottom-28; desde sm no hay dock) y con `pointer-events-none` en el contenedor, de modo que la cabecera
+ * (menú, «Mi plan», «Salir»), el dock y el contenido siguen respondiendo mientras está abierto. Botones de 44 px.
+ */
+export const OnboardingTour = forwardRef<
+  HTMLDivElement,
+  { step: number; onSkip: () => void; onBack: () => void; onNext: () => void }
+>(function OnboardingTour({ step: rawStep, onSkip, onBack, onNext }, ref) {
+  const step = clampStep(rawStep, ONBOARDING_STEPS.length);
+  const current = ONBOARDING_STEPS[step];
+  const isLast = step === ONBOARDING_STEPS.length - 1;
+  return (
+    <div
+      data-testid="onboarding-tour"
+      className="pointer-events-none fixed inset-x-0 bottom-28 z-40 flex justify-center px-4 sm:bottom-6"
+    >
+      <div
+        ref={ref}
+        role="dialog"
+        aria-modal="false"
+        aria-labelledby="onboarding-title"
+        tabIndex={-1}
+        className="pointer-events-auto w-full max-w-sm rounded-lg border border-border-strong bg-surface-raised p-5 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.85)] outline-none"
+      >
+        <div className="flex items-center gap-1.5" aria-hidden="true">
+          {ONBOARDING_STEPS.map((s, i) => (
+            <span key={s.title} className={`h-1 flex-1 rounded-full ${i <= step ? "bg-accent" : "bg-border-strong"}`} />
+          ))}
+        </div>
+
+        <p className="mt-4 text-xs font-medium text-accent">
+          Paso {step + 1} de {ONBOARDING_STEPS.length}
+        </p>
+        <h2 id="onboarding-title" className="mt-1 text-lg font-semibold text-ink">
+          {current.title}
+        </h2>
+        <p className="mt-2 text-sm text-ink-muted">{current.body}</p>
+
+        <div className="mt-5 flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={onSkip}
+            className="-ml-2 min-h-11 rounded-md px-2 text-sm font-medium text-ink-faint hover:text-ink-muted"
+          >
+            Omitir
+          </button>
+          <div className="flex gap-2">
+            {step > 0 && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="min-h-11 rounded-md border border-border-strong px-3.5 text-sm font-medium text-ink hover:bg-surface"
+              >
+                Atrás
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onNext}
+              className="min-h-11 rounded-md bg-accent px-3.5 text-sm font-medium text-accent-ink hover:bg-accent-hover"
+            >
+              {isLast ? "Empezar" : "Siguiente"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
