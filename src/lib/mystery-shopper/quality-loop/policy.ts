@@ -5,11 +5,12 @@ export function targetOrigin(value: string, fixture = false): string {
   if(fixture && !['127.0.0.1','localhost'].includes(u.hostname))throw new Error('FIXTURE_MUST_BE_LOCAL');
   return u.origin;
 }
-export function allowBrowserRequest(input: { url: string; method: string; origin: string; authenticated: boolean; resourceType: string }): boolean {
+export function allowBrowserRequest(input: { url: string; method: string; origin: string; authenticated: boolean; resourceType: string; adminReadback?: boolean }): boolean {
   const u=new URL(input.url);
   if(u.origin!==input.origin)return false;
   if(!['GET','HEAD','OPTIONS'].includes(input.method)) return !input.authenticated && input.method === 'POST' && u.pathname === '/login';
   // Never let a navigation replay a render/retry/delete through a mutating GET.
+  if(u.pathname==='/api/command-center/quality-loop')return input.adminReadback===true&&input.authenticated&&input.method==='GET';
   if(/^\/api\//.test(u.pathname))return /^\/api\/(build-info|audio-studio\/voices|podcast\/v3|command-center\/resource-sentinel)$/.test(u.pathname);
   if(/\/auth\/|\/logout|\/signout|\/retry|\/render|\/generate|\/checkout/.test(u.pathname))return false;
   return !['media','websocket','eventsource'].includes(input.resourceType);

@@ -9,6 +9,8 @@ import { PRODUCTS, type Cycle, type Check } from '../../../src/lib/mystery-shopp
 // Playwright remains a worker-only dependency, just like the existing Mystery Shopper worker.
 export async function observe(env: Record<string,string|undefined>, input: Pick<Cycle,'id'|'trigger'|'runnerSha'|'url'>, stopped: () => Promise<boolean> = async () => false): Promise<Cycle> {
   const fixture=env.AQL_FIXTURE==='1', origin=targetOrigin(env.MS_TARGET_URL||'https://atomivid.vercel.app',fixture);
+  // Explicit manual QA only: never add recurring queue payload/egress or admin mutations.
+  const adminReadback=input.trigger==='workflow_dispatch';
   const startedAt=new Date().toISOString();const checks:Check[]=[];
   const add=(c:Check)=>checks.push(c);
   let authenticated=false, sha:string|null=null, sentinel:Cycle['sentinel']='BLOCKED';
@@ -29,7 +31,7 @@ export async function observe(env: Record<string,string|undefined>, input: Pick<
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await context.route('**/*',async(route:any)=>{
       const r=route.request();
-      if(!allowBrowserRequest({url:r.url(),method:r.method(),origin,authenticated,resourceType:r.resourceType()})){blockedRequests++;return route.abort();}
+      if(!allowBrowserRequest({url:r.url(),method:r.method(),origin,authenticated,resourceType:r.resourceType(),adminReadback})){blockedRequests++;return route.abort();}
       if(!fixture && r.method()==='POST' && r.url()===`${origin}/login` && await stopped())return route.abort();
       return route.continue();
     });
@@ -50,7 +52,25 @@ export async function observe(env: Record<string,string|undefined>, input: Pick<
     add({id:'deployed-sha',product:'account-nav',state:sha?'PASS':'BLOCKED',severity:'P1',owner:'codex',module:'deployment',detail:sha?'SHA returned by the evaluated application':'Evaluated application SHA unavailable; runner SHA is not production identity'});
     if(env.AQL_EXPECTED_SHA && sha!==env.AQL_EXPECTED_SHA)add({id:'deployment-sha-match',product:'account-nav',state:'FAIL',severity:'P1',owner:'codex',module:'deployment',detail:'Deployment event SHA does not match evaluated application'});
     const sent=await getJSON('/api/command-center/resource-sentinel');sentinel=sentinelStatus(sent.status,sent.data);
-    add({id:'sentinel-read',product:'command-center',state:sentinel==='READ'?'PASS':'BLOCKED',severity:'P1',owner:'codex',module:'sentinel',detail:sentinel==='READ'?'Existing Resource Sentinel read successfully; private balances omitted':'Sentinel not deployed, unavailable or QA lacks admin access; provider-dependent checks blocked'});
+    add({id:'sentinel-read',product:'command-center',state:sentinel==='READ'?'PASS':'BLOCKED',severity:'P1',owner:'codex',module:'sentinel',detail:sentinel==='READ'?'Existing Resource Sentinel read successfully; private balances omitted':`Sentinel HTTP ${sent.status}; ${sent.status===401||sent.status===403?'QA not authorized':sent.status===404?'backend route absent':sent.status===200?'contract incomplete/stale':'unavailable'}; provider-dependent checks blocked`});
+    if(adminReadback){
+      const admin=await getJSON('/api/command-center/quality-loop');
+      const readable=admin.status===200&&admin.data?.version==='quality-loop/1'&&typeof admin.data.operational==='string';
+      add({id:'admin-api-readback',product:'command-center',state:readable?'PASS':'BLOCKED',severity:'P1',owner:'codex',module:'permissions',detail:`Manual admin GET HTTP ${admin.status}; existing QA authorization only; no roles, claims or control mutations`});
+      for(const width of [390,1440]){
+        let good=false;
+        if(readable){
+          try{
+            await page.setViewportSize({width,height:900});
+            const response=await page.goto('/dashboard/command-center/quality-loop',{waitUntil:'domcontentloaded',timeout:30000});
+            await page.getByRole('heading',{name:'AUTONOMOUS QUALITY LOOP',exact:true}).waitFor({timeout:15000});
+            await page.waitForFunction(()=>{const status=document.querySelector('section[aria-label="Estado del motor"] article p');return !!status&&status.textContent!=='Sin evidencia';},{},{timeout:15000});
+            good=response?.status()===200&&await page.locator('[role="alert"]').count()===0&&await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth);
+          }catch{/* Never emit authenticated DOM, identities, queue bodies or claim tokens. */}
+        }
+        add({id:`admin-panel-${width}`,product:'command-center',state:!readable?'BLOCKED':good?'PASS':'FAIL',severity:'P1',owner:'codex',module:'admin-ui',detail:!readable?'Admin API unavailable/forbidden; QA privileges unchanged':`Manual ${width}px panel and hydrated operational state ${good?'verified':'not verified'}; no control clicks`});
+      }
+    }
     // Only operational statuses leave this process; never provider balances or private financial rows.
     for(const product of PRODUCTS){
       const good=sentinel==='READ'&&providerReadiness(product,sent.data);
