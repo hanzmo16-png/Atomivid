@@ -1,5 +1,5 @@
 # Mystery Shopper 2.0 — el worker real. Playwright corre aquí (GitHub Actions), nunca en Vercel serverless.
-# Solo modo gratuito: el navegador no pulsa nada facturable y además bloquea las peticiones a proveedores de pago.
+# Gratuito por defecto; campaign-real exige despacho explícito, topes y ledger acumulado existente.
 #
 #  - repository_dispatch «mystery-shopper-run»: lo envía el panel (Command Center) al crear una evaluación.
 #  - deployment_status: Vercel avisa de un Preview listo; si el CI del SHA está verde, corren las misiones automáticas.
@@ -12,6 +12,24 @@ on:
   deployment_status:
   workflow_dispatch:
     inputs:
+      operation:
+        description: Evaluar gratis, diagnosticar QA o ejecutar campaña autorizada con topes
+        type: choice
+        options: [evaluate, qa-preflight, observe-reel, campaign-real]
+        default: evaluate
+      audio_project_id:
+        description: Episodio QA existente sin gasto para recuperar configuración sin duplicarlo
+        required: false
+        default: ""
+      observe_request_id:
+        description: Id de Reel existente para observar/descargar sin reenviar render
+        required: false
+        default: ""
+      qa_environment:
+        description: Ámbito de bindings existentes (solo diagnóstico QA)
+        type: choice
+        options: [Preview, orchestrator]
+        default: Preview
       job_id:
         description: Id de una evaluación ya creada (ms-...). Vacío = crear una nueva con la misión y el perfil de abajo.
         required: false
@@ -38,16 +56,64 @@ permissions:
   checks: read
   statuses: read
 jobs:
-  # Un trabajo pedido desde el panel o a mano. El claim atómico del trabajo evita dobles ejecuciones;
-  # la concurrencia por id además serializa dos despachos del mismo trabajo.
-  evaluar:
-    if: github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch'
+  qa-preflight:
+    if: github.event_name == 'workflow_dispatch' && (inputs.operation == 'qa-preflight' || inputs.operation == 'observe-reel')
+    environment: ${{ inputs.qa_environment || 'orchestrator' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: ${{ inputs.operation == 'observe-reel' && 25 || 5 }}
     concurrency:
-      group: mystery-shopper-${{ github.event.client_payload.jobId || inputs.job_id || github.run_id }}
+      group: mystery-shopper-qa-preflight
       cancel-in-progress: false
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Verificar cuenta QA sin crear trabajos ni reservar gasto
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          MYSTERY_SHOPPER_QA_EMAIL: ${{ secrets.MYSTERY_SHOPPER_QA_EMAIL }}
+          MYSTERY_SHOPPER_QA_PASSWORD: ${{ secrets.MYSTERY_SHOPPER_QA_PASSWORD }}
+          COMMAND_CENTER_ADMIN_EMAILS: ${{ secrets.COMMAND_CENTER_ADMIN_EMAILS }}
+          MS_OUT_DIR: ${{ runner.temp }}/qa-preflight
+        run: node --import tsx scripts/mystery-shopper/qa-preflight.ts
+      - name: Navegador móvil de solo lectura
+        run: sudo apt-get update -q && sudo apt-get install -yq ffmpeg && npm install --no-save --no-audit --no-fund playwright@1.49.1 && npx playwright install --with-deps chromium
+      - name: Verificar acceso móvil y leer ledger acumulado sin reservar
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          MYSTERY_SHOPPER_QA_EMAIL: ${{ secrets.MYSTERY_SHOPPER_QA_EMAIL }}
+          MYSTERY_SHOPPER_QA_PASSWORD: ${{ secrets.MYSTERY_SHOPPER_QA_PASSWORD }}
+          MS_OUT_DIR: ${{ runner.temp }}/qa-preflight
+          MS_OBSERVE_REEL_ID: ${{ inputs.operation == 'observe-reel' && inputs.observe_request_id || '' }}
+        run: node --import tsx scripts/mystery-shopper/qa-authenticated-readonly.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qa-preflight-${{ github.run_id }}
+          path: ${{ runner.temp }}/qa-preflight
+          if-no-files-found: error
+          retention-days: 7
+  # Un trabajo pedido desde el panel o a mano. El claim atómico del trabajo evita dobles ejecuciones;
+  # Un único grupo serializa toda la campaña para impedir gasto paralelo del mismo ledger.
+  evaluar:
+    environment: Preview
+    if: github.event_name == 'repository_dispatch' || (github.event_name == 'workflow_dispatch' && inputs.operation != 'qa-preflight' && inputs.operation != 'observe-reel')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    concurrency:
+      group: mystery-shopper-campaign-real-serialized
+      cancel-in-progress: false
+    steps:
+      - name: Alcance de campaña real autorizado
+        if: inputs.operation == 'campaign-real'
+        env:
+          MISSION: ${{ inputs.mission }}
+          JOB_ID: ${{ inputs.job_id }}
+        run: |
+          [[ -z "$JOB_ID" && ( "$MISSION" == "audio-real-es" || "$MISSION" == "youtube-real" || "$MISSION" == "reels-real" ) ]] || { echo "::error::Campaña real limitada a Audio ES, YouTube o Reel nuevos; sin reintento automático"; exit 1; }
       - name: Id de trabajo válido
         env:
           JOB: ${{ github.event.client_payload.jobId || inputs.job_id }}
@@ -62,6 +128,8 @@ jobs:
           MS_JOB_ID: ${{ github.event.client_payload.jobId || inputs.job_id }}
           MS_MISSION: ${{ inputs.mission || 'cuenta-navegacion' }}
           MS_PROFILE: ${{ inputs.profile || 'principiante' }}
+          MS_MODE: ${{ inputs.operation == 'campaign-real' && 'real' || 'gratuito' }}
+          MS_MAX_BUDGET_USD: ${{ inputs.mission == 'audio-real-es' && '1' || inputs.mission == 'reels-real' && '1.5' || '2' }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: npx tsx scripts/mystery-shopper/manual-start.ts
@@ -70,6 +138,8 @@ jobs:
       - name: Recorrido con navegador nuevo
         env:
           MS_JOB_ID: ${{ steps.trabajo.outputs.job }}
+          MYSTERY_SHOPPER_REAL_ENABLED: ${{ inputs.operation == 'campaign-real' && '1' || '0' }}
+          MS_AUDIO_PROJECT_ID: ${{ inputs.mission == 'audio-real-es' && inputs.audio_project_id || '' }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           MYSTERY_SHOPPER_QA_EMAIL: ${{ secrets.MYSTERY_SHOPPER_QA_EMAIL }}
@@ -163,6 +233,8 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Pruebas unitarias del módulo
         run: node --import tsx --test --test-concurrency=1 src/lib/mystery-shopper/ms2.test.ts src/lib/mystery-shopper/mystery-shopper.test.ts src/lib/mystery-shopper/media.test.ts src/app/dashboard/command-center/mystery-shopper/panel.test.tsx
+      - name: Regresiones de campañas y autenticación QA
+        run: node --import tsx --test --test-concurrency=1 src/lib/mystery-shopper/v3/*.test.ts
       - name: Arnés local
         run: bash scripts/harness/e2e/infra/setup.sh
       - name: E2E autenticado (panel → trabajo → worker → informe)

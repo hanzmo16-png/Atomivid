@@ -25,12 +25,12 @@ import { canAccessLongFormBeta } from "@/lib/video/long-form/private-access";
 import { studioFlagFor } from "@/lib/podcast/v3/studio";
 import { canAccessAudioStudio } from "@/lib/audio-studio/access";
 import { isCommandCenterAdmin } from "@/lib/command-center/access";
-import { CinematicBackground } from "@/components/cinematic/CinematicBackground";
 import { CinematicHero } from "@/components/cinematic/CinematicHero";
 import { StudioCards } from "@/components/cinematic/StudioCards";
 import { Showcase } from "@/components/cinematic/Showcase";
 import { studiosFor } from "@/components/cinematic/studios";
 import { showcaseItems } from "@/components/cinematic/showcase";
+import { VideoBackground } from "@/components/dashboard/VideoBackground";
 
 export default async function DashboardPage({
   searchParams,
@@ -130,12 +130,12 @@ export default async function DashboardPage({
 
   return (
     <div>
+      {/* Fondo en video (COSMOS 2 v4): solo visual, fijo detrás del contenido. */}
+      <VideoBackground />
       <AutoRefresh active={hasProcessing || (scriptJobs ?? []).some(job => scriptJobView(job, nowMs).refresh)} />
 
       {!mid && (
         <>
-          {/* Fondo cinematográfico real (video propio en bucle); se pausa al salir de la portada o de la pestaña. */}
-          <CinematicBackground ambientId="cosmos" watchId="portada" />
           <CinematicHero />
           <div id="crear" className="glass max-w-3xl scroll-mt-24 rounded-3xl p-5 sm:p-8">
             <CreateHome formats={formats} subscriptionNeeded={!subscribed && !internalOwner} />

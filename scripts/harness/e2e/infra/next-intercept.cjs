@@ -7,6 +7,12 @@ os.networkInterfaces = function () { try { return oni.call(os); } catch { return
 globalThis.fetch = async function (input, init = {}) {
   const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
   const host = (() => { try { return new URL(url).hostname; } catch { return ""; } })();
+  // Metadata-only proof for the fake local GitHub repository. Use this checkout's
+  // real workflow, not a fabricated marker; every other remote request stays blocked.
+  if (url === "https://api.github.com/repos/local/test/contents/.github/workflows/render.yml" && (init.method || "GET") === "GET") {
+    const workflow = fs.readFileSync(require("path").resolve(__dirname, "../../../../.github/workflows/render.yml"));
+    return new Response(JSON.stringify({ encoding: "base64", content: workflow.toString("base64") }), { status: 200, headers: { "Content-Type": "application/json" } });
+  }
   if (/^https:\/\/api\.github\.com\/repos\/local\/test\/dispatches$/.test(url)) {
     LOG && fs.appendFileSync(LOG, JSON.stringify({ at: new Date().toISOString(), kind: "dispatch", body: JSON.parse(String(init.body)) }) + "\n");
     const r = await orig(process.env.E2E_DISPATCH_URL || "http://127.0.0.1:54400/dispatch", { method: "POST", body: init.body, headers: { "content-type": "application/json" } });

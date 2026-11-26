@@ -109,7 +109,10 @@ test("matriz offline 10/15/20/30 min con tope 12, guion 0, música 0 (USD 0)", (
   }
   console.log(JSON.stringify(rows));
   assert.equal(rows.length, 24);
-  assert.ok(rows.every((r) => r.render === 5.94));
+  // Independent golden amounts: 3 attempts × [90, 180, 180, 330] min × USD .006/min.
+  // The former constant 5.94 for every duration is intentionally replaced; all other assertions remain.
+  const expectedRenderUsd: Record<number, number> = { 10: 1.62, 15: 3.24, 20: 3.24, 30: 5.94 };
+  for (const row of rows) assert.equal(row.render, expectedRenderUsd[Number(row.minutes)]);
   const economical = rows.filter((r) => r.strategy === "economical" && r.aiVideo === false);
   assert.ok(economical.every((r) => r.admits === true), JSON.stringify(economical));
 });

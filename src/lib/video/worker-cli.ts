@@ -1,3 +1,4 @@
+import { longFormTimeoutMatches } from "./long-form/render-timeout";
 /**
  * T36 C1 — the render worker's ONE entry point. `scripts/render-worker.ts` (GitHub Actions) calls `runRenderWorkerCli`,
  * and so does the local walkthrough, by running that same script as a separate process: same argument handling
@@ -77,11 +78,12 @@ export async function runRenderWorkerCli(env: Env = process.env): Promise<"ran" 
 
   const { createServiceClient } = await import("@/lib/supabase/service");
   const { writeFile } = await import("node:fs/promises");
-  const row = await createServiceClient().from("video_requests").select("status,render_attempts").eq("id", requestId).single();
+  const row = await createServiceClient().from("video_requests").select("status,render_attempts,mode,duration_seconds").eq("id", requestId).single();
   if (row.error) throw new WorkerRefusal("REQUEST_READ_FAILED");
   if (!row.data || row.data.status !== "processing") return "skipped";
   const supplied = env.RENDER_ATTEMPT;
   if (supplied && Number(supplied) !== row.data.render_attempts) return "skipped";
+  if (!localFixture && env.GITHUB_ACTIONS && row.data.mode === "long_form" && !longFormTimeoutMatches(row.data.duration_seconds, env.LONG_FORM_RENDER_JOB_TIMEOUT_MIN)) throw new WorkerRefusal("LONG_FORM_QUOTE_RUNNER_TIMEOUT_MISMATCH");
   const attempt = row.data.render_attempts as number;
   // Local runner file only; not published as an artifact. Cleanup cannot guess the current attempt after a timeout
   // or a delayed dispatch.

@@ -1,3 +1,4 @@
+import { longFormRenderTimeout } from "./render-timeout";
 /**
  * Same stage total the worker authorizes in produce.ts (script already spent + conservative
  * voice/images/video + music + render worst case) before LONG_FORM_MAX_TOTAL_USD.
@@ -80,7 +81,7 @@ export function previewWorkerAuthorization(input: {
   const imageUsd = Number.isFinite(allocation.maxAiImageGenerations) ? conservative.imageUsd * allocation.maxAiImageGenerations : null;
   const videoUsd = Number.isFinite(allocation.maxAiVideoClips) ? conservative.clipUsd * allocation.maxAiVideoClips : null;
   const musicUsd = input.musicCeilingUsd !== undefined ? input.musicCeilingUsd : musicCeilingUsd(plan.providers?.music);
-  const renderUsd = input.renderUsd ?? longFormRenderCeilingUsd();
+  const renderUsd = input.renderUsd ?? longFormRenderCeilingUsd(plan.requestedDurationSeconds);
   const scriptSpentUsd = Number.isFinite(input.scriptSpentUsd) && input.scriptSpentUsd >= 0 ? input.scriptSpentUsd : Number.NaN;
   const contingencyPct = input.contingencyPct ?? contingencyPctFromEnv();
   const hardMaxUsd = Number.isFinite(input.hardMaxUsd) ? Math.max(0, input.hardMaxUsd) : 0;
@@ -92,7 +93,7 @@ export function previewWorkerAuthorization(input: {
     { stage: "images", ceilingUsd: imageUsd, retryPolicy: "reuse_paid_results" },
     { stage: "video", ceilingUsd: videoUsd, retryPolicy: "reuse_paid_results" },
     { stage: "music", ceilingUsd: musicUsd, retryPolicy: "reuse_paid_results" },
-    { stage: "render", ceilingUsd: Number.isFinite(renderUsd) && renderUsd >= 0 ? renderUsd : null, retryPolicy: "reuse_paid_results", note: `cubre ${MAX_RENDER_ATTEMPTS} intentos × ${LONG_FORM_RENDER_JOB_TIMEOUT_MIN} min` },
+    { stage: "render", ceilingUsd: Number.isFinite(renderUsd) && renderUsd >= 0 ? renderUsd : null, retryPolicy: "reuse_paid_results", note: `cubre ${MAX_RENDER_ATTEMPTS} intentos × ${longFormRenderTimeout(plan.requestedDurationSeconds).jobMinutes} min` },
   ];
   const envelope = pilotBudgetEnvelope(stages, contingencyPct);
   const subtotal = envelope.subtotalUsd;

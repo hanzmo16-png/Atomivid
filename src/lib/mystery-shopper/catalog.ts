@@ -71,12 +71,23 @@ export const LIVE_MISSIONS: Mission[] = [
   { id: "longform-formulario", product: "long-form", title: "Long Form: formulario hasta el costo", instructions: "Abrir Nuevo video de YouTube y llenar el tema sin generar el guion.", expected: "Formulario claro con costo visible", publishForbidden: false,
     criteria: ["Encuentra el video de YouTube", "El formulario acepta tema y duración", "Se informa el costo antes de generar"],
     failure: ["No se encuentra el formulario", "No se informa el costo"] },
+  { id: "audio-real-es", product: "audio-podcast", title: "Audio Podcast REAL: ES, 2 voces M/F, ~3 min", instructions: "Crear, configurar y generar un episodio real en español con dos voces; reproducir, descargar, medir y encontrarlo en la biblioteca. Solo modo real autorizado (tope acumulado USD 8.50).", expected: "MP3 real reproducible, duración correcta, en biblioteca", publishForbidden: false,
+    criteria: ["Crea el episodio", "Configura idioma, voces, guion y tope", "Se ve el costo antes de generar", "Sin autorizar no se puede generar", "Muestra progreso real", "El MP3 se reproduce", "El MP3 se descarga", "La duración corresponde al guion", "Aparece en la biblioteca"],
+    failure: ["No queda listo para generar", "Genera sin autorizar", "No entrega el MP3", "Duración incorrecta"] },
+  { id: "audio-real-en", product: "audio-podcast", title: "Audio Podcast REAL: EN, 1 voz, ~3 min", instructions: "Igual que audio-real-es, en inglés con una voz.", expected: "MP3 real reproducible, duración correcta, en biblioteca", publishForbidden: false,
+    criteria: ["Crea el episodio", "Configura idioma, voces, guion y tope", "Se ve el costo antes de generar", "Sin autorizar no se puede generar", "Muestra progreso real", "El MP3 se reproduce", "El MP3 se descarga", "La duración corresponde al guion", "Aparece en la biblioteca"],
+    failure: ["No queda listo para generar", "Genera sin autorizar", "No entrega el MP3", "Duración incorrecta"] },
+  { id: "youtube-real", product: "long-form", title: "YouTube Studio REAL: video completo como cliente", instructions: "Crear un video de YouTube de 3 min como cliente (tema, idioma, duración, estrategia visual, voz), confirmar el costo, seguir el progreso real, reproducir, descargar y medir el MP4, y encontrarlo en el historial. Solo gasta en modo real con interruptor y libro de gasto.", expected: "MP4 16:9 reproducible, duración pedida, audio presente y sincronizado, en el historial", publishForbidden: true,
+    criteria: ["Encuentra el video de YouTube", "El formulario acepta tema y duración", "Se informa el costo antes de generar", "Muestra progreso real", "El video se reproduce", "El MP4 se descarga y se lee", "Aparece en el historial"],
+    failure: ["Sin acceso", "No se informa el costo", "Generación interminable o atascada", "MP4 corrupto, sin audio o desincronizado", "No aparece en el historial"] },
   { id: "biblioteca-recuperar", product: "library", title: "Biblioteca: encontrar y abrir proyectos", instructions: "Abrir Mis proyectos, abrir un proyecto existente y comprobar reproducción y descarga si hay un archivo.", expected: "Proyectos visibles y recuperables", publishForbidden: false, auto: true,
     criteria: ["Se ve la lista de proyectos", "Se puede abrir un proyecto", "Si hay archivo, se reproduce", "Si hay archivo, se descarga"],
     failure: ["La biblioteca no carga", "Un proyecto no abre"] },
   { id: "command-center-panel", product: "command-center", title: "Command Center: panel carga", instructions: "Abrir el Command Center con la cuenta QA y comprobar que carga o que niega el acceso con claridad.", expected: "Panel o negación clara", publishForbidden: false,
     criteria: ["La página responde sin error", "Muestra el panel o un mensaje de acceso claro"],
     failure: ["Error del servidor"] },
+  { id: "reels-real", product: "reels", title: "Reel real: 30 segundos vertical", instructions: "Generar un Reel de 30 segundos desde el formulario; revisar guion, progreso, MP4, reproducción y descarga. Detenerse ante presupuesto no verificable.", expected: "MP4 9:16 con audio y subtítulos medidos", publishForbidden: true, auto: false, requestedSeconds: 30,
+    criteria: ["Formulario de Reel de 30 segundos", "Guion revisable", "Progreso medido", "MP4 reproducible y descargable", "Subtítulos medidos", "Gasto real conciliado"], failure: ["No se genera MP4", "Gasto no verificable", "Duración o formato incorrectos"] },
 ];
 
 export type Catalog = { missions: Mission[] };
