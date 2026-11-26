@@ -67,7 +67,7 @@ jobs:
         env:
           AUDIO_STUDIO_VOICE: fixture
           AUDIO_STUDIO_WORKER: inline
-          AUDIO_STUDIO_FIXTURE_FAIL_MARK: "[[falla-proveedor]]"
+          AUDIO_STUDIO_FIXTURE_FAIL_MARK: "FALLAPROVEEDORSIMULADA"
           AUDIO_STUDIO_SCRIPT_AI: fixture
         run: bash scripts/harness/e2e/podcast/start.sh
       - name: Progreso visible y respuesta perdida (390x844 y 1440x844, API simulada)

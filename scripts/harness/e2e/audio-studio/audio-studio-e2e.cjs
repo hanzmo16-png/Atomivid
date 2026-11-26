@@ -28,7 +28,8 @@ let fails = 0, passes = 0;
 const check = (name, ok, detail) => { ok ? passes++ : fails++; console.log(`${ok ? "PASS" : "FAIL"}  ${name}${ok ? "" : "  " + JSON.stringify(detail ?? null).slice(0, 400)}`); return !!ok; };
 const overflow = (p) => p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
 const listFiles = (d) => { if (!d || !fs.existsSync(d)) return []; const out = []; const walk = (x) => { for (const f of fs.readdirSync(x)) { const q = path.join(x, f); fs.statSync(q).isDirectory() ? walk(q) : out.push(path.relative(d, q)); } }; walk(d); return out.sort(); };
-const FAIL_MARK = process.env.E2E_FAIL_MARK ?? "[[falla-proveedor]]";
+// Sin corchetes: la validación previa al gasto rechaza marcadores entre corchetes (se narrarían).
+const FAIL_MARK = process.env.E2E_FAIL_MARK ?? "FALLAPROVEEDORSIMULADA";
 const words = (n, seed) => { const base = (seed + " ").repeat(Math.ceil(n / seed.split(" ").length)).split(" ").filter(Boolean).slice(0, n); return base.join(" "); };
 /** Guion de ~5 min (750 palabras): con dos voces alterna «Voz 1:» / «Voz 2:» por párrafo. */
 const fiveMinutes = (duo) => ["## Apertura", ...Array.from({ length: 10 }, (_, i) => `${duo ? `Voz ${(i % 2) + 1}: ` : ""}${words(75, i % 3 ? "Respira y vuelve a lo que depende de ti, con calma y valor cada día" : "El silencio también enseña cuando aceptas lo que no controlas")}.`), "## Cierre", `${duo ? "Voz 1: " : ""}Gracias por escuchar.`].join("\n\n");
