@@ -2,6 +2,8 @@
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import fs from "node:fs/promises";
+import { LONG_FORM_OUTPUT_POLICY, decideOutputFit } from "./output-policy";
 import ffmpeg from "@ffmpeg-installer/ffmpeg";
 import ffprobe from "@ffprobe-installer/ffprobe";
 import { assertNoLongBlackIntervals, parseBlackDetectOutput } from "./long-form-qc";
@@ -60,7 +62,7 @@ export async function createDurationRepair(source: string, candidate: string, ta
   if (parseBlackDetectOutput(tail.stderr).length) throw new Error("repair_terminal_frame_not_visible");
   await run(ffmpeg.path, ["-nostdin", "-n", "-i", source, "-map", "0:v:0", "-map", "0:a:0", "-map", "0:s?",
     "-vf", `tpad=stop_mode=clone:stop_duration=${extra + 0.1}`, "-af", `apad,atrim=duration=${target}`,
-    "-t", String(target), "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
+    "-t", String(target), "-c:v", "libx264", "-preset", "medium", "-b:v", "2300k", "-maxrate", "2400k", "-bufsize", "4800k", "-pix_fmt", "yuv420p",
     "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-c:s", "copy", "-movflags", "+faststart", candidate],
   { timeout: 600_000, maxBuffer: 2 * 1024 * 1024, killSignal: "SIGKILL" });
   const after = await probeRepairMedia(candidate);
@@ -94,10 +96,13 @@ export async function applyDurationRepair(input: { requestId: string; original: 
       || a.width !== b.width || a.height !== b.height || a.fps !== b.fps) throw new Error("repair_candidate_qc_failed");
     await assertNoLongBlackIntervals(candidate);
   }))(input.original, input.candidate);
+  const candidateBytes = (await fs.stat(input.candidate)).size;
+  const ceilingBytes = Math.min(ORIGINAL_BYTES, deps.finalize.storageMaxBytes ?? LONG_FORM_OUTPUT_POLICY.demonstratedStorageMaxBytes, LONG_FORM_OUTPUT_POLICY.policyMaxBytes);
+  if (decideOutputFit({ bytes: candidateBytes, durationSeconds: 180, ceilingBytes }).action !== "upload") throw new Error("repair_candidate_storage_cap_failed_BEFORE_INTENT");
   const before = await deps.snapshot();
   const beforeHash = hash(stableJson(before));
   if (await deps.canonicalHash() !== ORIGINAL_SHA256) throw new Error("repair_canonical_changed");
-  const lineage = { version: 1, originalSha256: ORIGINAL_SHA256, candidateSha256: input.candidateHash, proofSha256: input.proofHash, beforeSnapshotSha256: beforeHash, nativeRunId: NATIVE_RUN_ID, attempt: 1, providerCalls: 0 };
+  const lineage = { version: 1, originalSha256: ORIGINAL_SHA256, candidateSha256: input.candidateHash, proofSha256: input.proofHash, beforeSnapshotSha256: beforeHash, nativeRunId: NATIVE_RUN_ID, attempt: 1, providerCalls: 0, candidateBytes };
   await deps.createIntent({ ...lineage, beforeSnapshot: before });
   await deps.preserve(input.original, input.candidate, state);
   let uploaded = false;

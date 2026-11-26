@@ -5,6 +5,7 @@ import { createServiceClient } from "../src/lib/supabase/service";
 import { supabaseOutputDeps, canonicalOutputPath, type LongFormOutputState } from "../src/lib/video/long-form/output-finalize";
 import { assertProof, ORIGINAL_BYTES, ORIGINAL_SHA256, NATIVE_RUN_ID, REPAIR_REQUEST_ID, ROOT_DRIVE_RECEIPT_SHA256, createDurationRepair, applyDurationRepair, hash, stableJson, type PreservationProof } from "../src/lib/video/long-form/free-duration-repair";
 
+let privateFailure: ((message: string) => Promise<void>) | undefined;
 async function main() {
   const env = process.env;
   const mode = env.MODE ?? "validate";
@@ -22,23 +23,28 @@ async function main() {
   const objectPath = canonicalOutputPath(requestId);
   const prefix = `${requestId}/state/free-duration-repair-v1`;
   const rootProofPath = `${prefix}/root-preservation-proof.json`;
+  privateFailure = async (message) => {
+    const diagnostic = { status: "STOPPED_NO_AUTOMATIC_RETRY", failureCode: message.slice(0, 200), runId: env.GITHUB_RUN_ID, mode };
+    await storage.upload(`${prefix}/diagnostic-${env.GITHUB_RUN_ID}.json`, Buffer.from(stableJson(diagnostic)), { upsert: false, contentType: "application/json", metadata: diagnostic });
+  };
   async function download(p: string) { const { data, error } = await storage.download(p); if (error || !data) throw new Error("required_object_read_failed"); return Buffer.from(await data.arrayBuffer()); }
-  async function immutable(p: string, bytes: Buffer, type = "application/json") { const { error } = await storage.upload(p, bytes, { upsert: false, contentType: type }); if (error) throw new Error("immutable_write_failed_or_intent_exists_NO_RETRY"); }
+  async function immutable(p: string, bytes: Buffer, metadata: Record<string, unknown> = {}) { if (bytes.length > 512 * 1024) throw new Error("small_private_journal_limit"); const { error } = await storage.upload(p, bytes, { upsert: false, contentType: "application/json", metadata }); if (error) throw new Error("immutable_write_failed_or_intent_exists_NO_RETRY"); }
   if (mode === "record-original-proof") {
     if (env.ROOT_DRIVE_RECEIPT_SHA256 !== ROOT_DRIVE_RECEIPT_SHA256) throw new Error("exact_root_receipt_hash_required");
     const { data: row, error } = await service.from("video_requests").select("user_id,status,render_attempts,mode").eq("id", requestId).single();
     if (error || row?.status !== "completed" || row.render_attempts !== 1 || row.mode !== "long_form") throw new Error("closed_qa_request_required");
     const source = await download(objectPath);
     if (source.length !== ORIGINAL_BYTES || hash(source) !== ORIGINAL_SHA256) throw new Error("original_changed_before_root_record");
+    const proofRecordedAt = Date.now();
     const recorded: PreservationProof = {
       version: 1, requestId, qaOwnerId: row.user_id, rootOwnerLogin: env.GITHUB_REPOSITORY_OWNER!,
       originalSha256: ORIGINAL_SHA256, originalBytes: ORIGINAL_BYTES, nativeRunId: NATIVE_RUN_ID,
-      drive: { rootReceiptSha256: ROOT_DRIVE_RECEIPT_SHA256, independentReadback: true, method: "GoogleDriveConnector", privateOwnerOnly: true, verifiedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 86_400_000).toISOString() },
+      drive: { rootReceiptSha256: ROOT_DRIVE_RECEIPT_SHA256, independentReadback: true, method: "GoogleDriveConnector", privateOwnerOnly: true, verifiedAt: new Date(proofRecordedAt).toISOString(), expiresAt: new Date(proofRecordedAt + 86_400_000).toISOString() },
       ledgerObjectPaths: [`${requestId}/state/request-budget.json`, `${requestId}/state/production-budget.json`],
     };
     assertProof(recorded, env.GITHUB_REPOSITORY_OWNER!, env.GITHUB_ACTOR!);
     const bytes = Buffer.from(stableJson(recorded));
-    await immutable(rootProofPath, bytes);
+    await immutable(rootProofPath, bytes, { proofSha256: hash(bytes), status: "ROOT_PROOF_RECORDED", originalSha256: ORIGINAL_SHA256, originalBytes: ORIGINAL_BYTES, expiresAt: recorded.drive.expiresAt });
     console.log(JSON.stringify({ rootProofSha256: hash(bytes), path: rootProofPath, originalUnmodified: true }));
     return;
   }
@@ -90,18 +96,25 @@ async function main() {
     },
     canonicalHash: async () => hash(await download(objectPath)), snapshot,
     createIntent: async intent => immutable(`${prefix}/intent.json`, Buffer.from(stableJson(intent))),
-    preserve: async (source, output, originalState: LongFormOutputState) => {
+    preserve: async (_source, _output, originalState: LongFormOutputState) => {
+      // Original media already preserved and independently verified in private Drive.
+      // No duplicate original/candidate binary objects consume unknown plan headroom.
       await immutable(`${prefix}/original-state.json`, Buffer.from(stableJson(originalState)));
-      await immutable(`${prefix}/original-${ORIGINAL_SHA256}.mp4`, await fs.readFile(source), "video/mp4");
-      await immutable(`${prefix}/candidate-${media.candidateHash}.mp4`, await fs.readFile(output), "video/mp4");
     },
   });
   const after = await snapshot();
   const afterState = await finalDeps.readState(requestId);
   if (afterState?.costsRecorded !== true || afterState.sha256 !== media.candidateHash || afterState.attempt !== 1) throw new Error("repair_state_readback_failed_NO_RETRY");
   const receipt = { lineage: result.lineage, beforeSha256: result.beforeHash, afterSha256: hash(stableJson(after)), afterSnapshot: after, afterState, media };
-  await immutable(`${prefix}/result.json`, Buffer.from(stableJson(receipt)));
+  const candidateBytes = (await fs.stat(candidate)).size;
+  const signed = await storage.createSignedUrl(objectPath, 300);
+  if (signed.error || !signed.data?.signedUrl) throw new Error("postreadback_private_url_failed_NO_RETRY");
+  await immutable(`${prefix}/result.json`, Buffer.from(stableJson(receipt)), {
+    status: "REPAIRED_READBACK_VERIFIED", proofSha256: proofHash, candidateSha256: media.candidateHash,
+    bytes: candidateBytes, metrics: media.after, snapshotEqual: receipt.beforeSha256 === receipt.afterSha256,
+    signedUrl: signed.data.signedUrl, signedUrlExpiresAt: new Date(Date.now() + 300_000).toISOString(),
+  });
   await fs.writeFile(path.join(dir, "after-private.json"), stableJson({ receipt, snapshot: after }));
   console.log(JSON.stringify({ result: "repaired_without_providers_or_accounting", candidateSha256: media.candidateHash, attempt: 1, costsRecorded: true }));
 }
-main().catch(err => { console.error(err instanceof Error ? err.message : "repair_failed_NO_RETRY"); process.exitCode = 1; });
+main().catch(async err => { const message = err instanceof Error ? err.message : "repair_failed_NO_RETRY"; await privateFailure?.(message).catch(() => {}); console.error(message); process.exitCode = 1; });

@@ -30,6 +30,7 @@ concurrency:
 jobs:
   recover:
     if: github.actor == github.repository_owner
+    environment: Preview
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -43,7 +44,16 @@ jobs:
         run: node --import tsx --test src/lib/video/long-form/free-duration-repair.test.ts
       - name: Explicit pinned repair operation
         timeout-minutes: 15
-        run: node --import tsx scripts/repair-long-form-duration.ts
+        shell: bash
+        run: |
+          umask 077
+          mkdir -p "$REPAIR_ARTIFACT_DIR"
+          if node --import tsx scripts/repair-long-form-duration.ts > "$REPAIR_ARTIFACT_DIR/operation.log" 2>&1; then
+            echo "Private repair operation completed; inspect private journal metadata."
+          else
+            echo "Private repair operation stopped; inspect private diagnostic."
+            exit 1
+          fi
         env:
           MODE: ${{ inputs.mode }}
           APPROVED_CANDIDATE_SHA256: ${{ inputs.approved_candidate_sha256 }}

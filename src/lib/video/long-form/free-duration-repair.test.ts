@@ -50,7 +50,7 @@ async function seam() {
   const deps = { finalize: out.deps, canonicalHash: async () => canonical, snapshot: async () => structuredClone(finance),
     fileHash: async (f: string) => f === original ? ORIGINAL_SHA256 : "candidate", candidateQc: async () => {},
     createIntent: async () => { if (intent) throw new Error("intent exists"); intent = true; }, preserve: async () => { preserves++; } };
-  return { dir, out, state, deps, input: { requestId: REPAIR_REQUEST_ID, original, candidate, state, candidateHash: "candidate", proofHash: "rootproof" }, finance, setCanonical: (v: string) => { canonical = v; }, preserved: () => preserves };
+  return { dir, out, state, deps, input: { requestId: REPAIR_REQUEST_ID, original, candidate, state, candidateHash: "candidate", proofHash: "rootproof" }, finance, setCanonical: (v: string) => { canonical = v; }, preserved: () => preserves, intentCreated: () => intent };
 }
 test("one-shot seam preserves financial/unknown fields and costsRecorded; intent prevents repeat", async () => {
   const s = await seam(); try {
@@ -78,4 +78,15 @@ test("changed snapshot or canonical and ambiguous upload never retry or overwrit
       assert.ok(s.out.calls.upload <= 1);
     } finally { await fs.rm(s.dir, { recursive: true, force: true }); }
   }
+});
+
+
+test("candidate size ceiling is checked before any irreversible intent", async () => {
+  const s = await seam(); try {
+    await fs.truncate(s.input.candidate, ORIGINAL_BYTES + 1);
+    await assert.rejects(applyDurationRepair(s.input, s.deps), /storage_cap_failed_BEFORE_INTENT/);
+    assert.equal(s.intentCreated(), false);
+    assert.equal(s.preserved(), 0);
+    assert.equal(s.out.calls.upload, 0);
+  } finally { await fs.rm(s.dir, { recursive: true, force: true }); }
 });
