@@ -11,6 +11,10 @@ export const SOURCE_OUTPUT_SHA = "669cbe33196fd51140832837cad758a16ece99070af418
 const stable = (x: any): any => Array.isArray(x) ? x.map(stable) : x && typeof x === "object" ? Object.fromEntries(Object.keys(x).sort().map(k => [k, stable(x[k])])) : x;
 export const snapshotSha = (x: unknown) => createHash("sha256").update(JSON.stringify(stable(x))).digest("hex");
 
+export function verifiedReview(plan: ReturnType<typeof prepareTechnicalRerender>, review: unknown, acceptedSha: string): void {
+  if (!/^[0-9a-f]{64}$/.test(acceptedSha) || acceptedSha !== plan.reviewSha256 || snapshotSha(review) !== snapshotSha(plan)) throw Error("exact reviewed payload and fresh source required");
+}
+
 export function prepareTechnicalRerender(source: any, output: any, qaUserId: string, anchorUserId: string, newId: string) {
   if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(newId) || [SOURCE_ID, ANCHOR_ID].includes(newId)) throw Error("new identity required");
   if (!qaUserId || source.id !== SOURCE_ID || source.user_id !== qaUserId || anchorUserId !== qaUserId || source.status !== "completed" || source.render_attempts !== 3 || source.mode !== "long_form" || source.duration_seconds !== 180 || source.language !== "es" || source.style !== "Documental" || source.aspect_ratio !== "16:9" || source.video_path !== `${SOURCE_ID}/output/final.mp4`) throw Error("source scope mismatch");
