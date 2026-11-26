@@ -48,6 +48,39 @@ const KNOWN_PLACES = [
   "barbados", "jamaica", "colombia", "caribbean",
 ];
 
+/**
+ * Objetos que un candidato puede SER aunque comparta una palabra con la intención (incidente 2026-11-25, Long Form de
+ * 180 s: en ~128–136 s una estructura/cartel ilustró nubes y precipitación porque su texto decía «cloud»). Si la
+ * intención no los pide, su presencia en el texto del proveedor es una contradicción: se descarta, también cuando la
+ * intención es derivada o el candidato quedaría «sin verificar». Ante la duda, falla cerrado.
+ */
+const SIGNAGE = /\b(?:billboards?|signs?|signage|signboards?|posters?|banners?|logos?|advertis(?:ing|ements?)|placards?|marquees?|lettering|typography|storefronts?|shop ?fronts?|mock-?ups?)\b/;
+const BUILT_STRUCTURE = /\b(?:buildings?|structures?|towers?|scaffold(?:s|ing)?|construction|facades?|façades?|cranes?|warehouses?|factor(?:y|ies)|parking (?:lots?|garages?)|highways?|bridges?|steel frames?|girders?|antennas?|pylons?|skyscrapers?|rooftops?)\b/;
+/** Intenciones de fenómeno o paisaje natural: una estructura construida no las ilustra. */
+const NATURAL_PHENOMENON = /\b(?:clouds?|cloudy|cumulus|cirrus|stratus|fog(?:gy)?|mist(?:y)?|haze|ice|icy|frost(?:y)?|frozen|snow(?:fall|flakes?)?|rain(?:fall|drops?)?|drizzle|hail(?:stones?)?|sleet|storms?|thunderstorms?|lightning|condensation|precipitation|vapou?r|dew|droplets?|weather|glaciers?|icebergs?|waterfalls?|volcano(?:es)?|lava|aurora)\b/;
+/**
+ * Palabras demasiado genéricas para sostener solas una coincidencia («water», «white», «cold»): no cuentan como núcleo
+ * cuando la intención no tiene sujeto declarado.
+ */
+const WEAK_TERMS = new Set(["water", "white", "blue", "grey", "gray", "black", "dark", "light", "cold", "hot", "warm", "color", "colour",
+  "nature", "natural", "abstract", "beautiful", "sky", "air", "day", "night", "time", "people", "man", "woman", "person", "thing", "object"]);
+
+/** Texto de la intención completa (para saber si pide expresamente un cartel o una estructura). */
+function intentText(visual: BeatVisual): string {
+  return [visual.subject, visual.action, visual.place, visual.description, ...(visual.alternates ?? [])].filter(Boolean).join(" ").toLowerCase();
+}
+
+/** Contradicciones por TIPO de objeto: el candidato es un cartel o una estructura y la intención no lo es. */
+export function objectConflicts(visual: BeatVisual, candidateText: string): string[] {
+  const text = candidateText.toLowerCase(), intent = intentText(visual);
+  const out: string[] = [];
+  const sign = text.match(SIGNAGE);
+  if (sign && !SIGNAGE.test(intent)) out.push(`objeto ajeno: cartel/señalética ("${sign[0]}")`);
+  const built = text.match(BUILT_STRUCTURE);
+  if (built && NATURAL_PHENOMENON.test(intent) && !BUILT_STRUCTURE.test(intent)) out.push(`objeto ajeno: estructura construida ("${built[0]}") para un fenómeno natural`);
+  return out;
+}
+
 export type Relevance = "keyword_match" | "unverified" | "irrelevant";
 
 export type RelevanceAssessment = {
@@ -207,7 +240,11 @@ function isHistoricalEra(era: string | undefined): boolean {
 
 /** Pertinencia léxica de un candidato frente a la intención de la escena. */
 export function assessRelevance(visual: BeatVisual, candidateText: string | undefined): RelevanceAssessment {
-  if (!candidateText || !candidateText.trim() || visual.derived) return { relevance: "unverified", score: 0, matchedTerms: [], conflicts: [] };
+  if (!candidateText || !candidateText.trim()) return { relevance: "unverified", score: 0, matchedTerms: [], conflicts: [] };
+  // Un cartel o una estructura nunca ilustra una intención que no los pide, aunque la intención sea derivada.
+  const objects = objectConflicts(visual, candidateText);
+  if (objects.length) return { relevance: "irrelevant", score: 0, matchedTerms: [], conflicts: objects };
+  if (visual.derived) return { relevance: "unverified", score: 0, matchedTerms: [], conflicts: [] };
   const text = candidateText.toLowerCase();
   const candidate = new Set(englishTerms(candidateText));
   const conflicts: string[] = [];
@@ -258,7 +295,7 @@ export function assessRelevance(visual: BeatVisual, candidateText: string | unde
   const parts = (visual.subject ?? "").split(/\s+(?:and|&)\s+|\s*,\s*/i).map(englishTerms).filter((p) => p.length > 0);
   const hasCore = parts.length > 1
     ? parts.some((p) => requiredOf(p).every(present))
-    : subject.length > 0 ? requiredOf(subject).every(present) : matched.length > 0;
+    : subject.length > 0 ? requiredOf(subject).every(present) : matched.filter((t) => !WEAK_TERMS.has(t)).length > 0;
   const relevance: Relevance = conflicts.length === 0 && hasCore && score >= 2 ? "keyword_match" : "irrelevant";
   return { relevance, score, matchedTerms: matched, conflicts };
 }
@@ -388,7 +425,72 @@ export type StockSelectionDeps = {
   verifyEvidenceLink?: (candidate: FootageCandidate, providerName: string) => TrustedEvidenceLink | null;
   /** Tras la descarga: el servidor confirma que el contenido es el aprobado (null) o explica el rechazo. */
   verifyContent?: (candidate: FootageCandidate, sha256: string) => string | null;
+  /**
+   * Señal visual del recurso descargado (luminancia media y su dispersión, 0–1, en uno o varios fotogramas). Inyectable
+   * en pruebas; por defecto sharp (imagen) y ffmpeg + sharp (video). null = no computable: no se rechaza por ello.
+   */
+  inspectSignal?: (buffer: Buffer, candidate: FootageCandidate) => Promise<VisualSignal | null>;
 };
+
+/** Luminancia de los fotogramas muestreados (0 = negro, 1 = blanco) y su desviación típica (0 = imagen plana). */
+export type VisualSignal = { frames: { meanLuma: number; lumaStd: number }[] };
+/**
+ * Umbrales de un recurso sin señal visual útil (incidente 2026-11-25, Long Form de 180 s: un plano prácticamente negro
+ * entre ~37–42 s). Media < 0,07 es casi negro; desviación < 0,02 es una imagen plana (fundido, pantalla vacía o
+ * fotograma corrupto). Basta con que lo sea la mitad de los fotogramas muestreados: el plano se vería negro.
+ */
+export const DARK_MEAN_LUMA = 0.07;
+export const FLAT_LUMA_STD = 0.02;
+
+/** Motivo de rechazo por señal visual insuficiente, o null si la señal es usable o no se pudo medir. */
+export function signalRejection(signal: VisualSignal | null): string | null {
+  if (!signal || signal.frames.length === 0) return null;
+  const bad = signal.frames.filter((f) => f.meanLuma < DARK_MEAN_LUMA || f.lumaStd < FLAT_LUMA_STD);
+  if (bad.length * 2 < signal.frames.length) return null;
+  const f = bad[0];
+  const what = f.meanLuma < DARK_MEAN_LUMA ? "prácticamente negro" : "plano o corrupto (sin detalle)";
+  return `SIN_SEÑAL_VISUAL: ${what} en ${bad.length} de ${signal.frames.length} fotogramas (luminancia ${f.meanLuma.toFixed(3)}, dispersión ${f.lumaStd.toFixed(3)})`;
+}
+
+async function lumaOf(image: Buffer): Promise<{ meanLuma: number; lumaStd: number }> {
+  const sharp = (await import("sharp")).default;
+  const st = await sharp(image).grayscale().resize(64, 36, { fit: "fill" }).stats();
+  const c = st.channels[0];
+  return { meanLuma: c.mean / 255, lumaStd: c.stdev / 255 };
+}
+
+/** Fotograma PNG en `at` segundos, desde archivo temporal (los MP4 de stock traen el índice al final). */
+async function videoFrameAt(buffer: Buffer, at: number): Promise<Buffer> {
+  const [{ mkdtemp, writeFile, rm }, { tmpdir }, { join }, { spawn }] = await Promise.all([import("node:fs/promises"), import("node:os"), import("node:path"), import("node:child_process")]);
+  const dir = await mkdtemp(join(tmpdir(), "atomivid-signal-"));
+  try {
+    const input = join(dir, "in.mp4");
+    await writeFile(input, buffer);
+    return await new Promise<Buffer>((resolve, reject) => {
+      const proc = spawn("ffmpeg", ["-v", "error", "-ss", at.toFixed(2), "-i", input, "-frames:v", "1", "-f", "image2pipe", "-vcodec", "png", "pipe:1"]);
+      const chunks: Buffer[] = [];
+      const timer = setTimeout(() => proc.kill("SIGKILL"), 20_000);
+      proc.stdout.on("data", (c: Buffer) => chunks.push(c));
+      proc.on("error", reject);
+      proc.on("close", (code) => { clearTimeout(timer); return code === 0 && chunks.length > 0 ? resolve(Buffer.concat(chunks)) : reject(new Error(`ffmpeg_frame_${code}`)); });
+    });
+  } finally { await rm(dir, { recursive: true, force: true }).catch(() => {}); }
+}
+
+/** Señal por defecto: la imagen, o tres fotogramas del video (inicio, 1/3 y 2/3). null si no se puede medir. */
+export async function defaultVisualSignal(buffer: Buffer, candidate: FootageCandidate): Promise<VisualSignal | null> {
+  try {
+    if (candidate.mediaType !== "video") return { frames: [await lumaOf(buffer)] };
+    const d = candidate.durationSeconds && candidate.durationSeconds > 3 ? candidate.durationSeconds : 6;
+    const frames: { meanLuma: number; lumaStd: number }[] = [];
+    for (const at of [0.5, d / 3, (2 * d) / 3]) {
+      try { frames.push(await lumaOf(await videoFrameAt(buffer, at))); } catch { /* fotograma no legible: se mide con los demás */ }
+    }
+    return frames.length ? { frames } : null;
+  } catch {
+    return null;
+  }
+}
 
 function describeDuplicate(match: DuplicateMatch): string {
   const what = { sourceId: "mismo id del proveedor", canonicalUrl: "misma URL canónica", sha256: "mismo contenido (SHA-256)", dhash: "imagen casi idéntica (hash perceptual)" }[match.key];
@@ -535,6 +637,12 @@ export async function selectStockForShot(
       const mutated = deps.verifyContent?.(candidate, content.sha256 ?? "") ?? null;
       if (mutated) {
         rejected.push({ sourceId: reference.sourceId, query, reason: mutated });
+        continue;
+      }
+      // Señal visual: un recurso negro, plano o corrupto nunca entra; se pasa al siguiente candidato o a la carencia explícita.
+      const dark = signalRejection(await (deps.inspectSignal ?? defaultVisualSignal)(buffer, candidate).catch(() => null));
+      if (dark) {
+        rejected.push({ sourceId: reference.sourceId, query, reason: dark });
         continue;
       }
       const contentDup = deps.registry.findByContent(content, input.shotId);

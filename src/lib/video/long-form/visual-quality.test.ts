@@ -403,3 +403,92 @@ test("Earth scenes that mention a meteorite are not treated as off-world", () =>
   const barringer = { description: "Meteor Crater from the air", motion: false, subject: "meteor crater", place: "Arizona" };
   assert.equal(assessRelevance(barringer, "Aerial view of Meteor Crater in the Arizona desert").relevance, "keyword_match");
 });
+
+/**
+ * Incidente 2026-11-25 — Long Form real de 180,458 s (Drive): un plano prácticamente negro entre ~37–42 s y una
+ * estructura/cartel ajena al tema entre ~128–136 s. Reproducción determinista: fixtures en memoria, sin red ni
+ * proveedores; las imágenes se generan aquí con sharp y su luminancia se mide de verdad.
+ */
+async function solidJpeg(r: number, g: number, b: number): Promise<Buffer> {
+  const sharp = (await import("sharp")).default;
+  return sharp({ create: { width: 96, height: 54, channels: 3, background: { r, g, b } } }).jpeg().toBuffer();
+}
+async function detailedJpeg(): Promise<Buffer> {
+  const sharp = (await import("sharp")).default;
+  const raw = Buffer.alloc(96 * 54 * 3);
+  for (let y = 0; y < 54; y++) for (let x = 0; x < 96; x++) { const i = (y * 96 + x) * 3, v = 60 + ((x * 7 + y * 13) % 160); raw[i] = v; raw[i + 1] = v; raw[i + 2] = Math.min(255, v + 30); }
+  return sharp(raw, { raw: { width: 96, height: 54, channels: 3 } }).jpeg().toBuffer();
+}
+const clouds: BeatVisual = { description: "storm clouds condensing into rain over mountains", subject: "clouds", action: "condensing", motion: true };
+
+test("incidente 37–42 s: un candidato prácticamente negro no se usa; se elige el siguiente con señal visual", async () => {
+  const black = await solidJpeg(4, 4, 6), good = await detailedJpeg();
+  const p = provider({
+    byQuery: () => [candidate("dark-1", "storm clouds at night over mountains"), candidate("ok-2", "storm clouds over mountains with rain")],
+    bytes: (url) => (url.includes("dark-1") ? black : good),
+  });
+  const r = await selectStockForShot({ shotId: "s-37", visual: clouds, preferVideo: false, minDurationSec: 4 }, { footageProvider: p, registry: new DocumentAssetRegistry(), identify });
+  assert.equal(r.status, "selected");
+  assert.equal(r.status === "selected" && r.candidate.sourceId, "ok-2", JSON.stringify(r.rejected));
+  assert.ok(r.rejected.some((x) => x.sourceId === "dark-1" && /SIN_SEÑAL_VISUAL: prácticamente negro/.test(x.reason)), JSON.stringify(r.rejected));
+});
+
+test("incidente 37–42 s: si TODOS los candidatos son negros, carencia explícita (nunca un plano negro)", async () => {
+  const black = await solidJpeg(2, 2, 2);
+  const p = provider({ byQuery: () => [candidate("dark-a", "storm clouds over mountains"), candidate("dark-b", "rain clouds condensing")], bytes: () => black });
+  const r = await selectStockForShot({ shotId: "s-38", visual: clouds, preferVideo: false, minDurationSec: 4 }, { footageProvider: p, registry: new DocumentAssetRegistry(), identify });
+  assert.equal(r.status, "gap");
+});
+
+test("incidente 128–136 s: un cartel/estructura que comparte «cloud» no ilustra nubes ni precipitación", async () => {
+  const good = await detailedJpeg();
+  const p = provider({
+    byQuery: () => [
+      candidate("billboard-1", "billboard advertising cloud storage on a steel structure by the highway"),
+      candidate("tower-2", "cloud over a construction crane and tower"),
+      candidate("ok-3", "dark rain clouds condensing over mountains"),
+    ],
+    bytes: () => good,
+  });
+  const r = await selectStockForShot({ shotId: "s-128", visual: clouds, preferVideo: false, minDurationSec: 4 }, { footageProvider: p, registry: new DocumentAssetRegistry(), identify });
+  assert.equal(r.status === "selected" && r.candidate.sourceId, "ok-3", JSON.stringify(r.rejected));
+  assert.ok(!p.downloads.some((u) => /billboard-1|tower-2/.test(u)), "los rechazados por metadatos no se descargan");
+  for (const id of ["billboard-1", "tower-2"]) assert.ok(r.rejected.some((x) => x.sourceId === id && /objeto ajeno/.test(x.reason)), `${id}: ${JSON.stringify(r.rejected)}`);
+});
+
+test("incidente 128–136 s: también con intención derivada (sin verificar) y en la consulta principal, el cartel se descarta", async () => {
+  const derived: BeatVisual = { description: "ice crystals and precipitation", motion: false, derived: true };
+  assert.equal(assessRelevance(derived, "ICE arena sign on a building facade").relevance, "irrelevant");
+  assert.equal(assessRelevance(derived, "frozen ice crystals on a window").relevance, "unverified");
+});
+
+test("señal visual por defecto en VIDEO: un MP4 negro generado localmente se rechaza; uno con imagen, no", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const { mkdtempSync, readFileSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dir = mkdtempSync(join(tmpdir(), "lf-signal-"));
+  try {
+    const mk = (name: string, src: string) => { const f = join(dir, name); execFileSync("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i", src, "-t", "4", "-pix_fmt", "yuv420p", f]); return readFileSync(f); };
+    const black = mk("black.mp4", "color=c=black:s=160x90:r=10"), bars = mk("bars.mp4", "testsrc=s=160x90:r=10");
+    const vid = (id: string): FootageCandidate => ({ url: `https://cdn.example/${id}.mp4`, sourceId: id, description: "storm clouds condensing over mountains", mediaType: "video", mimeType: "video/mp4", extension: "mp4", durationSeconds: 4 });
+    const p: FootageProvider & { searches: string[]; downloads: string[] } = { ...provider({ bytes: (u) => (u.includes("v-black") ? black : bars) }), async searchVideoCandidates() { return [vid("v-black"), vid("v-bars")]; } };
+    const r = await selectStockForShot({ shotId: "s-video", visual: clouds, preferVideo: true, minDurationSec: 3 }, { footageProvider: p, registry: new DocumentAssetRegistry(), identify });
+    assert.equal(r.status === "selected" && r.candidate.sourceId, "v-bars", JSON.stringify(r.rejected));
+    assert.ok(r.rejected.some((x) => x.sourceId === "v-black" && /SIN_SEÑAL_VISUAL/.test(x.reason)));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("señal no computable (bytes ilegibles) no rechaza por sí sola; los umbrales son generales, no de este video", async () => {
+  const { signalRejection, DARK_MEAN_LUMA, FLAT_LUMA_STD } = await import("./stock-selection");
+  assert.equal(signalRejection(null), null);
+  assert.equal(signalRejection({ frames: [] }), null);
+  assert.match(signalRejection({ frames: [{ meanLuma: 0.02, lumaStd: 0.01 }] }) ?? "", /prácticamente negro/);
+  assert.match(signalRejection({ frames: [{ meanLuma: 0.5, lumaStd: 0.005 }] }) ?? "", /plano o corrupto/);
+  assert.equal(signalRejection({ frames: [{ meanLuma: 0.02, lumaStd: 0.3 }, { meanLuma: 0.4, lumaStd: 0.2 }, { meanLuma: 0.5, lumaStd: 0.2 }] }), null, "un solo fotograma oscuro de tres (fundido) no basta");
+  assert.ok(DARK_MEAN_LUMA > 0 && FLAT_LUMA_STD > 0);
+  // Coincidencia débil sin sujeto: «water» solo no basta.
+  assert.equal(assessRelevance({ description: "condensation droplets forming on cold glass", motion: false }, "bottle of water on a table").relevance, "irrelevant");
+  // Un cartel que la intención SÍ pide sigue siendo válido.
+  assert.equal(assessRelevance({ description: "old canal company sign", subject: "sign", motion: false }, "old canal company sign on a wall").relevance, "keyword_match");
+});
