@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { compositionDurationSeconds, LongFormCompositionDurationError } from "./composition-duration";
+import { compositionDurationSeconds } from "./composition-duration";
 import { coverVideoTail } from "./produce";
 import { preflightRenderInput } from "./render-preflight";
 
@@ -46,7 +46,7 @@ test("duration floor never truncates, hides missing narration, or extends an unr
   assert.equal(compositionDurationSeconds(180, 180), 180.5);
   assert.equal(compositionDurationSeconds(178.1), 178.6);
   assert.equal(compositionDurationSeconds(177.5, 180), 180, "bounded two-second extra outro");
-  assert.throws(() => compositionDurationSeconds(177.49, 180), LongFormCompositionDurationError);
+  assert.equal(compositionDurationSeconds(177.49, 180), 177.99, "larger gaps retain natural composition, without long silent padding");
   for (const invalid of [0, -1, NaN, Infinity]) {
     assert.throws(() => compositionDurationSeconds(invalid, 180), RangeError);
     assert.throws(() => compositionDurationSeconds(178, invalid), RangeError);

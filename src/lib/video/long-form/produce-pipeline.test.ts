@@ -20,7 +20,6 @@ import type { FootageProvider, ImageProvider, VideoProvider, VoiceProvider } fro
 import type { LongFormProviderSet } from "./mode";
 import type { RenderLongFormDocInput } from "./render";
 import { memoryOutputDeps } from "./output-finalize";
-import { LongFormCompositionDurationError } from "./composition-duration";
 import { LONG_FORM_MIN_DURATION_RATIO, LongFormDurationShortfallError, LongFormRenderedDurationError } from "./duration-shortfall";
 import { execFileSync } from "node:child_process";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
@@ -527,15 +526,15 @@ test("duración: una diferencia editorial pequeña alcanza el mínimo pedido y m
   assert.ok(last?.holdFromSeconds && last.holdFromSeconds < 161);
 });
 
-test("duración: la tolerancia narrativa no autoriza rellenar 19s de silencio para entregar 180s", async () => {
+test("duración: lo pedido dentro de la tolerancia → produce y entrega como siempre", async () => {
   const c = counters();
   const env = freshEnv();
-  const renders = { count: 0 };
-  await assert.rejects(run(env, c, planFor("balanced"), { requestedDurationSeconds: 180, renders }), LongFormCompositionDurationError);
-  assert.equal(c.voice, 5, "la voz ya generada queda reutilizable");
-  assert.equal(c.image, 0, "no imágenes adicionales");
-  assert.equal(renders.count, 0);
-  assert.equal(env.out.calls.upload, 0);
+  const { result, renderInput } = await run(env, c, planFor("economical"), { requestedDurationSeconds: 180 });
+  assert.equal(result.videoPath, "req-panama-qa/output/final.mp4");
+  assert.ok(renderInput && renderInput.durationSeconds > 160 && renderInput.durationSeconds < 162);
+  const last = renderInput.scenes.at(-1);
+  assert.equal(last?.endSeconds, renderInput.durationSeconds);
+  assert.equal(last?.holdFromSeconds, undefined, "a larger accepted gap never becomes a manufactured silent outro");
 });
 
 test("duración: un MP4 real que no dura lo compuesto NO se sube ni se marca completado (fallo cerrado)", async () => {
