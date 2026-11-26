@@ -8,7 +8,7 @@ async function main(){
  const read=async(kind,id)=>{if(!/^\d+$/.test(id??''))throw Error('id');const r=await b.download(`mystery-shopper/v3/receipts/${kind}-${id}.json`);if(r.error||!r.data)throw Error('proof');return JSON.parse(await r.data.text());};
  const admission=await read('av-admission',e.MS_ADMISSION_RUN),quote=await read('av',e.MS_QUOTE_RUN);
  if(admission.origin!=='https://atomivid.vercel.app'||admission.status!=='PASS'||admission.authenticated!==true||admission.qaPilot!==true||admission.nonQaPilot!==false||admission.owner!==false||admission.internalOwner!==false)throw Error('admission');
- if(quote.authenticated!==true||quote.quote?.modality!=='avatar'||quote.quote?.host!=='virtual catalog victor'||quote.quote?.requestedSeconds!==60||!(quote.quote?.quote>0&&quote.quote.quote<=3)||quote.episodeId)throw Error('quote');
+ if(quote.authenticated!==true||quote.quote?.modality!=='avatar'||quote.quote?.host!=='virtual catalog victor'||quote.quote?.requestedSeconds!==60||quote.quote?.avatarFrequency!==1||quote.quote?.avatarMaxSeconds!==20||quote.quote?.noIllustrations!==true||!(quote.quote?.quote>0&&quote.quote.quote<=3)||quote.episodeId)throw Error('quote');
  const ledger=ledgerStore(b);if(await ledger.stopped())throw Error('stop');const state=await ledger.state();
  if(state.reservations.length!==new Set(state.reservations.map(x=>x.key)).size||state.settlements.length!==new Set(state.settlements.map(x=>x.key)).size||state.settlements.some(s=>!state.reservations.some(r=>r.key===s.key))||state.reservations.some(r=>!Number.isFinite(r.reservedUsd)||r.reservedUsd<0)||state.settlements.some(s=>!Number.isFinite(s.spentUsd)||s.spentUsd<0))throw Error('ledger');
  if(!canReserve(state,'video-podcast',3).ok)throw Error('budget');

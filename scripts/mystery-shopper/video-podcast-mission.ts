@@ -15,9 +15,9 @@ export async function runVideoPodcastReal(c:RealCtx){
  if(await p.getByTestId('generacion-bloqueada').isVisible().catch(()=>false)){c.setHumanGate('Piloto audiovisual no habilitado para esta cuenta.');return;}
  const configured=await c.step('Configurar presentador autorizado y episodio mínimo desde la interfaz',async()=>{
   await w.getByTestId('modalidad-avatar').click();
-  const host=w.getByTestId('anfitrion-victor').getByRole('radio');if(!await host.isEnabled())return {state:'BLOCKED',detail:'El anfitrión del catálogo no está disponible; no se carga una foto personal.'};await host.click();
+  const host=w.getByTestId('anfitrion-victor').getByRole('radio');if(!await host.isEnabled())return {state:'BLOCKED',detail:'El anfitrión del catálogo no está disponible; no se carga una foto personal.'};await host.click();if(!await host.isChecked())return {state:'FAIL',detail:'No se verificó el anfitrión virtual seleccionado.'};
   await w.getByText('Opciones avanzadas de avatar',{exact:true}).click();
-  await w.getByLabel('Frecuencia del avatar',{exact:true}).focus();await p.keyboard.press('End');
+  await w.getByLabel('Frecuencia del avatar',{exact:true}).focus();await p.keyboard.press('End');if(await w.getByLabel('Frecuencia del avatar',{exact:true}).inputValue()!=='1')return {state:'FAIL',detail:'No se verificó presencia de avatar en todos los turnos.'};
   const max=w.getByLabel('Duración máxima del avatar',{exact:true});await max.focus();await p.keyboard.press('Home');for(let i=0;i<3;i++)await p.keyboard.press('ArrowRight');
   if(await max.inputValue()!=='20')return {state:'FAIL',detail:'No se verificó el límite por aparición.'};
   await w.getByRole('button',{name:'Siguiente',exact:true}).click();
@@ -30,7 +30,7 @@ export async function runVideoPodcastReal(c:RealCtx){
   if(await p.getByTestId('generacion-bloqueada').isVisible().catch(()=>false))return {state:'BLOCKED',detail:'Generación restringida por el gate de cuenta; no se fuerza una API.'};
   const table=w.getByTestId('wizard-estimate').locator('table');await table.waitFor({timeout:30000});const text=await table.locator('tr').filter({hasText:'Total estimado'}).innerText();
   const v=/([0-9]+[.,][0-9]{2})/.exec(text);quote=v?Number(v[1].replace(',','.')):null;
-  await writeFile(path.join(c.out,'av-quote.json'),JSON.stringify({quote,budgetUsd:3,modality:'avatar',host:'virtual catalog victor',requestedSeconds:60}));
+  await writeFile(path.join(c.out,'av-quote.json'),JSON.stringify({quote,budgetUsd:3,modality:'avatar',host:'virtual catalog victor',requestedSeconds:60,avatarFrequency:1,avatarMaxSeconds:20,noIllustrations:true}));
   const gen=w.getByRole('button',{name:'Generar episodio',exact:true});if(!await gen.isDisabled())return {state:'FAIL',detail:'Generación habilitada sin consentimiento.'};
   return {state:'PASS',detail:'Configuración y costo visibles. No se generó guion con IA.'};
  });if(configured.state!=='PASS')return;
