@@ -56,6 +56,21 @@ async function main() {
       checkpoint = 'library';
       const library = await page.goto(`${ORIGIN}/dashboard`,{waitUntil:'domcontentloaded'});
       if (library?.status() !== 200 || new URL(page.url()).pathname !== '/dashboard') throw Error('library navigation failed');
+      checkpoint = 'actual-onboarding';
+      const tour = page.getByTestId('onboarding-tour');
+      if (!await tour.isVisible().catch(()=>false)) await page.getByRole('button',{name:'Ver cómo funciona Atomicvid',exact:true}).click();
+      await tour.waitFor({state:'visible'});
+      const dialog = tour.getByRole('dialog');
+      if (await dialog.getAttribute('aria-modal') !== 'false') throw Error('onboarding still modal');
+      const exit = page.getByRole('button',{name:'Cerrar sesión',exact:true});
+      await exit.scrollIntoViewIfNeeded();
+      const exitReachable = await exit.evaluate(el=>{const b=el.getBoundingClientRect();const hit=document.elementFromPoint(b.x+b.width/2,b.y+b.height/2);return !!hit&&(hit===el||el.contains(hit));});
+      if (!exitReachable) throw Error('onboarding obscures exit');
+      const onboarding = {visible:true,modal:false,exitReachable:true,source:'ACTUAL_AUTHENTICATED_UI_NOT_FIXTURE'};
+      await capture(page,width,'actual-nonmodal-onboarding');
+      await page.keyboard.press('Escape');
+      await tour.waitFor({state:'hidden'});
+      checkpoint = 'library';
       const card = page.locator(`a[href="/dashboard/videos/${id}"]`).first();
       await card.waitFor({state:'visible'});
       await capture(page,width,'library-existing-longform');
@@ -78,7 +93,7 @@ async function main() {
       const downloaded = await digestDelivery(href,storageOrigin,cookies);
       if (downloaded.sha256 !== expectedSha || delivery && downloaded.bytes !== delivery.bytes) throw Error('canonical download digest mismatch');
       delivery = downloaded;
-      viewports.push({width,libraryVisible:true,player:facts,downloadShaMatches:true});
+      viewports.push({width,onboarding,libraryVisible:true,player:facts,downloadShaMatches:true});
       await capture(page,width,'completed-longform-player-download');
       await context.close();
     }

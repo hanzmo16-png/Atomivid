@@ -92,7 +92,7 @@ async function main() {
     await sb.storage.from('videos').upload(`${prefix}/receipt.json`,JSON.stringify({version:1,passed:false,checkpoint,screens,receipts,blockedRequests:blocked,paidCalls:0,jobsCreated:0,createdAt:new Date().toISOString()}),{contentType:'application/json',upsert:false});
     throw Error('private smoke incomplete');
   } finally { await browser.close(); }
-  const receipt = {version:1,passed:true,screens,receipts,blockedRequests:blocked,paidCalls:0,jobsCreated:0,audioExistingMp3:'VERIFIED_PLAYBACK_AND_SHA256',createdAt:new Date().toISOString()};
+  const receipt = {version:1,passed:true,runId:env.GITHUB_RUN_ID,productionCommit:env.MS_EXPECTED_PRODUCTION_COMMIT,coverage:{audio:"AUTHENTIC_EXISTING_MP3_PLAYBACK_FULL_SHA256",reel:"AUTHENTIC_EXISTING_COMPLETED_PLAYER_AND_DOWNLOAD_GET",oldLongForm:"AUTHENTIC_EXISTING_COMPLETED_PLAYER_AND_DOWNLOAD_GET",videoPodcast:"LANDING_NAVIGATION_ONLY_NOT_EPISODE_VERIFICATION"},screens,receipts,blockedRequests:blocked,paidCalls:0,jobsCreated:0,audioExistingMp3:'VERIFIED_PLAYBACK_AND_SHA256',createdAt:new Date().toISOString()};
   const saved = await sb.storage.from('videos').upload(`${prefix}/receipt.json`,JSON.stringify(receipt),{contentType:'application/json',upsert:false});
   if (saved.error) throw Error('receipt unavailable');
   console.log('PASS: authenticated mobile read-only checks; private evidence retained.');

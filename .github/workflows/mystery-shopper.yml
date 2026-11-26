@@ -2,6 +2,10 @@ name: focused-longform-readonly
 on:
   workflow_dispatch:
     inputs:
+      existing_audio_id:
+        description: Existing QA-owned real Audio Studio project UUID
+        required: true
+        type: string
       existing_lf_id:
         description: Existing QA-owned completed Long Form UUID
         required: true
@@ -25,6 +29,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
+      MS_EXISTING_AUDIO_ID: ${{ inputs.existing_audio_id }}
       MS_EXISTING_LF_ID: ${{ inputs.existing_lf_id }}
       MS_EXPECTED_LF_SHA256: ${{ inputs.expected_sha256 }}
       MS_EXPECTED_PRODUCTION_COMMIT: ${{ inputs.production_commit }}
@@ -44,3 +49,5 @@ jobs:
       - run: node --test scripts/mystery-shopper/final-readonly-policy.test.mjs scripts/mystery-shopper/readonly-media-stream.test.mjs
       - name: Production read-only mobile smoke; evidence exclusively in private Storage
         run: node scripts/mystery-shopper/focused-longform-readonly.mjs
+      - name: Existing authentic Audio MP3 and module surfaces; private evidence only
+        run: node scripts/mystery-shopper/final-authenticated-readonly.mjs
