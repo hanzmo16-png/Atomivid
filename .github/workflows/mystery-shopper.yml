@@ -4,7 +4,7 @@ on:
     inputs:
       operation:
         type: choice
-        options: [prepare, admission, production-admission, preflight, run]
+        options: [prepare, admission, production-admission, preflight, budget, run]
         default: prepare
       production_sha:
         type: string
@@ -85,7 +85,7 @@ jobs:
         if: inputs.operation == 'preflight' || inputs.operation == 'run'
         run: sudo apt-get update -q && sudo apt-get install -yq ffmpeg && npm install --no-save --no-audit --no-fund playwright@1.49.1 && npx playwright install --with-deps chromium
       - name: Verify private quote, production admission and fresh module/cumulative ledger
-        if: inputs.operation == 'run'
+        if: inputs.operation == 'budget' || inputs.operation == 'run'
         env:
           MS_ADMISSION_RUN: ${{ inputs.admission_run }}
           MS_QUOTE_RUN: ${{ inputs.quote_run }}
