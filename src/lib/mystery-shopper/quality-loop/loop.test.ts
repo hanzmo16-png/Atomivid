@@ -82,3 +82,12 @@ test('QA credentials cannot be routed to a lookalike Vercel project or alternate
  assert.equal(targetOrigin('https://atomivid.vercel.app'),'https://atomivid.vercel.app');
  assert.equal(targetOrigin('http://127.0.0.1:1234',true),'http://127.0.0.1:1234');
 });
+
+test('a branch runner cannot close a real production defect even when its observed app SHA matches the recorded deployment',()=>{
+ const q=initialQueue(at);add(q,cycle('observed'));
+ const d=q.defects[0],token=claimDefect(q,d.id,'codex','codex-session',end);
+ transition(q,d.id,token,'FIXED_IN_BRANCH',sha,end);transition(q,d.id,token,'INTEGRATED',sha,end);
+ add(q,{...cycle('branch-check',[{...check,state:'PASS'}]),runnerSha:'b'.repeat(40)});
+ assert.equal(d.state,'INTEGRATED');
+ add(q,cycle('deployed-runner-check',[{...check,state:'PASS'}]));assert.equal(d.state,'REVALIDATED');
+});

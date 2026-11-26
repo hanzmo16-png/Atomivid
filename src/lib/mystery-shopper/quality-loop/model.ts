@@ -37,7 +37,7 @@ export function finishCycle(q: Queue, cycle: Cycle, token: string) {
       }
       d.occurrences++; d.lastSeen = cycle.finishedAt; d.sha = cycle.sha; d.evidence = cycle.url; d.severity = [...related].sort((a,b)=>a.severity.localeCompare(b.severity))[0].severity; d.checkIds=[...new Set([...(d.checkIds||[d.checkId]),...related.map(c=>c.id)])];
       if (d.state === 'REVALIDATED') { d.rootTaskId=d.rootTaskId||d.taskId; d.reopens=(d.reopens||0)+1;d.taskId=followUpId(d.rootTaskId,d.reopens);d.driveId=null; d.state = 'DETECTED'; d.claim = null; d.fixSha = null; d.closedAt = null; event(q, cycle.finishedAt, `Reopened ${id}`); }
-    } else if (related.every(c=>c.state==='PASS') && d && (d.checkIds||[d.checkId]).every(id=>related.some(c=>c.id===id)) && d?.state === 'INTEGRATED' && cycle.authenticated && cycle.sha === d.fixSha && !cycle.checks.some(c=>c.id.startsWith('deployment-sha')&&c.state!=='PASS')) {
+    } else if (related.every(c=>c.state==='PASS') && d && (d.checkIds||[d.checkId]).every(id=>related.some(c=>c.id===id)) && d?.state === 'INTEGRATED' && cycle.authenticated && cycle.runnerSha === cycle.sha && cycle.sha === d.fixSha && !cycle.checks.some(c=>c.id.startsWith('deployment-sha')&&c.state!=='PASS')) {
       d.state = 'REVALIDATED'; d.closedAt = cycle.finishedAt; d.claim = null;
       event(q, cycle.finishedAt, `Revalidated ${id} on ${cycle.sha}`);
     }
