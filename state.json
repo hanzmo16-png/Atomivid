@@ -1,7 +1,7 @@
 {
   "version": "quality-loop/1",
   "enabled": true,
-  "updatedAt": "2026-11-26T19:56:49.318085Z",
+  "updatedAt": "2026-11-26T20:06:54.303764+00:00",
   "lease": null,
   "cycles": [
     {
@@ -802,7 +802,7 @@
       "severity": "P1",
       "owner": "codex",
       "module": "qa-inspector",
-      "state": "CLAIMED",
+      "state": "FIXED_IN_BRANCH",
       "firstSeen": "2026-11-26T19:51:21.708Z",
       "lastSeen": "2026-11-26T19:51:21.708Z",
       "occurrences": 1,
@@ -813,7 +813,7 @@
         "actor": "codex-active-session-issue-320",
         "expiresAt": "2026-11-26T21:56:49.318085Z"
       },
-      "fixSha": null,
+      "fixSha": "26cc4960c58f07fb15674078a38005ac7ec117fd",
       "closedAt": null,
       "taskId": "T-20261126-1950-orquestador-2311260077",
       "driveId": null,
@@ -839,6 +839,10 @@
     {
       "at": "2026-11-26T19:56:49.318085Z",
       "text": "Claim assigned to active Codex session for issue320; initial transport attempt failed, CAS retry via authenticated GitHub CLI."
+    },
+    {
+      "at": "2026-11-26T20:06:54.303764+00:00",
+      "text": "b79566f7308125968f1235fa FIXED_IN_BRANCH; stale audiovisual inspector corrected; Chromium regression PASS; no production closure"
     }
   ],
   "lastAlert": "605515a6516419ff4da926bea456d8ce3b036e9efab0d8b9c0fce6ceb1a43a0b",
