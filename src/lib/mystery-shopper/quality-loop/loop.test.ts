@@ -6,6 +6,14 @@ import { update, Conflict, type QueueStore } from './github-store';
 const at='2026-11-26T20:00:00.000Z', end='2026-11-26T20:01:00.000Z', sha='a'.repeat(40);
 const check:Check={id:'download',product:'reels',state:'FAIL',severity:'P1',owner:'codex',module:'delivery',detail:'controlled failure'};
 const cycle=(id:string,checks:Check[]=[check]):Cycle=>({id,trigger:'schedule',scope:'authenticated-readonly',startedAt:at,finishedAt:end,sha,runnerSha:sha,url:'https://github.com/example/repo/actions/runs/1',authenticated:true,sentinel:'BLOCKED',checks,spendUsd:0});
+test('admin readback is default-denied, manual GET only, authenticated and exact same origin',()=>{
+ const r={url:'https://atomivid.vercel.app/api/command-center/quality-loop',method:'GET',origin:'https://atomivid.vercel.app',authenticated:true,resourceType:'fetch'};
+ assert.equal(allowBrowserRequest(r),false);
+ assert.equal(allowBrowserRequest({...r,adminReadback:true}),true);
+ for(const method of ['POST','PUT','PATCH','DELETE','HEAD'])assert.equal(allowBrowserRequest({...r,method,adminReadback:true}),false);
+ assert.equal(allowBrowserRequest({...r,authenticated:false,adminReadback:true}),false);
+ assert.equal(allowBrowserRequest({...r,url:r.url.replace('atomivid.vercel.app','untrusted.example'),adminReadback:true}),false);
+});
 function add(q:ReturnType<typeof initialQueue>,c:Cycle){const token=claimCycle(q,c.id,c.startedAt);finishCycle(q,c,token);}
 test('boundary: unauthenticated POST to generation is blocked before login too',()=>{
  assert.equal(allowBrowserRequest({url:'https://atomivid.vercel.app/api/render',method:'POST',origin:'https://atomivid.vercel.app',authenticated:false,resourceType:'fetch'}),false);
