@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import test from 'node:test';import assert from 'node:assert/strict';import{githubActionsQaWorker as githubActionsWorker}from'./github-actions-qa';import{getRenderWorker}from'./index';import{githubActionsWorker as standardWorker}from'./github-actions';
 const keys=['GH_WORKER_TOKEN','GH_WORKER_REPO','VERCEL_ENV','GH_WORKER_QA_REF','VERCEL']as const;
 async function scenario(env:Record<string,string>,fn:(calls:{url:string;body:Record<string,unknown>|null}[])=>Promise<void>,privatePolicy=true){const old={...process.env},fetch=global.fetch,calls:{url:string;body:Record<string,unknown>|null}[]=[];for(const k of keys)delete process.env[k];Object.assign(process.env,{GH_WORKER_TOKEN:'synthetic',GH_WORKER_REPO:'fixture/repo',...env});global.fetch=(async(u,init)=>{const url=String(u);calls.push({url,body:init?.body?JSON.parse(String(init.body)):null});if(url.includes('/contents/'))return Response.json({encoding:'base64',content:Buffer.from('# LONG_FORM_RENDER_TIMEOUT_PROTOCOL=1\nLONG_FORM_RENDER_JOB_TIMEOUT_MIN:\n'+(privatePolicy?'# PRIVATE_LONG_FORM_FAILURE_PROTOCOL=1':'')).toString('base64')});return new Response(null,{status:204});})as typeof global.fetch;try{await fn(calls);}finally{global.fetch=fetch;for(const k of keys){if(old[k]===undefined)delete process.env[k];else process.env[k]=old[k];}}}
@@ -10,3 +11,10 @@ test('unbounded QA timeout never dispatches',async()=>scenario({VERCEL_ENV:'prev
 
 test('Vercel selector isolates the QA adapter from Production',async()=>scenario({VERCEL:'1',VERCEL_ENV:'production',GH_WORKER_QA_REF:'codex/endgame-01-ops'},async()=>{assert.equal(getRenderWorker(),standardWorker);}));
 test('Vercel Preview selects the explicit QA adapter only when configured',async()=>scenario({VERCEL:'1',VERCEL_ENV:'preview',GH_WORKER_QA_REF:'codex/endgame-01-ops'},async()=>{assert.equal(getRenderWorker(),githubActionsWorker);}));
+
+test('default render workflow cannot export private failed customer media to GitHub artifacts',()=>{
+ const workflow=readFileSync('.github/workflows/render.yml','utf8');
+ assert.doesNotMatch(workflow,/uses:\s*actions\/upload-artifact/);
+ assert.match(workflow,/LONG_FORM_OUTPUT_KEEP_DIR/);
+ assert.match(workflow,/scripts\/render-worker/);
+});
