@@ -73,7 +73,10 @@ async function main() {
       if (library?.status() !== 200 || new URL(page.url()).pathname !== '/dashboard') throw Error('library navigation failed');
       checkpoint = 'onboarding-open';
       const tour = page.getByTestId('onboarding-tour');
-      if (!await tour.isVisible().catch(()=>false)) await page.getByRole('button',{name:'Ver cómo funciona Atomicvid',exact:true}).click();
+      // Fresh context: Dashboard auto-opens the tour after hydration. Run45858051107 proved
+      // that sampling isVisible then clicking Help races that effect: the already-open
+      // dialog intercepts the redundant click. Await the real automatic UI, never force clicks.
+
       checkpoint = 'onboarding-visible';
       await tour.waitFor({state:'visible'});
       checkpoint = 'onboarding-dialog';
