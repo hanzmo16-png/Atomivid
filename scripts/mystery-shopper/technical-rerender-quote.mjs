@@ -25,7 +25,20 @@ async function main() {
   const receipt = { scope: 'OPERATOR_TECHNICAL_RERENDER_UI_QUOTE_ONLY', requestId: row.id, reviewSha256: plan.reviewSha256, customerFreshScriptFlowProved: false, confirmed: false, renderStarted: false, status: 'BLOCKED' };
   try {
     const origin = 'https://atomivid.vercel.app';
-    const context = await browser.newContext({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true });
+    const context = await browser.newContext({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
+    let authenticated = false;
+    const blocked = [];
+    await context.route('**/*', async route => {
+      const request = route.request(), url = new URL(request.url());
+      const safeMethod = ['GET', 'HEAD', 'OPTIONS'].includes(request.method());
+      const loginPost = !authenticated && url.origin === origin && url.pathname === '/login' && request.method() === 'POST';
+      const paidProvider = /(^|\.)(anthropic\.com|openai\.com|elevenlabs\.io|heygen\.com|fal\.ai|fal\.run|runwayml\.com|recraft\.ai|beatoven\.ai|replicate\.com|did\.com|d-id\.com)$/.test(url.hostname);
+      if (paidProvider || (!safeMethod && !loginPost)) {
+        blocked.push({ method: request.method(), pathname: url.pathname });
+        return route.abort('blockedbyclient');
+      }
+      return route.continue();
+    });
     const page = await context.newPage();
     await page.addLocatorHandler(page.getByRole('button', { name: 'Omitir', exact: true }).first(), async button => { await button.click(); });
     await page.goto(`${origin}/login`);
@@ -33,16 +46,7 @@ async function main() {
     await page.getByLabel('Contraseña').fill(e.MYSTERY_SHOPPER_QA_PASSWORD);
     await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();
     await page.waitForURL(u => u.origin === origin && u.pathname.startsWith('/dashboard'), { timeout: 30000 });
-    // After login all app mutations are physically blocked, including both production endpoints.
-    const blocked = [];
-    await context.route('**/*', async route => {
-      const request = route.request();
-      if (new URL(request.url()).origin === origin && !['GET', 'HEAD', 'OPTIONS'].includes(request.method())) {
-        blocked.push({ method: request.method(), pathname: new URL(request.url()).pathname });
-        return route.abort('blockedbyclient');
-      }
-      return route.continue();
-    });
+    authenticated = true; // All browser mutations to every origin are now denied, including another login POST.
     await page.goto(`${origin}/dashboard/long-form/configure/${row.id}`, { timeout: 120000 });
     if (new URL(page.url()).pathname !== `/dashboard/long-form/configure/${row.id}`) throw Error('configuration access');
     const economy = page.locator('input[type=radio][name=strategy][value=economical]');

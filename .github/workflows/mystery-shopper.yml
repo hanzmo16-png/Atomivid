@@ -34,7 +34,7 @@ jobs:
       MS_NEW_REQUEST_ID: ${{ inputs.new_request_id }}
       MS_REVIEW_RECEIPT: ${{ inputs.review_receipt }}
       MS_ACCEPTED_REVIEW_SHA: ${{ inputs.accepted_review_sha }}
-      MS_OUT_DIR: ${{ runner.temp }}/technical-rerender-private
+      MS_OUT_DIR: /tmp/technical-rerender-private
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
