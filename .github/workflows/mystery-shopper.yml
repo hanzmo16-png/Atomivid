@@ -4,7 +4,7 @@ on:
     inputs:
       operation:
         type: choice
-        options: [prepare, preflight, run, inspect, reconcile, repair, material, material_apply, material_inspect, delivery_locator, editorial_confirm, persist_probe, stock_rate, persist_verify]
+        options: [prepare, preflight, run, inspect, reconcile, repair, material, material_apply, material_inspect, delivery_locator, editorial_confirm, persist_probe, stock_rate, persist_verify, asset_inspect]
         default: prepare
       target:
         type: string
@@ -144,3 +144,7 @@ jobs:
         env:
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
         run: node scripts/mystery-shopper/qa-stock-rate-probe.mjs
+
+      - name: Read exact native stock trace for visual QC
+        if: inputs.operation == 'asset_inspect'
+        run: node scripts/mystery-shopper/private-native-asset-qc.mjs
