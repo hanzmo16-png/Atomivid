@@ -16,7 +16,7 @@ import { provedUnstartedRender, matchesRenderStartResponse } from "./start-respo
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
 import { canReserve, MODULE_CAP_USD, type LedgerState } from "../../src/lib/mystery-shopper/v3/ledger";
-import { incrementalRenderReserve, verifiedReusableScript } from "./long-form-incremental-reserve";
+import { incrementalRenderReserve, verifiedReusableScript, verifiedExistingRenderFunding } from "./long-form-incremental-reserve";
 import { detectAv, detectMedia, detectProgress, type Incident } from "../../src/lib/mystery-shopper/v3/detect";
 import { measureVideo, type VideoMeasure } from "./av-check";
 import type { RealCtx } from "./real-missions";
@@ -99,7 +99,9 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
     });
     return ok;
   };
+  const existingRenderKey = process.env.MS_YOUTUBE_EXISTING_RENDER_KEY;
   const settle = async (key: string, spentUsd: number, source: string) => {
+    if (existingRenderKey && key === existingRenderKey) return; // already accounted; never settle or credit twice
     await c.ledger!.settle({ key, spentUsd: r2(spentUsd), source, at: new Date().toISOString() });
     c.addSpend(spentUsd);
   };
@@ -241,7 +243,7 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
   if (!configureHref || ceiling === null) return;
 
   // 6 · Render: el techo total ya incluye el guion liquidado; reservar el resto.
-  const renderKey = `${c.jobId}-yt-render`;
+  const renderKey = existingRenderKey || `${c.jobId}-yt-render`;
   const state = await c.ledger!.state().catch(() => null);
   const prior = verifiedReusableScript(state, scriptKey);
   const renderReserve = incrementalRenderReserve(ceiling, scriptSpent, prior);
@@ -249,11 +251,16 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
     c.setHumanGate("No se verificó el gasto previo del guion contra el libro: no se autoriza ni se libera presupuesto.");
     return;
   }
-  if (!await reserve(renderKey, renderReserve, "el render (resto del techo total, guion ya liquidado)")) return;
+  if (existingRenderKey) {
+    if (!alreadyConfirmed || !verifiedExistingRenderFunding(state,existingRenderKey,renderReserve)) { c.setHumanGate("No se acredita la cobertura previa del mismo pedido; no se inicia."); return; }
+    runCommitted += renderReserve;
+    if(runCommitted>runCap){c.setHumanGate("La cobertura previa excede el tope de esta ejecución; no se inicia.");return;}
+    await c.step("Reutilizar techo del mismo pedido ya contabilizado para todos sus intentos (sin otra reserva)",async()=>({state:"PASS",detail:"Cobertura original verificada; no se añade otra liquidación ni se presenta el consumo futuro como gratuito."}));
+  } else if (!await reserve(renderKey, renderReserve, "el render (resto del techo total, guion ya liquidado)")) return;
   let videoPath = "";
   await c.step("Pulsar «Confirmar y generar video»", async () => {
     if (!killSwitch()) { await settle(renderKey, 0, "no se pulsó (interruptor apagado)"); return { state: "BLOCKED", detail: "Interruptor apagado justo antes del clic." }; }
-    const btn = page.getByRole("button", { name: alreadyConfirmed ? "Iniciar producción" : "Confirmar y generar video", exact: true });
+    const btn = page.getByRole("button", { name: process.env.MS_YOUTUBE_RESUME_RETRY === "1" ? "Reintentar" : alreadyConfirmed ? "Iniciar producción" : "Confirmar y generar video", exact: true });
     if (await btn.isDisabled().catch(() => true)) { await settle(renderKey, 0, "botón deshabilitado: no se pulsó"); return { state: "BLOCKED", detail: "«Confirmar y generar video» deshabilitado." }; }
     const responseP = page.waitForResponse((r: { url(): string; request(): { method(): string } }) => {
       return matchesRenderStartResponse(c.baseUrl,configureHref,r.url(),r.request().method());

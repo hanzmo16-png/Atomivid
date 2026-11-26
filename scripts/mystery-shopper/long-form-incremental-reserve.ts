@@ -18,3 +18,9 @@ export function verifiedReusableScript(state: LedgerState | null, key: string): 
   return spent;
 }
 
+/** A previously accounted all-attempt ceiling may fund only the same resumed request, attested by the private runner. */
+export function verifiedExistingRenderFunding(state: LedgerState | null, key: string, needed: number): boolean {
+ if(!state||!/^ms-[a-z0-9-]+-yt-render$/.test(key)||!Number.isFinite(needed)||needed<=0)return false;
+ const r=state.reservations.filter(x=>x.key===key),s=state.settlements.filter(x=>x.key===key);
+ return r.length===1&&s.length===1&&r[0].module==='youtube'&&key===`${r[0].jobId}-yt-render`&&Number.isFinite(r[0].reservedUsd)&&Number.isFinite(s[0].spentUsd)&&s[0].spentUsd===r[0].reservedUsd&&needed<=s[0].spentUsd;
+}
