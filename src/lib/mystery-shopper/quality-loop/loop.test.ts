@@ -67,3 +67,6 @@ test('one defect across viewports; a desktop pass cannot hide the mobile failure
  add(q,cycle('missing-mobile',[desktop]));assert.equal(q.defects[0].state,'INTEGRATED');
  add(q,cycle('fixed',[{...mobile,state:'PASS'},desktop]));assert.equal(q.defects[0].state,'REVALIDATED');
 });
+test('recurrence reopens same defect and creates one linked follow-up, not a duplicate root task',()=>{
+ const q=initialQueue(at);add(q,cycle('first'));const d=q.defects[0],root=d.taskId;d.driveId='prior-task-file';const t=claimDefect(q,d.id,'codex','active',end);transition(q,d.id,t,'FIXED_IN_BRANCH',sha,end);transition(q,d.id,t,'INTEGRATED',sha,end);add(q,cycle('good',[{...check,state:'PASS'}]));add(q,cycle('recur'));const follow=q.defects[0].taskId;assert.notEqual(follow,root);assert.equal(q.defects[0].rootTaskId,root);assert.equal(q.defects[0].driveId,null);add(q,cycle('same-fail'));assert.equal(q.defects.length,1);assert.equal(q.defects[0].taskId,follow);
+});

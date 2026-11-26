@@ -9,7 +9,7 @@ async function main(){
  const channel=new DriveRestChannel({solicitudes:'1WJ4FpKjMvOpn60i3diyy7sL7uDQfZp9W',entregas:'1z8C1ZnE8rh9iUUiEYQrNU-x7VMzCI4SJ'},oidcDriveTokenProvider('https://atomivid.vercel.app/api/orchestrator/drive/token'));
  try{
   const snapshot=await store.read();const q=snapshot.state;
-  const queueText=JSON.stringify(q,null,2);
+  const queueText=JSON.stringify({...q,cycles:q.cycles.slice(-1),activity:q.activity.slice(-30),sourceRevision:snapshot.revision},null,2);
   const name=`QUALITY-LOOP-${env.GITHUB_RUN_ID}-${snapshot.revision?.slice(0,12)||'initial'}__orquestador__ESTADO.md`;
   const saved=await channel.createIfAbsent('entregas',name,queueText);
   if(await channel.read(saved.id)!==queueText)throw new Error('DRIVE_READBACK_MISMATCH');
@@ -18,7 +18,7 @@ async function main(){
   for(const d of (q.enabled?q.defects:[]).filter(d=>(d.state==='DETECTED'||d.state==='CLAIMED')&&!d.driveId).slice(0,3)){
    const priorAck=deliveries.find(f=>f.name.startsWith(`${d.taskId}__${d.owner}__`)&&/ACK|EN_PROCESO|ENTREGADO/i.test(f.name));
    if(priorAck)continue;
-   const content=renderHeader({id:d.taskId,de:'orquestador',para:d.owner,estado:'SOLICITADO',raiz:'issue-320',presupuesto_usd:0,defecto:d.id,sha:d.sha||'UNKNOWN',archivos:d.module,pide:`Corregir y revalidar ${d.checkId}`,criterio_de_hecho:'PR y SHA + repetición del mismo check; no cerrar con fixture como producción',requiere_gasto_o_produccion:'no'})+`\n\nEvidencia: ${d.evidence}\nClaim atómico obligatorio en Command Center Quality Loop antes de editar. Revisar #320 y no solapar Sentinel #337/#338 ni claude/hola-sn3dxy. No pagado, secretos, migraciones o Premium. No existe activación de sesión por publicar este archivo.\n`;
+   const content=renderHeader({id:d.taskId,de:'orquestador',para:d.owner,estado:'SOLICITADO',raiz:d.rootTaskId||d.taskId,presupuesto_usd:0,defecto:d.id,sha:d.sha||'UNKNOWN',archivos:d.module,pide:`Corregir y revalidar ${d.checkId}`,criterio_de_hecho:'PR y SHA + repetición del mismo check; no cerrar con fixture como producción',requiere_gasto_o_produccion:'no'})+`\n\nEvidencia: ${d.evidence}\nClaim atómico obligatorio en Command Center Quality Loop antes de editar. Revisar #320 y no solapar Sentinel #337/#338 ni claude/hola-sn3dxy. No pagado, secretos, migraciones o Premium. No existe activación de sesión por publicar este archivo.\n`;
    const result=await channel.createIfAbsent('solicitudes',`${d.taskId}__para-${d.owner}__quality-loop-${d.id}.md`,content);
    if(await channel.read(result.id)!==content)throw new Error('TASK_READBACK_MISMATCH');
    await update(store,s=>{const target=s.defects.find(x=>x.id===d.id);if(target)target.driveId=result.id;});published++;

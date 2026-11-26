@@ -1,11 +1,12 @@
 /** Persistent orchestration for Mystery Shopper. No provider calls or production writes. */
 import { createHash, randomUUID } from 'node:crypto';
+import { followUpId } from '../../orchestrator/protocol';
 import { sanitize, type Severity } from '../v3/detect';
 export const PRODUCTS = ['youtube', 'reels', 'audio-podcast', 'video-podcast'] as const;
 export type Product = typeof PRODUCTS[number];
 export type Check = { id: string; product: Product | 'account-nav' | 'commercial' | 'command-center'; state: 'PASS' | 'FAIL' | 'BLOCKED' | 'SKIP'; severity: Severity; owner: 'codex' | 'claude'; module: string; detail: string };
 export type Cycle = { id: string; trigger: 'schedule' | 'deployment_status' | 'workflow_dispatch' | 'fixture'; scope: 'authenticated-readonly' | 'fixture'; startedAt: string; finishedAt: string; sha: string | null; runnerSha: string; url: string; authenticated: boolean; sentinel: 'READ' | 'BLOCKED'; checks: Check[]; spendUsd: 0 };
-export type Defect = { id: string; checkId: string; checkIds: string[]; product: Check['product']; severity: Severity; owner: Check['owner']; module: string; state: 'DETECTED' | 'CLAIMED' | 'FIXED_IN_BRANCH' | 'INTEGRATED' | 'REVALIDATED'; firstSeen: string; lastSeen: string; occurrences: number; sha: string | null; evidence: string; claim: { token: string; actor: string; expiresAt: string } | null; fixSha: string | null; closedAt: string | null; taskId: string; driveId: string | null };
+export type Defect = { id: string; checkId: string; checkIds: string[]; product: Check['product']; severity: Severity; owner: Check['owner']; module: string; state: 'DETECTED' | 'CLAIMED' | 'FIXED_IN_BRANCH' | 'INTEGRATED' | 'REVALIDATED'; firstSeen: string; lastSeen: string; occurrences: number; sha: string | null; evidence: string; claim: { token: string; actor: string; expiresAt: string } | null; fixSha: string | null; closedAt: string | null; taskId: string; rootTaskId?: string; reopens?: number; driveId: string | null };
 export type Queue = { version: 'quality-loop/1'; enabled: boolean; updatedAt: string; lease: { cycleId: string; token: string; expiresAt: string } | null; cycles: Cycle[]; defects: Defect[]; activity: { at: string; text: string }[]; lastAlert: string | null; mirror: { at: string | null; state: 'PENDING' | 'VERIFIED' | 'BLOCKED' } };
 export const initialQueue = (at: string): Queue => ({ version: 'quality-loop/1', enabled: true, updatedAt: at, lease: null, cycles: [], defects: [], activity: [], lastAlert: null, mirror: { at: null, state: 'PENDING' } });
 export const fingerprint = (c: Pick<Check, 'id' | 'product'>) => createHash('sha256').update(`${c.product}|${c.id.replace(/-(390|412|1366|1440)$/, '')}`).digest('hex').slice(0, 24);
@@ -35,7 +36,7 @@ export function finishCycle(q: Queue, cycle: Cycle, token: string) {
         q.defects.push(d);
       }
       d.occurrences++; d.lastSeen = cycle.finishedAt; d.sha = cycle.sha; d.evidence = cycle.url; d.severity = [...related].sort((a,b)=>a.severity.localeCompare(b.severity))[0].severity; d.checkIds=[...new Set([...(d.checkIds||[d.checkId]),...related.map(c=>c.id)])];
-      if (d.state === 'REVALIDATED') { d.state = 'DETECTED'; d.claim = null; d.fixSha = null; d.closedAt = null; event(q, cycle.finishedAt, `Reopened ${id}`); }
+      if (d.state === 'REVALIDATED') { d.rootTaskId=d.rootTaskId||d.taskId; d.reopens=(d.reopens||0)+1;d.taskId=followUpId(d.rootTaskId,d.reopens);d.driveId=null; d.state = 'DETECTED'; d.claim = null; d.fixSha = null; d.closedAt = null; event(q, cycle.finishedAt, `Reopened ${id}`); }
     } else if (related.every(c=>c.state==='PASS') && d && (d.checkIds||[d.checkId]).every(id=>related.some(c=>c.id===id)) && d?.state === 'INTEGRATED' && cycle.authenticated && cycle.sha === d.fixSha && !cycle.checks.some(c=>c.id.startsWith('deployment-sha')&&c.state!=='PASS')) {
       d.state = 'REVALIDATED'; d.closedAt = cycle.finishedAt; d.claim = null;
       event(q, cycle.finishedAt, `Revalidated ${id} on ${cycle.sha}`);

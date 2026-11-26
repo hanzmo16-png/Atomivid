@@ -14,7 +14,12 @@ export class GitHubQueueStore implements QueueStore {
     const r = await this.api(`/contents/state.json?ref=${STATE_BRANCH}`);
     if (r.status===404) return { state: initialQueue(new Date().toISOString()), revision: null };
     if (!r.ok) throw new Error(`QUEUE_READ_${r.status}`);
-    const j = await r.json(); const q = JSON.parse(Buffer.from(j.content,'base64').toString('utf8')) as Queue;
+    const j = await r.json();
+    let text:string;
+    if(typeof j.content==='string'&&j.content)text=Buffer.from(j.content,'base64').toString('utf8');
+    else {const raw=await this.api(`/contents/state.json?ref=${STATE_BRANCH}`,{headers:{accept:'application/vnd.github.raw+json'}});if(!raw.ok)throw new Error(`QUEUE_RAW_${raw.status}`);text=await raw.text();}
+    if(text.length>8*1024*1024)throw new Error('QUEUE_SIZE_REQUIRES_ARCHIVE');
+    const q = JSON.parse(text) as Queue;
     if (q.version !== 'quality-loop/1' || typeof q.enabled !== 'boolean' || !Array.isArray(q.cycles) || !Array.isArray(q.defects) || !Array.isArray(q.activity) || !q.mirror) throw new Error('CORRUPT_QUEUE');
     return { state: q, revision: j.sha };
   }

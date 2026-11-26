@@ -38,6 +38,7 @@ async function main(){
   if(!r.ok)throw new Error(`ALERT_HTTP_${r.status}`);
   await update(store,q=>{q.lastAlert=signature;});
  }
+ if(!failures.length&&!blocks.length)await update(store,q=>{q.lastAlert=null;});
  if(e.GITHUB_STEP_SUMMARY)await writeFile(e.GITHUB_STEP_SUMMARY,`### AUTONOMOUS QUALITY LOOP\n\n${id} · SHA ${cycle.sha||'NO VERIFICADO'} · USD 0 de proveedores\n\nPASS ${cycle.checks.filter(c=>c.state==='PASS').length} / FAIL ${failures.length} / BLOCKED ${blocks.length}\n\nAuthenticated: ${cycle.authenticated}; Sentinel: ${cycle.sentinel}.\n`,{flag:'a'});
  if(failures.length||blocks.length)process.exitCode=1;
  event(final,new Date().toISOString(),'Summary emitted');

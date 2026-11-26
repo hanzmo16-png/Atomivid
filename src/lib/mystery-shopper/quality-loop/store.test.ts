@@ -23,3 +23,7 @@ test('updates only write state branch with expected revision and do not write ap
  assert.equal((body as unknown as Record<string,unknown>).branch,'automation/quality-loop-state');assert.equal((body as unknown as Record<string,unknown>).sha,'old-revision');
  await assert.rejects(new GitHubQueueStore('owner/repo').write(q,'rev'),/NOT_CONFIGURED/);
 });
+test('state above GitHub inline-content limit uses raw representation and keeps CAS revision',async()=>{
+ let calls=0;const fetcher=(async(_u:string,init:RequestInit)=>{calls++;if(calls===1)return Response.json({sha:'revision',size:1500000,encoding:'none',content:''});assert.equal((init.headers as Record<string,string>).accept,'application/vnd.github.raw+json');return Response.json(q);}) as typeof fetch;
+ const s=await new GitHubQueueStore('owner/repo','token',fetcher).read();assert.equal(s.revision,'revision');assert.equal(s.state.version,'quality-loop/1');assert.equal(calls,2);
+});

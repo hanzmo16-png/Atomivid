@@ -200,8 +200,18 @@ jobs:
           MS_TARGET_URL: https://atomivid.vercel.app
           MS_OUT_DIR: ${{ runner.temp }}/quality-loop
         run: node --import tsx scripts/mystery-shopper/quality-loop/run.ts
+      - name: Alerta de interrupción (sin datos privados)
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OUT: ${{ runner.temp }}/quality-loop
+        run: |
+          if [[ ! -f "$OUT/cycle.json" ]]; then
+            gh api --method POST "repos/$GITHUB_REPOSITORY/issues/320/comments" -f "body=Quality Loop: ejecución interrumpida o preflight bloqueado. Revisar $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID. No se declara evaluación completada ni activación de agente externo."
+          fi
+      # Periodic results persist in the CAS state branch and private Drive, without recurring artifact storage.
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && github.event_name == 'workflow_dispatch'
         with:
           name: quality-loop-${{ github.run_id }}
           path: ${{ runner.temp }}/quality-loop
