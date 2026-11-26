@@ -34,6 +34,7 @@
  */
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
+import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 
 export type AssetIdentity = {
   provider?: string;
@@ -94,6 +95,28 @@ export async function dhashImage(buffer: Buffer): Promise<string> {
  * puede buscarlo en un pipe (la auditoría de Panamá lo demostró: 19/19
  * videos sin hash perceptual con la versión por pipe).
  */
+/**
+ * Binarios de ffmpeg a probar, en orden (T-20261126-0322): FFMPEG_BIN (misma convención que subtitle-track.ts), el
+ * binario versionado que declara el repositorio (@ffmpeg-installer/ffmpeg) y, por último, «ffmpeg» del PATH. Antes se
+ * invocaba solo por nombre: en un ejecutor sin ffmpeg en PATH el dHash de video se perdía en silencio.
+ */
+export function ffmpegCandidates(env: Record<string, string | undefined> = process.env): string[] {
+  const out = [env.FFMPEG_BIN?.trim(), ffmpegInstaller.path, "ffmpeg"].filter((x): x is string => !!x);
+  return [...new Set(out)];
+}
+
+/** Un fotograma con UN binario. Si el binario no arranca (ENOENT/EACCES) el error lo dice, para probar el siguiente. */
+function frameWith(bin: string, input: string): Promise<Buffer> {
+  return new Promise<Buffer>((resolve, reject) => {
+    const proc = spawn(bin, ["-v", "error", "-ss", "1", "-i", input, "-frames:v", "1", "-f", "image2pipe", "-vcodec", "png", "pipe:1"]);
+    const chunks: Buffer[] = [];
+    const timer = setTimeout(() => proc.kill("SIGKILL"), 30_000);
+    proc.stdout.on("data", (c: Buffer) => chunks.push(c));
+    proc.on("error", (err: NodeJS.ErrnoException) => { clearTimeout(timer); reject(Object.assign(new Error(`ffmpeg_spawn_${err.code ?? "error"}`), { notStarted: true })); });
+    proc.on("close", (code) => { clearTimeout(timer); return code === 0 && chunks.length > 0 ? resolve(Buffer.concat(chunks)) : reject(new Error(`ffmpeg_frame_${code}`)); });
+  });
+}
+
 async function videoFrame(buffer: Buffer): Promise<Buffer> {
   const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
   const { tmpdir } = await import("node:os");
@@ -102,13 +125,16 @@ async function videoFrame(buffer: Buffer): Promise<Buffer> {
   const input = join(dir, "clip.mp4");
   try {
     await writeFile(input, buffer);
-    return await new Promise<Buffer>((resolve, reject) => {
-      const proc = spawn("ffmpeg", ["-v", "error", "-ss", "1", "-i", input, "-frames:v", "1", "-f", "image2pipe", "-vcodec", "png", "pipe:1"]);
-      const chunks: Buffer[] = [];
-      proc.stdout.on("data", (c: Buffer) => chunks.push(c));
-      proc.on("error", reject);
-      proc.on("close", (code) => (code === 0 && chunks.length > 0 ? resolve(Buffer.concat(chunks)) : reject(new Error(`ffmpeg_frame_${code}`))));
-    });
+    // Solo se pasa al siguiente binario si este NO arrancó; un fallo de extracción (archivo inválido) es definitivo:
+    // nunca se reintenta hasta «conseguir» un hash, y queda como dhashUnavailable con su motivo.
+    let last: Error = new Error("ffmpeg_unavailable");
+    for (const bin of ffmpegCandidates()) {
+      try { return await frameWith(bin, input); } catch (err) {
+        last = err as Error;
+        if (!(err as { notStarted?: boolean }).notStarted) throw err;
+      }
+    }
+    throw last;
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => {});
   }
