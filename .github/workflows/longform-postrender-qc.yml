@@ -26,9 +26,6 @@ jobs:
     name: qc-video-001 (proceso hijo) + long-form-qc
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      # Fixtures temporales aislados: se crean aquí y se verifica que no queden al terminar.
-      TMPDIR: ${{ runner.temp }}/lf-postrender-qc
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,7 +39,10 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Preparar directorio temporal de fixtures
-        run: mkdir -p "$TMPDIR"
+        # runner context is not available in jobs.<job>.env; resolve the runner variable at step runtime.
+        run: |
+          mkdir -p "$RUNNER_TEMP/lf-postrender-qc"
+          echo "TMPDIR=$RUNNER_TEMP/lf-postrender-qc" >> "$GITHUB_ENV"
 
       - name: qc-video-001 como proceso hijo (MP4 reales; negro > 2 s debe fallar)
         run: node --import tsx --test scripts/qc-video-001.test.ts
