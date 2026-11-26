@@ -18,19 +18,31 @@ export type SentinelUnit = "usd" | "credit" | "character";
 export type SentinelHealth = "OK" | "DEGRADED" | "DOWN" | "UNCHECKED";
 export type BalanceSource = "provider_api" | "manual_entry";
 
+export type BalanceStatus = "REAL" | "ESTIMATED" | "STALE" | "UNKNOWN";
 export type SentinelBalance = {
-  /** Saldo o créditos disponibles según la última lectura vigente; null = desconocido o no vigente. */
+  /**
+   * REAL: lectura de la API del proveedor de ≤ 5 min (la misma vigencia que exige el motor para admitir gasto).
+   * ESTIMATED: registro manual; es una estimación, no un saldo de la API.
+   * STALE: hubo una lectura de la API, pero caducó. UNKNOWN: no hay fuente verificable.
+   */
+  status: BalanceStatus;
+  /** Solo con status REAL; en cualquier otro caso null. */
   value: number | null;
-  /** Hora de la última lectura registrada (aunque no esté vigente); null = nunca se leyó. */
+  /** Solo con status ESTIMATED (registro manual). */
+  estimated: number | null;
+  /** Solo con status STALE: último valor de la API, ya caducado (se muestra como referencia, nunca como saldo). */
+  staleValue: number | null;
+  /** Hora de la última lectura registrada; null = nunca se leyó. */
   checkedAt: string | null;
   source: BalanceSource | null;
-  /** Hubo una lectura, pero ya no es vigente: `value` es null y la vista lo explica. */
-  stale: boolean;
   health: SentinelHealth | null;
 };
 
 export type SentinelProvider = {
+  /** Cuenta de facturación (p. ej. "fal"); una billetera compartida es UNA tarjeta, nunca dos saldos sumados. */
   provider: string;
+  /** Políticas que comparten esta billetera (p. ej. ["flux", "recraft"] en fal.ai); [provider] si no comparte. */
+  aliases: string[];
   unit: SentinelUnit | null;
   balance: SentinelBalance;
   /** USD comprometidos por operaciones abiertas del ledger (enviadas, con trabajo registrado o por conciliar). */
@@ -38,10 +50,13 @@ export type SentinelProvider = {
   openOperations: number | null;
   /** Saldo libre en unidades del proveedor según el motor (saldo − retenido); null = el motor no lo certifica. */
   free: number | null;
-  /** Consumo en USD: hoy y mes en la zona horaria de la política, semana = últimos 7 días. */
+  /**
+   * Consumo en USD REGISTRADO en el ledger PI: hoy y mes en la zona horaria de la política, semana = últimos 7 días.
+   * Es parcial (Audio/Podcast llevan contabilidad propia): no es el total facturado del proveedor.
+   */
   consumptionUsd: { day: number | null; week: number | null; month: number | null };
-  /** Días de autonomía; `basis` explica de dónde salen. */
-  autonomy: { days: number | null; basis: "engine" | "avg7d" | null };
+  /** Días de autonomía certificados por el motor; la vista nunca los recalcula con saldo bruto o consumo parcial. */
+  autonomy: { days: number | null; basis: "engine" | null };
   level: SentinelLevel;
   /** Motivo técnico del motor (p. ej. "policy unconfigured", "balance unverified or stale"). */
   reason: string;

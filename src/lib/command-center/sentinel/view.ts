@@ -15,9 +15,7 @@ export const PROVIDER_DIRECTORY: Record<string, { name: string; consoleUrl: stri
   luma: { name: "Luma", consoleUrl: "https://lumalabs.ai/", role: "Video generativo" },
   veo: { name: "Google Veo", consoleUrl: "https://console.cloud.google.com/billing", role: "Video generativo" },
   bfl: { name: "Black Forest Labs", consoleUrl: "https://dashboard.bfl.ai/", role: "Imágenes" },
-  flux: { name: "FLUX (fal.ai)", consoleUrl: "https://fal.ai/dashboard/billing", role: "Imágenes" },
-  recraft: { name: "Recraft (fal.ai)", consoleUrl: "https://fal.ai/dashboard/billing", role: "Imágenes de estudio" },
-  fal: { name: "fal.ai", consoleUrl: "https://fal.ai/dashboard/billing", role: "Imágenes" },
+  fal: { name: "fal.ai", consoleUrl: "https://fal.ai/dashboard/billing", role: "Imágenes (billetera compartida)" },
   ltx: { name: "LTX", consoleUrl: "https://ltx.studio/", role: "Video generativo" },
   beatoven: { name: "Beatoven", consoleUrl: "https://www.beatoven.ai/", role: "Música" },
 };
@@ -26,8 +24,10 @@ export type Tone = "ok" | "warn" | "danger" | "muted" | "info";
 export type SentinelAlert = { tone: Tone; text: string };
 export type SentinelCard = {
   id: string; name: string; role: string; consoleUrl: string | null;
+  /** Políticas que comparten esta billetera (p. ej. «FLUX · Recraft»); null si no comparte. */
+  sharedBy: string | null;
   light: { level: SentinelLevel; label: string; tone: Tone; explanation: string };
-  balance: { display: string; note: string };
+  balance: { display: string; note: string; status: "REAL" | "ESTIMATED" | "STALE" | "UNKNOWN" };
   committed: string; free: string;
   consumption: { label: string; display: string }[];
   autonomy: { display: string; note: string; tone: Tone };
@@ -83,21 +83,27 @@ export function stamp(iso: string, tz: string): string {
 
 export function cardOf(p: SentinelProvider, now: number, tz: string): SentinelCard {
   const dir = PROVIDER_DIRECTORY[p.provider] ?? { name: p.provider, consoleUrl: null, role: "Proveedor" };
+  const ALIAS: Record<string, string> = { flux: "FLUX", recraft: "Recraft" };
+  const sharedBy = p.aliases.length > 1 ? p.aliases.map((a) => ALIAS[a] ?? a).join(" · ") : null;
   const light = { level: p.level, ...LIGHT[p.level], explanation: explainReason(p.reason) };
   const b = p.balance;
-  const sourceText = b.source === "provider_api" ? "API del proveedor" : b.source === "manual_entry" ? "registro manual" : null;
-  const balance = b.value !== null
-    ? { display: amount(b.value, p.unit), note: `Verificado por ${sourceText} ${b.checkedAt ? ago(b.checkedAt, now) : ""}`.trim() }
-    : { display: "Desconocido", note: b.stale && b.checkedAt ? `La última lectura (${ago(b.checkedAt, now)}) ya no es vigente; actualiza el saldo.` : b.checkedAt ? "La última lectura no es una fuente verificable." : "Nunca se registró un saldo verificable de este proveedor." };
+  const when = b.checkedAt ? ago(b.checkedAt, now) : "";
+  const balance = b.status === "REAL" && b.value !== null
+    ? { status: b.status, display: amount(b.value, p.unit), note: `Saldo real: API del proveedor ${when} (vigente 5 min).` }
+    : b.status === "ESTIMATED" && b.estimated !== null
+      ? { status: b.status, display: `≈ ${amount(b.estimated, p.unit)}`, note: `Estimado por registro manual ${when}; no es un saldo leído de la API.` }
+      : b.status === "STALE"
+        ? { status: b.status, display: "Desconocido", note: `La lectura de la API ${when}${b.staleValue !== null ? ` (${amount(b.staleValue, p.unit)})` : ""} ya no es vigente: no se usa como saldo.` }
+        : { status: "UNKNOWN" as const, display: "Desconocido", note: b.checkedAt ? "La última lectura no es una fuente verificable." : "Nunca se registró un saldo verificable de este proveedor." };
   const committed = p.committedUsd === null ? "Desconocido" : p.committedUsd === 0 ? "Nada comprometido" : `${usd(p.committedUsd)}${p.openOperations ? ` · ${p.openOperations} ${p.openOperations === 1 ? "operación abierta" : "operaciones abiertas"}` : ""}`;
   const free = p.free === null ? "Desconocido" : amount(p.free, p.unit);
   const consumption = ([["Hoy", p.consumptionUsd.day], ["7 días", p.consumptionUsd.week], ["Mes", p.consumptionUsd.month]] as const)
     .map(([label, v]) => ({ label, display: v === null ? "Desconocido" : usd(v) }));
   const days = p.autonomy.days;
   const autonomy = days === null
-    ? { display: "Desconocida", note: p.consumptionUsd.week === 0 ? "Sin consumo en 7 días: no hay ritmo para estimarla." : "Requiere un saldo verificado y consumo registrado.", tone: "muted" as Tone }
+    ? { display: "Desconocida", note: sharedBy ? "Billetera compartida: el control aún no certifica una autonomía conjunta." : "El control de suministro no la certifica con los datos actuales.", tone: "muted" as Tone }
     : { display: days >= 365 ? "Más de 1 año" : days < 1 ? `${nf(0).format(days * 24)} h` : `${nf(days < 10 ? 1 : 0).format(days)} días`,
-        note: p.autonomy.basis === "engine" ? "Calculada por el control de suministro." : "Estimada: saldo libre de lo comprometido ÷ consumo medio de 7 días.",
+        note: "Calculada por el control de suministro.",
         tone: (days <= 3 ? "danger" : days <= 7 ? "warn" : "ok") as Tone };
   const lim = p.limits;
   const limits = !lim ? "Sin política configurada" : `${lim.enabled ? "Gasto habilitado" : "Gasto deshabilitado"} · tope diario ${lim.dailyUsd === null ? "sin definir" : usd(lim.dailyUsd)} · mensual ${lim.monthlyUsd === null ? "sin definir" : usd(lim.monthlyUsd)}`;
@@ -108,13 +114,15 @@ export function cardOf(p: SentinelProvider, now: number, tz: string): SentinelCa
   if (p.level === "RED") alerts.push({ tone: "danger", text: "Recarga urgente: el saldo libre no garantiza la producción de las próximas 24 h." });
   else if (p.level === "YELLOW") alerts.push({ tone: "warn", text: "Recarga preventiva recomendada antes de quedar por debajo del 15 % o de 24 h de cobertura." });
   if (days !== null && p.level !== "RED" && days <= 7) alerts.push({ tone: days <= 3 ? "danger" : "warn", text: `Autonomía estimada de ${autonomy.display}: programa la recarga.` });
-  if (b.value === null) alerts.push({ tone: "warn", text: b.stale ? "Saldo no vigente: vuelve a leerlo o regístralo tras la próxima recarga." : "Saldo desconocido: no se autoriza gasto con este proveedor hasta verificarlo." });
+  if (b.status === "STALE") alerts.push({ tone: "warn", text: "Saldo no vigente: el gasto queda en espera hasta una lectura de la API de menos de 5 minutos." });
+  else if (b.status === "UNKNOWN") alerts.push({ tone: "warn", text: "Saldo desconocido: no se autoriza gasto con este proveedor hasta verificarlo." });
+  else if (b.status === "ESTIMATED") alerts.push({ tone: "info", text: "Saldo estimado (registro manual): confírmalo en la consola del proveedor." });
   if (lim && lim.monthlyUsd !== null && p.consumptionUsd.month !== null && p.consumptionUsd.month >= lim.monthlyUsd * 0.8)
     alerts.push({ tone: p.consumptionUsd.month >= lim.monthlyUsd ? "danger" : "warn", text: `Consumo del mes al ${nf(0).format(p.consumptionUsd.month / lim.monthlyUsd * 100)} % del tope mensual.` });
   if (p.recentAlerts) alerts.push({ tone: "info", text: `${p.recentAlerts} aviso${p.recentAlerts === 1 ? "" : "s"} del control de suministro en los últimos 7 días.` });
 
   return {
-    id: p.provider, name: dir.name, role: dir.role, consoleUrl: dir.consoleUrl, light, balance, committed, free, consumption, autonomy, limits, alerts,
+    id: p.provider, name: dir.name, role: dir.role, consoleUrl: dir.consoleUrl, sharedBy, light, balance, committed, free, consumption, autonomy, limits, alerts,
     updated: b.checkedAt ? { display: `${stamp(b.checkedAt, tz)} (${ago(b.checkedAt, now)})`, iso: b.checkedAt } : { display: "Sin lecturas", iso: null },
   };
 }

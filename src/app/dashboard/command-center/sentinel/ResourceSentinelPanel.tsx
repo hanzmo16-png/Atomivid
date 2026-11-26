@@ -13,6 +13,7 @@ function Card({ c }: { c: SentinelCard }) {
         <div className="min-w-0">
           <h3 className="truncate text-base font-semibold text-white">{c.name}</h3>
           <p className="text-xs text-zinc-400">{c.role}</p>
+          {c.sharedBy && <p className="text-[11px] text-sky-300">Una sola billetera para: {c.sharedBy}</p>}
         </div>
         <span className={`inline-flex shrink-0 items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${PILL[t]}`} role="status" aria-label={`Semáforo: ${c.light.label}`}>
           <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full ${DOT[t]}`} />{c.light.label}
@@ -21,8 +22,8 @@ function Card({ c }: { c: SentinelCard }) {
       <p className="mt-2 text-xs text-zinc-400">{c.light.explanation}</p>
 
       <div className="mt-4">
-        <p className="text-xs uppercase tracking-wide text-zinc-500">Saldo / créditos disponibles</p>
-        <p className={`mt-1 text-2xl font-semibold tabular-nums ${c.balance.display === "Desconocido" ? "text-zinc-400" : "text-white"}`} data-testid="sentinel-balance">{c.balance.display}</p>
+        <p className="text-xs uppercase tracking-wide text-zinc-500">Saldo / créditos disponibles{c.balance.status === "ESTIMATED" ? " · estimado" : ""}</p>
+        <p className={`mt-1 text-2xl font-semibold tabular-nums ${c.balance.status === "REAL" ? "text-white" : c.balance.status === "ESTIMATED" ? "text-zinc-200" : "text-zinc-400"}`} data-testid="sentinel-balance" data-status={c.balance.status}>{c.balance.display}</p>
         <p className="text-xs text-zinc-500">{c.balance.note}</p>
       </div>
 
@@ -32,7 +33,7 @@ function Card({ c }: { c: SentinelCard }) {
       </dl>
 
       <div className="mt-3">
-        <p className="text-xs text-zinc-400">Consumo</p>
+        <p className="text-xs text-zinc-400">Consumo registrado <span className="text-zinc-500">(ledger PI, parcial)</span></p>
         <dl className="mt-1 grid grid-cols-3 gap-2 text-sm">
           {c.consumption.map((x) => <div key={x.label} className="rounded-xl border border-white/5 p-2 text-center"><dt className="text-[11px] text-zinc-500">{x.label}</dt><dd className="mt-0.5 font-medium tabular-nums text-zinc-100">{x.display}</dd></div>)}
         </dl>
@@ -81,7 +82,7 @@ export function ResourceSentinelPanel({ view }: { view: SentinelView }) {
       {view.empty
         ? <p className="mt-4 text-sm text-amber-300" role="status">{view.empty}</p>
         : <ul className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{view.cards.map((c) => <Card key={c.id} c={c} />)}</ul>}
-      <p className="mt-4 text-[11px] text-zinc-500">Consumo en USD del registro de operaciones pagadas: «Hoy» y «Mes» en hora de {view.timezone}; «7 días» son los últimos siete días. Los saldos van en la unidad de cada proveedor.</p>
+      <p className="mt-4 text-[11px] text-zinc-500">Consumo en USD registrado en el ledger de operaciones pagadas (PI): es parcial, porque Audio y Podcast llevan contabilidad propia, y no sustituye la factura del proveedor. «Hoy» y «Mes» en hora de {view.timezone}; «7 días» son los últimos siete días. Saldo real = lectura de la API de menos de 5 minutos; «≈» = estimado por registro manual. Los saldos van en la unidad de cada proveedor.</p>
     </section>
   );
 }
