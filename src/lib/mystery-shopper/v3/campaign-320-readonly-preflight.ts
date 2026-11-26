@@ -87,7 +87,9 @@ export async function inspectCampaign320SurfaceReadOnly(
     : {
         "Podcast Studio": await visible(page.getByTestId("podcast-wizard")),
         "Asistente hidratado": await page.getByTestId("podcast-wizard").getAttribute("data-hydrated").then((v: string | null) => v === "1").catch(() => false),
-        "Modalidad video": await visible(page.getByTestId("modalidad-video")),
+        "Narración con imágenes": await visible(page.getByTestId("modalidad-visual")),
+        "Presentador con avatar": await visible(page.getByTestId("modalidad-avatar")),
+        "Conversación con avatares": await visible(page.getByTestId("modalidad-dialogo")),
         "Pasos": await visible(page.getByRole("list", { name: "Pasos" })),
       };
 

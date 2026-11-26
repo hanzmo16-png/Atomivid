@@ -11,7 +11,7 @@ export const GITHUB_OIDC_ISSUER = "https://token.actions.githubusercontent.com";
 export const GITHUB_OIDC_JWKS = `${GITHUB_OIDC_ISSUER}/.well-known/jwks`;
 export const DRIVE_TOKEN_AUDIENCE = "atomivid-drive-token";
 /** Workflows that may ask for a Drive access token (paths under .github/workflows/). */
-export const ALLOWED_WORKFLOWS = ["orchestrator.yml", "drive-oauth.yml"] as const;
+export const ALLOWED_WORKFLOWS = ["orchestrator.yml", "drive-oauth.yml", "mystery-shopper.yml"] as const;
 const SKEW_S = 60;
 
 export type OidcPolicy = { repository: string; defaultBranch: string; environment: string; audience: string; workflows: readonly string[] };
