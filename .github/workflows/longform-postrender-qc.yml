@@ -1,0 +1,66 @@
+# QC post-render de Long Form (T-20261126-0618): ejecuta en CI la prueba de proceso hijo del comando
+# scripts/qc-video-001.ts (gate blackdetect fail-closed, T-0522) y la regresión de la biblioteca
+# src/lib/video/long-form/long-form-qc.ts (T-0415). Sin secretos, sin proveedores, sin red de producto:
+# los MP4 se generan en un directorio temporal con el ffmpeg empaquetado y se borran al terminar.
+name: Long Form · QC post-render (blackdetect)
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/longform-postrender-qc.yml"
+      - "scripts/qc-video-001.ts"
+      - "scripts/qc-video-001.test.ts"
+      - "src/lib/video/long-form/long-form-qc.ts"
+      - "src/lib/video/long-form/long-form-qc.test.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: longform-postrender-qc-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qc-postrender:
+    name: qc-video-001 (proceso hijo) + long-form-qc
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Fixtures temporales aislados: se crean aquí y se verifica que no queden al terminar.
+      TMPDIR: ${{ runner.temp }}/lf-postrender-qc
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Instalar dependencias
+        run: npm ci --no-audit --no-fund
+
+      - name: Preparar directorio temporal de fixtures
+        run: mkdir -p "$TMPDIR"
+
+      - name: qc-video-001 como proceso hijo (MP4 reales; negro > 2 s debe fallar)
+        run: node --import tsx --test scripts/qc-video-001.test.ts
+
+      - name: Regresión long-form-qc (blackdetect, ffprobe, silencios, report.json)
+        run: node --import tsx --test src/lib/video/long-form/long-form-qc.test.ts
+
+      - name: Verificar que no quedan fixtures (MP4/reportes) en el temporal
+        # Se excluye solo la caché de compilación de tsx (tsx-<uid>/), que no contiene fixtures.
+        run: |
+          leftovers="$(find "$TMPDIR" -mindepth 1 -not -path "$TMPDIR/tsx-*" -print)"
+          if [ -n "$leftovers" ]; then
+            echo "::error::quedaron fixtures temporales sin borrar:"
+            echo "$leftovers"
+            exit 1
+          fi
+          echo "sin fixtures residuales"
+
+      - name: Limpiar temporal
+        if: always()
+        run: rm -rf "$TMPDIR"
