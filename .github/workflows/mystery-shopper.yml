@@ -4,7 +4,7 @@ on:
     inputs:
       operation:
         type: choice
-        options: [prepare, preflight, run, inspect, readback, reconcile]
+        options: [prepare, preflight, run, inspect, readback, reconcile, repair]
         default: prepare
       target:
         type: string
@@ -108,3 +108,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node --import tsx scripts/mystery-shopper/reconcile-longform-not-started.mjs
+      - name: Repair one proven zero-charge QA envelope refusal after configuration alignment
+        if: inputs.operation == 'repair'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node --import tsx scripts/mystery-shopper/repair-qa-envelope-refusal.mjs
