@@ -1,4 +1,3 @@
-import {createClient} from '@supabase/supabase-js';
 const RUN = '45856688839';
 const REPO = 'hanzmo16-png/Atomivid';
 const ROOTS = ['mystery-shopper/private-focused-longform','mystery-shopper/private-final-readonly'];
@@ -23,6 +22,7 @@ export function sanitizeReceipt(raw) {
   };
 }
 async function main() {
+  const {createClient}=await import('@supabase/supabase-js');
   if (process.env.GITHUB_REPOSITORY !== REPO || !process.env.GITHUB_TOKEN || !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) throw Error('bindings unavailable');
   // Fixed exact run, read once. A running browser job cannot be inspected by this reader.
   const response = await fetch(`https://api.github.com/repos/${REPO}/actions/runs/${RUN}`,{headers:{authorization:`Bearer ${process.env.GITHUB_TOKEN}`,accept:'application/vnd.github+json'},redirect:'error',signal:AbortSignal.timeout(15000)});
