@@ -30,7 +30,7 @@ async function main() {
     receipt.screens.push({ name, width, surface, bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') });
   };
   const persist = async () => {
-    const result = await sb.storage.from('videos').upload(`${prefix}/receipt.json`, JSON.stringify({ ...receipt, createdAt: new Date().toISOString() }), { contentType: 'application/json', upsert: false });
+    const result = await sb.storage.from('videos').upload(`${prefix}/receipt.json`, JSON.stringify({ ...receipt, createdAt: new Date().toISOString() }), { contentType: 'application/json', upsert: false, metadata: { passed: receipt.passed, checkpoint: receipt.checkpoint, checks: receipt.checks, screenCount: receipt.screens.length } });
     if (result.error) throw Error('private receipt unavailable');
   };
   const browser = await chromium.launch({ headless: true });
@@ -52,6 +52,7 @@ async function main() {
       let consoleErrors = 0, pageErrors = 0;
       page.on('console', message => { if (message.type() === 'error') consoleErrors++; });
       page.on('pageerror', () => { pageErrors++; });
+      if (env.COMMERCIAL_AUTHENTICATED_ONLY !== '1') {
       receipt.checkpoint = 'public-signup';
       const signup = await page.goto(`${ORIGIN}/register`, { waitUntil: 'networkidle' });
       record('signup-form-public-get', signup?.status() === 200 && new URL(page.url()).pathname === '/register', width);
@@ -72,6 +73,8 @@ async function main() {
       record('signup-terms-privacy-links', await page.locator('a[href="/terms"]').count() > 0 && await page.locator('a[href="/privacy"]').count() > 0, width);
       await save(page, width, 'public-signup');
 
+      }
+
       receipt.checkpoint = 'existing-qa-login';
       phase = 'login';
       await page.goto(`${ORIGIN}/login`);
@@ -87,6 +90,8 @@ async function main() {
       record('mobile-dock-visible', await dock.isVisible(), width);
       record('library-link-resolves-existing-projects-anchor', await dock.getByRole('link', { name: 'Biblioteca', exact: true }).getAttribute('href') === '/dashboard#proyectos' && await page.locator('#proyectos').count() === 1, width);
       await dock.getByRole('link', { name: 'Biblioteca', exact: true }).click();
+      // Next Link updates the URL asynchronously; retain the exact path/hash contract after it settles.
+      await page.waitForURL(url => url.origin === ORIGIN && url.pathname === '/dashboard' && url.hash === '#proyectos', { timeout: 10000 });
       record('library-navigation-is-current-dashboard-anchor', new URL(page.url()).pathname === '/dashboard' && new URL(page.url()).hash === '#proyectos', width);
       const existingDetail = page.locator('a[href^="/dashboard/videos/"]').first();
       record('existing-library-detail-link-present', await existingDetail.count() === 1, width);
@@ -99,6 +104,7 @@ async function main() {
       receipt.checkpoint = 'billing-visible-state';
       await page.getByRole('link', { name: 'Mi plan', exact: true }).click();
       await page.waitForURL(url => url.origin === ORIGIN && url.pathname === '/dashboard/billing');
+      await page.getByRole('heading', { name: /^(Facturación|Tu plan de producción)$/ }).waitFor();
       const billingCommercial = commercialVisibility(await page.locator('body').innerText());
       record('billing-renders-plan-state-or-available-plans', billingCommercial.currentPlanVisible || billingCommercial.planOptionsVisible, width);
       record('billing-mobile-dock-stays-available', await page.getByTestId('mobile-dock').isVisible(), width);
