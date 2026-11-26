@@ -199,13 +199,6 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
-      - name: Conservar la salida de Long Form si la entrega falló
-        if: failure() && (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form')
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: long-form-output-${{ github.event.client_payload.requestId || inputs.request_id }}-${{ github.run_id }}
-          path: ${{ runner.temp }}/long-form-output/
-          if-no-files-found: ignore
-          retention-days: 7
-          compression-level: 0
+      # Private customer media must never be uploaded to GitHub artifacts.
+      # Canonical delivery and reusable paid assets remain in the private videos bucket.
+      # On delivery failure, local diagnostic output remains ephemeral; do not publish it.
