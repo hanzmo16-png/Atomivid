@@ -1,4 +1,4 @@
-name: Private AV admission only
+name: Private bounded AV customer journey
 on:
   workflow_dispatch:
     inputs:
@@ -27,6 +27,8 @@ jobs:
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      PODCAST_V3_APP_URL: https://atomivid.vercel.app
+      PODCAST_V3_QA_PILOT: '1'
       MS_TARGET: https://atomivid-ifh6x9b59-atomivid.vercel.app
       MS_ACCESS_KEY_ID: ${{ inputs.key_id }}
       MS_ACCESS_CIPHERTEXT: ${{ inputs.sealed_access }}
@@ -62,7 +64,7 @@ jobs:
           MS_QUOTE_RUN: ${{ inputs.quote_run }}
         run: node --import tsx scripts/mystery-shopper/private-av-budget-guard.mjs
       - id: create
-        name: Create free AV quote evaluation
+        name: Create one AV evaluation under the selected mode
         if: inputs.operation == 'preflight' || inputs.operation == 'run'
         env:
           MS_TARGET: https://atomivid.vercel.app
@@ -72,7 +74,7 @@ jobs:
         run: |
           umask 077
           node --import tsx scripts/mystery-shopper/manual-start.ts > "$RUNNER_TEMP/manual-private.log" 2>&1 || { echo 'Private evaluation blocked.'; exit 1; }
-      - name: Free UI AV quote without authorization
+      - name: Evaluate UI quote or execute one bounded confirmed AV journey
         if: inputs.operation == 'preflight' || inputs.operation == 'run'
         env:
           MS_JOB_ID: ${{ steps.create.outputs.job }}
@@ -82,7 +84,7 @@ jobs:
           MS_OUT_DIR: ${{ runner.temp }}/private-av
         run: |
           umask 077
-          node --import tsx scripts/mystery-shopper/worker.ts > "$RUNNER_TEMP/av-private.log" 2>&1 || { echo 'Quote evaluation blocked; private evidence only.'; exit 1; }
+          node --import tsx scripts/mystery-shopper/worker.ts > "$RUNNER_TEMP/av-private.log" 2>&1 || { echo 'AV evaluation blocked or failed; no automatic retry, private evidence only.'; exit 1; }
       - name: Save quote readback privately
         if: always() && (inputs.operation == 'preflight' || inputs.operation == 'run') && steps.create.outputs.job != ''
         env:
