@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { nativeIdentityProved, canonicalOutputReady } from "../../../../scripts/mystery-shopper/technical-observer-checks";
+import { nativeIdentityProved, canonicalOutputReady, canonicalContractObservation } from "../../../../scripts/mystery-shopper/technical-observer-checks";
 test("native exact job/request/checkout linkage cannot be replaced by another completed run", () => {
   const run = { path: ".github/workflows/render.yml", event: "repository_dispatch", head_sha: "sha" };
   const jobs = [{ name: "render" }], logs = ["2026-11-26 REQUEST_ID: new-request\nLONG_FORM_PROCESS_FINISHED: exit=0"];
@@ -8,6 +8,19 @@ test("native exact job/request/checkout linkage cannot be replaced by another co
   assert.equal(nativeIdentityProved({ ...run, head_sha: "other" }, jobs, logs, "new-request", "sha"), false);
   assert.equal(nativeIdentityProved(run, jobs, logs, "old-request", "sha"), false);
   assert.equal(nativeIdentityProved({ ...run, event: "workflow_dispatch" }, jobs, logs, "new-request", "sha"), false);
+});
+test("missing or mismatched canonical contract returns a blocked observation with actual probe and no locator", () => {
+  const missing = canonicalContractObservation({ id: "new" }, { unavailable: true }, NaN);
+  assert.equal(missing.status, "CANONICAL_CONTRACT_BLOCKED");
+  assert.equal(missing.failureCategory, "NATIVE_OUTPUT_JOURNAL_UNAVAILABLE");
+  assert.equal(missing.canonicalProbe, null);
+  const probe = { durationSeconds: 178.6, bytes: 1000 };
+  const mismatch = canonicalContractObservation({ id: "new" }, { status: "UPLOADED", delivered: probe }, 1000);
+  assert.equal(mismatch.status, "CANONICAL_CONTRACT_BLOCKED");
+  assert.equal(mismatch.failureCategory, "CANONICAL_METADATA_OR_QC_REJECTED");
+  assert.deepEqual(mismatch.canonicalProbe, probe);
+  assert.equal(mismatch.nativeOutputStatus, "UPLOADED");
+  assert.equal("signedUrl" in mismatch, false);
 });
 test("locator requires canonical native QC, full metrics and exact owner request path", () => {
   const row = { id: "new", status: "completed", mode: "long_form", duration_seconds: 180, render_attempts: 1, video_path: "new/output/final.mp4" };

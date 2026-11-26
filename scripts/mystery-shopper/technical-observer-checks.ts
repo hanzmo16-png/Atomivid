@@ -12,3 +12,9 @@ export function canonicalOutputReady(row: any, output: any, size: number): boole
     && probe.width > 0 && probe.height > 0 && Math.abs(probe.width / probe.height - 16 / 9) <= 0.02
     && probe.videoCodec === "h264" && probe.audioCodec === "aac";
 }
+export function canonicalContractObservation(row: any, output: any, size: number) {
+  const ready = canonicalOutputReady(row, output, size);
+  return { ready, status: ready ? "CANONICAL_CONTRACT_READY_FOR_HASH" : "CANONICAL_CONTRACT_BLOCKED",
+    failureCategory: ready ? null : (!output || output.unavailable ? "NATIVE_OUTPUT_JOURNAL_UNAVAILABLE" : "CANONICAL_METADATA_OR_QC_REJECTED"),
+    canonicalProbe: output?.delivered ?? null, nativeOutputStatus: output?.status ?? null };
+}

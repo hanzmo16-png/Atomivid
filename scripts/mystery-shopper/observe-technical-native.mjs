@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createHash } from 'node:crypto';
 import { snapshotSha } from './technical-long-form-rerender.ts';
 import { readTechnicalLedger } from './technical-run-policy.ts';
-import { nativeIdentityProved, canonicalOutputReady } from './technical-observer-checks.ts';
+import { nativeIdentityProved, canonicalContractObservation } from './technical-observer-checks.ts';
 
 async function main() {
   const e = process.env, id = e.MS_NEW_REQUEST_ID;
@@ -46,24 +46,40 @@ async function main() {
     try { journal[name] = await readJson(path); } catch { journal[name] = { unavailable: true }; }
   }
   receipt.journal = journal;
+  receipt.canonicalProbe = journal.output?.delivered ?? null;
   receipt.openOperationCount = operations.data.filter(op => !['COMMITTED', 'REFUNDED'].includes(op.status)).length;
   receipt.unverifiedCommittedCount = operations.data.filter(op => op.status === 'COMMITTED' && (op.committed_usd === null || !Number.isFinite(Number(op.committed_usd)) || Number(op.committed_usd) < 0)).length;
   receipt.unverifiedRefundCount = operations.data.filter(op => op.status === 'REFUNDED' && !/^(released:|reconciled:not_charged:|rejected:rejected_final:)/.test(op.result_ref ?? '')).length;
   if (receipt.workerClosed && run.conclusion === 'success' && receipt.exitMarkerFound && row.status === 'completed') {
+    let failureCategory = 'CANONICAL_LISTING_UNAVAILABLE';
+    try {
     const listed = await bucket.list(`${id}/output`, { limit: 100, search: 'final.mp4' });
     const object = listed.data?.find(file => file.name === 'final.mp4'), size = Number(object?.metadata?.size);
-    if (listed.error || listed.data.length >= 100 || !canonicalOutputReady(row, journal.output, size)) throw Error('completed canonical output metrics/QC not proved');
+    if (listed.error || !Array.isArray(listed.data) || listed.data.length >= 100) throw Error('canonical listing unavailable');
+    const observation = canonicalContractObservation(row, journal.output, size);
+    receipt.canonicalObjectBytes = Number.isFinite(size) ? size : null;
+    receipt.nativeRecordedSha256 = journal.output?.sha256 ?? null;
+    if (!observation.ready) { failureCategory = observation.failureCategory; throw Error('canonical contract rejected'); }
+    failureCategory = 'CANONICAL_DOWNLOAD_UNAVAILABLE';
     const file = await bucket.download(`${id}/output/final.mp4`);
     if (file.error || !file.data) throw Error('canonical MP4 unavailable');
     const bytes = Buffer.from(await file.data.arrayBuffer()), sha256 = createHash('sha256').update(bytes).digest('hex');
+    receipt.observedCanonicalSha256 = sha256; receipt.observedCanonicalBytes = bytes.length;
+    failureCategory = 'CANONICAL_HASH_OR_SIZE_MISMATCH';
     if (bytes.length !== size || sha256 !== journal.output.sha256) throw Error('canonical full-file hash or size mismatch');
+    failureCategory = 'CANONICAL_LOCATOR_UNAVAILABLE';
     const signed = await bucket.createSignedUrl(`${id}/output/final.mp4`, 300);
     if (signed.error || !signed.data?.signedUrl) throw Error('canonical locator unavailable');
     const url = new URL(signed.data.signedUrl), trusted = new URL(e.NEXT_PUBLIC_SUPABASE_URL);
+    failureCategory = 'CANONICAL_LOCATOR_BINDING_REJECTED';
     if (url.protocol !== 'https:' || url.origin !== trusted.origin || url.pathname !== `/storage/v1/object/sign/videos/${id}/output/final.mp4`) throw Error('locator host/path binding');
     receipt.canonicalSha256 = sha256; receipt.canonicalBytes = size; receipt.canonicalProbe = journal.output.delivered;
     receipt.signedUrl = url.href; receipt.locatorExpiresAt = Date.now() + 300_000;
     receipt.status = 'NATIVE_VERIFIED_LOCATOR_READY_PENDING_INDEPENDENT_QC_AND_COST_REVIEW';
+    } catch {
+      receipt.status = 'CANONICAL_CONTRACT_BLOCKED'; receipt.failureCategory = failureCategory;
+      delete receipt.signedUrl; delete receipt.locatorExpiresAt;
+    }
   }
   const statusCounts = {}, providerJournal = {};
   for (const op of operations.data) {
@@ -75,9 +91,10 @@ async function main() {
     else if (op.status !== 'REFUNDED' || !/^(released:|reconciled:not_charged:|rejected:rejected_final:)/.test(op.result_ref ?? '')) summary.pendingReservedUsd += Number(op.reserved_usd ?? 0);
   }
   // Keep headers small: full durable journals stay in the private object body, not upload metadata headers.
-  const metadata = { scope: receipt.scope, status: receipt.status, requestId: id, ownerVerified: true, nativeRunId: receipt.nativeRunId, nativeHeadSha: receipt.nativeHeadSha, nativeStatus: receipt.nativeStatus, nativeConclusion: receipt.nativeConclusion, workerClosed: receipt.workerClosed, exitMarkerFound: receipt.exitMarkerFound, requestStatus: row.status, stage: row.long_form_stage, attempts: row.render_attempts, operationStatusCounts: statusCounts, providerJournal, generationCosts: costs.data, openOperationCount: receipt.openOperationCount, unverifiedRefundCount: receipt.unverifiedRefundCount, unverifiedCommittedCount: receipt.unverifiedCommittedCount, reservedUsd: receipt.reservedUsd, settlementPresent: receipt.settlementPresent, requestBudgetCeilingUsd: journal.requestBudget?.ceilingUsd ?? null, productionBudgetUsed: journal.productionBudget?.used ?? null, outputStatus: journal.output?.status ?? null, nativeBlackQc: journal.output?.nativeBlackQc ?? null, canonicalSha256: receipt.canonicalSha256 ?? null, canonicalBytes: receipt.canonicalBytes ?? null, canonicalProbe: receipt.canonicalProbe ?? null, signedUrl: receipt.signedUrl ?? null, locatorExpiresAt: receipt.locatorExpiresAt ?? null, noSettlementWritten: true, paidCalls: 0 };
+  const metadata = { scope: receipt.scope, status: receipt.status, failureCategory: receipt.failureCategory ?? null, nativeRecordedSha256: receipt.nativeRecordedSha256 ?? null, canonicalObjectBytes: receipt.canonicalObjectBytes ?? null, observedCanonicalSha256: receipt.observedCanonicalSha256 ?? null, observedCanonicalBytes: receipt.observedCanonicalBytes ?? null, requestId: id, ownerVerified: true, nativeRunId: receipt.nativeRunId, nativeHeadSha: receipt.nativeHeadSha, nativeStatus: receipt.nativeStatus, nativeConclusion: receipt.nativeConclusion, workerClosed: receipt.workerClosed, exitMarkerFound: receipt.exitMarkerFound, requestStatus: row.status, stage: row.long_form_stage, attempts: row.render_attempts, operationStatusCounts: statusCounts, providerJournal, generationCosts: costs.data, openOperationCount: receipt.openOperationCount, unverifiedRefundCount: receipt.unverifiedRefundCount, unverifiedCommittedCount: receipt.unverifiedCommittedCount, reservedUsd: receipt.reservedUsd, settlementPresent: receipt.settlementPresent, requestBudgetCeilingUsd: journal.requestBudget?.ceilingUsd ?? null, productionBudgetUsed: journal.productionBudget?.used ?? null, outputStatus: journal.output?.status ?? null, nativeBlackQc: journal.output?.nativeBlackQc ?? null, canonicalSha256: receipt.canonicalSha256 ?? null, canonicalBytes: receipt.canonicalBytes ?? null, canonicalProbe: receipt.canonicalProbe ?? null, signedUrl: receipt.signedUrl ?? null, locatorExpiresAt: receipt.locatorExpiresAt ?? null, noSettlementWritten: true, paidCalls: 0 };
   const saved = await bucket.upload(`mystery-shopper/v3/receipts/technical-native-observer-${e.GITHUB_RUN_ID}.json`, JSON.stringify(receipt), { contentType: 'application/json', upsert: false, metadata });
   if (saved.error) throw Error('private observation receipt unavailable');
+  if (receipt.status === 'CANONICAL_CONTRACT_BLOCKED') process.exitCode = 1;
   console.log('Bounded free native journal/locator observation saved privately. No URL, media, expense or settlement in GitHub output.');
 }
 main().catch(() => { console.error('Private native observation blocked; no generation, retry or settlement sent.'); process.exitCode = 1; });
