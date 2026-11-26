@@ -7,6 +7,8 @@
 #  - pull_request: pruebas del módulo y E2E autenticado en el arnés local (cuenta QA local, USD 0).
 name: Mystery Shopper AI
 on:
+  schedule:
+    - cron: "17,47 * * * *"
   repository_dispatch:
     types: [mystery-shopper-run]
   deployment_status:
@@ -15,7 +17,7 @@ on:
       operation:
         description: Evaluar gratis, diagnosticar QA o ejecutar campaña autorizada con topes
         type: choice
-        options: [evaluate, qa-preflight, observe-reel, campaign-real]
+        options: [evaluate, qa-preflight, observe-reel, campaign-real, quality-loop]
         default: evaluate
       audio_project_id:
         description: Episodio QA existente sin gasto para recuperar configuración sin duplicarlo
@@ -100,7 +102,7 @@ jobs:
   # Un único grupo serializa toda la campaña para impedir gasto paralelo del mismo ledger.
   evaluar:
     environment: Preview
-    if: github.event_name == 'repository_dispatch' || (github.event_name == 'workflow_dispatch' && inputs.operation != 'qa-preflight' && inputs.operation != 'observe-reel')
+    if: github.event_name == 'repository_dispatch' || (github.event_name == 'workflow_dispatch' && inputs.operation != 'qa-preflight' && inputs.operation != 'observe-reel' && inputs.operation != 'quality-loop')
     runs-on: ubuntu-24.04
     timeout-minutes: 100
     concurrency:
@@ -156,58 +158,79 @@ jobs:
           path: ${{ runner.temp }}/ms
           if-no-files-found: ignore
 
-  # CI aprobado + Preview listo → misiones automáticas (gratuitas) contra ese Preview.
-  automatico:
-    # Crea trabajos en el Storage de producción: solo corre si Hans activa la variable del repositorio
-    # MYSTERY_SHOPPER_AUTO=1 (Settings → Variables). Sin ella, este job se omite.
-    if: github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success' && vars.MYSTERY_SHOPPER_AUTO == '1'
+  # Periodic and post-deployment entrypoint. No production Storage jobs or paid work.
+  quality-loop:
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.operation == 'quality-loop') ||
+      (github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment == 'Production' &&
+       github.event.deployment.ref == github.event.repository.default_branch)
+    environment: Preview
     runs-on: ubuntu-24.04
-    timeout-minutes: 75
+    timeout-minutes: 15
     concurrency:
-      group: mystery-shopper-auto-${{ github.event.deployment.sha }}
+      group: mystery-shopper-quality-loop
       cancel-in-progress: false
+    permissions:
+      contents: write
+      issues: write
     steps:
       - uses: actions/checkout@v4
+        with: { persist-credentials: false }
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
-      - run: npm ci --no-audit --no-fund
-      - name: Validar el evento y crear los trabajos
-        id: crear
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Browser only, no provider SDK or financial credentials
+        run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.49.1 && npx playwright install --with-deps chromium
+      - name: Checkout y recuperación en fixtures aisladas (sin Stripe ni producción)
+        run: node --import tsx --test src/lib/billing/checkout.test.ts src/lib/billing/checkout-error.test.ts src/lib/auth/recovery.test.ts src/lib/auth/recovery-flow.test.ts src/lib/mystery-shopper/v3/start-response.test.ts
+      - name: Recorrido periódico no mutante
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          MS_EVENT_REPO: ${{ github.event.repository.full_name }}
-          MS_EVENT_STATE: ${{ github.event.deployment_status.state }}
-          MS_EVENT_ENVIRONMENT: ${{ github.event.deployment.environment }}
-          MS_EVENT_SHA: ${{ github.event.deployment.sha }}
-          MS_EVENT_URL: ${{ github.event.deployment_status.environment_url || github.event.deployment_status.target_url }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          MYSTERY_SHOPPER_AUTO: ${{ vars.MYSTERY_SHOPPER_AUTO }}
-        run: npx tsx scripts/mystery-shopper/ci-start.ts
-      - if: steps.crear.outputs.jobs != '' && steps.crear.outputs.jobs != '[]'
-        run: npm install --no-save --no-audit --no-fund playwright@1.49.1 && npx playwright install --with-deps chromium
-      - name: Recorridos
-        if: steps.crear.outputs.jobs != '' && steps.crear.outputs.jobs != '[]'
-        env:
-          JOBS: ${{ steps.crear.outputs.jobs }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Explicit activation requested by Hans 26-Nov. Repo variable 0 and admin state STOP both stop it.
+          MYSTERY_SHOPPER_AUTO: ${{ vars.MYSTERY_SHOPPER_AUTO || '1' }}
           MYSTERY_SHOPPER_QA_EMAIL: ${{ secrets.MYSTERY_SHOPPER_QA_EMAIL }}
           MYSTERY_SHOPPER_QA_PASSWORD: ${{ secrets.MYSTERY_SHOPPER_QA_PASSWORD }}
-          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
-          MS_WORKER_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          MS_OUT_DIR: ${{ runner.temp }}/ms
-        run: |
-          for id in $(node -e 'for (const j of JSON.parse(process.env.JOBS)) console.log(j)'); do
-            MS_JOB_ID="$id" npx tsx scripts/mystery-shopper/worker.ts || echo "::warning::$id terminó con error"
-          done
+          AQL_TRIGGER: ${{ github.event_name }}
+          AQL_PUBLIC_REPO: ${{ !github.event.repository.private }}
+          AQL_EXPECTED_SHA: ${{ github.event.deployment.sha }}
+          AQL_DEPLOYMENT_ID: ${{ github.event.deployment.id }}
+          AQL_DEPLOYMENT_STATE: ${{ github.event.deployment_status.state }}
+          MS_TARGET_URL: https://atomivid.vercel.app
+          MS_OUT_DIR: ${{ runner.temp }}/quality-loop
+        run: node --import tsx scripts/mystery-shopper/quality-loop/run.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: mystery-shopper-auto-${{ github.event.deployment.sha }}
-          retention-days: 30
-          path: ${{ runner.temp }}/ms
-          if-no-files-found: ignore
+          name: quality-loop-${{ github.run_id }}
+          path: ${{ runner.temp }}/quality-loop
+          if-no-files-found: warn
+          retention-days: 1
+
+  quality-loop-drive:
+    needs: quality-loop
+    if: always() && needs.quality-loop.result != 'skipped' && github.ref_name == github.event.repository.default_branch
+    environment: orchestrator
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    concurrency:
+      group: quality-loop-drive-mirror
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Copia y encargos en Drive, con lectura de vuelta
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          AQL_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: node --import tsx scripts/mystery-shopper/quality-loop/mirror.ts
 
   # Pruebas del módulo + E2E autenticado en el arnés local (ATOMIVID de este SHA, cuenta QA local, USD 0).
   pruebas:
@@ -231,6 +254,12 @@ jobs:
           sudo systemctl stop postgresql || true
           echo "PG_BIN=/usr/lib/postgresql/17/bin" >> "$GITHUB_ENV"
       - run: npm ci --no-audit --no-fund
+      - name: Quality loop regression and controlled browser cycle (isolated fixtures)
+        run: |
+          node --import tsx --test src/lib/mystery-shopper/quality-loop/*.test.ts
+          npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.49.1
+          npx playwright install --with-deps chromium
+          node --import tsx --test scripts/mystery-shopper/quality-loop/*.test.ts
       - name: Pruebas unitarias del módulo
         run: node --import tsx --test --test-concurrency=1 src/lib/mystery-shopper/ms2.test.ts src/lib/mystery-shopper/mystery-shopper.test.ts src/lib/mystery-shopper/media.test.ts src/app/dashboard/command-center/mystery-shopper/panel.test.tsx
       - name: Regresiones de campañas y autenticación QA
