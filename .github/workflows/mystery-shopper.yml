@@ -4,7 +4,7 @@ on:
     inputs:
       operation:
         type: choice
-        options: [prepare, preflight, run, inspect, reconcile, repair, material, material_apply, material_inspect, delivery_locator, editorial_confirm]
+        options: [prepare, preflight, run, inspect, reconcile, repair, material, material_apply, material_inspect, delivery_locator, editorial_confirm, persist_probe]
         default: prepare
       target:
         type: string
@@ -128,3 +128,10 @@ jobs:
           umask 077
           node --import tsx scripts/mystery-shopper/qa-weather-confirm.mjs > "$RUNNER_TEMP/editorial-private.log" 2>&1 || { echo 'Editorial confirmation blocked; no render or provider spend.'; exit 1; }
           echo 'QA review and standard confirmation recorded privately; no render or paid call.'
+
+      - name: Diagnose saved-script CAS via read-only requests
+        if: inputs.operation == 'persist_probe'
+        run: |
+          umask 077
+          node scripts/mystery-shopper/qa-persistence-probe.mjs > "$RUNNER_TEMP/persistence-private.log" 2>&1 || { echo 'Persistence diagnosis blocked.'; exit 1; }
+          echo 'Read-only persistence receipt stored privately.'
