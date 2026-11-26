@@ -1,4 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync, statSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
 import test from 'node:test';import assert from 'node:assert/strict';import{githubActionsQaWorker as githubActionsWorker}from'./github-actions-qa';import{getRenderWorker}from'./index';import{githubActionsWorker as standardWorker}from'./github-actions';
 const keys=['GH_WORKER_TOKEN','GH_WORKER_REPO','VERCEL_ENV','GH_WORKER_QA_REF','VERCEL']as const;
 async function scenario(env:Record<string,string>,fn:(calls:{url:string;body:Record<string,unknown>|null}[])=>Promise<void>,privatePolicy=true){const old={...process.env},fetch=global.fetch,calls:{url:string;body:Record<string,unknown>|null}[]=[];for(const k of keys)delete process.env[k];Object.assign(process.env,{GH_WORKER_TOKEN:'synthetic',GH_WORKER_REPO:'fixture/repo',...env});global.fetch=(async(u,init)=>{const url=String(u);calls.push({url,body:init?.body?JSON.parse(String(init.body)):null});if(url.includes('/contents/'))return Response.json({encoding:'base64',content:Buffer.from('# LONG_FORM_RENDER_TIMEOUT_PROTOCOL=1\nLONG_FORM_RENDER_JOB_TIMEOUT_MIN:\n'+(privatePolicy?'# PRIVATE_LONG_FORM_FAILURE_PROTOCOL=1':'')).toString('base64')});return new Response(null,{status:204});})as typeof global.fetch;try{await fn(calls);}finally{global.fetch=fetch;for(const k of keys){if(old[k]===undefined)delete process.env[k];else process.env[k]=old[k];}}}
@@ -17,4 +20,35 @@ test('default render workflow cannot export private failed customer media to Git
  assert.doesNotMatch(workflow,/uses:\s*actions\/upload-artifact/);
  assert.match(workflow,/LONG_FORM_OUTPUT_KEEP_DIR/);
  assert.match(workflow,/scripts\/render-worker/);
+});
+
+// Executes only the workflow shell wrapper with a synthetic child, never a render.
+for (const code of [0, 37]) test(`Long Form wrapper keeps both streams private and preserves exit ${code}`, () => {
+ const workflow = readFileSync('.github/workflows/render.yml', 'utf8');
+ const block = workflow.split('      - name: Renderizar video\n')[1].split('        env:\n')[0];
+ assert.doesNotMatch(block, /continue-on-error/);
+ const shell = block.split('        run: |\n')[1].split('\n').map(line => line.replace(/^          /, '')).join('\n');
+ const dir = mkdtempSync(join(tmpdir(), 'long-form-wrapper-'));
+ try {
+  // These strings are synthetic sentinels, with no account or provider data.
+  const child = `node -e 'console.log("SYNTHETIC_PRIVATE_STDOUT"); console.error("SYNTHETIC_PRIVATE_STDERR"); process.exit(${code})'`;
+  const controlled = shell.replaceAll('npx tsx scripts/render-worker.ts', child);
+  const result = spawnSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', '-c', controlled], {
+   env: { ...process.env, RENDER_MODE: 'long_form', RUNNER_TEMP: dir }, encoding: 'utf8',
+  });
+  assert.ifError(result.error);
+  assert.equal(result.status, code);
+  assert.equal(result.stdout, `LONG_FORM_PROCESS_FINISHED: exit=${code}; details remain private.\n`);
+  assert.equal(result.stderr, '');
+  const log = join(dir, 'long-form-private.log');
+  assert.equal(statSync(log).mode & 0o777, 0o600);
+  assert.equal(readFileSync(log, 'utf8'), 'SYNTHETIC_PRIVATE_STDOUT\nSYNTHETIC_PRIVATE_STDERR\n');
+  const reel = spawnSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', '-c', controlled], {
+   env: { ...process.env, RENDER_MODE: 'visual', RUNNER_TEMP: dir }, encoding: 'utf8',
+  });
+  assert.ifError(reel.error);
+  assert.equal(reel.status, code);
+  assert.equal(reel.stdout, 'SYNTHETIC_PRIVATE_STDOUT\n');
+  assert.equal(reel.stderr, 'SYNTHETIC_PRIVATE_STDERR\n');
+ } finally { rmSync(dir, { recursive: true, force: true }); }
 });
