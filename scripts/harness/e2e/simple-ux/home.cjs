@@ -48,7 +48,7 @@ const overflow = (p) => p.evaluate(() => document.documentElement.scrollWidth - 
       await home();
       await p.screenshot({ path: path.join(OUT, `${dev}-01-portada.png`), fullPage: true });
       const root = p.getByTestId("crear-inicio");
-      check(`[${dev}] pregunta «¿Qué quieres crear hoy?»`, (await root.getByRole("heading", { level: 1 }).innerText()).includes("¿Qué quieres crear hoy?"));
+      check(`[${dev}] pregunta «¿Qué quieres crear hoy?»`, (await root.getByRole("heading", { level: 2 }).first().innerText()).includes("¿Qué quieres crear hoy?"));
       const titles = (await root.locator('[role="radio"]').allInnerTexts()).map((t) => t.split("\n")[0]);
       check(`[${dev}] solo tres opciones: Reel, Podcast y Video de YouTube`, titles.join("|") === "Reel|Podcast|Video de YouTube", titles);
       check(`[${dev}] campo «Describe tu idea…»`, (await p.getByTestId("crear-idea").getAttribute("placeholder")) === "Describe tu idea…");
