@@ -76,3 +76,9 @@ test('unverified egress cannot be consumed by periodic/deployment media probes; 
  assert.equal(allowMediaProbe('workflow_dispatch',false),true);assert.equal(allowMediaProbe('fixture',true),true);
  assert.throws(()=>targetOrigin('https://atomivid.vercel.app',true),/LOCAL/);
 });
+
+test('QA credentials cannot be routed to a lookalike Vercel project or alternate production port',()=>{
+ for(const url of ['https://atomivid-attacker.vercel.app','https://atomivid.vercel.app:8443','ftp://localhost'])assert.throws(()=>targetOrigin(url,url.startsWith('ftp:')));
+ assert.equal(targetOrigin('https://atomivid.vercel.app'),'https://atomivid.vercel.app');
+ assert.equal(targetOrigin('http://127.0.0.1:1234',true),'http://127.0.0.1:1234');
+});

@@ -1,7 +1,7 @@
 /** Default-deny boundary: no generation, no checkout, no data mutations. */
 export function targetOrigin(value: string, fixture = false): string {
   const u=new URL(value);
-  if (u.username || u.password || u.search || u.hash || u.pathname !== '/' || (!fixture && (u.protocol!=='https:' || !/^(atomivid(-[a-z0-9-]+)?\.vercel\.app|atomicvid\.app)$/.test(u.hostname)))) throw new Error('TARGET_NOT_ALLOWED');
+  if (u.username || u.password || u.search || u.hash || u.pathname !== '/' || !['http:','https:'].includes(u.protocol) || (!fixture && !['https://atomivid.vercel.app','https://atomicvid.app'].includes(u.origin))) throw new Error('TARGET_NOT_ALLOWED');
   if(fixture && !['127.0.0.1','localhost'].includes(u.hostname))throw new Error('FIXTURE_MUST_BE_LOCAL');
   return u.origin;
 }
