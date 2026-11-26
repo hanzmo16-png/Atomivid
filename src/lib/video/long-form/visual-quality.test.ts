@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import type { FootageCandidate, FootageProvider } from "@/lib/providers/types";
 import { DocumentAssetRegistry, canonicalizeUrl, dhashImage, hammingHex, PERCEPTUAL_DUPLICATE_MAX_DISTANCE } from "./asset-identity";
 import { assessRelevance, selectStockForShot, selectionQueries } from "./stock-selection";
@@ -469,7 +470,7 @@ test("señal visual por defecto en VIDEO: un MP4 negro generado localmente se re
   const { join } = await import("node:path");
   const dir = mkdtempSync(join(tmpdir(), "lf-signal-"));
   try {
-    const mk = (name: string, src: string) => { const f = join(dir, name); execFileSync("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i", src, "-t", "4", "-pix_fmt", "yuv420p", f]); return readFileSync(f); };
+    const mk = (name: string, src: string) => { const f = join(dir, name); execFileSync(ffmpegInstaller.path, ["-v", "error", "-y", "-f", "lavfi", "-i", src, "-t", "4", "-pix_fmt", "yuv420p", f]); return readFileSync(f); };
     const black = mk("black.mp4", "color=c=black:s=160x90:r=10"), bars = mk("bars.mp4", "testsrc=s=160x90:r=10");
     const vid = (id: string): FootageCandidate => ({ url: `https://cdn.example/${id}.mp4`, sourceId: id, description: "storm clouds condensing over mountains", mediaType: "video", mimeType: "video/mp4", extension: "mp4", durationSeconds: 4 });
     const p: FootageProvider & { searches: string[]; downloads: string[] } = { ...provider({ bytes: (u) => (u.includes("v-black") ? black : bars) }), async searchVideoCandidates() { return [vid("v-black"), vid("v-bars")]; } };

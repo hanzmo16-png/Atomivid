@@ -21,6 +21,7 @@
  *   nunca material ajeno en silencio.
  */
 import type { FootageCandidate, FootageProvider } from "@/lib/providers/types";
+import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import { requiresEvidence, requiresIdentity, type BeatVisual } from "./visual-intents";
 import { canonicalizeUrl, contentIdentity, type AssetIdentity, type DocumentAssetRegistry, type DuplicateMatch } from "./asset-identity";
 
@@ -467,7 +468,7 @@ async function videoFrameAt(buffer: Buffer, at: number): Promise<Buffer> {
     const input = join(dir, "in.mp4");
     await writeFile(input, buffer);
     return await new Promise<Buffer>((resolve, reject) => {
-      const proc = spawn("ffmpeg", ["-v", "error", "-ss", at.toFixed(2), "-i", input, "-frames:v", "1", "-f", "image2pipe", "-vcodec", "png", "pipe:1"]);
+      const proc = spawn(ffmpegInstaller.path, ["-v", "error", "-ss", at.toFixed(2), "-i", input, "-frames:v", "1", "-f", "image2pipe", "-vcodec", "png", "pipe:1"]);
       const chunks: Buffer[] = [];
       const timer = setTimeout(() => proc.kill("SIGKILL"), 20_000);
       proc.stdout.on("data", (c: Buffer) => chunks.push(c));
