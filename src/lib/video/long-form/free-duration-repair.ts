@@ -27,6 +27,31 @@ export function assertPrivateCanonicalUrl(signedUrl: string, supabaseUrl: string
   if (url.protocol !== "https:" || url.origin !== origin.origin || url.username || url.password || url.hash
     || url.pathname !== `/storage/v1/object/sign/videos/${REPAIR_REQUEST_ID}/output/final.mp4` || !url.searchParams.get("token")) throw new Error("private_canonical_url_mismatch");
 }
+export type CachedRepairValidation = {
+  status: "VALIDATED_NOT_APPLIED"; requestId: string; proofSha256: string; originalSha256: string;
+  candidateSha256: string; candidatePath: string; bytes: number; metrics: Awaited<ReturnType<typeof probeRepairMedia>>;
+  beforeSnapshotSha256: string; target: 180; runId: string;
+};
+export async function loadApprovedCachedCandidate(input: { receiptPath: string; receiptSha256: string; approvedCandidateSha256: string; proofSha256: string; beforeSnapshotSha256: string }, download: (path: string) => Promise<Buffer>) {
+  const prefix = `${REPAIR_REQUEST_ID}/state/free-duration-repair-v1`;
+  if (!input.receiptPath.startsWith(`${prefix}/validation-`) || !/^[0-9]+\.json$/.test(input.receiptPath.slice(`${prefix}/validation-`.length))
+    || !/^[a-f0-9]{64}$/.test(input.receiptSha256) || !/^[a-f0-9]{64}$/.test(input.approvedCandidateSha256)) throw new Error("approved_validation_receipt_required");
+  const raw = await download(input.receiptPath);
+  if (hash(raw) !== input.receiptSha256) throw new Error("validation_receipt_hash_mismatch");
+  const receipt = JSON.parse(raw.toString()) as CachedRepairValidation;
+  if (receipt.status !== "VALIDATED_NOT_APPLIED" || receipt.requestId !== REPAIR_REQUEST_ID || receipt.originalSha256 !== ORIGINAL_SHA256
+    || receipt.proofSha256 !== input.proofSha256 || receipt.beforeSnapshotSha256 !== input.beforeSnapshotSha256 || receipt.target !== 180
+    || receipt.candidateSha256 !== input.approvedCandidateSha256 || receipt.candidatePath !== `${prefix}/candidate-${input.approvedCandidateSha256}.mp4`
+    || !(receipt.bytes > 0 && receipt.bytes <= ORIGINAL_BYTES)) throw new Error("validated_candidate_binding_mismatch");
+  const bytes = await download(receipt.candidatePath);
+  if (bytes.length !== receipt.bytes || hash(bytes) !== input.approvedCandidateSha256) throw new Error("cached_candidate_tampered");
+  return { receipt, bytes };
+}
+export function assertPrivateCandidateUrl(signedUrl: string, supabaseUrl: string, candidateSha256: string): void {
+  const url = new URL(signedUrl), origin = new URL(supabaseUrl);
+  if (!/^[a-f0-9]{64}$/.test(candidateSha256) || url.protocol !== "https:" || url.origin !== origin.origin || url.username || url.password || url.hash
+    || url.pathname !== `/storage/v1/object/sign/videos/${REPAIR_REQUEST_ID}/state/free-duration-repair-v1/candidate-${candidateSha256}.mp4` || !url.searchParams.get("token")) throw new Error("private_candidate_url_mismatch");
+}
 export type PreservationProof = {
   version: 1; requestId: string; qaOwnerId: string; rootOwnerLogin: string;
   originalSha256: string; originalBytes: number; nativeRunId: number;

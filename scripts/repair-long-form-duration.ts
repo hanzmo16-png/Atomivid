@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { createServiceClient } from "../src/lib/supabase/service";
 import { supabaseOutputDeps, canonicalOutputPath, type LongFormOutputState } from "../src/lib/video/long-form/output-finalize";
-import { assertRepairCandidateSize, assertPrivateCanonicalUrl, assertProof, ORIGINAL_BYTES, ORIGINAL_SHA256, NATIVE_RUN_ID, REPAIR_REQUEST_ID, ROOT_DRIVE_RECEIPT_SHA256, createDurationRepair, applyDurationRepair, hash, stableJson, type PreservationProof } from "../src/lib/video/long-form/free-duration-repair";
+import { loadApprovedCachedCandidate, assertPrivateCandidateUrl, probeRepairMedia, type CachedRepairValidation, assertRepairCandidateSize, assertPrivateCanonicalUrl, assertProof, ORIGINAL_BYTES, ORIGINAL_SHA256, NATIVE_RUN_ID, REPAIR_REQUEST_ID, ROOT_DRIVE_RECEIPT_SHA256, createDurationRepair, applyDurationRepair, hash, stableJson, type PreservationProof } from "../src/lib/video/long-form/free-duration-repair";
 
 let privateFailure: ((message: string) => Promise<void>) | undefined;
 async function main() {
@@ -81,17 +81,40 @@ async function main() {
   }
   const before = await snapshot();
   await fs.writeFile(path.join(dir, "before-private.json"), stableJson({ state, snapshot: before, proofHash }));
-  const media = await createDurationRepair(original, candidate, 180);
-  assertRepairCandidateSize((await fs.stat(candidate)).size, finalDeps.storageMaxBytes);
-  await fs.writeFile(path.join(dir, "candidate-qc.json"), JSON.stringify(media, null, 2));
+  let media: Awaited<ReturnType<typeof createDurationRepair>>;
   if (mode === "validate") {
-    const validation = { status: "VALIDATED_NOT_APPLIED", proofSha256: proofHash, originalSha256: ORIGINAL_SHA256, candidateSha256: media.candidateHash,
-      bytes: (await fs.stat(candidate)).size, metrics: media.after, beforeSnapshotSha256: hash(stableJson(before)), runId: env.GITHUB_RUN_ID };
-    await immutable(`${prefix}/validation-${env.GITHUB_RUN_ID}.json`, Buffer.from(stableJson(validation)), validation);
-    console.log("Private candidate validated without canonical mutation.");
+    // Encoding is confined to validation. Apply consumes the exact root-approved cached bytes.
+    media = await createDurationRepair(original, candidate, 180);
+    const bytes = await fs.readFile(candidate);
+    assertRepairCandidateSize(bytes.length, finalDeps.storageMaxBytes);
+    const candidatePath = `${prefix}/candidate-${media.candidateHash}.mp4`;
+    const { data: existing, error: listError } = await storage.list(prefix, { limit: 100, search: "candidate-" });
+    if (listError || (existing ?? []).some(x => x.name.startsWith("candidate-") && x.name !== `candidate-${media.candidateHash}.mp4`)) throw new Error("single_candidate_cache_already_exists_NO_REENCODE_RETRY");
+    if (!(existing ?? []).some(x => x.name === `candidate-${media.candidateHash}.mp4`)) {
+      const { error } = await storage.upload(candidatePath, bytes, { upsert: false, contentType: "video/mp4", metadata: { status: "CACHED_NOT_APPLIED", candidateSha256: media.candidateHash, proofSha256: proofHash, bytes: bytes.length } });
+      if (error) throw new Error("candidate_cache_write_ambiguous_NO_RETRY");
+    }
+    const cached = await download(candidatePath);
+    if (cached.length !== bytes.length || hash(cached) !== media.candidateHash) throw new Error("candidate_cache_readback_failed");
+    const validation: CachedRepairValidation = { status: "VALIDATED_NOT_APPLIED", requestId, proofSha256: proofHash, originalSha256: ORIGINAL_SHA256,
+      candidateSha256: media.candidateHash, candidatePath, bytes: bytes.length, metrics: media.after,
+      beforeSnapshotSha256: hash(stableJson(before)), target: 180, runId: env.GITHUB_RUN_ID! };
+    const validationBytes = Buffer.from(stableJson(validation));
+    const signed = await storage.createSignedUrl(candidatePath, 300);
+    if (signed.error || !signed.data?.signedUrl) throw new Error("private_candidate_url_failed");
+    assertPrivateCandidateUrl(signed.data.signedUrl, env.NEXT_PUBLIC_SUPABASE_URL ?? "", media.candidateHash);
+    await immutable(`${prefix}/validation-${env.GITHUB_RUN_ID}.json`, validationBytes, { ...validation,
+      validationReceiptSha256: hash(validationBytes), signedUrl: signed.data.signedUrl, signedUrlExpiresAt: new Date(Date.now() + 300_000).toISOString() });
+    console.log("Exact private candidate cached and validated without canonical mutation.");
     return;
   }
-  if (env.APPROVED_CANDIDATE_SHA256 !== media.candidateHash) throw new Error("explicit_validated_candidate_hash_required");
+  const cached = await loadApprovedCachedCandidate({ receiptPath: env.VALIDATION_RECEIPT_PATH ?? "", receiptSha256: env.VALIDATION_RECEIPT_SHA256 ?? "",
+    approvedCandidateSha256: env.APPROVED_CANDIDATE_SHA256 ?? "", proofSha256: proofHash, beforeSnapshotSha256: hash(stableJson(before)) }, download);
+  await fs.writeFile(candidate, cached.bytes);
+  assertRepairCandidateSize(cached.bytes.length, finalDeps.storageMaxBytes);
+  const beforeMedia = await probeRepairMedia(original), afterMedia = await probeRepairMedia(candidate);
+  // No encoder here: the existing finalizer independently probes and black-checks these approved bytes.
+  media = { before: beforeMedia, after: afterMedia, originalHash: ORIGINAL_SHA256, candidateHash: cached.receipt.candidateSha256, target: 180 };
   const result = await applyDurationRepair({ requestId, original, candidate, proofHash, state, candidateHash: media.candidateHash }, {
     finalize: {
       ...finalDeps,
@@ -102,7 +125,7 @@ async function main() {
       },
     },
     canonicalHash: async () => hash(await download(objectPath)), snapshot,
-    createIntent: async intent => immutable(`${prefix}/intent.json`, Buffer.from(stableJson(intent))),
+    createIntent: async intent => immutable(`${prefix}/intent.json`, Buffer.from(stableJson({ ...(intent as Record<string, unknown>), validationReceiptPath: env.VALIDATION_RECEIPT_PATH, validationReceiptSha256: env.VALIDATION_RECEIPT_SHA256 }))),
     preserve: async (_source, _output, originalState: LongFormOutputState) => {
       // Original media already preserved and independently verified in private Drive.
       // No duplicate original/candidate binary objects consume unknown plan headroom.
@@ -112,7 +135,7 @@ async function main() {
   const after = await snapshot();
   const afterState = await finalDeps.readState(requestId);
   if (afterState?.costsRecorded !== true || afterState.sha256 !== media.candidateHash || afterState.attempt !== 1) throw new Error("repair_state_readback_failed_NO_RETRY");
-  const receipt = { lineage: result.lineage, beforeSha256: result.beforeHash, afterSha256: hash(stableJson(after)), afterSnapshot: after, afterState, media };
+  const receipt = { validationReceiptPath: env.VALIDATION_RECEIPT_PATH, validationReceiptSha256: env.VALIDATION_RECEIPT_SHA256, lineage: result.lineage, beforeSha256: result.beforeHash, afterSha256: hash(stableJson(after)), afterSnapshot: after, afterState, media };
   const candidateBytes = (await fs.stat(candidate)).size;
   const signed = await storage.createSignedUrl(objectPath, 300);
   if (signed.error || !signed.data?.signedUrl) throw new Error("postreadback_private_url_failed_NO_RETRY");

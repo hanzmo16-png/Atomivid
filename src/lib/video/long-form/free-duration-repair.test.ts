@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 import ffmpeg from "@ffmpeg-installer/ffmpeg";
 import { memoryOutputDeps, type LongFormOutputState } from "./output-finalize";
 import { sha256File } from "./output-media";
-import { assertPrivateCanonicalUrl, assertProof, createDurationRepair, applyDurationRepair, ORIGINAL_SHA256, ORIGINAL_BYTES, ROOT_DRIVE_RECEIPT_SHA256, REPAIR_REQUEST_ID, NATIVE_RUN_ID, type PreservationProof } from "./free-duration-repair";
+import { loadApprovedCachedCandidate, assertPrivateCandidateUrl, hash, stableJson, type CachedRepairValidation, assertPrivateCanonicalUrl, assertProof, createDurationRepair, applyDurationRepair, ORIGINAL_SHA256, ORIGINAL_BYTES, ROOT_DRIVE_RECEIPT_SHA256, REPAIR_REQUEST_ID, NATIVE_RUN_ID, type PreservationProof } from "./free-duration-repair";
 const run = promisify(execFile);
 const proof = (): PreservationProof => ({ version: 1, requestId: REPAIR_REQUEST_ID, qaOwnerId: "11111111-1111-1111-1111-111111111111", rootOwnerLogin: "owner", originalSha256: ORIGINAL_SHA256, originalBytes: ORIGINAL_BYTES, nativeRunId: NATIVE_RUN_ID,
   drive: { rootReceiptSha256: ROOT_DRIVE_RECEIPT_SHA256, independentReadback: true, privateOwnerOnly: true, method: "GoogleDriveConnector", verifiedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 3600_000).toISOString() }, ledgerObjectPaths: ["private/ledger.json"] });
@@ -32,7 +32,7 @@ for (const color of ["orange", "black"]) test(`real CPU ${color} source: bounded
       assert.ok(result.after.avEndDelta <= 0.1);
       assert.equal(result.originalHash, originalHash);
       const repeated = await createDurationRepair(source, path.join(dir, "repeated-candidate.mp4"), 3);
-      assert.equal(repeated.candidateHash, result.candidateHash, "fixed threads/binary/settings encode the same approved bytes on a later run");
+      assert.equal(repeated.candidateHash, result.candidateHash, "same-host repeat is stable; cross-host apply must use cached approved bytes");
       await assert.rejects(createDurationRepair(source, path.join(dir, "too-long.mp4"), 5), /out_of_bounds/);
     }
     assert.equal(await sha256File(source), originalHash);
@@ -99,4 +99,47 @@ test("private readback URL must target the exact Supabase host and canonical pat
   const exact = `${base}/storage/v1/object/sign/videos/${REPAIR_REQUEST_ID}/output/final.mp4?token=offline-placeholder`;
   assert.doesNotThrow(() => assertPrivateCanonicalUrl(exact, base));
   for (const wrong of [exact.replace("example.supabase.co", "evil.example"), exact.replace("final.mp4", "other.mp4"), exact.replace("https:", "http:"), exact.replace("?token=offline-placeholder", ""), exact.replace("https://", "https://user:password@")]) assert.throws(() => assertPrivateCanonicalUrl(wrong, base));
+});
+
+
+test("cached approval binds exact bytes, root proof, original source, receipt and snapshot", async () => {
+  const bytes = Buffer.from("exact offline approved candidate bytes");
+  const candidateSha256 = hash(bytes), prefix = `${REPAIR_REQUEST_ID}/state/free-duration-repair-v1`;
+  const receiptPath = `${prefix}/validation-123.json`;
+  const receipt: CachedRepairValidation = { status: "VALIDATED_NOT_APPLIED", requestId: REPAIR_REQUEST_ID, proofSha256: "proof", originalSha256: ORIGINAL_SHA256,
+    candidateSha256, candidatePath: `${prefix}/candidate-${candidateSha256}.mp4`, bytes: bytes.length, metrics: { duration: 180, audioDuration: 180, avEndDelta: 0, width: 1920, height: 1080, fps: "30/1" }, beforeSnapshotSha256: "snapshot", target: 180, runId: "123" };
+  const raw = Buffer.from(stableJson(receipt));
+  const input = { receiptPath, receiptSha256: hash(raw), approvedCandidateSha256: candidateSha256, proofSha256: "proof", beforeSnapshotSha256: "snapshot" };
+  const objects = new Map([[receiptPath, raw], [receipt.candidatePath, bytes]]);
+  const reads: string[] = [];
+  const download = async (p: string) => { reads.push(p); const b = objects.get(p); if (!b) throw new Error("not found"); return b; };
+  const approved = await loadApprovedCachedCandidate(input, download);
+  assert.deepEqual(approved.bytes, bytes);
+  assert.deepEqual(reads, [receiptPath, receipt.candidatePath], "apply consumes receipt and bytes only; no encoder or provider dependency");
+  for (const bad of [{ ...input, receiptSha256: "0".repeat(64) }, { ...input, proofSha256: "other" }, { ...input, beforeSnapshotSha256: "changed" }]) await assert.rejects(loadApprovedCachedCandidate(bad, download));
+  objects.set(receipt.candidatePath, Buffer.from("tampered"));
+  await assert.rejects(loadApprovedCachedCandidate(input, download), /tampered/);
+  objects.set(receipt.candidatePath, bytes);
+  const altered = Buffer.from(stableJson({ ...receipt, originalSha256: "wrong" }));
+  objects.set(receiptPath, altered);
+  await assert.rejects(loadApprovedCachedCandidate({ ...input, receiptSha256: hash(altered) }, download), /binding/);
+});
+
+test("apply script cannot encode: the only encoder call is inside returning validate branch", async () => {
+  const source = await fs.readFile("scripts/repair-long-form-duration.ts", "utf8");
+  const start = source.indexOf('if (mode === "validate")');
+  const end = source.indexOf("const cached = await loadApprovedCachedCandidate", start);
+  assert.ok(start > 0 && end > start);
+  assert.equal((source.match(/await createDurationRepair\(/g) ?? []).length, 1);
+  assert.match(source.slice(start, end), /await createDurationRepair/);
+  assert.match(source.slice(start, end), /return;/);
+  assert.doesNotMatch(source.slice(end), /createDurationRepair\(/);
+});
+
+test("candidate review URL is private and restricted to the exact cached SHA path", () => {
+  const base = "https://example.supabase.co", sha = "a".repeat(64);
+  const url = `${base}/storage/v1/object/sign/videos/${REPAIR_REQUEST_ID}/state/free-duration-repair-v1/candidate-${sha}.mp4?token=offline`;
+  assert.doesNotThrow(() => assertPrivateCandidateUrl(url, base, sha));
+  assert.throws(() => assertPrivateCandidateUrl(url.replace(sha, "b".repeat(64)), base, sha));
+  assert.throws(() => assertPrivateCandidateUrl(url.replace("example.supabase.co", "evil.example"), base, sha));
 });
