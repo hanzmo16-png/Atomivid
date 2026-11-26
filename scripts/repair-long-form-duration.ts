@@ -1,15 +1,17 @@
 /** One-shot ops branch only. No production/retry/provider/accounting code is invoked. */
 import fs from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { assertNoLongBlackIntervals } from "../src/lib/video/long-form/long-form-qc";
 import path from "node:path";
 import { createServiceClient } from "../src/lib/supabase/service";
 import { supabaseOutputDeps, canonicalOutputPath, type LongFormOutputState } from "../src/lib/video/long-form/output-finalize";
-import { inspectProbeDependency, probePinnedOutput, assertResumeInspection, FAILED_BEFORE_UPLOAD_RUN_ID, type BeforeUploadInspection, loadApprovedCachedCandidate, assertPrivateCandidateUrl, probeRepairMedia, type CachedRepairValidation, assertRepairCandidateSize, assertPrivateCanonicalUrl, assertProof, ORIGINAL_BYTES, ORIGINAL_SHA256, NATIVE_RUN_ID, REPAIR_REQUEST_ID, ROOT_DRIVE_RECEIPT_SHA256, createDurationRepair, applyDurationRepair, hash, stableJson, type PreservationProof } from "../src/lib/video/long-form/free-duration-repair";
+import { verifyUploadedRepair, FAILED_AFTER_UPLOAD_RUN_ID, inspectProbeDependency, probePinnedOutput, assertResumeInspection, FAILED_BEFORE_UPLOAD_RUN_ID, type BeforeUploadInspection, loadApprovedCachedCandidate, assertPrivateCandidateUrl, probeRepairMedia, type CachedRepairValidation, assertRepairCandidateSize, assertPrivateCanonicalUrl, assertProof, ORIGINAL_BYTES, ORIGINAL_SHA256, NATIVE_RUN_ID, REPAIR_REQUEST_ID, ROOT_DRIVE_RECEIPT_SHA256, createDurationRepair, applyDurationRepair, hash, stableJson, type PreservationProof } from "../src/lib/video/long-form/free-duration-repair";
 
 let privateFailure: ((message: string) => Promise<void>) | undefined;
 async function main() {
   const env = process.env;
   const mode = env.MODE ?? "validate";
-  if (!["record-original-proof", "validate", "apply", "inspect", "resume-before-upload"].includes(mode)) throw new Error("explicit_mode_required");
+  if (!["record-original-proof", "validate", "apply", "inspect", "resume-before-upload", "verify-uploaded"].includes(mode)) throw new Error("explicit_mode_required");
   for (const [key, value] of Object.entries(env)) if (value && /^(ELEVENLABS|ANTHROPIC|OPENAI|PEXELS|FAL|RECRAFT|VEO|BEATOVEN).*KEY$/.test(key)) throw new Error("provider_credential_forbidden");
   if (env.GITHUB_REPOSITORY !== "hanzmo16-png/Atomivid" || !env.GITHUB_TOKEN) throw new Error("repository_context_required");
   if (env.GITHUB_ACTOR !== env.GITHUB_REPOSITORY_OWNER) throw new Error("repository_owner_required");
@@ -17,8 +19,9 @@ async function main() {
   if (!runRes.ok) throw new Error("native_run_read_failed");
   const native = await runRes.json() as { status: string; conclusion: string };
   if (native.status !== "completed" || native.conclusion !== "success") throw new Error("native_run_not_closed_success");
-  if (mode === "inspect" || mode === "resume-before-upload") {
-    const failedRes = await fetch(`https://api.github.com/repos/${env.GITHUB_REPOSITORY}/actions/runs/${FAILED_BEFORE_UPLOAD_RUN_ID}`, { headers: { Authorization: `Bearer ${env.GITHUB_TOKEN}`, Accept: "application/vnd.github+json" }, signal: AbortSignal.timeout(30_000) });
+  if (mode === "inspect" || mode === "resume-before-upload" || mode === "verify-uploaded") {
+    const failedId = mode === "verify-uploaded" ? FAILED_AFTER_UPLOAD_RUN_ID : FAILED_BEFORE_UPLOAD_RUN_ID;
+    const failedRes = await fetch(`https://api.github.com/repos/${env.GITHUB_REPOSITORY}/actions/runs/${failedId}`, { headers: { Authorization: `Bearer ${env.GITHUB_TOKEN}`, Accept: "application/vnd.github+json" }, signal: AbortSignal.timeout(30_000) });
     if (!failedRes.ok) throw new Error("failed_run_read_failed");
     const failed = await failedRes.json() as { status: string; conclusion: string };
     if (failed.status !== "completed" || failed.conclusion !== "failure") throw new Error("exact_failed_run_not_closed");
@@ -29,9 +32,10 @@ async function main() {
   const objectPath = canonicalOutputPath(requestId);
   const prefix = `${requestId}/state/free-duration-repair-v1`;
   const rootProofPath = `${prefix}/root-preservation-proof.json`;
+  let verificationAudit: Record<string, unknown> = {};
   privateFailure = async (message) => {
-    const diagnostic = { status: "STOPPED_NO_AUTOMATIC_RETRY", failureCode: message.slice(0, 200), runId: env.GITHUB_RUN_ID, mode };
-    await storage.upload(`${prefix}/${mode === "inspect" ? "inspection" : "diagnostic"}-${env.GITHUB_RUN_ID}.json`, Buffer.from(stableJson(diagnostic)), { upsert: false, contentType: "application/json", metadata: diagnostic });
+    const diagnostic = { ...verificationAudit, status: mode === "verify-uploaded" ? "AMBIGUOUS_NOT_ACCEPTED" : "STOPPED_NO_AUTOMATIC_RETRY", failureCode: message.slice(0, 200), runId: env.GITHUB_RUN_ID, mode };
+    await storage.upload(`${prefix}/${mode === "inspect" ? "inspection" : mode === "verify-uploaded" ? "verification" : "diagnostic"}-${env.GITHUB_RUN_ID}.json`, Buffer.from(stableJson(diagnostic)), { upsert: false, contentType: "application/json", metadata: diagnostic });
   };
   async function download(p: string) { const { data, error } = await storage.download(p); if (error || !data) throw new Error("required_object_read_failed"); return Buffer.from(await data.arrayBuffer()); }
   async function immutable(p: string, bytes: Buffer, metadata: Record<string, unknown> = {}) { if (bytes.length > 512 * 1024) throw new Error("small_private_journal_limit"); const { error } = await storage.upload(p, bytes, { upsert: false, contentType: "application/json", metadata }); if (error) throw new Error("immutable_write_failed_or_intent_exists_NO_RETRY"); }
@@ -63,10 +67,6 @@ async function main() {
   const dir = env.REPAIR_ARTIFACT_DIR ?? path.join(process.cwd(), "repair-private-artifacts");
   await fs.mkdir(dir, { recursive: true });
   const original = path.join(dir, "original.mp4"), candidate = path.join(dir, "candidate.mp4");
-  const originalBytes = await download(objectPath);
-  if (hash(originalBytes) === env.APPROVED_CANDIDATE_SHA256) throw new Error("canonical_already_candidate_SEPARATE_VERIFY_ONLY_REQUIRED");
-  if (hash(originalBytes) !== ORIGINAL_SHA256 || originalBytes.length !== ORIGINAL_BYTES) throw new Error("exact_original_required");
-  await fs.writeFile(original, originalBytes);
   const finalDeps = supabaseOutputDeps(service);
   const state = await finalDeps.readState(requestId);
   if (!state) throw new Error("original_state_required");
@@ -87,6 +87,70 @@ async function main() {
     return { request: r.data, generationCosts: g.data, piOperations: pi.data, ledgerHashes: ledgers, requestBudgetSha256: hash(await download(`${requestId}/state/request-budget.json`)) };
   }
   const before = await snapshot();
+  if (mode === "verify-uploaded") {
+    // This branch returns before the C51 source gate or any encoder/finalizer/upload path.
+    async function freshSdk(p: string) {
+      const { data, error } = await storage.download(p, { cacheNonce: randomUUID() }, { cache: "no-store", signal: AbortSignal.timeout(120_000) });
+      if (error || !data) throw new Error("fresh_sdk_read_failed");
+      return Buffer.from(await data.arrayBuffer());
+    }
+    async function freshHttps(p: string) {
+      if (![objectPath, `${requestId}/state/output.json`].includes(p)) throw new Error("verify_read_path_forbidden");
+      const signed = await storage.createSignedUrl(p, 300);
+      if (signed.error || !signed.data?.signedUrl) throw new Error("fresh_signed_read_url_failed");
+      const url = new URL(signed.data.signedUrl), expected = new URL(env.NEXT_PUBLIC_SUPABASE_URL ?? "");
+      if (url.protocol !== "https:" || url.origin !== expected.origin || url.pathname !== `/storage/v1/object/sign/videos/${p}` || url.username || url.password || url.hash || !url.searchParams.get("token")) throw new Error("fresh_signed_read_url_mismatch");
+      url.searchParams.set("cacheNonce", randomUUID());
+      const response = await fetch(url, { cache: "no-store", headers: { "Cache-Control": "no-cache, no-store, max-age=0", Pragma: "no-cache" }, signal: AbortSignal.timeout(120_000) });
+      if (!response.ok) throw new Error("fresh_https_read_failed");
+      return Buffer.from(await response.arrayBuffer());
+    }
+    const cached = await loadApprovedCachedCandidate({ receiptPath: env.VALIDATION_RECEIPT_PATH ?? "", receiptSha256: env.VALIDATION_RECEIPT_SHA256 ?? "",
+      approvedCandidateSha256: env.APPROVED_CANDIDATE_SHA256 ?? "", proofSha256: proofHash, beforeSnapshotSha256: hash(stableJson(before)) }, download);
+    const sdkBytes = await freshSdk(objectPath);
+    verificationAudit = { failedResumeRunId: FAILED_AFTER_UPLOAD_RUN_ID, sdkCanonicalSha256: hash(sdkBytes), expectedCandidateSha256: cached.receipt.candidateSha256 };
+    const httpsBytes = await freshHttps(objectPath);
+    verificationAudit.httpsCanonicalSha256 = hash(httpsBytes);
+    const sdkState = JSON.parse((await freshSdk(`${requestId}/state/output.json`)).toString()) as LongFormOutputState;
+    const httpsState = JSON.parse((await freshHttps(`${requestId}/state/output.json`)).toString()) as LongFormOutputState;
+    verificationAudit = { failedResumeRunId: FAILED_AFTER_UPLOAD_RUN_ID, sdkCanonicalSha256: hash(sdkBytes), httpsCanonicalSha256: hash(httpsBytes),
+      sdkStateSha256: hash(stableJson(sdkState)), httpsStateSha256: hash(stableJson(httpsState)), expectedCandidateSha256: cached.receipt.candidateSha256 };
+    const inspectionPath = env.INSPECTION_RECEIPT_PATH ?? "";
+    if (!inspectionPath.startsWith(`${prefix}/inspection-`) || !/^[0-9]+\.json$/.test(inspectionPath.slice(`${prefix}/inspection-`.length))) throw new Error("exact_inspection_receipt_path_required");
+    const rawIntent = await download(`${prefix}/intent.json`), rawInspection = await download(inspectionPath), rawResumeFence = await download(`${prefix}/resume-before-upload.json`), rawOriginalState = await download(`${prefix}/original-state.json`);
+    await fs.writeFile(candidate, httpsBytes);
+    const pinned = await probePinnedOutput(candidate), media = await probeRepairMedia(candidate);
+    await assertNoLongBlackIntervals(candidate);
+    const after = await snapshot();
+    const verified = verifyUploadedRepair({ sdkBytes, httpsBytes, expectedBytes: cached.receipt.bytes, candidateSha256: cached.receipt.candidateSha256,
+      proofSha256: proofHash, validationReceiptSha256: env.VALIDATION_RECEIPT_SHA256 ?? "", rawIntent, intentSha256: env.EXPECTED_INTENT_SHA256 ?? "",
+      rawInspection, inspectionSha256: env.INSPECTION_RECEIPT_SHA256 ?? "", rawResumeFence, rawOriginalState, sdkState, httpsState,
+      beforeSnapshotSha256: hash(stableJson(before)), afterSnapshotSha256: hash(stableJson(after)), pinned, media });
+    const resultListing = await storage.list(prefix, { search: "result.json", limit: 100 });
+    if (resultListing.error) throw new Error("verify_result_presence_uncertain");
+    const resultExists = (resultListing.data ?? []).some(x => x.name === "result.json");
+    if (resultExists) {
+      const existing = JSON.parse((await download(`${prefix}/result.json`)).toString()) as { candidateSha256?: string; media?: { candidateHash?: string } };
+      if ((existing.candidateSha256 ?? existing.media?.candidateHash) !== verified.candidateSha256) throw new Error("verify_existing_result_conflicts");
+    }
+    const signed = await storage.createSignedUrl(objectPath, 300);
+    if (signed.error || !signed.data?.signedUrl) throw new Error("verified_readback_url_failed");
+    const finalUrl = new URL(signed.data.signedUrl);
+    finalUrl.searchParams.set("cacheNonce", randomUUID());
+    assertPrivateCanonicalUrl(finalUrl.toString(), env.NEXT_PUBLIC_SUPABASE_URL ?? "");
+    const receipt = { ...verified, ...verificationAudit, verificationRunId: env.GITHUB_RUN_ID, proofSha256: proofHash, validationReceiptSha256: env.VALIDATION_RECEIPT_SHA256,
+      beforeSha256: hash(stableJson(before)), afterSha256: hash(stableJson(after)), afterState: httpsState, originalIntentPreserved: true, resumeFencePreserved: true, canonicalWrites: 0, providerCalls: 0, financialWrites: 0 };
+    const metadata = { ...verified, status: "READONLY_VERIFIED_UPLOADED_CANDIDATE", proofSha256: proofHash, validationReceiptSha256: env.VALIDATION_RECEIPT_SHA256,
+      sdkCanonicalSha256: hash(sdkBytes), httpsCanonicalSha256: hash(httpsBytes), signedUrl: finalUrl.toString(), signedUrlExpiresAt: new Date(Date.now() + 300_000).toISOString(), canonicalWrites: 0, financialWrites: 0 };
+    if (!resultExists) await immutable(`${prefix}/result.json`, Buffer.from(stableJson(receipt)), metadata);
+    await immutable(`${prefix}/verification-${env.GITHUB_RUN_ID}.json`, Buffer.from(stableJson(receipt)), metadata);
+    console.log("Uploaded candidate independently verified; no canonical, state, or financial mutation.");
+    return;
+  }
+  const originalBytes = await download(objectPath);
+  if (hash(originalBytes) === env.APPROVED_CANDIDATE_SHA256) throw new Error("canonical_already_candidate_SEPARATE_VERIFY_ONLY_REQUIRED");
+  if (hash(originalBytes) !== ORIGINAL_SHA256 || originalBytes.length !== ORIGINAL_BYTES) throw new Error("exact_original_required");
+  await fs.writeFile(original, originalBytes);
   await fs.writeFile(path.join(dir, "before-private.json"), stableJson({ state, snapshot: before, proofHash }));
   let media: Awaited<ReturnType<typeof createDurationRepair>>;
   if (mode === "validate") {

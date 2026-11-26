@@ -8,7 +8,7 @@ on:
         required: true
         default: validate
         type: choice
-        options: [validate, record-original-proof, apply, inspect, resume-before-upload]
+        options: [validate, record-original-proof, apply, inspect, resume-before-upload, verify-uploaded]
       root_drive_receipt_sha256:
         description: "Nonsecret hash of root's independent private Drive readback receipt; record only"
         type: string

@@ -198,3 +198,47 @@ export async function applyDurationRepair(input: { requestId: string; original: 
   if (await deps.canonicalHash() !== input.candidateHash) throw new Error("repair_postupload_hash_mismatch_NO_RETRY");
   return { ...result, state: { ...state, ...result.state, costsRecorded: true, repairLineage: lineage }, before, beforeHash, lineage };
 }
+
+export const FAILED_AFTER_UPLOAD_RUN_ID = 45853613321;
+/** Acceptance of already uploaded bytes only; this function has no encoder/upload/financial-write capability. */
+export function verifyUploadedRepair(input: {
+  sdkBytes: Buffer; httpsBytes: Buffer; expectedBytes: number; candidateSha256: string; proofSha256: string; validationReceiptSha256: string;
+  rawIntent: Buffer; intentSha256: string; rawInspection: Buffer; inspectionSha256: string; rawResumeFence: Buffer; rawOriginalState: Buffer;
+  sdkState: LongFormOutputState; httpsState: LongFormOutputState; beforeSnapshotSha256: string; afterSnapshotSha256: string;
+  pinned: OutputMediaMetrics; media: Awaited<ReturnType<typeof probeRepairMedia>>;
+}) {
+  const i = input;
+  if (hash(i.sdkBytes) !== i.candidateSha256 || hash(i.httpsBytes) !== i.candidateSha256 || i.sdkBytes.length !== i.expectedBytes || i.httpsBytes.length !== i.expectedBytes) throw new Error("uploaded_bytes_ambiguous_NO_UPLOAD_ALLOWED");
+  if (hash(i.rawIntent) !== i.intentSha256 || hash(i.rawInspection) !== i.inspectionSha256) throw new Error("uploaded_history_hash_mismatch");
+  const intent = JSON.parse(i.rawIntent.toString()) as Record<string, unknown>;
+  const inspected = JSON.parse(i.rawInspection.toString()) as BeforeUploadInspection;
+  const fence = JSON.parse(i.rawResumeFence.toString()) as Record<string, unknown>;
+  const originalState = JSON.parse(i.rawOriginalState.toString()) as LongFormOutputState;
+  if (intent.originalSha256 !== ORIGINAL_SHA256 || intent.candidateSha256 !== i.candidateSha256 || intent.proofSha256 !== i.proofSha256
+    || intent.validationReceiptSha256 !== i.validationReceiptSha256 || intent.beforeSnapshotSha256 !== i.beforeSnapshotSha256 || intent.attempt !== 1 || intent.nativeRunId !== NATIVE_RUN_ID || intent.providerCalls !== 0 || intent.candidateBytes !== i.expectedBytes
+    || inspected.status !== "INSPECTED_ORIGINAL_BEFORE_UPLOAD" || inspected.intentSha256 !== i.intentSha256 || inspected.proofSha256 !== i.proofSha256 || inspected.validationReceiptSha256 !== i.validationReceiptSha256
+    || inspected.candidateSha256 !== i.candidateSha256 || inspected.originalStateSha256 !== hash(i.rawOriginalState) || inspected.canonicalSha256 !== ORIGINAL_SHA256
+    || inspected.beforeSnapshotSha256 !== i.beforeSnapshotSha256 || inspected.failedRunId !== FAILED_BEFORE_UPLOAD_RUN_ID
+    || inspected.dependencyGapConfirmed !== true || inspected.originalMediaMatch !== true || inspected.resultAbsent !== true || inspected.snapshotEqual !== true
+    || fence.originalIntentSha256 !== i.intentSha256 || fence.inspectionReceiptSha256 !== i.inspectionSha256 || fence.candidateSha256 !== i.candidateSha256
+    || fence.validationReceiptSha256 !== i.validationReceiptSha256 || fence.proofSha256 !== i.proofSha256 || fence.beforeSnapshotSha256 !== i.beforeSnapshotSha256
+    || fence.failedRunId !== FAILED_BEFORE_UPLOAD_RUN_ID || String(fence.resumeRunId) !== String(FAILED_AFTER_UPLOAD_RUN_ID)
+    || originalState.sha256 !== ORIGINAL_SHA256 || originalState.status !== "UPLOADED" || originalState.attempt !== 1 || originalState.costsRecorded !== true || originalState.nativeBlackQc !== "passed-v1"
+    || i.beforeSnapshotSha256 !== i.afterSnapshotSha256) throw new Error("uploaded_lineage_or_financial_snapshot_mismatch");
+  const state = i.httpsState;
+  if (hash(stableJson(i.sdkState)) !== hash(stableJson(state))) throw new Error("uploaded_state_readback_ambiguous");
+  const lineage = (state as LongFormOutputState & { repairLineage?: Record<string, unknown> }).repairLineage;
+  if (state.requestId !== REPAIR_REQUEST_ID || state.objectPath !== `${REPAIR_REQUEST_ID}/output/final.mp4` || state.profile !== originalState.profile
+    || state.status !== "UPLOADED" || state.sha256 !== i.candidateSha256 || state.nativeBlackQc !== "passed-v1" || state.costsRecorded !== true || state.attempt !== 1
+    || lineage?.originalSha256 !== ORIGINAL_SHA256 || lineage?.candidateSha256 !== i.candidateSha256 || lineage?.proofSha256 !== i.proofSha256
+    || lineage?.beforeSnapshotSha256 !== i.beforeSnapshotSha256 || lineage?.providerCalls !== 0 || lineage?.attempt !== 1 || lineage?.nativeRunId !== NATIVE_RUN_ID
+    || lineage?.candidateBytes !== i.expectedBytes) throw new Error("uploaded_state_or_repair_lineage_invalid");
+  const technical = new Set(["status", "objectPath", "attempt", "profile", "delivery", "rendered", "delivered", "sha256", "ceilingBytes", "fit", "uploadMethod", "uploadAttempts", "timingsMs", "updatedAtIso", "nativeBlackQc", "repairLineage"]);
+  for (const [key, value] of Object.entries(originalState)) if (!technical.has(key) && stableJson((state as unknown as Record<string, unknown>)[key]) !== stableJson(value)) throw new Error("uploaded_original_financial_field_changed");
+  if (i.pinned.bytes !== i.expectedBytes || !i.pinned.videoCodec || !i.pinned.audioCodec || i.media.duration < 180 || i.media.duration > 180.1 || i.media.avEndDelta > 0.1
+    || state.delivered?.bytes !== i.pinned.bytes || state.delivered?.videoCodec !== i.pinned.videoCodec || state.delivered?.audioCodec !== i.pinned.audioCodec
+    || state.delivered?.width !== i.pinned.width || state.delivered?.height !== i.pinned.height || state.delivered?.fps !== i.pinned.fps
+    || Math.abs((state.delivered?.durationSeconds ?? 0) - i.pinned.durationSeconds) > 0.05) throw new Error("uploaded_metrics_invalid");
+  return { status: "READONLY_VERIFIED_UPLOADED_CANDIDATE", candidateSha256: i.candidateSha256, bytes: i.expectedBytes, outputStateSha256: hash(stableJson(state)), originalStateSha256: hash(i.rawOriginalState),
+    intentSha256: i.intentSha256, inspectionSha256: i.inspectionSha256, resumeFenceSha256: hash(i.rawResumeFence), failedResumeRunId: FAILED_AFTER_UPLOAD_RUN_ID, snapshotEqual: true, metrics: i.media, lineage };
+}

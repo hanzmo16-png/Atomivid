@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 import ffmpeg from "@ffmpeg-installer/ffmpeg";
 import { memoryOutputDeps, type LongFormOutputState } from "./output-finalize";
 import { sha256File, probeOutput } from "./output-media";
-import { type RepairDeps, inspectProbeDependency, probePinnedOutput, assertResumeInspection, FAILED_BEFORE_UPLOAD_RUN_ID, type BeforeUploadInspection, loadApprovedCachedCandidate, assertPrivateCandidateUrl, hash, stableJson, type CachedRepairValidation, assertPrivateCanonicalUrl, assertProof, createDurationRepair, applyDurationRepair, ORIGINAL_SHA256, ORIGINAL_BYTES, ROOT_DRIVE_RECEIPT_SHA256, REPAIR_REQUEST_ID, NATIVE_RUN_ID, type PreservationProof } from "./free-duration-repair";
+import { verifyUploadedRepair, FAILED_AFTER_UPLOAD_RUN_ID, type RepairDeps, inspectProbeDependency, probePinnedOutput, assertResumeInspection, FAILED_BEFORE_UPLOAD_RUN_ID, type BeforeUploadInspection, loadApprovedCachedCandidate, assertPrivateCandidateUrl, hash, stableJson, type CachedRepairValidation, assertPrivateCanonicalUrl, assertProof, createDurationRepair, applyDurationRepair, ORIGINAL_SHA256, ORIGINAL_BYTES, ROOT_DRIVE_RECEIPT_SHA256, REPAIR_REQUEST_ID, NATIVE_RUN_ID, type PreservationProof } from "./free-duration-repair";
 const run = promisify(execFile);
 const proof = (): PreservationProof => ({ version: 1, requestId: REPAIR_REQUEST_ID, qaOwnerId: "11111111-1111-1111-1111-111111111111", rootOwnerLogin: "owner", originalSha256: ORIGINAL_SHA256, originalBytes: ORIGINAL_BYTES, nativeRunId: NATIVE_RUN_ID,
   drive: { rootReceiptSha256: ROOT_DRIVE_RECEIPT_SHA256, independentReadback: true, privateOwnerOnly: true, method: "GoogleDriveConnector", verifiedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 3600_000).toISOString() }, ledgerObjectPaths: ["private/ledger.json"] });
@@ -194,4 +194,55 @@ test("ops adapter explicitly pins its finalizer probe and cannot delete old inte
   assert.match(source, /probe: probePinnedOutput/);
   assert.match(source, /resume-before-upload\.json/);
   assert.doesNotMatch(source, /\.(remove|delete)\(/);
+});
+
+
+function uploadedFixture() {
+  const bytes = Buffer.from("offline already-uploaded exact approved candidate");
+  const candidateSha256 = hash(bytes), proofSha256 = hash("proof"), validationReceiptSha256 = hash("validation"), snapshotSha256 = hash("unchanged financial snapshot");
+  const originalState = { version: 1, requestId: REPAIR_REQUEST_ID, objectPath: `${REPAIR_REQUEST_ID}/output/final.mp4`, profile: "long_form_h264_v1", status: "UPLOADED", attempt: 1, costsRecorded: true, nativeBlackQc: "passed-v1", sha256: ORIGINAL_SHA256, financialReceipt: { committedUsd: 0.37 } } as unknown as LongFormOutputState;
+  const rawOriginalState = Buffer.from(stableJson(originalState));
+  const lineage = { originalSha256: ORIGINAL_SHA256, candidateSha256, proofSha256, beforeSnapshotSha256: snapshotSha256, nativeRunId: NATIVE_RUN_ID, attempt: 1, providerCalls: 0, candidateBytes: bytes.length };
+  const rawIntent = Buffer.from(stableJson({ ...lineage, validationReceiptSha256 })), intentSha256 = hash(rawIntent);
+  const inspection = { status: "INSPECTED_ORIGINAL_BEFORE_UPLOAD", failedRunId: FAILED_BEFORE_UPLOAD_RUN_ID, intentSha256, canonicalSha256: ORIGINAL_SHA256,
+    originalStateSha256: hash(rawOriginalState), candidateSha256, validationReceiptSha256, proofSha256, beforeSnapshotSha256: snapshotSha256, snapshotEqual: true, resultAbsent: true, dependencyGapConfirmed: true, originalMediaMatch: true };
+  const rawInspection = Buffer.from(stableJson(inspection)), inspectionSha256 = hash(rawInspection);
+  const rawResumeFence = Buffer.from(stableJson({ failedRunId: FAILED_BEFORE_UPLOAD_RUN_ID, resumeRunId: String(FAILED_AFTER_UPLOAD_RUN_ID), originalIntentSha256: intentSha256,
+    inspectionReceiptSha256: inspectionSha256, candidateSha256, validationReceiptSha256, proofSha256, beforeSnapshotSha256: snapshotSha256 }));
+  const pinned = { bytes: bytes.length, durationSeconds: 180.032, width: 1920, height: 1080, fps: 30, videoCodec: "h264", audioCodec: "aac", totalKbps: 2400, videoKbps: 2300, audioKbps: 192 };
+  const state = { ...originalState, sha256: candidateSha256, delivered: pinned, repairLineage: lineage };
+  return { sdkBytes: bytes, httpsBytes: bytes, expectedBytes: bytes.length, candidateSha256, proofSha256, validationReceiptSha256, rawIntent, intentSha256,
+    rawInspection, inspectionSha256, rawResumeFence, rawOriginalState, sdkState: state, httpsState: state, beforeSnapshotSha256: snapshotSha256, afterSnapshotSha256: snapshotSha256,
+    pinned, media: { duration: 180, audioDuration: 180.032, avEndDelta: 0.032, width: 1920, height: 1080, fps: "30/1" } };
+}
+test("already uploaded candidate verifies with zero uploads, encodes or financial writes", () => {
+  const effects = { uploads: 0, encodes: 0, financialWrites: 0 };
+  const input = { ...uploadedFixture(), upload: () => { effects.uploads++; }, encode: () => { effects.encodes++; }, financialWrite: () => { effects.financialWrites++; } };
+  const verified = verifyUploadedRepair(input);
+  assert.equal(verified.status, "READONLY_VERIFIED_UPLOADED_CANDIDATE");
+  assert.equal(verified.snapshotEqual, true);
+  assert.deepEqual(effects, { uploads: 0, encodes: 0, financialWrites: 0 });
+});
+test("uploaded verification rejects stale SDK bytes, tampered state, financial drift and resume lineage", () => {
+  assert.throws(() => verifyUploadedRepair({ ...uploadedFixture(), sdkBytes: Buffer.from("stale original") }), /ambiguous/);
+  assert.throws(() => verifyUploadedRepair({ ...uploadedFixture(), afterSnapshotSha256: "changed" }), /financial/);
+  for (const change of [{ costsRecorded: false }, { attempt: 2 }, { sha256: ORIGINAL_SHA256 }, { financialReceipt: { committedUsd: 9 } }]) {
+    const f = uploadedFixture(), changed = { ...f.httpsState, ...change };
+    assert.throws(() => verifyUploadedRepair({ ...f, sdkState: changed, httpsState: changed }));
+  }
+  const f = uploadedFixture();
+  assert.throws(() => verifyUploadedRepair({ ...f, sdkState: JSON.parse(f.rawOriginalState.toString()) }), /state_readback_ambiguous/);
+  assert.throws(() => verifyUploadedRepair({ ...f, rawResumeFence: Buffer.from(stableJson({ ...JSON.parse(f.rawResumeFence.toString()), candidateSha256: "wrong" })) }), /lineage/);
+});
+test("verify-uploaded script returns before C51 current-source gate and all mutation/encoder paths", async () => {
+  const source = await fs.readFile("scripts/repair-long-form-duration.ts", "utf8");
+  const start = source.indexOf('if (mode === "verify-uploaded") {');
+  const end = source.indexOf("const originalBytes = await download(objectPath)", start);
+  assert.ok(start > 0 && end > start);
+  const branch = source.slice(start, end);
+  assert.match(branch, /verifyUploadedRepair/);
+  assert.match(branch, /cacheNonce: randomUUID/);
+  assert.match(branch, /Cache-Control/);
+  assert.match(branch, /return;/);
+  assert.doesNotMatch(branch, /applyDurationRepair\(|createDurationRepair\(|writeState\(|storage\.upload\(/);
 });
