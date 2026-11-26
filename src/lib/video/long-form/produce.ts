@@ -38,6 +38,7 @@ import { LOUDNESS_TARGET } from "../audio-master";
 import { masterLongFormAudio } from "./mastering";
 export { LONG_FORM_TRUE_PEAK_MARGIN_DB } from "./mastering";
 import { VIDEO_TAIL_SECONDS } from "../script-pacing";
+import { compositionDurationSeconds } from "./composition-duration";
 import { computeNarrationGaps } from "../../../../remotion/audio-mix";
 import { getVideoProvider } from "@/lib/providers/video-gen";
 import { getVoiceIdentity } from "@/lib/ai/voice";
@@ -529,6 +530,8 @@ export async function generateLongFormVideoFromScript({
   // Narración MEDIDA (ya pagada y guardada en la caché TTS): si quedó muy por debajo de lo pedido, se detiene
   // antes de imágenes, video IA, música y render — nunca un documental corto entregado en silencio.
   assertNarrationCoversRequestedDuration(timeline.durationSeconds, requestedDurationSeconds);
+  const finalDurationSeconds = compositionDurationSeconds(timeline.durationSeconds, requestedDurationSeconds);
+  const holdOutro = finalDurationSeconds > timeline.durationSeconds + VIDEO_TAIL_SECONDS;
 
   // Proveedor de video IA real (solo si el plan confirmado tiene clips). Si
   // en este entorno resuelve a fixture (p. ej. falta VEO_API_KEY), el video
@@ -743,9 +746,8 @@ export async function generateLongFormVideoFromScript({
   // Puerta FINAL de entrega (v3+): ninguna escena con «Material pendiente» llega al render, a la música ni a la
   // subida. El informe visual ya quedó guardado; nada se borra. Sin reintento automático ni gasto adicional.
   const pendingScenes = (shotScenes as LongFormShotScene[]).filter((s) => s.pending).map((s) => ({ sceneId: s.id, reason: s.pending as string }));
-  const finalDurationSeconds = timeline.durationSeconds + VIDEO_TAIL_SECONDS;
   // The prepared scenes reported with pending material are the ones that would render (same tail coverage).
-  if (pendingScenes.length > 0) throw new LongFormPendingMaterialError(pendingScenes, { scenes: coverVideoTail(shotScenes as LongFormShotScene[], finalDurationSeconds), captions });
+  if (pendingScenes.length > 0) throw new LongFormPendingMaterialError(pendingScenes, { scenes: coverVideoTail(shotScenes as LongFormShotScene[], finalDurationSeconds, holdOutro), captions });
 
   const fullNarrationText = beats.map((b) => b.narration).join(" ");
   let music: MusicResult | null = null;
@@ -800,7 +802,7 @@ export async function generateLongFormVideoFromScript({
     audioUrl: audioUpload.url,
     musicUrl: runtime.soundCues ? undefined : musicUrl,
     soundCues: runtime.soundCues,
-    scenes: coverVideoTail(shotScenes, finalDurationSeconds),
+    scenes: coverVideoTail(shotScenes, finalDurationSeconds, holdOutro),
     captions,
     narrationGaps,
     durationSeconds: finalDurationSeconds,
@@ -1019,11 +1021,11 @@ export function directAnchoredScenes(
  * final de la voz; sin esto quedaban ~0,5 s sin imagen al final y, por redondeo binario (p. ej. 474.27200000000005 − 473.772),
  * el preflight del render rechazaba el documental entero DESPUÉS de pagar voz e imágenes (ensayo R8).
  */
-export function coverVideoTail<T extends { endSeconds: number }>(scenes: T[], durationSeconds: number): T[] {
+export function coverVideoTail<T extends { endSeconds: number }>(scenes: T[], durationSeconds: number, holdOutro = false): (T & { holdFromSeconds?: number })[] {
   if (scenes.length === 0) return scenes;
   const last = scenes[scenes.length - 1];
   if (last.endSeconds >= durationSeconds) return scenes;
-  return [...scenes.slice(0, -1), { ...last, endSeconds: durationSeconds }];
+  return [...scenes.slice(0, -1), { ...last, endSeconds: durationSeconds, ...(holdOutro ? { holdFromSeconds: last.endSeconds } : {}) }];
 }
 
 /** Proyecto(s) del ledger del guion/investigación de este pedido (documentary_script_jobs.request_id = video_requests.id). */

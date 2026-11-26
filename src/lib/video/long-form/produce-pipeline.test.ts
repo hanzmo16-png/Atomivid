@@ -515,11 +515,26 @@ test("duración: narración MEDIDA muy por debajo de lo pedido → sin imágenes
   assert.equal(env.out.calls.upload, 0, "0 subidas");
 });
 
+test("duración: una diferencia editorial pequeña alcanza el mínimo pedido y mantiene visible el cierre", async () => {
+  const c = counters();
+  const env = freshEnv();
+  const { result, renderInput } = await run(env, c, planFor("economical"), { requestedDurationSeconds: 161 });
+  assert.equal(result.videoPath, "req-panama-qa/output/final.mp4");
+  assert.equal(renderInput?.durationSeconds, 161);
+  const last = renderInput?.scenes.at(-1);
+  assert.equal(last?.endSeconds, 161);
+  assert.ok(last?.holdFromSeconds && last.holdFromSeconds < 161);
+});
+
 test("duración: lo pedido dentro de la tolerancia → produce y entrega como siempre", async () => {
   const c = counters();
   const env = freshEnv();
-  const { result } = await run(env, c, planFor("economical"), { requestedDurationSeconds: 180 });
+  const { result, renderInput } = await run(env, c, planFor("economical"), { requestedDurationSeconds: 180 });
   assert.equal(result.videoPath, "req-panama-qa/output/final.mp4");
+  assert.ok(renderInput && renderInput.durationSeconds > 160 && renderInput.durationSeconds < 162);
+  const last = renderInput.scenes.at(-1);
+  assert.equal(last?.endSeconds, renderInput.durationSeconds);
+  assert.equal(last?.holdFromSeconds, undefined, "a larger accepted gap never becomes a manufactured silent outro");
 });
 
 test("duración: un MP4 real que no dura lo compuesto NO se sube ni se marca completado (fallo cerrado)", async () => {
