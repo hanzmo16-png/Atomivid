@@ -66,7 +66,7 @@ export async function readResourceSentinel(service: SupabaseClient, now = Date.n
     return { ...account, operationalLevel };
   });
   return {
-    sentinel: { ...model, accounts }, admission,
+    sentinel: { ...model, accounts }, admission, timezones: [...new Set(configured.map(p => p.timezone ?? "UTC"))],
     recordedConsumption: { scope: "PI_LEDGER_ONLY_NOT_ALL_PRODUCTS_OR_PROVIDER_INVOICES", accounts:
       buildSentinelOverview({ ...input, uncoveredProviders: [] }).accounts.map(a => ({ account: a.account, unit: a.unit, consumption: a.consumption })) },
     refreshSeconds: 300, observedAt: new Date(now).toISOString(),

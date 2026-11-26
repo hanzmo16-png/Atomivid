@@ -11,3 +11,9 @@ Contrato de vista `sentinel.accounts`: `account`, `providers`, `enabledProviders
 Guardas: ambos aliasFal habilitados=>espera segura antes de RPC pagado, hasta tener pooling autoritativo. Audio real sin caché=>en espera/fallida recuperable antes de TTS, porque el RPC de reserva integral existente solo admite video_requests. Los audios previos/caché y demo local siguen funcionando. No habilitar generación pagada con un simple booleano o un saldo mostrado; no crear otro ledger ni quitar guardas para poner el semáforo verde.
 
 No se ejecutó ni desplegó monitor en producción en esta tarea. No se tocaron secretos, migraciones o datos productivos. La activación y el cierre de las reservas integrales compartidas requieren revisión: la prohibición de migraciones impide certificar esa parte ahora. No ofrecer recargas automáticas ni cambiar de proveedor sin autorización/equivalencia acreditadas.
+
+## Adaptador para PR #337
+
+`src/lib/supply/command-center-source.ts` implementa estructuralmente `SentinelSource` de Claude (contrato actualizado en `15414ab2`). Uso server-side: `commandCenterSentinelSource({ user, service: () => createServiceClient() }).read()`, con el usuario autenticado ya obtenido por el servidor. La factoría privilegiada solo se invoca después de comprobar admin; no pasar este cliente al navegador. En `page.tsx`, Claude puede sustituir el lector provisional por esta fuente sin recalcular importes en la vista. El adaptador agrega `aliases`, estados REAL/ESTIMATED/STALE/UNKNOWN, mantiene null cuando falta cobertura y no prolonga TTL. El contrato fue cotejado con la fuente auténtica de #337, sin incorporar ni editar archivos de su rama.
+
+La integración de ambas ramas aún debe verificarse con CI de la combinación. Este PR no declara que #337 ya consuma el adaptador. La combinación de `package.json` conserva ambos scripts de prueba; no sobrescribir los tests de Claude al reconciliar la base.
