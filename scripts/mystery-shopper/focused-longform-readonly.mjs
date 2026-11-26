@@ -3,6 +3,7 @@ import { chromium } from 'playwright';
 import { createHash, randomUUID } from 'node:crypto';
 import { ORIGIN, allowedRequest, ownedCompleted } from './final-readonly-policy.mjs';
 import { digestDelivery } from './readonly-media-stream.mjs';
+import { privateFailure, privatePathname } from './private-smoke-failure.mjs';
 
 async function main() {
   const env = process.env;
@@ -30,22 +31,26 @@ async function main() {
     if (av.error || av.data?.id !== avId || av.data.user_id !== auth.data.user.id || av.data.status !== 'ready' || av.data.mode !== 'avatar' || av.data.video_path !== `${auth.data.user.id}/podcast-studio/${avId}/episodio.mp4`) throw Error('existing AV not owned ready canonical episode');
   }
   const prefix = `mystery-shopper/private-focused-longform/${randomUUID()}`;
+  const requestedWidths = env.MS_CONTINUE_412 === '1' ? [412] : [390,412];
+  const attemptedWidths = [];
+  let activePage; let activeWidth; let failure;
   const screens = []; const viewports = []; let delivery; let blockedRequests = 0; let checkpoint = 'browser-login';
   const browser = await chromium.launch({headless:true});
   async function capture(page, width, surface, locator) {
-    const body = locator ? await locator.screenshot() : await page.screenshot({fullPage:true});
+    const body = locator ? await locator.screenshot() : await page.screenshot({fullPage:true,timeout:5000});
     const name = `${prefix}/screen-${screens.length}.png`;
     const saved = await sb.storage.from('videos').upload(name,body,{contentType:'image/png',upsert:false});
     if (saved.error) throw Error('private evidence unavailable');
     screens.push({width,surface,file:name,bytes:body.length,sha256:createHash('sha256').update(body).digest('hex')});
   }
   async function receipt(passed) {
-    const result = {version:1,passed,checkpoint,productionCommit,requestId:id,renderAttempt:1,existingAvId:avId ?? null,viewports,screens,delivery,blockedRequests,paidCalls:0,jobsCreated:0,createdAt:new Date().toISOString(),runId:env.GITHUB_RUN_ID};
-    const saved = await sb.storage.from('videos').upload(`${prefix}/receipt.json`,JSON.stringify(result),{contentType:'application/json',upsert:false});
+    const result = {version:1,passed,checkpoint,productionCommit,requestId:id,renderAttempt:1,existingAvId:avId ?? null,requestedWidths,attemptedWidths,completedWidths:viewports.map(v=>v.width),failure,viewports,screens,delivery,blockedRequests,paidCalls:0,jobsCreated:0,createdAt:new Date().toISOString(),runId:env.GITHUB_RUN_ID};
+    const saved = await sb.storage.from('videos').upload(`${prefix}/receipt.json`,JSON.stringify(result),{contentType:'application/json',upsert:false,metadata:result});
     if (saved.error) throw Error('private receipt unavailable');
   }
   try {
-    for (const width of [390,412]) {
+    for (const width of requestedWidths) {
+      activeWidth=width; attemptedWidths.push(width);
       checkpoint = 'browser-login';
       const context = await browser.newContext({viewport:{width,height:width === 390 ? 844 : 915},isMobile:true,hasTouch:true,serviceWorkers:'block'});
       let authenticated = false;
@@ -56,7 +61,7 @@ async function main() {
         if (!exactExistingAvGet && !allowedRequest(req.url(),req.method(),authenticated,storageOrigin)) { blockedRequests++; return route.abort(); }
         return route.continue();
       });
-      const page = await context.newPage();
+      const page = await context.newPage(); activePage=page;
       await page.goto(`${ORIGIN}/login`);
       await page.getByLabel('Correo electrónico').fill(env.MYSTERY_SHOPPER_QA_EMAIL);
       await page.getByLabel('Contraseña').fill(env.MYSTERY_SHOPPER_QA_PASSWORD);
@@ -66,18 +71,22 @@ async function main() {
       checkpoint = 'library';
       const library = await page.goto(`${ORIGIN}/dashboard`,{waitUntil:'domcontentloaded'});
       if (library?.status() !== 200 || new URL(page.url()).pathname !== '/dashboard') throw Error('library navigation failed');
-      checkpoint = 'actual-onboarding';
+      checkpoint = 'onboarding-open';
       const tour = page.getByTestId('onboarding-tour');
       if (!await tour.isVisible().catch(()=>false)) await page.getByRole('button',{name:'Ver cómo funciona Atomicvid',exact:true}).click();
+      checkpoint = 'onboarding-visible';
       await tour.waitFor({state:'visible'});
+      checkpoint = 'onboarding-dialog';
       const dialog = tour.getByRole('dialog');
       if (await dialog.getAttribute('aria-modal') !== 'false') throw Error('onboarding still modal');
+      checkpoint = 'onboarding-exit';
       const exit = page.getByRole('button',{name:'Cerrar sesión',exact:true});
       await exit.scrollIntoViewIfNeeded();
       const exitReachable = await exit.evaluate(el=>{const b=el.getBoundingClientRect();const hit=document.elementFromPoint(b.x+b.width/2,b.y+b.height/2);return !!hit&&(hit===el||el.contains(hit));});
       if (!exitReachable) throw Error('onboarding obscures exit');
       const onboarding = {visible:true,modal:false,exitReachable:true,source:'ACTUAL_AUTHENTICATED_UI_NOT_FIXTURE'};
       await capture(page,width,'actual-nonmodal-onboarding');
+      checkpoint = 'onboarding-Escape';
       await page.keyboard.press('Escape');
       await tour.waitFor({state:'hidden'});
       checkpoint = 'library';
@@ -133,13 +142,15 @@ async function main() {
         avEpisode = {source:'AUTHENTIC_EXISTING_READY_AV_EPISODE_NOT_LANDING',player:media,delivery:avDelivery};
         await capture(page,width,'authentic-existing-AV-episode-player-download',card);
       }
-      viewports.push({width,onboarding,libraryVisible:true,player:facts,downloadShaMatches:true,avEpisode});
-      await context.close();
+      viewports.push({width,height:width===390?844:915,onboarding,libraryVisible:true,player:facts,downloadShaMatches:true,avEpisode});
+      await context.close(); activePage=undefined;
     }
     checkpoint = 'complete';
     await receipt(true);
     console.log('PASS: existing owned long-form library, mobile player and canonical streamed download; evidence private.');
-  } catch {
+  } catch (error) {
+    failure={...privateFailure(error,[env.SUPABASE_SERVICE_ROLE_KEY,env.MYSTERY_SHOPPER_QA_EMAIL,env.MYSTERY_SHOPPER_QA_PASSWORD,env.NEXT_PUBLIC_SUPABASE_URL]),width:activeWidth,checkpoint,pathname:privatePathname(activePage?.url?.(),ORIGIN)};
+    try {if(activePage){await capture(activePage,activeWidth,'private-failure-checkpoint');failure.screenshot=screens.at(-1)?.file;}}catch{failure.screenshotUnavailable=true;}
     await receipt(false);
     throw Error('focused smoke incomplete');
   } finally { await browser.close(); }

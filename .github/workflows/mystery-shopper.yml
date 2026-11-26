@@ -2,6 +2,11 @@ name: focused-longform-readonly
 on:
   workflow_dispatch:
     inputs:
+      continue_412:
+        description: Focused LF AV onboarding only at 412; existing Audio helper still tests both widths
+        required: false
+        type: boolean
+        default: false
       receipt_diagnostic:
         description: Read only closed run 45856688839 receipts; never starts browser
         required: false
@@ -44,6 +49,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
+      MS_CONTINUE_412: ${{ inputs.continue_412 && '1' || '0' }}
       MS_EXISTING_AV_ID: ${{ inputs.existing_av_id }}
       MS_EXPECTED_AV_SHA256: ${{ inputs.expected_av_sha256 }}
       MS_EXISTING_AUDIO_ID: ${{ inputs.existing_audio_id }}
