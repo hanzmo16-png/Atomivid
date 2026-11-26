@@ -4,7 +4,7 @@ on:
     inputs:
       operation:
         type: choice
-        options: [prepare, preflight, run, inspect, reconcile, repair, material, material_apply, material_inspect, delivery_locator, editorial_confirm, persist_probe]
+        options: [prepare, preflight, run, inspect, reconcile, repair, material, material_apply, material_inspect, delivery_locator, editorial_confirm, persist_probe, stock_rate]
         default: prepare
       target:
         type: string
@@ -135,3 +135,9 @@ jobs:
           umask 077
           node scripts/mystery-shopper/qa-persistence-probe.mjs > "$RUNNER_TEMP/persistence-private.log" 2>&1 || { echo 'Persistence diagnosis blocked.'; exit 1; }
           echo 'Read-only persistence receipt stored privately.'
+
+      - name: Read stock quota once without retry or render
+        if: inputs.operation == 'stock_rate'
+        env:
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+        run: node scripts/mystery-shopper/qa-stock-rate-probe.mjs
