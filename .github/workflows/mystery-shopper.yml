@@ -1,6 +1,12 @@
 name: commercial-authenticated-readonly
 on:
   workflow_dispatch:
+    inputs:
+      receipt_diagnostic:
+        description: Read only the specifically authorized failed commercial receipt
+        type: boolean
+        required: false
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -23,8 +29,14 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: npm install --no-save --package-lock=false --no-audit --no-fund playwright@1.58.2
-      - run: npx playwright install --with-deps chromium
+      - if: ${{ !inputs.receipt_diagnostic }}
+        run: npm install --no-save --package-lock=false --no-audit --no-fund playwright@1.58.2
+      - if: ${{ !inputs.receipt_diagnostic }}
+        run: npx playwright install --with-deps chromium
       - run: node --test scripts/mystery-shopper/commercial-policy.test.mjs
       - name: Focused commercial read-only verification; private Storage evidence only
+        if: ${{ !inputs.receipt_diagnostic }}
         run: node scripts/mystery-shopper/commercial-readonly.mjs
+      - name: Bounded existing receipt diagnostic; private Storage metadata only
+        if: ${{ inputs.receipt_diagnostic }}
+        run: node scripts/mystery-shopper/commercial-receipt-diag.mjs
