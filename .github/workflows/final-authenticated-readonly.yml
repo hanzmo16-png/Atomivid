@@ -1,0 +1,30 @@
+name: final-authenticated-readonly
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: final-authenticated-readonly
+  cancel-in-progress: false
+jobs:
+  smoke:
+    environment: Preview
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      MYSTERY_SHOPPER_QA_EMAIL: ${{ secrets.MYSTERY_SHOPPER_QA_EMAIL }}
+      MYSTERY_SHOPPER_QA_PASSWORD: ${{ secrets.MYSTERY_SHOPPER_QA_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm install --no-save --package-lock=false --no-audit --no-fund playwright@1.58.2
+      - run: npx playwright install --with-deps chromium
+      - run: node --test scripts/mystery-shopper/final-readonly-policy.test.mjs
+      - name: Production read-only mobile smoke; evidence exclusively in private Storage
+        run: node scripts/mystery-shopper/final-authenticated-readonly.mjs
