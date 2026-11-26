@@ -2,6 +2,11 @@ name: commercial-authenticated-readonly
 on:
   workflow_dispatch:
     inputs:
+      billing_only:
+        description: Complete only billing and existing delivery checks after uppercase-label helper correction
+        type: boolean
+        required: false
+        default: false
       authenticated_only:
         description: Continue only the authenticated commercial journey already blocked by the navigation helper race
         type: boolean
@@ -23,6 +28,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
+      COMMERCIAL_BILLING_ONLY: ${{ inputs.billing_only && '1' || '0' }}
       COMMERCIAL_AUTHENTICATED_ONLY: ${{ inputs.authenticated_only && '1' || '0' }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

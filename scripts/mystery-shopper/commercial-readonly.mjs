@@ -52,26 +52,26 @@ async function main() {
       let consoleErrors = 0, pageErrors = 0;
       page.on('console', message => { if (message.type() === 'error') consoleErrors++; });
       page.on('pageerror', () => { pageErrors++; });
-      if (env.COMMERCIAL_AUTHENTICATED_ONLY !== '1') {
-      receipt.checkpoint = 'public-signup';
-      const signup = await page.goto(`${ORIGIN}/register`, { waitUntil: 'networkidle' });
-      record('signup-form-public-get', signup?.status() === 200 && new URL(page.url()).pathname === '/register', width);
-      const validation = await page.evaluate(() => {
-        const email = document.querySelector('input[name=email]');
-        const password = document.querySelector('input[name=password]');
-        const form = email?.form;
-        if (!email || !password || !form) return null;
-        const facts = { emailRequired: email.required && email.type === 'email', passwordRequired: password.required && password.minLength >= 6, emptyRejected: !form.checkValidity() };
-        email.value = 'not-an-email'; password.value = 'abcdef';
-        facts.invalidEmailRejected = !email.checkValidity();
-        email.value = 'qa-form-only@example.invalid'; password.value = 'x';
-        // minlength applies to user input; the attribute is checked above, with no submit or synthetic request.
-        email.value = ''; password.value = '';
-        return facts;
-      });
-      record('signup-browser-required-email-password-validation-no-submit', validation && Object.values(validation).every(Boolean), width);
-      record('signup-terms-privacy-links', await page.locator('a[href="/terms"]').count() > 0 && await page.locator('a[href="/privacy"]').count() > 0, width);
-      await save(page, width, 'public-signup');
+      if (env.COMMERCIAL_AUTHENTICATED_ONLY !== '1' && env.COMMERCIAL_BILLING_ONLY !== '1') {
+        receipt.checkpoint = 'public-signup';
+        const signup = await page.goto(`${ORIGIN}/register`, { waitUntil: 'networkidle' });
+        record('signup-form-public-get', signup?.status() === 200 && new URL(page.url()).pathname === '/register', width);
+        const validation = await page.evaluate(() => {
+          const email = document.querySelector('input[name=email]');
+          const password = document.querySelector('input[name=password]');
+          const form = email?.form;
+          if (!email || !password || !form) return null;
+          const facts = { emailRequired: email.required && email.type === 'email', passwordRequired: password.required && password.minLength >= 6, emptyRejected: !form.checkValidity() };
+          email.value = 'not-an-email'; password.value = 'abcdef';
+          facts.invalidEmailRejected = !email.checkValidity();
+          email.value = 'qa-form-only@example.invalid'; password.value = 'x';
+          // minlength applies to user input; the attribute is checked above, with no submit or synthetic request.
+          email.value = ''; password.value = '';
+          return facts;
+        });
+        record('signup-browser-required-email-password-validation-no-submit', validation && Object.values(validation).every(Boolean), width);
+        record('signup-terms-privacy-links', await page.locator('a[href="/terms"]').count() > 0 && await page.locator('a[href="/privacy"]').count() > 0, width);
+        await save(page, width, 'public-signup');
 
       }
 
@@ -85,31 +85,37 @@ async function main() {
       phase = 'authenticated';
       await page.waitForLoadState('networkidle');
       receipt.checkpoint = 'dashboard-commercial-navigation';
-      record('single-cosmos2-background-preserved', await page.locator('[data-testid=fondo-video]').count() === 1 && await page.locator('[data-testid=cinematic-video]').count() === 0, width);
-      const dock = page.getByTestId('mobile-dock');
-      record('mobile-dock-visible', await dock.isVisible(), width);
-      record('library-link-resolves-existing-projects-anchor', await dock.getByRole('link', { name: 'Biblioteca', exact: true }).getAttribute('href') === '/dashboard#proyectos' && await page.locator('#proyectos').count() === 1, width);
-      await dock.getByRole('link', { name: 'Biblioteca', exact: true }).click();
-      // Next Link updates the URL asynchronously; retain the exact path/hash contract after it settles.
-      await page.waitForURL(url => url.origin === ORIGIN && url.pathname === '/dashboard' && url.hash === '#proyectos', { timeout: 10000 });
-      record('library-navigation-is-current-dashboard-anchor', new URL(page.url()).pathname === '/dashboard' && new URL(page.url()).hash === '#proyectos', width);
       const existingDetail = page.locator('a[href^="/dashboard/videos/"]').first();
-      record('existing-library-detail-link-present', await existingDetail.count() === 1, width);
       const detailHref = await existingDetail.getAttribute('href');
-      record('existing-library-detail-is-same-origin-uuid-route', /^\/dashboard\/videos\/[0-9a-f-]{36}$/.test(detailHref ?? ''), width);
-      record('mobile-no-horizontal-overflow', await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), width);
-      const dashboardCommercial = commercialVisibility(await page.locator('body').innerText());
-      await save(page, width, 'library-navigation');
+      if (!/^\/dashboard\/videos\/[0-9a-f-]{36}$/.test(detailHref ?? '')) throw Error('safe existing delivery required');
+      let dashboardCommercial = null;
+      if (env.COMMERCIAL_BILLING_ONLY !== '1') {
+        record('single-cosmos2-background-preserved', await page.locator('[data-testid=fondo-video]').count() === 1 && await page.locator('[data-testid=cinematic-video]').count() === 0, width);
+        const dock = page.getByTestId('mobile-dock');
+        record('mobile-dock-visible', await dock.isVisible(), width);
+        record('library-link-resolves-existing-projects-anchor', await dock.getByRole('link', { name: 'Biblioteca', exact: true }).getAttribute('href') === '/dashboard#proyectos' && await page.locator('#proyectos').count() === 1, width);
+        await dock.getByRole('link', { name: 'Biblioteca', exact: true }).click();
+        // Next Link updates the URL asynchronously; retain the exact path/hash contract after it settles.
+        await page.waitForURL(url => url.origin === ORIGIN && url.pathname === '/dashboard' && url.hash === '#proyectos', { timeout: 10000 });
+        record('library-navigation-is-current-dashboard-anchor', new URL(page.url()).pathname === '/dashboard' && new URL(page.url()).hash === '#proyectos', width);
+        record('existing-library-detail-link-present', await existingDetail.count() === 1, width);
+        record('existing-library-detail-is-same-origin-uuid-route', /^\/dashboard\/videos\/[0-9a-f-]{36}$/.test(detailHref ?? ''), width);
+        record('mobile-no-horizontal-overflow', await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), width);
+        dashboardCommercial = commercialVisibility(await page.locator('body').innerText());
+        await save(page, width, 'library-navigation');
+
+      }
 
       receipt.checkpoint = 'billing-visible-state';
       await page.getByRole('link', { name: 'Mi plan', exact: true }).click();
       await page.waitForURL(url => url.origin === ORIGIN && url.pathname === '/dashboard/billing');
       await page.getByRole('heading', { name: /^(Facturación|Tu plan de producción)$/ }).waitFor();
       const billingCommercial = commercialVisibility(await page.locator('body').innerText());
+      receipt.checks.push({ name: 'commercial-visible-state-classification', width, dashboard: dashboardCommercial, billing: billingCommercial });
       record('billing-renders-plan-state-or-available-plans', billingCommercial.currentPlanVisible || billingCommercial.planOptionsVisible, width);
       record('billing-mobile-dock-stays-available', await page.getByTestId('mobile-dock').isVisible(), width);
       record('billing-no-horizontal-overflow', await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), width);
-      receipt.checks.push({ name: 'commercial-visible-state-classification', width, dashboard: dashboardCommercial, billing: billingCommercial });
+
       await save(page, width, 'billing-visible-state');
 
       receipt.checkpoint = 'existing-library-download';

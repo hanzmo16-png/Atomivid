@@ -25,3 +25,8 @@ test('visible commercial classifications contain booleans only and do not invent
   assert.equal(commercialVisibility('Starter Pro Business Pagos aún no habilitados').paymentUnavailableVisible, true);
   assert.ok(Object.values(commercialVisibility('private arbitrary account text')).every(value => typeof value === 'boolean'));
 });
+
+test('rendered uppercase labels identify the same current plan and plan options', () => {
+  assert.equal(commercialVisibility('PLAN ACTUAL Atomicvid Pro Activa').currentPlanVisible, true);
+  assert.equal(commercialVisibility('STARTER PRO BUSINESS').planOptionsVisible, true);
+});

@@ -14,10 +14,10 @@ export function allowedCommercialRequest(raw, method, phase, storageOrigin) {
 
 export function commercialVisibility(text) {
   return {
-    currentPlanVisible: /Plan actual|Tu plan de producción/.test(text),
-    subscriptionStatusVisible: /\bActiva\b|\bActivo\b|En prueba|Sin suscripción|Pago pendiente|Cancelada/.test(text),
-    planOptionsVisible: /Starter/.test(text) && /Business/.test(text),
-    paymentUnavailableVisible: /Pagos aún no habilitados/.test(text),
+    currentPlanVisible: /Plan actual|Tu plan de producción/i.test(text),
+    subscriptionStatusVisible: /\bActiva\b|\bActivo\b|En prueba|Sin suscripción|Pago pendiente|Cancelada/i.test(text),
+    planOptionsVisible: /Starter/i.test(text) && /Business/i.test(text),
+    paymentUnavailableVisible: /Pagos aún no habilitados/i.test(text),
     creditUsageVisible: /(?:créditos?\s+(?:disponibles|restantes|usados)|(?:saldo|uso)\s+de\s+créditos|\d+\s*(?:de|\/)\s*\d+\s*(?:videos|reels|créditos))/i.test(text),
   };
 }
