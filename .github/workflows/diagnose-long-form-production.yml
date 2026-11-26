@@ -4,7 +4,7 @@ on:
     inputs:
       operation:
         type: choice
-        options: [deny, record-reviewed-production-proof, observe-native-output]
+        options: [deny, record-reviewed-production-proof, observe-native-output, observe-diagnostic-output]
         default: deny
       request_id:
         type: string
@@ -37,7 +37,7 @@ permissions:
   actions: read
 jobs:
   record:
-    if: inputs.operation == 'record-reviewed-production-proof' || inputs.operation == 'observe-native-output'
+    if: inputs.operation == 'record-reviewed-production-proof' || inputs.operation == 'observe-native-output' || inputs.operation == 'observe-diagnostic-output'
     environment: Preview
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -65,9 +65,9 @@ jobs:
           node --import tsx scripts/mystery-shopper/record-technical-deployment-proof.mjs > "$RUNNER_TEMP/deployment-proof-private.log" 2>&1 || { echo 'Root source-reviewed production proof refused; no paid action or approval inferred.'; exit 1; }
           echo 'Root-reviewed deployed QA gate proof stored privately. No allocation, reserve or generation.'
       - name: FREE observe exact existing native job and canonical private output; never settle or retry
-        if: inputs.operation == 'observe-native-output'
+        if: inputs.operation == 'observe-native-output' || inputs.operation == 'observe-diagnostic-output'
         env:
-          MS_TECHNICAL_OPERATION: observe-native-output
+          MS_TECHNICAL_OPERATION: ${{ inputs.operation }}
           MS_NEW_REQUEST_ID: ${{ inputs.request_id }}
           MS_REVIEW_RECEIPT: ${{ inputs.review_receipt }}
           MS_ACCEPTED_REVIEW_SHA: ${{ inputs.review_sha }}
