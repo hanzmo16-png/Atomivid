@@ -1,150 +1,36 @@
-name: ENDGAME01 private Long Form
+name: final-authenticated-readonly
 on:
   workflow_dispatch:
     inputs:
-      operation:
-        type: choice
-        options: [prepare, preflight, run, inspect, reconcile, repair, material, material_apply, material_inspect, delivery_locator, editorial_confirm, persist_probe, stock_rate, persist_verify, asset_inspect]
-        default: prepare
-      target:
-        type: string
+      existing_audio_id:
+        description: Existing QA-owned completed Audio Studio project UUID
         required: true
-      key_id:
-        type: string
-      sealed_access:
         type: string
 permissions:
   contents: read
-  actions: read
 concurrency:
-  group: ${{ (inputs.operation == 'inspect' || inputs.operation == 'reconcile') && 'mystery-shopper-private-readback-320' || 'mystery-shopper-real-campaign-320' }}
+  group: final-authenticated-readonly
   cancel-in-progress: false
 jobs:
-  execution:
+  smoke:
     environment: Preview
     runs-on: ubuntu-24.04
-    timeout-minutes: 75
+    timeout-minutes: 15
     env:
+      MS_EXISTING_AUDIO_ID: ${{ inputs.existing_audio_id }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      MS_TARGET: ${{ inputs.target }}
-      MS_ACCESS_KEY_ID: ${{ inputs.key_id }}
-      MS_ACCESS_CIPHERTEXT: ${{ inputs.sealed_access }}
-      MS_OUT_DIR: /tmp/endgame01-private-longform
-      PRICING_ELEVENLABS_USD_PER_1K_CHARS: '0.2'
-      LONG_FORM_MAX_TOTAL_USD: '2'
+      MYSTERY_SHOPPER_QA_EMAIL: ${{ secrets.MYSTERY_SHOPPER_QA_EMAIL }}
+      MYSTERY_SHOPPER_QA_PASSWORD: ${{ secrets.MYSTERY_SHOPPER_QA_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm }
+        with:
+          node-version: 22
+          cache: npm
       - run: npm ci --no-audit --no-fund
-      - name: Prepare ephemeral encryption recipient and reconcile unchanged ledger
-        if: inputs.operation == 'prepare'
-        env:
-          MS_ACCESS_OPERATION: prepare
-        run: node --import tsx scripts/mystery-shopper/sealed-preview-access.mjs
-      - name: Read completed journey only
-        if: inputs.operation == 'inspect'
-        env:
-          MS_INSPECT_TARGET: ${{ inputs.target }}
-        run: node --import tsx scripts/mystery-shopper/private-journey-inspection.mjs
-      - name: Decrypt one-use access for the exact Preview
-        if: inputs.operation == 'preflight' || inputs.operation == 'run'
-        run: node --import tsx scripts/mystery-shopper/sealed-preview-access.mjs
-      - name: Install browser and media verifier
-        if: inputs.operation == 'preflight' || inputs.operation == 'run'
-        run: sudo apt-get update -q && sudo apt-get install -yq ffmpeg && npm install --no-save --no-audit --no-fund playwright@1.49.1 && npx playwright install --with-deps chromium
-      - name: Reuse an already settled QA script only
-        if: inputs.operation == 'preflight' || inputs.operation == 'run'
-        run: node --import tsx scripts/mystery-shopper/prepare-existing-longform.mjs
-      - name: Read-only authenticated Preview preflight
-        if: inputs.operation == 'preflight' || inputs.operation == 'run'
-        env:
-          MYSTERY_SHOPPER_QA_EMAIL: ${{ secrets.MYSTERY_SHOPPER_QA_EMAIL }}
-          MYSTERY_SHOPPER_QA_PASSWORD: ${{ secrets.MYSTERY_SHOPPER_QA_PASSWORD }}
-        run: |
-          umask 077
-          node --import tsx scripts/mystery-shopper/longform-preview-preflight.mjs > "$RUNNER_TEMP/preflight-private.log" 2>&1 || { echo 'Private preflight blocked; no provider calls.'; exit 1; }
-          echo 'Read private receipt for actual preflight outcome.'
-      - id: create
-        name: Create one bounded customer journey without another script
-        if: inputs.operation == 'run'
-        env:
-          MS_MISSION: youtube-real
-          MS_PROFILE: impaciente
-          MS_MODE: real
-          MS_MAX_BUDGET_USD: '2'
-        run: |
-          umask 077
-          node --import tsx scripts/mystery-shopper/manual-start.ts > "$RUNNER_TEMP/manual-private.log" 2>&1 || { echo 'Private job setup blocked.'; exit 1; }
-      - name: Real Long Form journey; no automatic paid retries
-        if: inputs.operation == 'run'
-        env:
-          MS_JOB_ID: ${{ steps.create.outputs.job }}
-          MYSTERY_SHOPPER_REAL_ENABLED: '1'
-          MYSTERY_SHOPPER_QA_EMAIL: ${{ secrets.MYSTERY_SHOPPER_QA_EMAIL }}
-          MYSTERY_SHOPPER_QA_PASSWORD: ${{ secrets.MYSTERY_SHOPPER_QA_PASSWORD }}
-        run: |
-          umask 077
-          node --import tsx scripts/mystery-shopper/worker.ts > "$RUNNER_TEMP/longform-private.log" 2>&1 || { echo 'Private journey blocked or failed. No automatic retry.'; exit 1; }
-          echo 'Inspect private customer evidence for result.'
-      - name: Save private result without public screenshots or financial output
-        if: always() && inputs.operation == 'run' && steps.create.outputs.job != ''
-        env:
-          MS_JOB_ID: ${{ steps.create.outputs.job }}
-        run: node scripts/mystery-shopper/private-longform-receipt.mjs
-      - name: Reconcile only server-proven unstarted render
-        if: inputs.operation == 'reconcile'
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: node --import tsx scripts/mystery-shopper/reconcile-longform-not-started.mjs
-      - name: Repair one proven zero-charge QA envelope refusal after configuration alignment
-        if: inputs.operation == 'repair'
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: node --import tsx scripts/mystery-shopper/repair-qa-envelope-refusal.mjs
-
-      - name: Check free stock availability for scoped editorial correction
-        if: inputs.operation == 'material' || inputs.operation == 'material_apply' || inputs.operation == 'material_inspect'
-        env:
-          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
-          FOOTAGE_PROVIDER: pexels
-          MS_MATERIAL_INSPECT: ${{ inputs.operation == 'material_inspect' && '1' || '0' }}
-          MS_MATERIAL_APPLY: ${{ inputs.operation == 'material_apply' && '1' || '0' }}
-        run: |
-          umask 077
-          node --import tsx scripts/mystery-shopper/qa-weather-material.mjs > "$RUNNER_TEMP/material-private.log" 2>&1 || { echo 'Free material proof blocked; no paid call or render.'; exit 1; }
-          echo 'Private stock availability receipt saved. No paid call or render.'
-
-      - name: Prepare short-lived private Storage locator for authorized owner delivery
-        if: inputs.operation == 'delivery_locator'
-        run: node scripts/mystery-shopper/private-delivery-locator.mjs
-
-      - name: Record genuine QA editorial review and use the unchanged confirmation contract
-        if: inputs.operation == 'editorial_confirm'
-        env:
-          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
-          FOOTAGE_PROVIDER: pexels
-        run: |
-          umask 077
-          node --import tsx scripts/mystery-shopper/qa-weather-confirm.mjs > "$RUNNER_TEMP/editorial-private.log" 2>&1 || { echo 'Editorial confirmation blocked; no render or provider spend.'; exit 1; }
-          echo 'QA review and standard confirmation recorded privately; no render or paid call.'
-
-      - name: Diagnose saved-script CAS via read-only requests
-        if: inputs.operation == 'persist_probe' || inputs.operation == 'persist_verify'
-        env:
-          MS_PERSIST_VERIFY: ${{ inputs.operation == 'persist_verify' && '1' || '0' }}
-        run: |
-          umask 077
-          node --import tsx scripts/mystery-shopper/qa-persistence-probe.mjs > "$RUNNER_TEMP/persistence-private.log" 2>&1 || { echo 'Persistence diagnosis blocked.'; exit 1; }
-          echo 'Read-only persistence receipt stored privately.'
-
-      - name: Read stock quota once without retry or render
-        if: inputs.operation == 'stock_rate'
-        env:
-          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
-        run: node scripts/mystery-shopper/qa-stock-rate-probe.mjs
-
-      - name: Read exact native stock trace for visual QC
-        if: inputs.operation == 'asset_inspect'
-        run: node scripts/mystery-shopper/private-native-asset-qc.mjs
+      - run: npm install --no-save --package-lock=false --no-audit --no-fund playwright@1.58.2
+      - run: npx playwright install --with-deps chromium
+      - run: node --test scripts/mystery-shopper/final-readonly-policy.test.mjs
+      - name: Production read-only mobile smoke; evidence exclusively in private Storage
+        run: node scripts/mystery-shopper/final-authenticated-readonly.mjs
