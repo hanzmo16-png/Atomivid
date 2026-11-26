@@ -27,7 +27,9 @@ Required deployment proof fields: scope `ROOT_VERIFIED_PRODUCTION_PAID_QA_GATES`
 
 Both complete proof bodies require their own canonical `snapshotSha` accepted by root. Missing, expired, mismatched or malformed receipts deny execution. The full historical ledger snapshot must remain unchanged. Default commercial/module policy constants are unchanged; this owner receipt scopes a separate allocation to this single fenced job.
 
-The separate `record-owner-allocation` operation is ROOT ONLY: `GITHUB_ACTOR` must equal the repository owner, and actual `owner_reply_ref` and `owner_reply_sha` inputs are mandatory. It derives the full private ledger baseline at runtime, refuses historical open exposure, and writes a one-hour create-only receipt. It has no raw-reply input, public ledger amounts, request mutations, reservation or generation. Do not dispatch this operation while the owner's answer is pending. No deployment-proof writer exists: root must verify the actual deployed native QC/private-log source before supplying that proof.
+The separate `record-owner-allocation` operation is ROOT ONLY: `GITHUB_ACTOR` must equal the repository owner, and actual `owner_reply_ref` and `owner_reply_sha` inputs are mandatory. It derives the full private ledger baseline at runtime, refuses historical open exposure, and writes a one-hour create-only receipt. It has no raw-reply input, public ledger amounts, request mutations, reservation or generation. Do not dispatch this operation while the owner's answer is pending.
+
+The existing registered `.github/workflows/diagnose-long-form-production.yml` filename now offers a separate ROOT ONLY `record-reviewed-production-proof` operation on this ops branch, default `deny`. Inputs are `request_id`, `review_receipt`, `review_sha`, exact `production_sha`, actual `deployment_id`, `source_review=native-dark-qc-and-private-provider-logs-reviewed`, and explicit `expires_at` at most one hour ahead. Root must actually review both source gates first. The writer verifies the latest successful `Production` deployment SHA/id and the unconfirmed reviewed QA row, then uses the existing Preview-bound service role inside GHA to save the private proof and canonical hash. No secret export, financial numbers, allocation or paid call is involved. Do not dispatch before the private-log change is deployed and reviewed READY.
 
 After the owner reply, root review of this code, review of both actual private receipts, and deployment verification, the one manual command would be:
 
@@ -40,5 +42,7 @@ gh workflow run mystery-shopper.yml --repo "$QA_REPOSITORY" --ref codex/endgame-
 ```
 
 The reservation is the entire newly verified UI quote, at most USD 2, under a new create-only key. No paid script job, fake zero script settlement, old funding reuse, historical alteration, or automatic retry is performed. The render POST carries `acceptedCeilingUsd` and is allowed only after the confirmed server plan and current worker budget still fit the full reservation with zero paid AI visuals. The browser denies every other mutation and direct paid-provider host.
+
+The QA paid check explicitly uses `PRICING_ELEVENLABS_USD_PER_1K_CHARS=0.2`, matching the known native production render workflow. It does not modify production settings; the current server UI quote and confirmed native plan must still fit the entire reservation.
 
 Any crash or ambiguous outcome leaves its fence and reservation in place. This path never settles even a completed render: a separate root review must establish closed-worker journal costs and native output QC before reconciliation or delivery claims.

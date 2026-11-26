@@ -1,41 +1,58 @@
-name: Diagnóstico de solo lectura de producción Long Form
-
-# QA real (2026-09-25, "LONG FORM RC FINAL HARDENING"). Ejecuta
-# scripts/diagnose-long-form-production.ts: SOLO LECTURA de video_requests/
-# generation_costs — nunca escribe nada, nunca llama a ningún proveedor
-# (ni siquiera un GET de estado). Sirve para diagnosticar la solicitud
-# real del Canal de Panamá antes de decidir qué hacer con ella.
+name: ROOT ONLY private deployed QA proof recorder
 on:
   workflow_dispatch:
     inputs:
+      operation:
+        type: choice
+        options: [deny, record-reviewed-production-proof]
+        default: deny
       request_id:
-        description: "Opcional: ID exacto de video_requests a diagnosticar. Vacío = la solicitud long_form más reciente."
-        required: false
         type: string
-
+      review_receipt:
+        type: string
+      review_sha:
+        type: string
+      production_sha:
+        description: Exact production source SHA independently reviewed by root
+        type: string
+      deployment_id:
+        description: Exact latest successful GitHub Production deployment id reviewed by root
+        type: string
+      source_review:
+        type: choice
+        options: [unreviewed, native-dark-qc-and-private-provider-logs-reviewed]
+        default: unreviewed
+      expires_at:
+        description: Explicit UTC expiry after now, at most one hour
+        type: string
 permissions:
   contents: read
-
+  deployments: read
 jobs:
-  diagnose:
-    runs-on: ubuntu-latest
+  record:
+    if: inputs.operation == 'record-reviewed-production-proof'
+    environment: Preview
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Configurar Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Instalar dependencias
-        run: npm ci
-
-      - name: Diagnosticar (solo lectura)
-        run: npx tsx scripts/diagnose-long-form-production.ts
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Record only the production gates already reviewed by repository owner
         env:
-          REQUEST_ID: ${{ inputs.request_id }}
+          MS_TECHNICAL_OPERATION: record-reviewed-production-proof
+          MS_NEW_REQUEST_ID: ${{ inputs.request_id }}
+          MS_REVIEW_RECEIPT: ${{ inputs.review_receipt }}
+          MS_ACCEPTED_REVIEW_SHA: ${{ inputs.review_sha }}
+          MS_ROOT_PRODUCTION_SHA: ${{ inputs.production_sha }}
+          MS_ROOT_DEPLOYMENT_ID: ${{ inputs.deployment_id }}
+          MS_ROOT_SOURCE_REVIEW: ${{ inputs.source_review }}
+          MS_PROOF_EXPIRES_AT: ${{ inputs.expires_at }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          umask 077
+          node --import tsx scripts/mystery-shopper/record-technical-deployment-proof.mjs > "$RUNNER_TEMP/deployment-proof-private.log" 2>&1 || { echo 'Root source-reviewed production proof refused; no paid action or approval inferred.'; exit 1; }
+          echo 'Root-reviewed deployed QA gate proof stored privately. No allocation, reserve or generation.'

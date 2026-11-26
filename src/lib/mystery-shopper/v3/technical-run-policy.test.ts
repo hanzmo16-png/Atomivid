@@ -37,3 +37,10 @@ test("owner receipt recorder defaults off and refuses a non-root actor before an
     assert.match(result.stderr, /Owner approval recording refused/);
   }
 });
+test("deployment proof recorder defaults off and unreviewed source cannot create a readiness proof", () => {
+  for (const extra of [{ MS_TECHNICAL_OPERATION: "deny" }, { MS_TECHNICAL_OPERATION: "record-reviewed-production-proof", MS_ROOT_SOURCE_REVIEW: "unreviewed", GITHUB_ACTOR: "owner", GITHUB_REPOSITORY_OWNER: "owner" }]) {
+    const result = spawnSync(process.execPath, ["--import", "tsx", "scripts/mystery-shopper/record-technical-deployment-proof.mjs"], { env: { ...process.env, ...extra }, encoding: "utf8" });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /Root deployment proof refused/);
+  }
+});

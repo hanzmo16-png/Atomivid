@@ -92,6 +92,7 @@ jobs:
         env:
           MS_TECHNICAL_OPERATION: run-owner-approved
           MYSTERY_SHOPPER_REAL_ENABLED: '1'
+          PRICING_ELEVENLABS_USD_PER_1K_CHARS: '0.2'
           MS_ALLOCATION_RECEIPT: ${{ inputs.allocation_receipt }}
           MS_ALLOCATION_RECEIPT_SHA: ${{ inputs.allocation_receipt_sha }}
           MS_DEPLOYMENT_RECEIPT: ${{ inputs.deployment_receipt }}
