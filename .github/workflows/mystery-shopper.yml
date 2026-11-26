@@ -259,7 +259,7 @@ jobs:
           node --import tsx --test src/lib/mystery-shopper/quality-loop/*.test.ts
           npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.49.1
           npx playwright install --with-deps chromium
-          node --import tsx --test scripts/mystery-shopper/quality-loop/*.test.ts
+          node --import tsx --test scripts/mystery-shopper/quality-loop/*.test.ts scripts/mystery-shopper/readonly.browser.test.ts
       - name: Pruebas unitarias del módulo
         run: node --import tsx --test --test-concurrency=1 src/lib/mystery-shopper/ms2.test.ts src/lib/mystery-shopper/mystery-shopper.test.ts src/lib/mystery-shopper/media.test.ts src/app/dashboard/command-center/mystery-shopper/panel.test.tsx
       - name: Regresiones de campañas y autenticación QA

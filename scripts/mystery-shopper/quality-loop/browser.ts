@@ -25,6 +25,7 @@ export async function observe(env: Record<string,string|undefined>, input: Pick<
   try {
     const context=await browser.newContext({baseURL:origin,viewport:{width:412,height:915},isMobile:true,hasTouch:true,locale:'es-MX',serviceWorkers:'block'});
     let blockedRequests=0;
+    await context.routeWebSocket('**/*',(ws:{close():void})=>ws.close());
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await context.route('**/*',async(route:any)=>{
       const r=route.request();
