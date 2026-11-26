@@ -6,9 +6,13 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
+import ffprobeInstaller from "@ffprobe-installer/ffprobe";
 import { finalizeLongFormOutput, memoryOutputDeps, reconcileExistingOutput, NativeOutputQcError, assertNativeOutputQc } from "./output-finalize";
 
 import { probeOutput } from "./output-media";
+
+// CI runners need not install a system ffprobe; use the versioned real binary.
+process.env.FFPROBE_BIN = ffprobeInstaller.path;
 
 const run = promisify(execFile);
 const requestId = "native-qc-offline";
