@@ -1,45 +1,34 @@
-name: Recuperar salida Long Form (sin proveedores)
-
-# P0 2026-09-25 (final.mp4 del Canal de Panamá rechazado por tamaño).
-# Ejecuta scripts/recover-long-form-output.ts: reconstruye el documental
-# SOLO desde lo ya persistido (caché TTS, assets por escena, música del
-# intento original) — CERO llamadas a proveedores por construcción: este
-# workflow NO recibe ninguna clave de ElevenLabs/OpenAI/Pexels/Veo/Anthropic
-# y el script aborta si encontrara una.
-#
-# mode:
-#   verify          → solo verifica que todo está en caché (no renderiza, no escribe)
-#   measure_legacy  → render con el perfil anterior (CRF 26) para medir el original; no entrega
-#   render          → render perfil v1 + entrega canónica + fila a "completed" (CAS desde "failed")
+# OPS BRANCH ONLY — never merge. Explicit one-shot repair of the pinned closed QA output.
+name: Free duration repair (root proof required)
 on:
   workflow_dispatch:
     inputs:
-      request_id:
-        description: "ID exacto de video_requests"
-        required: true
-        type: string
       mode:
-        description: "verify | measure_legacy | render"
+        description: "record-original-proof | validate | apply (no provider or row retry)"
         required: true
+        default: validate
+        type: choice
+        options: [validate, record-original-proof, apply]
+      root_drive_receipt_sha256:
+        description: "Nonsecret hash of root's independent private Drive readback receipt; record only"
         type: string
-        default: verify
-      probe_exact_limit:
-        description: "true = (solo verify) medir el límite exacto de Storage con 50 MiB y 50 MiB+1 byte (se borran)"
-        required: false
+      private_proof_path:
+        description: "Private Storage root proof path returned by record operation"
         type: string
-        default: "false"
-
+      preservation_proof_sha256:
+        description: "Nonsecret exact hash returned by root proof recording"
+        type: string
 permissions:
   contents: read
-
+  actions: read
 concurrency:
-  group: atomivid-recover-${{ inputs.request_id }}-${{ inputs.mode }}
+  group: free-duration-repair-41fe8781-75d5-4b48-91b6-0c3094ebedfd
   cancel-in-progress: false
-
 jobs:
   recover:
+    if: github.actor == github.repository_owner
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -47,30 +36,18 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Instalar ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
-      - name: Recuperar (cero proveedores)
-        timeout-minutes: 60
-        run: npx tsx scripts/recover-long-form-output.ts
+      - name: Offline repair regression tests
+        run: node --import tsx --test src/lib/video/long-form/free-duration-repair.test.ts
+      - name: Explicit pinned repair operation
+        timeout-minutes: 15
+        run: node --import tsx scripts/repair-long-form-duration.ts
         env:
-          REQUEST_ID: ${{ inputs.request_id }}
           MODE: ${{ inputs.mode }}
-          PROBE_EXACT_LIMIT: ${{ inputs.probe_exact_limit }}
-          RECOVERY_ARTIFACT_DIR: ${{ runner.temp }}/recovery-artifacts
+          ROOT_DRIVE_RECEIPT_SHA256: ${{ inputs.root_drive_receipt_sha256 }}
+          PRIVATE_PROOF_PATH: ${{ inputs.private_proof_path }}
+          PRESERVATION_PROOF_SHA256: ${{ inputs.preservation_proof_sha256 }}
+          REPAIR_ARTIFACT_DIR: ${{ runner.temp }}/private-duration-repair
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          # Identidad de voz (NO son credenciales): la clave del caché TTS
-          # depende de ellas; deben ser las mismas que usó el worker.
-          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
-          ELEVENLABS_MODEL_ID: ${{ secrets.ELEVENLABS_MODEL_ID }}
-          LONG_FORM_STORAGE_MAX_OBJECT_BYTES: ${{ vars.LONG_FORM_STORAGE_MAX_OBJECT_BYTES }}
-      - name: Publicar MP4 recuperado/medido (artifact privado del repositorio)
-        if: always()
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: long-form-recovery-${{ inputs.request_id }}-${{ inputs.mode }}-${{ github.run_id }}
-          path: ${{ runner.temp }}/recovery-artifacts/
-          if-no-files-found: ignore
-          retention-days: 7
-          compression-level: 0
+          GITHUB_TOKEN: ${{ github.token }}
+# No media/proof/financial artifacts are published. Immutable evidence lives in private Storage.
