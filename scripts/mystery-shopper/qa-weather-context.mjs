@@ -4,6 +4,8 @@ export const replacements = Object.freeze({
  'rising air': ['clouds', 'Clouds above a landscape: contextual illustration, not a visualization of invisible air currents'],
  'orographic cloud': ['mountain clouds', 'Clouds over a mountain ridge: landscape context, not proof of an air trajectory'],
  'air path': ['sky', 'Sky above a landscape: context for the narrated explanation, not a visible air trajectory'],
+ 'weather front': ['storm clouds', 'Storm clouds above a landscape: context for the narrated front, not footage proving a collision of air masses'],
+ 'layered clouds': ['clouds', 'Clouds in the sky: contextual illustration, not proof of their internal composition'],
  'cloud evolution': ['clouds', 'Clouds moving in the sky, contextual illustration'],
  'condensation nuclei': ['dust particles', 'Dust visible in sunlight: context for airborne particles, not microscopic condensation footage'],
  'air masses': ['storm clouds', 'Storm clouds above a landscape: context, not an observed collision of air masses'],

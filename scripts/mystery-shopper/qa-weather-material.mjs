@@ -6,8 +6,10 @@ import {materialAvailabilityPreflight} from '../../src/lib/video/long-form/mater
 import {getFootageProvider} from '../../src/lib/providers/footage/index.ts';
 import {withSearchDeadline} from '../../src/lib/video/long-form/material-plan.ts';
 import {reopenLongFormAfterMaterialGap} from '../../src/lib/video/long-form/reconfigure-production.ts';
+import {confirmLongFormProduction} from '../../src/lib/video/long-form/confirm-production.ts';
 import {persistScriptChange} from '../../src/lib/video/script-persistence.ts';
-const hash=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
+const stable=x=>Array.isArray(x)?x.map(stable):x&&typeof x==='object'?Object.fromEntries(Object.keys(x).sort().map(k=>[k,stable(x[k])])):x;
+const hash=x=>createHash('sha256').update(JSON.stringify(stable(x))).digest('hex');
 async function main(){
  const e=process.env,s=createClient(e.NEXT_PUBLIC_SUPABASE_URL,e.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}}),b=s.storage.from('videos');const privacy=await s.storage.getBucket('videos');if(privacy.error||privacy.data.public!==false)throw Error('privacy');
  if(e.MS_MATERIAL_INSPECT==='1') {const d=await b.download('mystery-shopper/v3/receipts/weather-material-45729922535.json');if(d.error||!d.data)throw Error('receipt');const v=JSON.parse(await d.data.text());if(v.scope!=='ONE_QA_EDITORIAL_MATERIAL_PREFLIGHT')throw Error('scope');const summary={status:v.pre.status,missing:v.pre.missing,temporary:v.pre.temporary,shots:v.pre.shots.length};const w=await b.upload(`mystery-shopper/v3/receipts/weather-summary-${e.GITHUB_RUN_ID}.json`,JSON.stringify(summary),{contentType:'application/json',upsert:false,metadata:summary});if(w.error)throw Error('summary');return;}
@@ -25,7 +27,8 @@ async function main(){
   if(pre.status!=='ok')throw Error('no complete material');
   const opened=await reopenLongFormAfterMaterialGap(s,{requestId:id,userId:original.user_id});if(!opened.ok)throw Error('reconfigure proof');
   await persistScriptChange(s,{id,user_id:original.user_id,status:'script_ready',render_attempts:2,script_json:original.script_json},{script_json:script});
-  const r=await b.upload(`mystery-shopper/v3/receipts/weather-applied-${e.GITHUB_RUN_ID}.json`,JSON.stringify({scope:'ONE_QA_EDITORIAL_APPLIED',source:filename,originalScriptSha256:receipt.originalScriptSha256,proposedScriptSha256:receipt.proposedScriptSha256,attemptsPreserved:2}),{contentType:'application/json',upsert:false,metadata:{scope:'ONE_QA_EDITORIAL_APPLIED',source:filename,attemptsPreserved:2}});if(r.error)throw Error('applied receipt');
+  const confirmation=await confirmLongFormProduction(s,{requestId:id,userId:original.user_id,strategy:'economical'});if(!confirmation.ok||confirmation.plan.strategy!=='economical'||confirmation.plan.aiImageCount!==0||confirmation.plan.aiVideoClipCount!==0)throw Error('full existing confirmation failed; no render dispatched');
+  const r=await b.upload(`mystery-shopper/v3/receipts/weather-applied-${e.GITHUB_RUN_ID}.json`,JSON.stringify({scope:'ONE_QA_EDITORIAL_APPLIED',requestId:id,source:filename,originalScriptSha256:receipt.originalScriptSha256,proposedScriptSha256:receipt.proposedScriptSha256,attemptsPreserved:2,confirmedAt:confirmation.confirmedAt,confirmedPlanSha256:hash(confirmation.plan)}),{contentType:'application/json',upsert:false,metadata:{scope:'ONE_QA_EDITORIAL_APPLIED',requestId:id,source:filename,attemptsPreserved:2}});if(r.error)throw Error('applied receipt');
  }
  console.log('Free material preflight saved privately; no paid call or render performed.');
 }
