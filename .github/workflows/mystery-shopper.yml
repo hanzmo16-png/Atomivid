@@ -4,7 +4,7 @@ on:
     inputs:
       operation:
         type: choice
-        options: [prepare, admission, production-admission, preflight, budget, run]
+        options: [prepare, admission, production-admission, preflight, budget, delivery, run]
         default: prepare
       production_sha:
         type: string
@@ -119,3 +119,6 @@ jobs:
           MS_JOB_ID: ${{ steps.create.outputs.job }}
           MS_OUT_DIR: ${{ runner.temp }}/private-av
         run: node scripts/mystery-shopper/private-av-receipt.mjs
+      - name: Prepare five-minute canonical private AV locator for owner delivery
+        if: inputs.operation == 'delivery'
+        run: node scripts/mystery-shopper/private-av-delivery-locator.mjs
