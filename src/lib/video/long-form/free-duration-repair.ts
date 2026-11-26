@@ -22,6 +22,11 @@ export function stableJson(v: unknown): string {
   if (v && typeof v === "object") return `{${Object.entries(v).sort(([a], [b]) => a.localeCompare(b)).map(([k, x]) => `${JSON.stringify(k)}:${stableJson(x)}`).join(",")}}`;
   return JSON.stringify(v) ?? "null";
 }
+export function assertPrivateCanonicalUrl(signedUrl: string, supabaseUrl: string): void {
+  const url = new URL(signedUrl), origin = new URL(supabaseUrl);
+  if (url.protocol !== "https:" || url.origin !== origin.origin || url.username || url.password || url.hash
+    || url.pathname !== `/storage/v1/object/sign/videos/${REPAIR_REQUEST_ID}/output/final.mp4` || !url.searchParams.get("token")) throw new Error("private_canonical_url_mismatch");
+}
 export type PreservationProof = {
   version: 1; requestId: string; qaOwnerId: string; rootOwnerLogin: string;
   originalSha256: string; originalBytes: number; nativeRunId: number;

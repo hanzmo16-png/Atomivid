@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 import ffmpeg from "@ffmpeg-installer/ffmpeg";
 import { memoryOutputDeps, type LongFormOutputState } from "./output-finalize";
 import { sha256File } from "./output-media";
-import { assertProof, createDurationRepair, applyDurationRepair, ORIGINAL_SHA256, ORIGINAL_BYTES, ROOT_DRIVE_RECEIPT_SHA256, REPAIR_REQUEST_ID, NATIVE_RUN_ID, type PreservationProof } from "./free-duration-repair";
+import { assertPrivateCanonicalUrl, assertProof, createDurationRepair, applyDurationRepair, ORIGINAL_SHA256, ORIGINAL_BYTES, ROOT_DRIVE_RECEIPT_SHA256, REPAIR_REQUEST_ID, NATIVE_RUN_ID, type PreservationProof } from "./free-duration-repair";
 const run = promisify(execFile);
 const proof = (): PreservationProof => ({ version: 1, requestId: REPAIR_REQUEST_ID, qaOwnerId: "11111111-1111-1111-1111-111111111111", rootOwnerLogin: "owner", originalSha256: ORIGINAL_SHA256, originalBytes: ORIGINAL_BYTES, nativeRunId: NATIVE_RUN_ID,
   drive: { rootReceiptSha256: ROOT_DRIVE_RECEIPT_SHA256, independentReadback: true, privateOwnerOnly: true, method: "GoogleDriveConnector", verifiedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 3600_000).toISOString() }, ledgerObjectPaths: ["private/ledger.json"] });
@@ -89,4 +89,12 @@ test("candidate size ceiling is checked before any irreversible intent", async (
     assert.equal(s.preserved(), 0);
     assert.equal(s.out.calls.upload, 0);
   } finally { await fs.rm(s.dir, { recursive: true, force: true }); }
+});
+
+
+test("private readback URL must target the exact Supabase host and canonical path", () => {
+  const base = "https://example.supabase.co";
+  const exact = `${base}/storage/v1/object/sign/videos/${REPAIR_REQUEST_ID}/output/final.mp4?token=offline-placeholder`;
+  assert.doesNotThrow(() => assertPrivateCanonicalUrl(exact, base));
+  for (const wrong of [exact.replace("example.supabase.co", "evil.example"), exact.replace("final.mp4", "other.mp4"), exact.replace("https:", "http:"), exact.replace("?token=offline-placeholder", ""), exact.replace("https://", "https://user:password@")]) assert.throws(() => assertPrivateCanonicalUrl(wrong, base));
 });

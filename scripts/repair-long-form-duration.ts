@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { createServiceClient } from "../src/lib/supabase/service";
 import { supabaseOutputDeps, canonicalOutputPath, type LongFormOutputState } from "../src/lib/video/long-form/output-finalize";
-import { assertProof, ORIGINAL_BYTES, ORIGINAL_SHA256, NATIVE_RUN_ID, REPAIR_REQUEST_ID, ROOT_DRIVE_RECEIPT_SHA256, createDurationRepair, applyDurationRepair, hash, stableJson, type PreservationProof } from "../src/lib/video/long-form/free-duration-repair";
+import { assertPrivateCanonicalUrl, assertProof, ORIGINAL_BYTES, ORIGINAL_SHA256, NATIVE_RUN_ID, REPAIR_REQUEST_ID, ROOT_DRIVE_RECEIPT_SHA256, createDurationRepair, applyDurationRepair, hash, stableJson, type PreservationProof } from "../src/lib/video/long-form/free-duration-repair";
 
 let privateFailure: ((message: string) => Promise<void>) | undefined;
 async function main() {
@@ -109,6 +109,7 @@ async function main() {
   const candidateBytes = (await fs.stat(candidate)).size;
   const signed = await storage.createSignedUrl(objectPath, 300);
   if (signed.error || !signed.data?.signedUrl) throw new Error("postreadback_private_url_failed_NO_RETRY");
+  assertPrivateCanonicalUrl(signed.data.signedUrl, env.NEXT_PUBLIC_SUPABASE_URL ?? "");
   await immutable(`${prefix}/result.json`, Buffer.from(stableJson(receipt)), {
     status: "REPAIRED_READBACK_VERIFIED", proofSha256: proofHash, candidateSha256: media.candidateHash,
     bytes: candidateBytes, metrics: media.after, snapshotEqual: receipt.beforeSha256 === receipt.afterSha256,
