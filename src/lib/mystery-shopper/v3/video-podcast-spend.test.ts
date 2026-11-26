@@ -10,3 +10,6 @@ test('AV gate retains outstanding reservations and all historical spend',()=>{
  assert.equal(audiovisualGate({...good,ledger:{reservations:[r],settlements:[{key:'past',spentUsd:.1,source:'fixture',at:'fixture'}]}}).ok,false);
  const other={...r,module:'youtube' as const,reservedUsd:6};assert.equal(audiovisualGate({...good,ledger:{reservations:[other],settlements:[]}}).ok,false);
 });
+
+import {defaultCatalog,missionById} from "../catalog";
+test("AV worker mission exists before any browser or job reservation",()=>{const m=missionById(defaultCatalog(),"video-podcast-real");assert.equal(m.product,"video-podcast");assert.equal(m.requestedSeconds,60);assert.equal(m.auto,false);});

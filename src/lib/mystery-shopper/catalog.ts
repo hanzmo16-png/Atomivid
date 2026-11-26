@@ -56,6 +56,7 @@ export const DEFAULT_MISSIONS: Mission[] = [
  * nada facturable. Cada criterio se comprueba en pantalla o queda sin comprobar (y entonces el producto no se califica).
  */
 export const LIVE_MISSIONS: Mission[] = [
+  {id:"video-podcast-real",product:"video-podcast",title:"Podcast audiovisual real QA",instructions:"Un minuto, presentador virtual del catálogo y presupuesto USD 3; sin publicaciones.",expected:"MP4 real con avatar y audio",publishForbidden:true,auto:false,requestedSeconds:60,criteria:["Configuración audiovisual","Costo antes de autorizar","Aceptación API","MP4 real","Gasto conciliado"],failure:["No se obtiene MP4","Presupuesto no verificable"]},
   { id: "cuenta-navegacion", product: "account-nav", title: "Cuenta y navegación", instructions: "Entrar, recorrer el menú principal en el celular, cerrar sesión y volver a entrar.", expected: "Sesión estable y menú completo", publishForbidden: false, auto: true,
     criteria: ["Inicia sesión con la cuenta QA", "El menú muestra los productos", "Cada enlace principal abre sin error", "Sin desbordamiento horizontal en el celular", "Cerrar sesión funciona", "Volver a entrar recupera el panel"],
     failure: ["No se puede entrar", "Un enlace principal da error", "La sesión no se cierra"] },
