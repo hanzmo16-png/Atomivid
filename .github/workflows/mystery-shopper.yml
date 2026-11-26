@@ -4,7 +4,7 @@ on:
     inputs:
       operation:
         type: choice
-        options: [prepare, preflight, run, inspect, readback, reconcile, repair]
+        options: [prepare, preflight, run, inspect, reconcile, repair, material, material_apply]
         default: prepare
       target:
         type: string
@@ -91,18 +91,6 @@ jobs:
         env:
           MS_JOB_ID: ${{ steps.create.outputs.job }}
         run: node scripts/mystery-shopper/private-longform-receipt.mjs
-      - name: Recover only the already completed private MP4
-        if: inputs.operation == 'readback'
-        env:
-          PRIVATE_OUT: ${{ runner.temp }}/sealed
-        run: node scripts/mystery-shopper/longform-private-readback.mjs
-      - uses: actions/upload-artifact@v4
-        if: inputs.operation == 'readback'
-        with:
-          name: sealed-completed-longform
-          path: ${{ runner.temp }}/sealed/sealed.json
-          if-no-files-found: error
-          retention-days: 1
       - name: Reconcile only server-proven unstarted render
         if: inputs.operation == 'reconcile'
         env:
@@ -113,3 +101,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node --import tsx scripts/mystery-shopper/repair-qa-envelope-refusal.mjs
+
+      - name: Check free stock availability for scoped editorial correction
+        if: inputs.operation == 'material' || inputs.operation == 'material_apply'
+        env:
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          FOOTAGE_PROVIDER: pexels
+          MS_MATERIAL_APPLY: ${{ inputs.operation == 'material_apply' && '1' || '0' }}
+        run: |
+          umask 077
+          node --import tsx scripts/mystery-shopper/qa-weather-material.mjs > "$RUNNER_TEMP/material-private.log" 2>&1 || { echo 'Free material proof blocked; no paid call or render.'; exit 1; }
+          echo 'Private stock availability receipt saved. No paid call or render.'

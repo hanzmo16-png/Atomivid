@@ -208,18 +208,5 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
-      - name: Seal private Long Form failure output before artifact upload
-        if: failure() && (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form')
-        env:
-          PRIVATE_INPUT: ${{ runner.temp }}/long-form-output
-          PRIVATE_OUT: ${{ runner.temp }}/long-form-sealed
-        run: node scripts/mystery-shopper/seal-failed-longform.mjs
-      - name: Preserve encrypted failure output only
-        if: failure() && (github.event.client_payload.mode == 'long_form' || inputs.mode == 'long_form')
-        uses: actions/upload-artifact@v4
-        with:
-          name: sealed-long-form-output-${{ github.run_id }}
-          path: ${{ runner.temp }}/long-form-sealed/
-          if-no-files-found: ignore
-          retention-days: 1
-          compression-level: 0
+      # No private failure output is exported to GitHub artifacts.
+      # Delivery is exclusively through the authorized private Storage/Drive path.
