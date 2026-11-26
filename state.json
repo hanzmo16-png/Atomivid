@@ -1,7 +1,7 @@
 {
   "version": "quality-loop/1",
   "enabled": true,
-  "updatedAt": "2026-11-26T22:28:04.762Z",
+  "updatedAt": "2026-11-26T23:07:23.668Z",
   "lease": null,
   "cycles": [
     {
@@ -5623,6 +5623,32 @@
         "controls-video-podcast-412",
         "controls-video-podcast-1440"
       ]
+    },
+    {
+      "id": "af6fe1386bf1dd367c03812c",
+      "checkId": "scheduler-cadence",
+      "checkIds": [
+        "scheduler-cadence"
+      ],
+      "product": "command-center",
+      "severity": "P1",
+      "owner": "codex",
+      "module": "github-scheduler",
+      "state": "CLAIMED",
+      "firstSeen": "2026-11-26T23:07:23.668Z",
+      "lastSeen": "2026-11-26T23:07:23.668Z",
+      "occurrences": 1,
+      "sha": "cfe3645f1c0859babc46c25d10be2cdcef8153e1",
+      "evidence": "https://github.com/hanzmo16-png/Atomivid/issues/320#issuecomment-7205233523",
+      "claim": {
+        "token": "e3854304-e9ba-4da7-95e2-fefa5a1c9eee",
+        "actor": "codex-active-session-issue-320-scheduler",
+        "expiresAt": "2026-11-27T01:07:23.668Z"
+      },
+      "fixSha": null,
+      "closedAt": null,
+      "taskId": "T-20261126-2304-orquestador-2943344952",
+      "driveId": null
     }
   ],
   "activity": [
@@ -5717,6 +5743,14 @@
     {
       "at": "2026-11-26T22:28:04.762Z",
       "text": "Completed manual-45904742936"
+    },
+    {
+      "at": "2026-11-26T23:07:23.668Z",
+      "text": "Operational scheduler P1 registered from verified GitHub absence; no synthetic cycle/authentication or code fix asserted"
+    },
+    {
+      "at": "2026-11-26T23:07:23.668Z",
+      "text": "Claim af6fe1386bf1dd367c03812c assigned to codex; actor codex-active-session-issue-320-scheduler"
     }
   ],
   "lastAlert": "29d09ef8233d615c556df903c74477e0640b35639dd48934ce0a39752fcc9a6b",
