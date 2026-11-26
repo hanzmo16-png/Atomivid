@@ -1,4 +1,5 @@
 import { provedUnstartedRender, matchesRenderStartResponse } from "./start-response";
+import { freshLongFormPreflight, freshRequestId } from "./fresh-long-form";
 /**
  * Mystery Shopper 3.0 — YouTube Studio (Long Form) COMPLETO como cliente real (aprobado por Hans: t900s5862).
  *
@@ -83,8 +84,11 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
   const sleep = c.sleep ?? ((ms: number) => page.waitForTimeout(ms));
   const killSwitch = c.killSwitch ?? (() => false);
   const runCap = Math.min(c.runCapUsd ?? 0, MODULE_CAP_USD.youtube);
+  const fresh = process.env.MS_YOUTUBE_FRESH === "1";
+  const freshBlock = freshLongFormPreflight(process.env, limits.minutes, c.runCapUsd ?? 0);
+  if (freshBlock) { c.setHumanGate(freshBlock); return; }
   let runCommitted = 0;
-  const topic = `QA Mystery Shopper ${c.jobId.slice(-6)}: cómo se forman las nubes y por qué llueve`;
+  const topic = `QA Mystery Shopper ${fresh ? c.jobId : c.jobId.slice(-6)}: cómo se forman las nubes y por qué llueve`;
   const requestedSeconds = limits.minutes * 60;
 
   const guard = async (amount: number | null) => ytSpendGuard({ real: c.real, killSwitch: killSwitch(), stopped: c.ledger?.stopped ? await c.ledger.stopped().catch(() => true) : false, ledger: c.ledger ? await c.ledger.state().catch(() => null) : null, amountUsd: amount, runCapUsd: runCap, runCommittedUsd: runCommitted });
@@ -163,7 +167,10 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
     const u = new URL(page.url());
     const id = u.searchParams.get("script_job") ?? /long-form\/jobs\/([0-9a-f-]{36})/.exec(u.pathname)?.[1] ?? null;
     if (!id) return { state: "FAIL", detail: `La app no creó la preparación: ${u.searchParams.get("error") ?? u.pathname}` };
-    if (u.searchParams.get("existing") === "1") c.act("aviso", "La app reutilizó una preparación existente (mismo tema): no se cobró otra.");
+    if (u.searchParams.get("existing") === "1") {
+      if (fresh) { c.setHumanGate("El recorrido nuevo recibió una preparación existente: no se confirma ni se reintenta."); return { state: "BLOCKED", detail: "No se acreditó una preparación nueva." }; }
+      c.act("aviso", "La app reutilizó una preparación existente (mismo tema): no se cobró otra.");
+    }
     jobUrl = `/dashboard/long-form/jobs/${id}`;
     return { state: "PASS", detail: `Preparación ${id} creada.` };
   });
@@ -219,6 +226,10 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
     await sleep(1500);
     const r = await rows(page);
     await writeFile(path.join(c.out, "youtube-configurar.json"), JSON.stringify({ strategy: strategyLabel, voice, rows: r }, null, 1)).catch(() => {});
+    if (fresh && (r["Imágenes generadas por IA"] !== "0" || r["Clips de video IA"] !== "0")) {
+      c.setHumanGate("El recorrido nuevo exige stock y movimiento sin imágenes ni clips IA pagados.");
+      return { state: "BLOCKED", detail: "No se verificó una estrategia sin material IA pagado." };
+    }
     scriptSpent = usd(r["Guion ya gastado"]);
     const techo = r["Techo que se autorizaría"];
     ceiling = techo && !/no cabe|sin verificar/i.test(techo) ? usd(techo) : null;
@@ -241,6 +252,9 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
   });
   }
   if (!configureHref || ceiling === null) return;
+  if (fresh && (!freshRequestId(configureHref) || ceiling > 2 || ceiling > runCap || scriptSpent === null)) {
+    c.setHumanGate("Pedido nuevo o techo total (guion incluido, máximo USD 2) sin verificar: no se inicia."); return;
+  }
 
   // 6 · Render: el techo total ya incluye el guion liquidado; reservar el resto.
   const renderKey = existingRenderKey || `${c.jobId}-yt-render`;
@@ -286,6 +300,12 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
       return { state: "BLOCKED", detail: `La confirmación no avanzó; sin asumir ausencia de cargo: ${err}` };
     }
     videoPath = new URL(page.url()).pathname;
+    if (fresh && videoPath !== `/dashboard/videos/${freshRequestId(configureHref)}`) {
+      c.setHumanGate("El POST de inicio y el pedido mostrado no coinciden; reserva conservada, sin reenvío.");
+      videoPath = "";
+      return { state: "BLOCKED", detail: "Identidad del pedido no verificada después del inicio." };
+    }
+    if (fresh) await writeFile(path.join(c.out, "youtube-fresh-identity.json"), JSON.stringify({ jobId: c.jobId, topic, requestedSeconds, requestId: freshRequestId(configureHref), postUrl: started.url(), httpStatus: started.status(), videoPath, ceilingUsd: ceiling, scriptSpentUsd: scriptSpent }, null, 2));
     return { state: "PASS", detail: `Producción iniciada: ${videoPath}` };
   });
   if (!videoPath) return;
