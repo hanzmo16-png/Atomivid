@@ -1,0 +1,23 @@
+{
+  "version": "quality-loop/1",
+  "enabled": true,
+  "updatedAt": "2026-11-26T19:50:26.436Z",
+  "lease": {
+    "cycleId": "manual-45886485209",
+    "token": "767a7c78-6eca-4b50-9017-c951d4f133e0",
+    "expiresAt": "2026-11-26T20:10:26.436Z"
+  },
+  "cycles": [],
+  "defects": [],
+  "activity": [
+    {
+      "at": "2026-11-26T19:50:26.436Z",
+      "text": "Cycle manual-45886485209 claimed"
+    }
+  ],
+  "lastAlert": null,
+  "mirror": {
+    "at": null,
+    "state": "PENDING"
+  }
+}
