@@ -50,6 +50,9 @@ jobs:
       - name: Signed admission without generation
         if: inputs.operation == 'admission' || inputs.operation == 'production-admission'
         env:
+          MS_NATIVE_APP_URL: ${{ vars.PODCAST_V3_APP_URL || 'https://atomivid.vercel.app' }}
+          MS_NATIVE_QA_PILOT: ${{ vars.PODCAST_V3_QA_PILOT }}
+          MS_NATIVE_OWNER_PILOT: ${{ vars.PODCAST_V3_OWNER_PILOT }}
           MS_TARGET: ${{ inputs.operation == 'production-admission' && 'https://atomivid.vercel.app' || 'https://atomivid-ifh6x9b59-atomivid.vercel.app' }}
           MYSTERY_SHOPPER_QA_EMAIL: ${{ secrets.MYSTERY_SHOPPER_QA_EMAIL }}
           MYSTERY_SHOPPER_QA_PASSWORD: ${{ secrets.MYSTERY_SHOPPER_QA_PASSWORD }}

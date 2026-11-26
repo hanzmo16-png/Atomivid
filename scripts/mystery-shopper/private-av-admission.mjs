@@ -10,9 +10,15 @@ async function main(){
  if(e.MS_TARGET!==origin)throw Error('target');
  const sb=createClient(e.NEXT_PUBLIC_SUPABASE_URL,e.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
  const bucket=await sb.storage.getBucket('videos');if(bucket.error||bucket.data.public!==false)throw Error('privacy');
- const result={kind:'PRIVATE_AV_ADMISSION',origin,status:'BLOCKED',authenticated:false,qaPilot:false,nonQaPilot:null,owner:null,internalOwner:null};
+ const result={kind:'PRIVATE_AV_ADMISSION',origin,status:'BLOCKED',authenticated:false,nativeTargetMatches:null,nativeQaEnabled:null,nativeOwnerGateEnabled:null,qaPilot:false,nonQaPilot:null,owner:null,internalOwner:null};
  let client;
  try{
+  if(origin==='https://atomivid.vercel.app'){
+   result.nativeTargetMatches=e.MS_NATIVE_APP_URL==='https://atomivid.vercel.app';
+   result.nativeQaEnabled=e.MS_NATIVE_QA_PILOT!=='0';
+   result.nativeOwnerGateEnabled=e.MS_NATIVE_OWNER_PILOT!=='0';
+   if(!result.nativeTargetMatches||!result.nativeQaEnabled||!result.nativeOwnerGateEnabled)throw Error('native-config');
+  }
   const authClient=createClient(e.NEXT_PUBLIC_SUPABASE_URL,e.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
   const auth=await authClient.auth.signInWithPassword({email:e.MYSTERY_SHOPPER_QA_EMAIL,password:e.MYSTERY_SHOPPER_QA_PASSWORD});
   const qa=auth.data?.user;if(auth.error||qa?.id!=='95c182e1-2549-4ef8-a4a4-924fd2890683'||!qa.email_confirmed_at)throw Error('qa');
