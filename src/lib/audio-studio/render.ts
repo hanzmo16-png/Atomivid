@@ -15,6 +15,7 @@ import type { Mood } from "@/lib/podcast/v3/spec";
 import { musicPlan, scriptLines, type AudioProject, type AudioResult, type Generation, type MusicMood } from "./model";
 import { assertBlobPath, projectDir, type BlobStore, type ProjectStore } from "./store";
 import { segmentKey, settingsFor, type StudioVoice } from "./voice";
+import { assertAudioSegmentSupplyAdmission, AudioPaidSupplyBlockedError } from "./paid-supply-adapter";
 
 /** Ambiente del estudio → pista CC0 de la biblioteca propia. */
 export const MOOD_TRACK: Record<MusicMood, Mood> = { calma: "relajante", reflexiva: "nostalgico", inspiradora: "inspirador", intensa: "tension" };
@@ -79,6 +80,8 @@ export async function renderProject(deps: RenderDeps, ownerId: string, id: strin
       if (cached) { await writeFile(local, cached); reused++; }
       else {
         if (!allowSynth) throw new RenderError("La remezcla usa solo voz ya generada y falta una intervención (el guion o las voces cambiaron). Genera de nuevo para incluirla.");
+        // Cache reuse remains free. No uncached real TTS until the common atomic Audio job contract exists.
+        assertAudioSegmentSupplyAdmission(voice.mode, provider.name);
         const cost = provider.usdFor(line.text.length);
         const before = auth!.spentBefore;
         const current = (await store.get(ownerId, id))?.spentUsd ?? snap.spentUsd;
@@ -163,10 +166,10 @@ export async function renderProject(deps: RenderDeps, ownerId: string, id: strin
     await patch((p) => ({ audio, generation: { ...p.generation, status: "terminada", finishedAt: now(), heartbeatAt: now(), error: null, progress: { done: lines.length, total: lines.length } } }));
     return "terminada";
   } catch (e) {
-    const message = e instanceof RenderError ? e.message
+    const message = e instanceof RenderError || e instanceof AudioPaidSupplyBlockedError ? e.message
       : (e as Error).message === "INTERRUPCION_SIMULADA" ? "La generación se interrumpió. Pulsa «Reanudar»: lo ya generado no se vuelve a cobrar."
       : "La generación falló por un error técnico. Pulsa «Reanudar»: lo ya generado no se vuelve a cobrar.";
-    if (!(e instanceof RenderError)) console.error("[audio-studio] render falló", (e as Error).message?.slice(0, 300));
+    if (!(e instanceof RenderError) && !(e instanceof AudioPaidSupplyBlockedError)) console.error("[audio-studio] render falló", (e as Error).message?.slice(0, 300));
     await gen({ status: "fallida", error: message, finishedAt: now() }).catch(() => {});
     return "fallida";
   } finally {
