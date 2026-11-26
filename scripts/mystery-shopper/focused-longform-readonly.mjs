@@ -107,7 +107,7 @@ async function main() {
       let avEpisode = null;
       if (avId) {
         checkpoint = 'existing-AV-library';
-        const episodeResponse = page.waitForResponse(r=>r.request().method()==='GET' && new URL(r.url()).origin===ORIGIN && new URL(r.url()).pathname===`/api/podcast/v3/${avId}`,{timeout:30000});
+        const episodeResponse = page.waitForResponse(r=>r.request().method()==='GET' && new URL(r.url()).origin===ORIGIN && new URL(r.url()).pathname===`/api/podcast/v3/${avId}`,{timeout:30000}).then(response=>response,()=>null);
         const archived = await page.goto(`${ORIGIN}/dashboard/podcast?vista=archivados&mostrar=500#episodios`,{waitUntil:'domcontentloaded'});
         if (archived?.status() !== 200 || new URL(page.url()).pathname !== '/dashboard/podcast') throw Error('existing AV library unavailable');
         const card = page.getByTestId(`studio-episode-${avId}`);
@@ -115,7 +115,7 @@ async function main() {
         const open = card.getByTestId(`studio-abrir-${avId}`);
         if (await open.isVisible().catch(()=>false)) await open.click();
         const response = await episodeResponse;
-        if (response.status() !== 200) throw Error('existing AV owner GET failed');
+        if (!response || response.status() !== 200) throw Error('existing AV owner GET failed');
         const state = await response.json();
         if (state.episode?.id !== avId || state.episode.status !== 'ready' || state.episode.output !== 'video' || !state.video_url || !allowedRequest(state.video_url,'GET',true,storageOrigin)) throw Error('existing AV ready video unavailable');
         checkpoint = 'existing-AV-player';
