@@ -122,6 +122,7 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
   if (!open) return;
 
   const resumeRequest = process.env.MS_YOUTUBE_RESUME_REQUEST_ID;
+  const alreadyConfirmed = !!resumeRequest && process.env.MS_YOUTUBE_ALREADY_CONFIRMED === "1";
   const scriptKey = resumeRequest ? process.env.MS_YOUTUBE_EXISTING_SCRIPT_KEY ?? "" : `${c.jobId}-yt-script`;
   let configureHref = "";
   let resumeScriptSpent: number | null = null;
@@ -193,7 +194,12 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
 
   // 5 · Configurar producción (sin costo hasta confirmar)
   let ceiling: number | null = null; let scriptSpent: number | null = null; let strategyLabel = ""; let voice = "";
-  if (configureHref) await c.step("Configurar: estrategia visual más barata, voz y techo de gasto", async () => {
+  if (configureHref && alreadyConfirmed) {
+    ceiling = Number(process.env.MS_YOUTUBE_RESUME_CEILING_USD); scriptSpent = resumeScriptSpent;
+    if (!(Number.isFinite(ceiling) && ceiling > 0 && ceiling <= runCap)) { c.setHumanGate("No hay techo verificado para el plan confirmado; no se inicia."); return; }
+    await c.step("Recuperar plan confirmado y techo verificado del worker (sin recrear guion ni confirmar de nuevo)", async () => { await c.goto(`/dashboard/videos/${resumeRequest}`); return { state: "PASS", detail: "Plan confirmado recuperado, guion liquidado y cálculo de presupuesto verificado antes del inicio." }; });
+  }
+  if (configureHref && !alreadyConfirmed) await c.step("Configurar: estrategia visual más barata, voz y techo de gasto", async () => {
     await c.goto(configureHref);
     const radios = page.locator('input[type="radio"][name="strategy"]');
     const n = await radios.count();
@@ -247,7 +253,7 @@ export async function runYoutubeStudio(c: RealCtx, limits: YtLimits = YT_LIMITS)
   let videoPath = "";
   await c.step("Pulsar «Confirmar y generar video»", async () => {
     if (!killSwitch()) { await settle(renderKey, 0, "no se pulsó (interruptor apagado)"); return { state: "BLOCKED", detail: "Interruptor apagado justo antes del clic." }; }
-    const btn = page.getByRole("button", { name: "Confirmar y generar video" });
+    const btn = page.getByRole("button", { name: alreadyConfirmed ? "Iniciar producción" : "Confirmar y generar video", exact: true });
     if (await btn.isDisabled().catch(() => true)) { await settle(renderKey, 0, "botón deshabilitado: no se pulsó"); return { state: "BLOCKED", detail: "«Confirmar y generar video» deshabilitado." }; }
     const responseP = page.waitForResponse((r: { url(): string; request(): { method(): string } }) => {
       return matchesRenderStartResponse(c.baseUrl,configureHref,r.url(),r.request().method());
