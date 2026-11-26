@@ -1,8 +1,12 @@
 {
   "version": "quality-loop/1",
   "enabled": true,
-  "updatedAt": "2026-11-26T20:06:54.303764+00:00",
-  "lease": null,
+  "updatedAt": "2026-11-26T20:07:43.634Z",
+  "lease": {
+    "cycleId": "manual-45888572743",
+    "token": "1f664a27-5124-475a-9c35-8b9203280df6",
+    "expiresAt": "2026-11-26T20:27:43.634Z"
+  },
   "cycles": [
     {
       "id": "manual-45886485209",
@@ -44,67 +48,67 @@
           "detail": "Registro: HTTP 200"
         },
         {
-          "id": "anonymous-Panel sin sesi\u00f3n pide login",
+          "id": "anonymous-Panel sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Panel sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Panel sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Audio Studio sin sesi\u00f3n pide login",
+          "id": "anonymous-Audio Studio sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Audio Studio sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Audio Studio sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Podcast sin sesi\u00f3n pide login",
+          "id": "anonymous-Podcast sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Podcast sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Podcast sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Reels sin sesi\u00f3n pide login",
+          "id": "anonymous-Reels sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Reels sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Reels sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Long Form sin sesi\u00f3n pide login",
+          "id": "anonymous-Long Form sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Long Form sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Long Form sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Command Center sin sesi\u00f3n pide login",
+          "id": "anonymous-Command Center sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Command Center sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Command Center sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-API admin cerrada sin sesi\u00f3n",
+          "id": "anonymous-API admin cerrada sin sesión",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "API admin cerrada sin sesi\u00f3n: HTTP 401"
+          "detail": "API admin cerrada sin sesión: HTTP 401"
         },
         {
           "id": "qa-auth",
@@ -843,6 +847,10 @@
     {
       "at": "2026-11-26T20:06:54.303764+00:00",
       "text": "b79566f7308125968f1235fa FIXED_IN_BRANCH; stale audiovisual inspector corrected; Chromium regression PASS; no production closure"
+    },
+    {
+      "at": "2026-11-26T20:07:43.634Z",
+      "text": "Cycle manual-45888572743 claimed"
     }
   ],
   "lastAlert": "605515a6516419ff4da926bea456d8ce3b036e9efab0d8b9c0fce6ceb1a43a0b",
