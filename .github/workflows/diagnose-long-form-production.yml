@@ -4,7 +4,7 @@ on:
     inputs:
       operation:
         type: choice
-        options: [deny, record-reviewed-production-proof]
+        options: [deny, record-reviewed-production-proof, observe-native-output]
         default: deny
       request_id:
         type: string
@@ -25,21 +25,29 @@ on:
       expires_at:
         description: Explicit UTC expiry after now, at most one hour
         type: string
+      native_run_id:
+        description: Exact already dispatched native render run; read-only observer never starts a worker
+        type: string
+      deployment_receipt:
+        description: Existing private proof that bound the native checkout SHA at its authorized start
+        type: string
 permissions:
   contents: read
   deployments: read
+  actions: read
 jobs:
   record:
-    if: inputs.operation == 'record-reviewed-production-proof'
+    if: inputs.operation == 'record-reviewed-production-proof' || inputs.operation == 'observe-native-output'
     environment: Preview
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci --no-audit --no-fund
       - name: Record only the production gates already reviewed by repository owner
+        if: inputs.operation == 'record-reviewed-production-proof'
         env:
           MS_TECHNICAL_OPERATION: record-reviewed-production-proof
           MS_NEW_REQUEST_ID: ${{ inputs.request_id }}
@@ -56,3 +64,21 @@ jobs:
           umask 077
           node --import tsx scripts/mystery-shopper/record-technical-deployment-proof.mjs > "$RUNNER_TEMP/deployment-proof-private.log" 2>&1 || { echo 'Root source-reviewed production proof refused; no paid action or approval inferred.'; exit 1; }
           echo 'Root-reviewed deployed QA gate proof stored privately. No allocation, reserve or generation.'
+      - name: FREE observe exact existing native job and canonical private output; never settle or retry
+        if: inputs.operation == 'observe-native-output'
+        env:
+          MS_TECHNICAL_OPERATION: observe-native-output
+          MS_NEW_REQUEST_ID: ${{ inputs.request_id }}
+          MS_REVIEW_RECEIPT: ${{ inputs.review_receipt }}
+          MS_ACCEPTED_REVIEW_SHA: ${{ inputs.review_sha }}
+          MS_NATIVE_RUN_ID: ${{ inputs.native_run_id }}
+          MS_DEPLOYMENT_RECEIPT: ${{ inputs.deployment_receipt }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          MYSTERY_SHOPPER_QA_EMAIL: ${{ secrets.MYSTERY_SHOPPER_QA_EMAIL }}
+          MYSTERY_SHOPPER_QA_PASSWORD: ${{ secrets.MYSTERY_SHOPPER_QA_PASSWORD }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          umask 077
+          node --import tsx scripts/mystery-shopper/observe-technical-native.mjs > "$RUNNER_TEMP/technical-observer-private.log" 2>&1 || { echo 'Private native observer blocked. No generation, retry or settlement.'; exit 1; }
+          echo 'Existing native journal and bounded canonical locator recorded privately only.'
