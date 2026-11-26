@@ -40,7 +40,9 @@ export async function askAppIsStudioOwner(userId: string, env: Record<string, st
 
 /** Separate scoped admission: a QA response never confers owner or internal-owner privileges. */
 export async function askAppIsStudioQaPilot(userId: string, env: Record<string, string | undefined> = process.env, fetchImpl: typeof fetch = fetch): Promise<boolean> {
-  if (env.PODCAST_V3_QA_PILOT === "0") return false;
+  // QA must never fall back to the production app. The worker has to name the
+  // deployment whose allowlist it is asking; a missing URL therefore blocks.
+  if (env.PODCAST_V3_QA_PILOT === "0" || !env.PODCAST_V3_APP_URL?.trim()) return false;
   return (await askAppOwner(userId, env, fetchImpl))?.qaPilot === true;
 }
 

@@ -106,6 +106,10 @@ jobs:
           # episodio es el dueño (la app sí lo conoce). Nada de la identidad del dueño queda en el repositorio.
           # Interruptor del piloto también en el generador (variable del repositorio PODCAST_V3_OWNER_PILOT=0 lo apaga aquí).
           PODCAST_V3_OWNER_PILOT: ${{ vars.PODCAST_V3_OWNER_PILOT }}
+          # QA is independent from the owner pilot and must query the explicitly configured app deployment.
+          # If either value is absent, the worker fails closed and does not start a paid generation.
+          PODCAST_V3_QA_PILOT: ${{ vars.PODCAST_V3_QA_PILOT }}
+          PODCAST_V3_APP_URL: ${{ vars.PODCAST_V3_APP_URL }}
           HEYGEN_API_KEY: ${{ secrets.HEYGEN_API_KEY }}
           # Estudio: ilustraciones Recraft (fal.ai; FAL_ADMIN_KEY solo lee el saldo) y director visual (Anthropic).
           FAL_KEY: ${{ secrets.FAL_KEY }}

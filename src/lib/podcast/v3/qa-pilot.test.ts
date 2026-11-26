@@ -34,11 +34,22 @@ test("native admission uses the separately signed QA answer, never an owner gran
   assert.equal(await studioWorkerEnabled(episode,{...env,PODCAST_V3_QA_PILOT:"0"},{ownerOf:async()=>qa.id,askQa:async()=>true}),false);
 });
 test("QA answer is not owner/internal-owner; missing or malformed QA boolean blocks", async () => {
-  const env={SUPABASE_SERVICE_ROLE_KEY:"fixture-secret-only-for-synthetic-hmac"};
+  const env={SUPABASE_SERVICE_ROLE_KEY:"fixture-secret-only-for-synthetic-hmac",PODCAST_V3_APP_URL:"https://preview.example.test"};
   const response=(body:unknown)=>async()=>new Response(JSON.stringify(body),{status:200,headers:{"Content-Type":"application/json"}});
   const fetchQa=response({qaPilot:true,owner:false,internalOwner:false});
   assert.equal(await askAppIsStudioQaPilot(qa.id,env,fetchQa),true);
   assert.equal(await askAppIsStudioOwner(qa.id,env,fetchQa),false);
   assert.equal(await askAppIsInternalOwner(qa.id,env,fetchQa),false);
   for(const body of [{owner:true},{qaPilot:"true"},{qaPilot:false},null]) assert.equal(await askAppIsStudioQaPilot(qa.id,env,response(body)),false);
+});
+test("QA worker requires an explicit app URL and never falls back to production", async () => {
+  const base={SUPABASE_SERVICE_ROLE_KEY:"fixture-secret-only-for-synthetic-hmac"};
+  let calls=0,seen="";
+  const answer=(async(url:string)=>{calls++;seen=url;return new Response(JSON.stringify({qaPilot:true}),{status:200,headers:{"Content-Type":"application/json"}});}) as unknown as typeof fetch;
+  assert.equal(await askAppIsStudioQaPilot(qa.id,base,answer),false);
+  assert.equal(await askAppIsStudioQaPilot(qa.id,{...base,PODCAST_V3_APP_URL:"   "},answer),false);
+  assert.equal(calls,0,"missing Preview URL makes no request, including to production");
+  assert.equal(await askAppIsStudioQaPilot(qa.id,{...base,PODCAST_V3_APP_URL:"https://preview.example.test"},answer),true);
+  assert.equal(calls,1);
+  assert.equal(seen,"https://preview.example.test/api/internal/studio-owner");
 });
