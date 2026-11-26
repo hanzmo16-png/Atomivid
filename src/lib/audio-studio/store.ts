@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { isUuid, parseStored, type AudioProject } from "./model";
 
 /**
@@ -44,7 +45,7 @@ export interface ProjectStore {
 
 type StorageApi = {
   list(prefix: string, opts: { limit: number; sortBy?: { column: string; order: string } }): Promise<{ data: { name: string }[] | null; error: { message: string } | null }>;
-  download(path: string): Promise<{ data: Blob | null; error: { message: string; statusCode?: string | number; name?: string; originalError?: unknown } | null }>;
+  download(path: string, opts?: { cacheNonce?: string }): Promise<{ data: Blob | null; error: { message: string; statusCode?: string | number; name?: string; originalError?: unknown } | null }>;
   upload(path: string, body: string | Blob | Buffer, opts: { contentType: string; upsert: boolean; cacheControl?: string }): Promise<{ error: { message: string; statusCode?: string | number } | null }>;
   createSignedUrl?(path: string, seconds: number, opts?: { download?: string | boolean }): Promise<{ data: { signedUrl: string } | null; error: unknown }>;
 };
@@ -79,7 +80,9 @@ export const BLOB_READ_RETRY_MS = 200;
 export function storageStore(bucket: StorageApi, opts: { retryDelayMs?: number } = {}): ProjectStore & BlobStore {
   const retryDelayMs = opts.retryDelayMs ?? BLOB_READ_RETRY_MS;
   const read = async (ownerId: string, id: string) => {
-    const { data, error } = await bucket.download(projectPath(ownerId, id));
+    // El JSON del proyecto se sobrescribe en el mismo objeto y el CDN de Storage puede servir la copia anterior unos
+    // segundos: un nonce único por lectura (opción oficial de storage-js) fuerza leer siempre lo último guardado.
+    const { data, error } = await bucket.download(projectPath(ownerId, id), { cacheNonce: randomUUID() });
     if (error) {
       if (notFound(error)) return null;
       console.error("[audio-studio] lectura de Storage falló", { status: error.statusCode ?? null, message: error.message?.slice(0, 200) });
