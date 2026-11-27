@@ -86,7 +86,7 @@ export async function observe(env: Record<string,string|undefined>, input: Pick<
     // Only operational statuses leave this process; never provider balances or private financial rows.
     for(const product of PRODUCTS){
       const good=sentinel==='READ'&&providerReadiness(product,sent.data);
-      add({id:'provider-readiness',product,state:good?'PASS':'BLOCKED',severity:'P1',owner:'codex',module:'sentinel',detail:good?'Readiness observed only; paid tests remain prohibited':'Provider capacity, balances, reservations or worker coverage unverified; no provider calls made'});
+      add({id:'provider-readiness',product,state:good?'PASS':'BLOCKED',severity:'P1',owner:'codex',module:'sentinel',detail:good?'Readiness observed only; paid tests remain prohibited':`Resource evidence unverified: ${readinessBlockerDetail(sent.data,product)}; no provider calls made`});
     }
     const routes=[{product:'youtube',path:'/dashboard/long-form/new'},{product:'reels',path:'/dashboard/new?formato=reel'},{product:'audio-podcast',path:'/dashboard/audio-studio'},{product:'video-podcast',path:'/dashboard/podcast'},{product:'library',path:'/dashboard'},{product:'commercial',path:'/dashboard/billing'}] as const;
     for(const viewport of [{width:412,height:915},{width:1440,height:900}]){
@@ -116,7 +116,9 @@ export async function observe(env: Record<string,string|undefined>, input: Pick<
           }
           if(route.product==='audio-podcast'||route.product==='youtube')add({id:`configuration-${route.product}-${viewport.width}`,product:route.product,state:await page.locator('input,select,textarea,button').count()>0?'PASS':'FAIL',severity:'P1',owner:'claude',module:'ui',detail:'Configuration controls visible; language/voice changes that persist are reserved for isolated tests'});
           // Observe existing player/download controls without an unbounded media request.
-          if(PRODUCTS.includes(route.product as never)){
+          // Video creation screens deliberately have no completed player. The same
+          // checks run on the authorized result page below, never become implicit PASS.
+          if(route.product==='audio-podcast'||route.product==='video-podcast'){
             const count=await page.locator('audio[src],video[src]').count();
             add({id:`player-visible-${route.product}-${viewport.width}`,product:route.product as typeof PRODUCTS[number],state:count?'PASS':'BLOCKED',severity:'P1',owner:'codex',module:'delivery',detail:count?'Existing media element observed; no new production':'No existing player on this screen; asset search runs separately'});
           }
@@ -138,15 +140,19 @@ export async function observe(env: Record<string,string|undefined>, input: Pick<
           return links.find(a=>{const card=a.closest('div.rounded-lg');const text=card?.textContent||'';return product==='youtube'?/Documental/.test(text):!(/Documental|Avatar/.test(text));})?.getAttribute('href')||null;
         },product);
       }
-      if(!assetPage){add({id:'existing-asset',product,state:'BLOCKED',severity:'P1',owner:'codex',module:'delivery',detail:'No existing QA asset for this product; never manufactured'});continue;}
+      if(!assetPage){
+        if(product==='youtube'||product==='reels')checks.push(...await existingResultPlayerChecks(null,origin,product,stopped));
+        add({id:'existing-asset',product,state:'BLOCKED',severity:'P1',owner:'codex',module:'delivery',detail:'No existing QA asset for this product; never manufactured'});continue;
+      }
       try{
         await page.goto(assetPage,{waitUntil:'domcontentloaded'});
+        if(product==='youtube'||product==='reels')checks.push(...await existingResultPlayerChecks(page,origin,product,stopped));
         let src:string|null;
         if(product==='video-podcast'){
           const found=await existingVideoEpisodeSource(page,origin,sha===input.runnerSha,stopped,path=>{existingEpisodePath=path;});
           if(!found.src){add({id:'existing-asset',product,state:'BLOCKED',severity:'P1',owner:'codex',module:'delivery',detail:`Existing episode inspection ${found.reason}; no archive, generation or retry requested`});continue;}
           src=found.src;
-        }else src=await page.locator(product==='audio-podcast'?'audio[src]':'video[src]').first().getAttribute('src',{timeout:5000});
+        }else src=await page.locator(product==='audio-podcast'?'audio[src]':'video[controls][src]').first().getAttribute('src',{timeout:5000});
         if(!src)throw new Error('NO_MEDIA');
         const cookie=(await context.cookies(origin)).map((c:{name:string,value:string})=>`${c.name}=${c.value}`).join('; ');
         const sample=await sampleMedia(src,origin,cookie);
@@ -159,6 +165,14 @@ export async function observe(env: Record<string,string|undefined>, input: Pick<
         add({id:'full-file-integrity',product,state:'BLOCKED',severity:'P1',owner:'codex',module:'delivery',detail:'Full decode and content/lip-sync quality require isolated acceptance; periodic sample does not certify them'});
       }catch(error){if(error instanceof Error&&error.message==='STOPPED')throw error;add({id:'existing-asset',product,state:'BLOCKED',severity:'P1',owner:'codex',module:'delivery',detail:'Existing asset unavailable or not authorized for bounded read; no generation/retry'});}
     }
+    // Even when a recurring cycle forbids payload inspection or navigation failed,
+    // preserve both acceptance checks as BLOCKED instead of silently omitting them.
+    for(const product of ['youtube','reels'] as const){
+      if(![412,1440].every(width=>checks.some(c=>c.id===`player-visible-${product}-${width}`&&c.product===product))){
+        const missing=(await existingResultPlayerChecks(null,origin,product,stopped)).filter(c=>!checks.some(old=>old.id===c.id&&old.product===product));
+        checks.push(...missing);
+      }
+    }
     for(const id of ['registration-confirmation','checkout-test','subscription-mutation','job-recovery','logout-action'])add({id,product:id==='checkout-test'||id==='subscription-mutation'?'commercial':'account-nav',state:'BLOCKED',severity:'P1',owner:'codex',module:'isolated-fixture',detail:'Mutating flow restricted to isolated environment; periodic production run does not execute it'});
     const finalBuild=await getJSON('/api/build-info');
     const stable=sha!==null&&finalBuild.status===200&&finalBuild.data?.sha===sha;
@@ -168,6 +182,39 @@ export async function observe(env: Record<string,string|undefined>, input: Pick<
     // No screenshots, DOM dumps, emails, media URLs, financial values or cookies are emitted.
   }finally{await browser.close();}
   return finish();
+}
+
+/** Only closed diagnostic codes may enter public checks; never echo server payloads. */
+export function readinessBlockerDetail(data:unknown,product:typeof PRODUCTS[number]):string {
+  const allowed=new Set(['OBSERVATION_MISSING','BALANCE_UNKNOWN','BALANCE_STALE','BALANCE_ESTIMATED','FREE_CAPACITY_UNKNOWN','FREE_CAPACITY_NOT_POSITIVE','CROSS_PRODUCT_LEDGER_UNVERIFIED','ADMISSION_UNVERIFIED_OR_REFUSED','WORKER_CAPACITY_UNVERIFIED_OR_UNAVAILABLE','WORKER_COVERAGE_UNVERIFIED']);
+  const d=data as {version?:unknown;products?:Partial<Record<typeof PRODUCTS[number],{blockers?:unknown}>>}|null;
+  const values=d?.version==='resource-sentinel-readiness/1'?d.products?.[product]?.blockers:null;
+  const codes=Array.isArray(values)?[...new Set(values.filter((v):v is string=>typeof v==='string'&&allowed.has(v)))].sort():[];
+  return codes.length?codes.join(', '):'RESOURCE_OR_CROSS_PRODUCT_COVERAGE_UNVERIFIED';
+}
+
+/** Inspect the delivered player on an owner result page, not a creation page or cover video.
+ * DOM/viewport observation only: no play, provider call, payload read or app mutation. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function existingResultPlayerChecks(page:any|null,origin:string,product:'youtube'|'reels',stopped:()=>Promise<boolean>):Promise<Check[]> {
+  const checks:Check[]=[];
+  for(const viewport of [{width:412,height:915},{width:1440,height:900}]){
+    if(await stopped())throw new Error('STOPPED');
+    let good=false;
+    if(page){
+      try{
+        const current=new URL(page.url());
+        if(current.origin===origin&&/^\/dashboard\/videos\/[a-zA-Z0-9_-]+$/.test(current.pathname)){
+          await page.setViewportSize(viewport);
+          const player=page.locator('video[controls][src]').first();
+          const src=await player.getAttribute('src',{timeout:5000});
+          good=!!src&&!!mediaURL(src,origin)&&await player.isVisible();
+        }
+      }catch{/* Missing, hidden or unauthorized media remains unverified; omit private DOM/URLs. */}
+    }
+    checks.push({id:`player-visible-${product}-${viewport.width}`,product,state:good?'PASS':'BLOCKED',severity:'P1',owner:'codex',module:'delivery',detail:good?'Visible delivered player on existing owner result page; no media payload read':'Existing authorized result player unavailable; creation screen or background video is not delivery evidence'});
+  }
+  return checks;
 }
 
 /** Existing owner cards only, bounded metadata and local "Ver episodio" click. Never unarchives.

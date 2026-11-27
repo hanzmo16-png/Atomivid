@@ -2,14 +2,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { observe, existingVideoEpisodeSource } from './browser';
+import { observe, existingVideoEpisodeSource, existingResultPlayerChecks, readinessBlockerDetail } from './browser';
 import { allowBrowserRequest } from '../../../src/lib/mystery-shopper/quality-loop/policy';
 import { sampleMedia, mediaURL } from './media';
 import { safeRedirectTarget } from '../../../src/lib/auth/errors';
 import { runPageMaintenance } from '../../../src/lib/mystery-shopper/quality-loop/readonly-inspection';
 const sha='a'.repeat(40);
+test('public readiness details include only closed diagnostic codes, never arbitrary server data',()=>{
+ const data={version:'resource-sentinel-readiness/1',products:{youtube:{blockers:['BALANCE_STALE','SECRET balance=123 https://private.example','BALANCE_STALE',123,{},'WORKER_COVERAGE_UNVERIFIED']}}};
+ assert.equal(readinessBlockerDetail(data,'youtube'),'BALANCE_STALE, WORKER_COVERAGE_UNVERIFIED');
+ assert.equal(readinessBlockerDetail(data,'reels'),'RESOURCE_OR_CROSS_PRODUCT_COVERAGE_UNVERIFIED');
+ for(const d of [null,{}, {version:'old',products:data.products}])assert.equal(readinessBlockerDetail(d,'youtube'),'RESOURCE_OR_CROSS_PRODUCT_COVERAGE_UNVERIFIED');
+});
 test('real Chromium: four products, controlled defect detected then corrected/revalidated, no mutating request beyond login',async()=>{
  let broken=true,otherWrites=0,logins=0,housekeeping=0,optOuts=0;const loginTargets:string[]=[];
+ const realFetch=globalThis.fetch;let syntheticSamples=0;
+ globalThis.fetch=async(input,init)=>{
+  const url=new URL(String(input));
+  if(url.hostname==='fixture.supabase.co'){syntheticSamples++;return new Response(new Uint8Array([0,1,2]),{status:206,headers:{'content-type':'video/mp4'}});}
+  assert.equal(url.hostname,'127.0.0.1','controlled fixture never contacts an external provider');
+  return realFetch(input,init);
+ };
  const server=createServer(async(req,res)=>{
   const p=new URL(req.url!,'http://localhost').pathname;
   if(req.method==='POST'){
@@ -38,6 +51,8 @@ test('real Chromium: four products, controlled defect detected then corrected/re
    const hidden=target?'<input type="hidden" name="redirectedFrom" value="'+target.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')+'">':'';
    return res.end('<form method="POST" action="/login">'+hidden+'<label>Correo electrónico<input name="email"></label><label>Contraseña<input name="password" type="password"></label><button>Iniciar sesión</button></form><script>fetch("/api/render",{method:"POST"}).catch(()=>{})</script>');
   }
+  if(p==='/dashboard')return res.end('<h1>Biblioteca QA</h1><div class="rounded-lg">Documental<a href="/dashboard/videos/documentary">Ver</a></div><div class="rounded-lg">Reel<a href="/dashboard/videos/reel">Ver</a></div>');
+  if(p.startsWith('/dashboard/videos/'))return res.end('<h1>Resultado existente</h1><video preload="none" src="/cinematic-cover.mp4"></video><video controls preload="none" style="width:200px;height:100px" src="https://fixture.supabase.co/storage/v1/object/sign/videos/result.mp4?token=fixture"></video>');
   const reel=p==='/dashboard/new';
   res.end('<style>body{margin:20px;font-family:sans-serif}button,input,textarea{min-height:44px;max-width:90vw}h1{font-size:24px}</style><h1>'+ (reel?'Generar nuevo video':'Producto QA aislado')+'</h1>'+ (reel?'<div role="radiogroup" aria-label="Guion">Guion</div><label>Tema o instrucciones<textarea></textarea></label>'+(broken?'':'<div role="radiogroup" aria-label="Duración deseada">30 s</div>'):'<label>Idioma<select><option>Español</option></select></label>')+'<div data-testid="podcast-wizard" data-hydrated="1"><ol aria-label="Pasos"><li>Inicio</li></ol><button data-testid="modalidad-visual">Narración con imágenes</button><button data-testid="modalidad-avatar">Avatar</button><button data-testid="modalidad-dialogo">Conversación</button></div>');
  });
@@ -55,7 +70,12 @@ test('real Chromium: four products, controlled defect detected then corrected/re
   for(const p of ['youtube','reels','audio-podcast','video-podcast'])assert.ok(second.checks.some(c=>c.product===p&&c.id.startsWith('route-')));
   assert.equal(otherWrites,0);assert.equal(logins,2);assert.equal(housekeeping,0,'no authenticated housekeeping GET reached the controlled server');assert.ok(optOuts>0,'login redirect/dashboard GETs were rewritten before the server');assert.deepEqual(loginTargets,['/dashboard?inspection=read-only','/dashboard?inspection=read-only'],'Server Action target already carries the opt-out');assert.equal(second.spendUsd,0);
   assert.equal(second.checks.find(c=>c.id==='checkout-test')?.state,'BLOCKED');
- }finally{await new Promise<void>(r=>server.close(()=>r()));}
+  for(const product of ['youtube','reels'])for(const width of [412,1440]){
+   const matches=second.checks.filter(c=>c.product===product&&c.id===`player-visible-${product}-${width}`);
+   assert.equal(matches.length,1,'same acceptance check executes exactly once on result, not creation');assert.equal(matches[0].state,'PASS');
+  }
+  assert.equal(syntheticSamples,4,'bounded synthetic payload only; not a valid media quality fixture');
+ }finally{globalThis.fetch=realFetch;await new Promise<void>(r=>server.close(()=>r()));}
 });
 test('media probe rejects providers, forwards no app cookie to storage, bounds payload even when Range ignored',async()=>{
  assert.throws(()=>mediaURL('https://api.elevenlabs.io/v1/x','https://atomivid.vercel.app'));
@@ -139,4 +159,31 @@ test('episode discovery refuses a mixed deployment and stops before navigation w
  assert.equal(noBuild.src,null);assert.equal(noBuild.reason,'DEPLOYMENT_UNVERIFIED');assert.equal(navigations,0);assert.equal(pin,null);
  await assert.rejects(existingVideoEpisodeSource(page,'https://atomivid.vercel.app',true,async()=>true,p=>{pin=p;}),/STOPPED/);
  assert.equal(navigations,0);assert.equal(pin,null);
+});
+
+test('real Chromium result-player checks require an owner result route, visible controls and authorized source at both viewports',async()=>{
+ const origin='https://atomivid.vercel.app';
+ const pw=await import(process.env.PLAYWRIGHT_MODULE||'playwright');const browser=await pw.chromium.launch({headless:true,executablePath:process.env.E2E_CHROME});
+ const context=await browser.newContext({serviceWorkers:'block'});let payloads=0;
+ await context.route('**/*',async(route:{request():{resourceType():string};fulfill(input:{contentType:string;body:string}):Promise<void>;abort():Promise<void>})=>{if(route.request().resourceType()==='document')return route.fulfill({contentType:'text/html',body:'<h1>Controlled existing result</h1>'});payloads++;return route.abort();});
+ const page=await context.newPage();
+ try{
+  const body=(attrs:string)=>`<video preload="none" src="/cinematic-cover.mp4" style="display:block;width:200px;height:100px"></video><video ${attrs} preload="none" style="display:block;width:200px;height:100px"></video>`;
+  await page.goto(origin+'/dashboard/videos/owner-result');
+  await page.setContent(body('controls src="https://fixture.supabase.co/storage/v1/object/sign/videos/owner.mp4?token=fixture"'));
+  const out=await existingResultPlayerChecks(page,origin,'youtube',async()=>false);
+  assert.deepEqual(out.map(c=>[c.id,c.state]),[['player-visible-youtube-412','PASS'],['player-visible-youtube-1440','PASS']]);
+  for(const attrs of ['src="https://fixture.supabase.co/storage/v1/object/sign/videos/owner.mp4?token=fixture"','controls src="https://api.provider.example/render.mp4"','controls src="/cinematic-cover.mp4"']){
+   await page.setContent(body(attrs));assert.ok((await existingResultPlayerChecks(page,origin,'reels',async()=>false)).every(c=>c.state==='BLOCKED'));
+  }
+  await page.setContent('<video controls preload="none" hidden src="https://fixture.supabase.co/storage/v1/object/sign/videos/owner.mp4?token=fixture"></video>');
+  assert.ok((await existingResultPlayerChecks(page,origin,'reels',async()=>false)).every(c=>c.state==='BLOCKED'));
+  for(const path of ['/dashboard/new','/dashboard/long-form/new','/dashboard/videos/owner-result/extra']){
+   await page.goto(origin+path);await page.setContent(body('controls src="https://fixture.supabase.co/storage/v1/object/sign/videos/owner.mp4?token=fixture"'));
+   assert.ok((await existingResultPlayerChecks(page,origin,'youtube',async()=>false)).every(c=>c.state==='BLOCKED'));
+  }
+  assert.ok((await existingResultPlayerChecks(null,origin,'reels',async()=>false)).every(c=>c.state==='BLOCKED'));
+  await assert.rejects(existingResultPlayerChecks(page,origin,'reels',async()=>true),/STOPPED/);
+  assert.equal(payloads,0,'preload=none and DOM inspection cause no media payload requests');
+ }finally{await context.close();await browser.close();}
 });
