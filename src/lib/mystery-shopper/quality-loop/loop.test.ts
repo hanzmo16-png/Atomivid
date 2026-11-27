@@ -87,6 +87,17 @@ test('one defect across viewports; a desktop pass cannot hide the mobile failure
  add(q,cycle('missing-mobile',[desktop]));assert.equal(q.defects[0].state,'INTEGRATED');
  add(q,cycle('fixed',[{...mobile,state:'PASS'},desktop]));assert.equal(q.defects[0].state,'REVALIDATED');
 });
+
+test('video-only worker telemetry never certifies Audio/AV capacity, and invalid worker counts fail closed',()=>{
+ const data={sentinel:{accounts:[{providers:['openai','pexels','elevenlabs','recraft','flux','runpod','heygen','ffmpeg-worker'],operationalLevel:'GREEN',balanceStatus:'REAL',free:1}],resources:[{resource:'workers',state:'VERIFIED',used:0,limit:2}]},coverage:{workers:'video_requests only; excludes separate Audio/Podcast workers'}};
+ assert.equal(providerReadiness('youtube',data),true);
+ assert.equal(providerReadiness('audio-podcast',data),false,'video slots do not prove Audio worker capacity');
+ assert.equal(providerReadiness('video-podcast',data),false,'video_requests slots do not prove independent Podcast worker capacity');
+ for(const patch of [{used:-1},{limit:Infinity},{used:0.5},{limit:0},{limit:NaN}]){
+  const bad={...data,sentinel:{...data.sentinel,resources:[{...data.sentinel.resources[0],...patch}]}};
+  assert.equal(providerReadiness('youtube',bad),false);
+ }
+});
 test('recurrence reopens same defect and creates one linked follow-up, not a duplicate root task',()=>{
  const q=initialQueue(at);add(q,cycle('first'));const d=q.defects[0],root=d.taskId;d.driveId='prior-task-file';const t=claimDefect(q,d.id,'codex','active',end);transition(q,d.id,t,'FIXED_IN_BRANCH',sha,end);transition(q,d.id,t,'INTEGRATED',sha,end);add(q,cycle('good',[{...check,state:'PASS'}]));add(q,cycle('recur'));const follow=q.defects[0].taskId;assert.notEqual(follow,root);assert.equal(q.defects[0].rootTaskId,root);assert.equal(q.defects[0].driveId,null);add(q,cycle('same-fail'));assert.equal(q.defects.length,1);assert.equal(q.defects[0].taskId,follow);
 });
