@@ -26,7 +26,7 @@ test("panel Sentinel: tarjetas por proveedor con semáforo, saldo, consumo, auto
   // Desconocido explícito, sin cifras inventadas.
   assert.ok(html.includes('data-testid="sentinel-card-luma"') && html.includes("Semáforo: Desconocido"));
   assert.ok(html.includes("Nunca se registró un saldo verificable"));
-  assert.ok(html.includes("Fuentes sin leer: pi_supply_alerts unavailable"));
+  assert.ok(html.includes("Limitaciones o errores de esta lectura") && html.includes("<li>pi_supply_alerts unavailable</li>"));
   assert.ok(html.includes("1 proveedor requiere recarga o revisión."));
   assert.ok(html.includes("min-h-11"), "enlaces táctiles de 44 px");
   assert.ok(html.includes('data-status="REAL"') && html.includes('data-status="UNKNOWN"'));
