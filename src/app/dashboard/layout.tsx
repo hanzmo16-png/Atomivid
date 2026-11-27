@@ -40,7 +40,7 @@ export default async function DashboardLayout({
     <div className="min-h-screen">
       <header className="sticky top-0 z-20 border-b border-glass-border bg-obsidian/70 backdrop-blur-xl backdrop-saturate-150">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3.5 sm:px-6">
-          <Link href="/dashboard" aria-label="Atomicvid, inicio" className="shrink-0">
+          <Link href="/dashboard" aria-label="Atomicvid, inicio" className="inline-flex min-h-11 shrink-0 items-center">
             {/* < 380 px solo el símbolo: con la marca completa la cabecera no cabe en 320 px (Galaxy S9+). */}
             <span className="max-[379px]:hidden"><Logo /></span>
             <span className="hidden max-[379px]:inline"><Logo iconOnly /></span>
@@ -105,14 +105,14 @@ export default async function DashboardLayout({
             </NavLink>
             <Link
               href="/dashboard/new"
-              className="inline-flex min-h-9 items-center whitespace-nowrap rounded-full bg-champagne px-3 text-sm font-medium text-obsidian shadow-[0_6px_20px_-8px_rgba(230,207,159,0.7)] transition-colors hover:bg-champagne-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne"
+              className="inline-flex min-h-11 items-center whitespace-nowrap rounded-full bg-champagne px-3 text-sm font-medium text-obsidian shadow-[0_6px_20px_-8px_rgba(230,207,159,0.7)] transition-colors hover:bg-champagne-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne"
             >
               Nuevo video
             </Link>
             <form action={signOut}>
               <button
                 type="submit"
-                className="rounded-md px-2.5 py-2 text-sm font-medium text-ink-muted transition-colors hover:text-ink"
+                className="inline-flex min-h-11 items-center rounded-md px-2.5 text-sm font-medium text-ink-muted transition-colors hover:text-ink"
                 aria-label="Cerrar sesión"
                 title="Cerrar sesión"
               >
@@ -126,9 +126,9 @@ export default async function DashboardLayout({
           // no aparece. El ensayo de Long Form no va aquí: es una herramienta interna de escritorio (xl).
           <div className="border-t border-glass-border px-4 py-1.5 lg:hidden" data-testid="studio-strip">
             <div className="mx-auto flex max-w-5xl gap-1 overflow-x-auto whitespace-nowrap text-sm font-medium [scrollbar-width:none]">
-              {showPodcast && <NavLink href="/dashboard/podcast" className="inline-flex min-h-10 items-center rounded-full px-3 transition-colors">Podcast</NavLink>}
-              {showAudioStudio && <NavLink href="/dashboard/audio-studio" className="inline-flex min-h-10 items-center rounded-full px-3 transition-colors">Audio Podcast</NavLink>}
-              {showCommandCenter && <NavLink href="/dashboard/command-center" className="inline-flex min-h-10 items-center rounded-full px-3 transition-colors">Command Center</NavLink>}
+              {showPodcast && <NavLink href="/dashboard/podcast" className="inline-flex min-h-11 items-center rounded-full px-3 transition-colors">Podcast</NavLink>}
+              {showAudioStudio && <NavLink href="/dashboard/audio-studio" className="inline-flex min-h-11 items-center rounded-full px-3 transition-colors">Audio Podcast</NavLink>}
+              {showCommandCenter && <NavLink href="/dashboard/command-center" className="inline-flex min-h-11 items-center rounded-full px-3 transition-colors">Command Center</NavLink>}
             </div>
           </div>
         )}

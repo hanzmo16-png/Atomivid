@@ -84,7 +84,7 @@ export function CommandCenterView({ vm, alerts }: { vm: CommandCenterViewModel; 
 
       <nav aria-label="Time window" className="flex w-full min-w-0 gap-2 overflow-x-auto pb-1">
         {WINDOWS.map((w) => (
-          <Link key={w} href={`/dashboard/command-center?window=${w}`} aria-current={w === vm.window ? "page" : undefined} className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors ${w === vm.window ? "bg-accent text-accent-ink" : "border border-border bg-surface text-ink-muted hover:text-ink"}`}>{windowLabel[w]}</Link>
+          <Link key={w} href={`/dashboard/command-center?window=${w}`} aria-current={w === vm.window ? "page" : undefined} className={`inline-flex min-h-11 shrink-0 items-center rounded-full px-4 text-sm font-medium transition-colors ${w === vm.window ? "bg-accent text-accent-ink" : "border border-border bg-surface text-ink-muted hover:text-ink"}`}>{windowLabel[w]}</Link>
         ))}
       </nav>
 

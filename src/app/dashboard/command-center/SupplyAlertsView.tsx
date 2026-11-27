@@ -9,7 +9,7 @@ export function SupplyAlertsView({ inbox, window }: { inbox: SupplyInbox; window
   return <section id="credit-alerts" aria-labelledby="credit-alerts-title" className="min-w-0 rounded-2xl border border-border bg-surface/60 p-4 sm:p-5">
     <header className="flex flex-wrap items-center justify-between gap-3">
       <h2 id="credit-alerts-title" className="text-base font-semibold text-ink">Alertas de créditos</h2>
-      <a href={`/dashboard/command-center?window=${window}#credit-alerts`} className="rounded-lg border border-border px-3 py-2 text-sm text-ink">Actualizar panel</a>
+      <a href={`/dashboard/command-center?window=${window}#credit-alerts`} className="inline-flex min-h-11 items-center rounded-lg border border-border px-3 text-sm text-ink">Actualizar panel</a>
     </header>
     <p className="mt-2 text-xs text-ink-muted">Avisos solo dentro del panel. Últimos 20 registros; las fechas se muestran en hora de Cancún.</p>
     <p className="mt-1 text-xs text-ink-faint">Este historial no confirma el saldo actual ni que una alerta siga activa. Actualizar el panel consulta los avisos guardados.</p>

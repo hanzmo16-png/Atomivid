@@ -36,14 +36,14 @@ function Card({ c }: { c: SentinelCard }) {
 
       <div className="mt-3">
         <p className="text-xs text-zinc-400">Consumo registrado <span className="text-zinc-500">(ledger PI, parcial)</span></p>
-        <dl className="mt-1 grid grid-cols-3 gap-2 text-sm">
-          {c.consumption.map((x) => <div key={x.label} className="rounded-xl border border-white/5 p-2 text-center"><dt className="text-[11px] text-zinc-500">{x.label}</dt><dd className="mt-0.5 font-medium tabular-nums text-zinc-100">{x.display}</dd></div>)}
+        <dl className="mt-1 grid grid-cols-3 gap-1.5 text-sm">
+          {c.consumption.map((x) => <div key={x.label} className="min-w-0 rounded-xl border border-white/5 px-1 py-2 text-center"><dt className="text-[11px] text-zinc-500">{x.label}</dt><dd className={`mt-0.5 font-medium tabular-nums leading-tight ${x.display === "Desconocido" ? "text-[10.5px] tracking-tight text-zinc-400" : "text-zinc-100"}`}>{x.display}</dd></div>)}
         </dl>
       </div>
 
-      <div className="mt-3 flex items-baseline justify-between gap-3 rounded-xl bg-white/5 p-3">
-        <div><p className="text-xs text-zinc-400">Autonomía estimada</p><p className="text-[11px] text-zinc-500">{c.autonomy.note}</p></div>
-        <p className={`shrink-0 text-lg font-semibold tabular-nums ${TEXT[c.autonomy.tone]}`}>{c.autonomy.display}</p>
+      <div className="mt-3 rounded-xl bg-white/5 p-3">
+        <div className="flex items-baseline justify-between gap-3"><p className="text-xs text-zinc-400">Autonomía estimada</p><p className={`shrink-0 text-lg font-semibold tabular-nums ${TEXT[c.autonomy.tone]}`}>{c.autonomy.display}</p></div>
+        <p className="mt-1 text-[11px] text-zinc-500">{c.autonomy.note}</p>
       </div>
 
       {c.alerts.length > 0 && (
