@@ -37,7 +37,7 @@ export default async function ForgotPasswordPage({
             placeholder="tu@correo.com"
           />
         </Field>
-        <Button type="submit" className="w-full">
+        <Button type="submit" className="min-h-11 w-full">
           Enviar enlace de recuperación
         </Button>
       </form>
