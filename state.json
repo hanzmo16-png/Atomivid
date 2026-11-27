@@ -1,8 +1,12 @@
 {
   "version": "quality-loop/1",
   "enabled": true,
-  "updatedAt": "2026-11-27T14:10:18.826Z",
-  "lease": null,
+  "updatedAt": "2026-11-27T14:44:37.687Z",
+  "lease": {
+    "cycleId": "deployment-8112525867-5d059bc13a27a3902f05f9e22fa09014b0d2adee",
+    "token": "6723822b-6c5d-4efd-9fc8-0d55b6122c63",
+    "expiresAt": "2026-11-27T15:04:37.687Z"
+  },
   "cycles": [
     {
       "id": "manual-45886485209",
@@ -8226,11 +8230,15 @@
     {
       "at": "2026-11-27T14:10:18.826Z",
       "text": "Completed manual-46013161630"
+    },
+    {
+      "at": "2026-11-27T14:44:37.687Z",
+      "text": "Cycle deployment-8112525867-5d059bc13a27a3902f05f9e22fa09014b0d2adee claimed"
     }
   ],
   "lastAlert": "dee46b4f2eacea27fc2dff9efadee1460f2650f042a48da5eaac46d1f7f2f075",
   "mirror": {
     "at": "2026-11-27T14:11:32.228Z",
-    "state": "VERIFIED"
+    "state": "PENDING"
   }
 }
