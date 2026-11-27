@@ -8,7 +8,9 @@ import type { AccountVoice } from "@/lib/podcast/voices";
 import type { VoiceViewer } from "@/lib/voices/private-voices";
 import { StudioSpec, validateSpec, STUDIO_VERSION, type StudioSpec as Spec } from "./spec";
 import { isPrivateVoice } from "@/lib/voices/private-voices";
-import { preflight, type ImageProvider, type Providers, type VisualDirector } from "./pipeline";
+import { preflight, providerNeeds, type ImageProvider, type ProviderNeeds, type Providers, type VisualDirector } from "./pipeline";
+import { readinessMessage } from "./readiness";
+import type { SupplyReadiness } from "@/lib/supply/readiness";
 import { RECRAFT_USD_PER_IMAGE, RECRAFT_USD_STYLE_CREATION } from "@/lib/providers/image/recraft";
 import { generateConversation, type LlmFn } from "./script";
 import { supplyBlockMessage, type SupplyPolicyInfo } from "./supply-message";
@@ -55,12 +57,31 @@ export type ApiDeps = {
   env?: Record<string, string | undefined>;
   /** Motivo por el que Recraft no puede producir hoy (null = listo). Solo lectura; sin él no se comprueba. */
   recraftBlocker?: () => Promise<string | null>;
+  /** Disponibilidad de los proveedores para estas llamadas (misma regla que el worker, solo lectura). Lanza si no se
+   *  puede comprobar: entonces no se inicia (falla cerrado). Sin ella no se comprueba (solo pruebas antiguas). */
+  supplyCheck?: (needs: ProviderNeeds) => Promise<SupplyReadiness>;
+  /** Operaciones ya liquidadas del episodio (se reutilizan al reintentar: no cuentan para la cuota). Lanza si falla. */
+  settledOps?: (episodeId: string) => Promise<{ op: string }[]>;
+  /** Adaptación al límite disponible: CAS que guarda el spec adaptado y su estimación solo si el episodio sigue en
+   *  draft/failed (true = cambió exactamente una fila). Nunca toca guion, participantes, ledger ni gastos. */
+  saveAdaptation?: (id: string, spec: Record<string, unknown>, estimate: Record<string, unknown>, estimatedUsd: number) => Promise<boolean>;
 };
 type Out = { status: number; body: Record<string, unknown> };
 export const STUDIO_MAX_AUTHORIZED_USD = 50;
 /** Más que el timeout del job de estudio (podcast-video.yml: 200 min): pasado esto, ningún runner sigue vivo. */
 export const STUDIO_RUNNER_MAX_MS = 4 * 3600_000;
 const DISABLED: Out = { status: 503, body: { error: "Los modos de estudio (avatar y conversación) se activan tras autorizar la migración y PODCAST_V3_ENABLED. La narración sigue disponible." } };
+
+/** Estimación que ve la persona (y que se guarda con el episodio): una sola forma para crear, estimar y adaptar. */
+export function estimateView(stored: Spec, pf: Awaited<ReturnType<typeof preflight>>, env: Record<string, string | undefined>, recraftBlock: string | null) {
+  return { lines: pf.estimate.lines, totalUsd: pf.estimate.totalUsd, assumptions: pf.estimate.assumptions, rates: pf.estimate.rates, turns: pf.turns.length, mood: pf.mood,
+    shots: pf.plan.shots.reduce<Record<string, number>>((m, s) => ({ ...m, [s.kind]: (m[s.kind] ?? 0) + 1 }), {}), overBudget: pf.estimate.totalUsd > stored.budget_usd,
+    byProvider: pf.estimate.lines.reduce<Record<string, number>>((m, l) => ({ ...m, [l.provider]: Math.round(((m[l.provider] ?? 0) + l.usd) * 1e4) / 1e4 }), {}),
+    providers: visualProviders(env, recraftBlock), lipTimeline: lipTimeline(pf.plan).slice(0, 40), coverage: shotCoverage(pf.plan),
+    turnList: pf.turns.slice(0, 60).map((t) => ({ id: t.id, speaker: t.speaker, kind: t.kind, text: t.text.slice(0, 140) })),
+    // Duración estimada del guion frente a la pedida (incidente 8f05fc37): la pantalla Producir la muestra antes de cobrar.
+    duration: scriptDuration(stored) };
+}
 
 export async function studioAction(d: ApiDeps, body: Record<string, unknown> | null): Promise<Out> {
   const b = body ?? {};
@@ -101,14 +122,12 @@ export async function studioAction(d: ApiDeps, body: Record<string, unknown> | n
     if (p.avatar.kind === "existente" && d.ownsAvatar && !(await d.ownsAvatar(p.avatar.avatar_id))) return { status: 403, body: { error: "Ese avatar no está disponible en tu cuenta." } };
   }
   const pf = await preflight(stored, planningProviders());
-  const estimate = { lines: pf.estimate.lines, totalUsd: pf.estimate.totalUsd, assumptions: pf.estimate.assumptions, rates: pf.estimate.rates, turns: pf.turns.length, mood: pf.mood,
-    shots: pf.plan.shots.reduce<Record<string, number>>((m, s) => ({ ...m, [s.kind]: (m[s.kind] ?? 0) + 1 }), {}), overBudget: pf.estimate.totalUsd > spec.budget_usd,
-    byProvider: pf.estimate.lines.reduce<Record<string, number>>((m, l) => ({ ...m, [l.provider]: Math.round(((m[l.provider] ?? 0) + l.usd) * 1e4) / 1e4 }), {}),
-    providers: visualProviders(d.env ?? process.env, recraftBlock), lipTimeline: lipTimeline(pf.plan).slice(0, 40), coverage: shotCoverage(pf.plan),
-    turnList: pf.turns.slice(0, 60).map((t) => ({ id: t.id, speaker: t.speaker, kind: t.kind, text: t.text.slice(0, 140) })),
-    // Duración estimada del guion frente a la pedida (incidente 8f05fc37): la pantalla Producir la muestra antes de cobrar.
-    duration: scriptDuration(stored) };
-  if (b.action === "estimate") return { status: 200, body: { estimate } };
+  const estimate = estimateView(stored, pf, d.env ?? process.env, recraftBlock);
+  if (b.action === "estimate") {
+    // La pantalla «Producir» muestra la disponibilidad real antes de que exista el botón activo (sin cargos).
+    const readiness = await startReadiness(d, stored, null, pf);
+    return { status: 200, body: { estimate: readiness ? { ...estimate, readiness } : estimate } };
+  }
   if (b.action === "create") {
     if (!d.enabled) return DISABLED;
     if (estimate.overBudget) return { status: 402, body: { error: `El costo estimado (USD ${estimate.totalUsd.toFixed(2)}) supera tu presupuesto máximo (USD ${spec.budget_usd.toFixed(2)}). Sube el presupuesto o reduce apariciones del avatar.`, estimate } };
@@ -126,6 +145,30 @@ export async function studioAction(d: ApiDeps, body: Record<string, unknown> | n
   }
   return { status: 400, body: { error: "Acción no válida." } };
 }
+
+/** Resultado de la verificación previa de proveedores que ve la persona ANTES de poder iniciar. */
+export type StartReadiness = { ready: boolean; message: string | null; provider?: string; waitHelps?: boolean;
+  quota?: { max: number; today: number; calls: number; timezone: string } };
+export const SUPPLY_CHECK_UNAVAILABLE = "No pudimos confirmar ahora la disponibilidad de los proveedores. No se inició la producción ni se hizo ningún cargo; tu borrador se conserva. Vuelve a intentarlo en unos minutos.";
+/**
+ * P0 incidente 4290175a (2026-11-08): ATOMIVID no inicia a ciegas. Antes de autorizar y despachar se calcula lo que el
+ * episodio necesita de cada proveedor (descontando lo ya liquidado) y se comprueba con la regla del worker. Si un
+ * proveedor indispensable no está listo, el episodio NO cambia de estado, NO se despacha ningún runner y nada se cobra.
+ */
+export async function startReadiness(d: Pick<ApiDeps, "supplyCheck" | "settledOps">, spec: Spec, episodeId: string | null, planned?: Awaited<ReturnType<typeof preflight>>): Promise<StartReadiness | null> {
+  if (!d.supplyCheck) return null;
+  try {
+    const pf = planned ?? await preflight(spec, planningProviders());
+    const settled = episodeId && d.settledOps ? await d.settledOps(episodeId) : [];
+    const r = await d.supplyCheck(providerNeeds(spec, pf, settled, { prepare: true }));
+    if (r.ready) return { ready: true, message: null };
+    const q = r.failure?.quota;
+    return { ready: false, message: readinessMessage(r.failure), provider: r.failure?.provider, ...(q ? { quota: q, waitHelps: q.calls <= q.max } : {}) };
+  } catch {
+    return { ready: false, message: SUPPLY_CHECK_UNAVAILABLE, provider: "production" };
+  }
+}
+const notReady = (r: StartReadiness): Out => ({ status: 409, body: { error: r.provider === "production" ? r.message : `Proveedor no listo: ${r.message} No se inició la producción ni se hizo ningún cargo; tu borrador se conserva.`, code: "PROVEEDOR_NO_LISTO", readiness: r } });
 
 /** Autorización explícita del cargo (paso 10). Requiere confirmación, monto ≥ estimación y ≤ presupuesto. */
 export async function authorizeAction(d: ApiDeps, id: string, body: Record<string, unknown> | null): Promise<Out> {
@@ -150,6 +193,9 @@ export async function authorizeAction(d: ApiDeps, id: string, body: Record<strin
   const notStarted = !row.run_started_at || (!!row.authorized_at && Date.parse(row.run_started_at) < Date.parse(row.authorized_at));
   if (row.status === "authorized" && notStarted) {
     if (body?.confirm !== true) return { status: 400, body: { error: "Confirma explícitamente el costo antes de generar." } };
+    const spec0 = StudioSpec.safeParse(row.spec);
+    const gate0 = spec0.success ? await startReadiness(d, spec0.data, id) : null;
+    if (gate0 && !gate0.ready) return notReady(gate0);
     const dispatched = await d.dispatch(id);
     return { status: 200, body: { ok: true, dispatched, note: dispatched ? null : "Autorizado. No pudimos confirmar el inicio del trabajo; pulsa «Reintentar» (no se cobra dos veces)." } };
   }
@@ -171,6 +217,10 @@ export async function authorizeAction(d: ApiDeps, id: string, body: Record<strin
     try { requireProvider("recraft", d.env ?? process.env, await d.recraftBlocker()); }
     catch (e) { if (e instanceof ProviderUnavailableError) return { status: 409, body: { error: e.message, provider: "recraft" } }; throw e; }
   }
+  // Disponibilidad de los proveedores (cuota diaria, saldo, topes) ANTES de autorizar: un reintento con la cuota aún
+  // agotada tampoco despacha nada (sin runners ni llamadas inútiles).
+  const gate = await startReadiness(d, spec.data, id);
+  if (gate && !gate.ready) return notReady(gate);
   if (!(await d.authorize(id, usd))) return { status: 409, body: { error: "Otra solicitud cambió el episodio; recarga la página." } };
   const dispatched = await d.dispatch(id);
   return { status: 200, body: { ok: true, dispatched, note: dispatched ? null : "Autorizado. No pudimos confirmar el inicio del trabajo; pulsa «Reintentar» (no se cobra dos veces)." } };
@@ -315,4 +365,35 @@ async function scriptStepAction(d: ApiDeps, b: Record<string, unknown>): Promise
     }
     return { status: f.status, body: { error: f.error, code: "IA_FALLO", detail: f.detail, recoverable: true, state, step: state.segments.length + (state.plan ? 1 : 0), steps: 1 + segmentCount(minutes), ...(resetAt ? { resetAt } : {}) } };
   }
+}
+
+/**
+ * «Adaptar producción al límite disponible» (incidente 4290175a): `{ preview: true }` devuelve la propuesta sin cambiar nada;
+ * `{ confirm: true, maxCalls }` la aplica (solo si sigue siendo la misma, cabe, conserva la duración y la calidad, y entra
+ * en el presupuesto) y reintenta el MISMO episodio por la autorización de siempre (verificación previa incluida).
+ */
+export async function adaptAction(d: ApiDeps, id: string, body: Record<string, unknown> | null): Promise<Out> {
+  if (!d.enabled) return DISABLED;
+  const row = await d.load(id);
+  if (row === "missing") return DISABLED;
+  if (!row || row.user_id !== d.userId) return { status: 404, body: { error: "Episodio no encontrado." } };
+  if (!d.supplyCheck || !d.settledOps || !d.saveAdaptation) return { status: 503, body: { error: "La adaptación no está disponible en este entorno." } };
+  const { planAdaptation, proposalSummary } = await import("./adapt");
+  let plan: Awaited<ReturnType<typeof planAdaptation>>;
+  try { plan = await planAdaptation({ supplyCheck: d.supplyCheck, settledOps: d.settledOps }, row); }
+  catch { return { status: 409, body: { error: SUPPLY_CHECK_UNAVAILABLE, code: "SIN_VERIFICAR" } }; }
+  if (!plan.ok) return { status: plan.status, body: { error: plan.error, code: plan.code } };
+  if (!plan.proposal) return { status: 200, body: { fits: true, message: "Tu episodio ya cabe en el límite disponible: puedes reintentarlo sin adaptar nada." } };
+  const proposal = plan.proposal, summary = proposalSummary(proposal);
+  if (body?.preview === true) return { status: 200, body: { proposal, summary } };
+  if (body?.confirm !== true) return { status: 400, body: { error: "Revisa la propuesta y confírmala para aplicarla." } };
+  if (Number(body.maxCalls) !== proposal.maxCalls) return { status: 409, body: { error: "La disponibilidad cambió desde que viste la propuesta. Revísala de nuevo antes de confirmar.", code: "CAMBIO", proposal, summary } };
+  if (!proposal.quality.ok) return { status: 409, body: { error: `No se aplica: ${proposal.quality.issues.join(" ")}`, code: "CALIDAD", proposal, summary } };
+  if (!proposal.withinBudget) return { status: 402, body: { error: `Con el ajuste el costo estimado (USD ${proposal.estimateAfterUsd.toFixed(2)}) supera tu tope (USD ${proposal.budgetUsd.toFixed(2)}).`, code: "PRESUPUESTO", proposal, summary } };
+  // Bloqueo preventivo: si con el ajuste algún proveedor sigue sin capacidad, no se guarda ni se inicia nada.
+  if (!proposal.readyAfter) return { status: 409, body: { error: `Proveedor no listo: ${proposal.blockAfter} No se inició la producción ni se hizo ningún cargo; tu episodio se conserva.`, code: "PROVEEDOR_NO_LISTO", proposal, summary } };
+  const estimate = estimateView(plan.adapted, plan.preflight, d.env ?? process.env, null);
+  if (!(await d.saveAdaptation(id, plan.stored, estimate, estimate.totalUsd))) return { status: 409, body: { error: "Otra solicitud cambió el episodio; recarga la página." } };
+  const started = await authorizeAction(d, id, { confirm: true, authorizedUsd: Math.min(plan.adapted.budget_usd, STUDIO_MAX_AUTHORIZED_USD) });
+  return { status: started.status, body: { ...started.body, adapted: true, proposal, summary } };
 }

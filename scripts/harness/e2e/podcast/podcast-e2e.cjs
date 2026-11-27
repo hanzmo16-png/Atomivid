@@ -407,8 +407,22 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     const snap = (n) => shot(S.p, `${tag}-${n}`);
     // Las opciones avanzadas van plegadas (<details>): se abren para poder elegirlas.
     const advanced = () => W().locator("details").evaluateAll((ds) => ds.forEach((d) => { d.open = true; }));
+    // Inicio del flujo en el reloj de la BD: las comprobaciones de «mismo episodio» solo cuentan lo creado en ESTA corrida
+    // (la base local se reutiliza entre baterías y conserva episodios de corridas anteriores con el mismo título).
+    const flowT0 = (await db.query("select now() t")).rows[0].t;
     const disp0 = fs.existsSync(path.join(E2E, "logs/dispatch.jsonl")) ? fs.readFileSync(path.join(E2E, "logs/dispatch.jsonl"), "utf8").length : 0;
-    await S.p.goto(`${BASE}/dashboard/podcast`); await S.p.evaluate(() => localStorage.removeItem("atomivid.podcast.asistente.v2")); await S.p.reload(); await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
+    if (opts.fromHome) {
+      // Recorrido completo (caso 22): la idea se escribe en la portada «¿Qué quieres crear hoy?» y entra por Personalizado.
+      await S.p.goto(`${BASE}/dashboard`); await S.p.getByTestId("crear-inicio").waitFor();
+      await S.p.evaluate(() => localStorage.removeItem("atomivid.podcast.asistente.v2"));
+      await S.p.getByTestId("crear-podcast").click(); await S.p.getByTestId("crear-idea").fill(opts.fromHome);
+      await S.p.getByTestId("crear-modo-custom").check(); await snap("paso00-portada");
+      await S.p.getByTestId("crear-continuar").click(); await S.p.waitForURL(/\/dashboard\/podcast\?/);
+      await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor(); await S.p.waitForTimeout(800);
+      const t = await S.p.evaluate(() => JSON.parse(localStorage.getItem("atomivid.podcast.asistente.v2") || "null")?.topic);
+      ok(`${tag}: la idea de la portada llega al asistente como tema`, t === opts.fromHome, String(t));
+      ok(`${tag}: entrada nueva sin falso «Retomaste tu borrador»`, await W().getByTestId("borrador-retomado").count() === 0 && await W().getByTestId("empezar-uno-nuevo").count() === 0);
+    } else { await S.p.goto(`${BASE}/dashboard/podcast`); await S.p.evaluate(() => localStorage.removeItem("atomivid.podcast.asistente.v2")); await S.p.reload(); await S.p.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor(); }
     // Pantalla 1 — Participantes: modalidad, formato, quién habla, voces y avatares.
     ok(`${tag}: el asistente empieza por Participantes (paso 1 de 4)`, /Paso 1 de 4: Participantes/.test(await stepTitle()), await stepTitle());
     await W().getByRole("radio", { name: new RegExp(m.mode) }).click(); await snap("paso01-modalidad");
@@ -563,7 +577,7 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
       await retry.click();
       await W().getByLabel("Autorizo el cargo").check(); await W().getByRole("button", { name: "Generar episodio" }).click(); await W().getByTestId("wizard-progress").waitFor();
       let r2; for (let i = 0; i < 40; i++) { r2 = (await db.query("select id, status from podcast_studio_episodes where id=$1", [row0.id])).rows[0]; if (r2?.status === "authorized") break; await S.p.waitForTimeout(250); }
-      ok(`${tag}: el reintento vuelve a autorizar el MISMO episodio (no crea otro)`, r2?.status === "authorized" && (await db.query("select count(*)::int n from podcast_studio_episodes where user_id=$1 and title=$2", [OWNER.id, m.title])).rows[0].n === 1, r2?.status);
+      ok(`${tag}: el reintento vuelve a autorizar el MISMO episodio (no crea otro)`, r2?.status === "authorized" && (await db.query("select count(*)::int n from podcast_studio_episodes where user_id=$1 and title=$2 and created_at >= $3", [OWNER.id, m.title, flowT0])).rows[0].n === 1, r2?.status);
     }
     // Avance real (incidente ec30c594): mientras el worker trabaja, la BASE recibe el avance (antes un `void` sobre la
     // consulta perezosa no enviaba nada) y la PÁGINA lo muestra; nunca retrocede ni marca 100 % antes de «ready».
@@ -674,12 +688,14 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     await S.p.getByRole("button", { name: "Empezar de nuevo" }).click();
     const card = S.p.getByTestId(`studio-episode-${row.id}`);
     await card.getByTestId("studio-download-mp4").waitFor({ timeout: 20000 });
+    // El enlace de audio llega con su propio enlace firmado (puede pintarse un instante después del MP4).
+    await card.getByTestId("studio-download-audio").waitFor({ timeout: 20000 }).catch(() => {});
     const listed = await card.getByTestId("studio-player").evaluate(async (v) => { v.muted = true; await v.play().catch(() => {}); await new Promise((r) => setTimeout(r, 3000)); const o = { rs: v.readyState, t: v.currentTime, err: v.error?.code ?? null }; v.pause(); return o; });
-    ok(`${tag}: tras reiniciar el asistente, la cuenta reproduce y descarga el MP4`, listed.rs >= 2 && listed.t > 1 && !listed.err && await card.getByTestId("studio-download-audio").count() === 1 && await W().getByTestId("wizard-player").count() === 0, JSON.stringify(listed));
+    ok(`${tag}: tras reiniciar el asistente, la cuenta reproduce y descarga el MP4`, listed.rs >= 2 && listed.t > 1 && !listed.err && await card.getByTestId("studio-download-audio").count() === 1 && await W().getByTestId("wizard-player").count() === 0, JSON.stringify({ ...listed, descargaAudio: await card.getByTestId("studio-download-audio").count(), reproductorAsistente: await W().getByTestId("wizard-player").count(), paso: await W().getByTestId("wizard-step-title").textContent().catch(() => null) }));
     summary[tag] = { id: row.id, result: row.result, cost: row.cost_usd };
   }
   const AV = [["aaaaaaaa-0000-4000-8000-000000000001", "Avatar Hans (simulado)"], ["aaaaaaaa-0000-4000-8000-000000000002", "Avatar Invitada (simulado)"]];
-  if (cases.includes("10") || cases.includes("11")) for (const [id, name] of AV) await db.query("insert into public.avatars (id,user_id,name,provider,provider_avatar_id,status,consent_given) values ($1,$2,$3,'heygen','asset:simulado','ready',true) on conflict (id) do nothing", [id, OWNER.id, name]);
+  if (cases.includes("10") || cases.includes("11") || cases.includes("22")) for (const [id, name] of AV) await db.query("insert into public.avatars (id,user_id,name,provider,provider_avatar_id,status,consent_given) values ($1,$2,$3,'heygen','asset:simulado','ready',true) on conflict (id) do nothing", [id, OWNER.id, name]);
   const MODES = [
     { tag: "c10a", mode: "Solo audio", title: "E2E estudio audio", script: "En 1977 el radiotelescopio Big Ear registró una señal intensa y breve.\n\nEl astrónomo Jerry Ehman escribió Wow en el margen.\n\nLa señal nunca volvió a detectarse.", count: 2, voices: [ANA, LEO], mood: "misterio", intensity: "alta" },
     { tag: "c10d", mode: "Narración con imágenes", title: "E2E estudio narración visual", script: "En 1977 el radiotelescopio Big Ear registró una señal intensa y breve.\n\nEl astrónomo Jerry Ehman escribió Wow en el margen.\n\nLa señal nunca volvió a detectarse.", count: 2, voices: [ANA, LEO], mood: "misterio" },
@@ -1196,9 +1212,217 @@ const fixtures = () => { require(path.join(REPO, "node_modules/tsx/dist/cjs/api/
     const after20 = { paid: await paid20(), eps: await eps20() };
     ok("c20: nada cobrado ni creado (libro y episodios iguales)", JSON.stringify(after20) === JSON.stringify(before20), JSON.stringify({ before20, after20 }));
   }
+  if (cases.includes("21")) {
+    // Salto Cuántico (T-20261108-0618: parches T-2314 + T-0415 integrados). Portada «¿Qué quieres crear hoy?» → Podcast →
+    // Personalizado → Participantes, sin el falso «Retomaste tu borrador»; el borrador real anterior queda recuperable;
+    // «Empezar de nuevo» no reutiliza nada; un borrador real sí conserva aviso y controles; en «Archivados», un fallido
+    // archivado a mano avisa antes y ofrece «Quitar archivo manual» (sigue agrupado, no se borra). Escritorio y móvil.
+    const KEY = "atomivid.podcast.asistente.v2", REC = "atomivid.podcast.asistente.v2.recuperable";
+    const DEVICES = [["d", { viewport: { width: 1440, height: 900 } }], ["m", { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }]];
+    const n0 = async () => (await db.query("select (select count(*) from public.podcast_studio_episodes)::int e, (select count(*) from public.podcast_studio_operations)::int o, (select count(*) from public.pi_paid_operations)::int p")).rows[0];
+    const before21 = await n0();
+    for (const [dt, device] of DEVICES) {
+      const S = await session(OWNER, `c21${dt}`, device), P = S.p, W = () => P.getByTestId("podcast-wizard");
+      const hydrated = () => P.locator('[data-testid="podcast-wizard"][data-hydrated="1"]').waitFor();
+      const draft = () => P.evaluate((k) => JSON.parse(localStorage.getItem(k) || "null"), KEY);
+      const parked = () => P.evaluate((k) => (JSON.parse(localStorage.getItem(k) || "null")?.items ?? []).map((i) => JSON.parse(i.raw)), REC);
+      const title = async () => (await W().getByTestId("wizard-step-title").textContent()) ?? "";
+      // Borrador REAL previo (título y guion) en este navegador.
+      await P.goto(`${BASE}/dashboard`); await P.getByTestId("crear-inicio").waitFor();
+      await P.evaluate(([k, r]) => { localStorage.removeItem(r); localStorage.setItem(k, JSON.stringify({ step: 1, title: `Borrador real c21${location.host}`, topic: "Tema real previo", script: "Ana: guion real previo con texto suficiente para contar.", minutes: 7 })); }, [KEY, REC]);
+      await P.getByTestId("crear-podcast").click(); await P.getByTestId("crear-idea").fill(`Idea c21${dt}: el misterio de la señal Wow`);
+      await P.getByTestId("crear-modo-custom").check(); await shot(P, `c21${dt}-01-portada`);
+      await P.getByTestId("crear-continuar").click(); await P.waitForURL(/\/dashboard\/podcast\?/); await hydrated(); await P.waitForTimeout(800);
+      const d1 = await draft();
+      ok(`c21: ${dt} · Personalizado abre «Paso 1 de 4: Participantes»`, /Paso 1 de 4: Participantes/.test(await title()), await title());
+      ok(`c21: ${dt} · entrada nueva sin «Retomaste tu borrador» ni «Empezar uno nuevo»`, await W().getByTestId("borrador-retomado").count() === 0 && await W().getByTestId("empezar-uno-nuevo").count() === 0);
+      ok(`c21: ${dt} · la entrada nueva lleva solo la idea (sin título, guion, episodio ni trabajo previo)`, d1?.topic === `Idea c21${dt}: el misterio de la señal Wow` && !d1?.title && !d1?.script && !d1?.episodeId && !d1?.scriptJob && d1?.minutes === 5, JSON.stringify(d1).slice(0, 200));
+      ok(`c21: ${dt} · el borrador real anterior quedó aparcado y se ofrece recuperarlo`, await P.getByTestId("podcast-recuperar-borrador").count() === 1 && (await parked()).some((x) => /Borrador real c21/.test(x.title)));
+      ok(`c21: ${dt} · nada de Producir en la pantalla 1`, await W().getByTestId("wizard-estimate").count() === 0 && await W().getByTestId("wizard-preview").count() === 0);
+      await shot(P, `c21${dt}-02-participantes`);
+      // Recargar el mismo enlace: ya no es una entrada nueva (comportamiento documentado de #269): se avisa como retomado.
+      await P.reload(); await hydrated(); await P.waitForTimeout(800);
+      ok(`c21: ${dt} · recargar el mismo enlace no vuelve a empezar (misma idea, sin aparcar otra vez)`, (await draft())?.topic === d1.topic && (await parked()).length === 1);
+      // «Empezar de nuevo»: estado limpio; lo anterior queda aparcado (no se borra).
+      await W().getByTestId("empezar-de-nuevo").click(); await P.waitForTimeout(800); await hydrated();
+      const d2 = await draft(), pk = await parked();
+      ok(`c21: ${dt} · «Empezar de nuevo» deja un borrador vacío (sin idea, guion, episodio ni trabajo)`, !d2?.topic && !d2?.title && !d2?.script && !d2?.episodeId && !d2?.scriptJob && d2?.minutes === 5 && /Paso 1 de 4/.test(await title()), JSON.stringify(d2).slice(0, 160));
+      ok(`c21: ${dt} · «Empezar de nuevo» aparca la entrada anterior junto al borrador real (2, nada borrado)`, pk.length === 2 && pk.some((x) => x.topic === d1.topic) && pk.some((x) => /Borrador real c21/.test(x.title)), String(pk.length));
+      await shot(P, `c21${dt}-03-empezar-de-nuevo`);
+      // Un borrador real retomado (sin entrada nueva) conserva el aviso y sus controles.
+      await P.evaluate((k) => localStorage.setItem(k, JSON.stringify({ step: 1, title: "Retomado real c21", topic: "x", script: "Ana: un guion que ya existía en este navegador.", minutes: 4 })), KEY);
+      await P.goto(`${BASE}/dashboard/podcast`); await hydrated(); await P.waitForTimeout(800);
+      ok(`c21: ${dt} · un borrador real conserva «Retomaste tu borrador» y «Empezar uno nuevo»`, /Retomado real c21/.test(await W().getByTestId("borrador-retomado").innerText().catch(() => "")) && await W().getByTestId("empezar-uno-nuevo").count() === 1);
+      const ov = await P.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      ok(`c21: ${dt} · sin desbordamiento horizontal`, ov <= 1, `${ov}px`);
+      await shot(P, `c21${dt}-04-retomado-real`);
+      await S.ctx.close();
+    }
+    // «Quitar archivo manual» (T-2314): un FALLIDO archivado a mano sigue en «Archivados» por su estado; se avisa antes.
+    // Igual que el caso 16: la columna archived_at (migración ya versionada) se aplica en esta base DESECHABLE si falta.
+    await db.query(fs.readFileSync(path.join(REPO, "supabase/migrations/20261030170000_podcast_library_archive.sql"), "utf8"));
+    await db.query("notify pgrst, 'reload schema'"); await new Promise((r) => setTimeout(r, 1500));
+    const X = "c21a0000-0000-4000-8000-000000000001", Y = "c21a0000-0000-4000-8000-000000000002", Z = "c21a0000-0000-4000-8000-000000000003";
+    const ins = (id, user, t, status, arch) => db.query(`insert into public.podcast_studio_episodes(id,user_id,title,mode,spec,status,cost_usd,created_at,updated_at,archived_at) values ($1,$2,$3,'dialogo','{"version":"podcast-studio/3"}',$4,0,now() - interval '1 day',now() - interval '1 day',${arch ? "now()" : "null"}) on conflict (id) do update set status=excluded.status, archived_at=excluded.archived_at`, [id, user, t, status]);
+    const preexist = (await db.query("select count(*)::int n from public.podcast_studio_episodes where id = any($1::uuid[])", [[X, Y, Z]])).rows[0].n;
+    await ins(X, OWNER.id, "c21 fallido archivado a mano", "failed", true); await ins(Y, OWNER.id, "c21 listo archivado a mano", "ready", true); await ins(Z, OTHER.id, "c21 fallido de otra cuenta", "failed", true);
+    for (const [dt, device] of DEVICES) {
+      const S = await session(OWNER, `c21${dt}-lib`, device), P = S.p, card = (id) => P.getByTestId(`studio-episode-${id}`);
+      await P.goto(`${BASE}/dashboard/podcast?vista=archivados`); await P.getByTestId("biblioteca-vistas").waitFor();
+      if (dt === "m") await db.query("update public.podcast_studio_episodes set archived_at=now() where id=$1", [X]);
+      if (dt === "m") { await P.reload(); await P.getByTestId("biblioteca-vistas").waitFor(); }
+      const note = await card(X).getByTestId(`biblioteca-quitar-archivo-${X}`).innerText().catch(() => "");
+      ok(`c21: ${dt} · fallido archivado: avisa ANTES que seguirá en «Archivados» porque tiene un error y no se borra`, /seguirá en «Archivados» porque tiene un error/.test(note) && /no se borra nada/.test(note), note.slice(0, 160));
+      ok(`c21: ${dt} · fallido archivado: «Quitar archivo manual» y no «Restaurar»`, await card(X).getByRole("button", { name: "Quitar archivo manual" }).count() === 1 && await card(X).getByRole("button", { name: "Restaurar" }).count() === 0);
+      ok(`c21: ${dt} · listo archivado conserva «Restaurar» sin aviso`, await card(Y).getByRole("button", { name: "Restaurar" }).count() === 1 && await card(Y).getByTestId(`biblioteca-quitar-archivo-${Y}`).count() === 0);
+      ok(`c21: ${dt} · la otra cuenta no aparece`, await card(Z).count() === 0);
+      await shot(P, `c21${dt}-05-archivados`);
+      const st0 = (await db.query("select status, cost_usd, created_at from public.podcast_studio_episodes where id=$1", [X])).rows[0];
+      await card(X).getByRole("button", { name: "Quitar archivo manual" }).click();
+      let row; for (let i = 0; i < 40; i++) { row = (await db.query("select status, cost_usd, created_at, archived_at from public.podcast_studio_episodes where id=$1", [X])).rows[0]; if (row.archived_at === null) break; await P.waitForTimeout(250); }
+      await P.reload(); await P.getByTestId("biblioteca-vistas").waitFor();
+      ok(`c21: ${dt} · quitar el archivo solo borra la marca (estado, costo y fecha intactos; la fila sigue)`, row?.archived_at === null && row.status === st0.status && Number(row.cost_usd) === Number(st0.cost_usd) && +row.created_at === +st0.created_at);
+      ok(`c21: ${dt} · tras quitar el archivo sigue en «Archivados» por su estado (agrupado, sin control manual)`, await card(X).count() === 1 && /Con error/.test(await card(X).innerText()) && await card(X).getByTestId(`biblioteca-quitar-archivo-${X}`).count() === 0);
+      await P.goto(`${BASE}/dashboard/podcast`); await P.getByTestId("biblioteca-vistas").waitFor();
+      ok(`c21: ${dt} · y no aparece en la vista principal`, await card(X).count() === 0);
+      await shot(P, `c21${dt}-06-tras-quitar`);
+      await S.ctx.close();
+    }
+    const z = (await db.query("select archived_at from public.podcast_studio_episodes where id=$1", [Z])).rows[0];
+    ok("c21: la fila de la otra cuenta no cambió", !!z?.archived_at);
+    const after21 = await n0();
+    ok("c21: nada cobrado ni borrado (operaciones y pagos iguales; solo las filas sembradas)", after21.o === before21.o && after21.p === before21.p && after21.e === before21.e + 3 - preexist, JSON.stringify({ before21, after21, preexist }));
+  }
+  if (cases.includes("22")) {
+    // Recorrido COMPLETO en una sola sesión (Salto Cuántico): portada (idea) → Personalizado → Participantes → Guion →
+    // Estilo → Producir (autorizar) → worker con proveedores SIMULADOS → biblioteca → reproducción → descarga.
+    // Escritorio 1440×900 (narración con imágenes, MP4 16:9) y móvil 390×844 (conversación con dos avatares, MP4 9:16).
+    const D = await session(OWNER, "c22-escritorio", { viewport: { width: 1440, height: 900 } });
+    await studioFlow(D, "c22-escritorio", { ...MODES.find((x) => x.tag === "c10d"), title: "E2E recorrido completo escritorio" }, { fromHome: "Idea c22: la señal Wow de 1977 contada en un episodio" });
+    await D.ctx.close();
+    const M = await session(OWNER, "c22-movil", { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    await studioFlow(M, "c22-movil", { ...MODES.find((x) => x.tag === "c10c"), title: "E2E recorrido completo móvil" }, { fromHome: "Idea c22: la luna Europa y su océano" });
+    await M.ctx.close();
+  }
+  if (cases.includes("23")) {
+    // P0 «Adaptar producción al límite disponible» (episodio real 4290175a, 2026-11-08): 48 llamadas de HeyGen pedidas con un
+    // límite diario de 40. Se siembra un episodio FALLIDO equivalente (diálogo de 96 turnos, dos avatares, Recraft) y la
+    // persona lo recupera sola desde «Tus episodios» con clics reales: vista previa (nada cambia) → cancelar → confirmar →
+    // el MISMO episodio se reintenta → worker con proveedores SIMULADOS → listo con 40 apariciones. Escritorio y móvil.
+    // Requiere la pila arrancada con PODCAST_V3_SUPPLY_GATE=1 (la verificación previa real contra esta base desechable).
+    await db.query(fs.readFileSync(path.join(REPO, "supabase/migrations/20261030170000_podcast_library_archive.sql"), "utf8"));
+    await db.query("notify pgrst, 'reload schema'"); await new Promise((r) => setTimeout(r, 1500));
+    for (const [id, name] of AV) await db.query("insert into public.avatars (id,user_id,name,provider,provider_avatar_id,status,consent_given) values ($1,$2,$3,'heygen','asset:simulado','ready',true) on conflict (id) do nothing", [id, OWNER.id, name]);
+    // Suministro de esta base DESECHABLE: HeyGen con el límite diario de producción (40); saldos verificados y en verde.
+    await db.query(`insert into public.pi_supply_policies(provider,enabled,unit,baseline,unit_cost_usd,daily_forecast,daily_cap_usd,monthly_cap_usd,max_concurrent,max_daily_calls,free_daily_cap_usd,timezone,evidence)
+      values ('heygen',true,'usd',200,1,1,100,500,4,40,0,'America/Cancun','arnés local c23 (USD 0)') on conflict (provider) do update set enabled=true,unit='usd',baseline=200,unit_cost_usd=1,daily_cap_usd=100,monthly_cap_usd=500,max_concurrent=4,max_daily_calls=40,evidence=excluded.evidence`);
+    await db.query("update pi_supply_policies set enabled=true, baseline=25, unit_cost_usd=1, daily_cap_usd=10, monthly_cap_usd=50, max_concurrent=4, max_daily_calls=250 where provider='recraft'");
+    for (const [prov, unit, avail] of [["heygen", "usd", 190], ["elevenlabs", "character", 950000], ["recraft", "usd", 24]]) await db.query("insert into public.pi_capacity_snapshots(provider,unit,available,reserved,pending,health,reliability,status,checked_at) values ($1,$2,$3,0,0,'OK','manual_entry','GREEN',now())", [prov, unit, avail]);
+    const lines = Array.from({ length: 96 }, (_, i) => `${i % 2 ? "Luis" : "Ana"}: Los anunnaki y las tablillas de Nippur, parte ${i + 1}.`);
+    const SPEC23 = { version: "podcast-studio/3", mode: "dialogo", output: "video", title: "Anunnaki (c23)", language: "es", topic: "Anunnaki", script: lines.join("\n"), target_minutes: 5,
+      participants: [{ id: "A", name: "Ana", role: "", voice_id: ANA, voice_kind: "sintetica", style: "", personality: "", avatar: { kind: "existente", avatar_id: AV[0][0] } },
+        { id: "B", name: "Luis", role: "", voice_id: LEO, voice_kind: "sintetica", style: "", personality: "", avatar: { kind: "existente", avatar_id: AV[1][0] } }],
+      visual: { set: "moderno", swap_sides: false, subtitles: true, avatar_frequency: 0.5, avatar_max_seconds: 20, recreations: false, provider: "recraft" },
+      music: { enabled: true, mood: "auto", volume_db: -22, stings: true, ambient: "ninguno", intensity: "media", intro: true, outro: true, ducking: true }, format: "16:9", audio_export: "mp3", budget_usd: 40 };
+    const ERR = "Proveedor no listo: HeyGen (avatar): alcanzó su cuota diaria de llamadas. No se hizo ningún cargo.";
+    const DLOG = path.join(E2E, "logs/dispatch.jsonl"), nDisp = () => (fs.existsSync(DLOG) ? fs.readFileSync(DLOG, "utf8").trim().split("\n").filter(Boolean).length : 0);
+    const DEVICES = [["d", "4290175a-f7b4-49a8-9ec5-2977b98d486a", { viewport: { width: 1440, height: 900 } }], ["m", "c23a0000-4290-475a-8000-000000000002", { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }]];
+    for (const [dt, ID, device] of DEVICES) {
+      await db.query("delete from public.podcast_studio_operations where episode_id=$1", [ID]); await db.query("delete from public.podcast_studio_episodes where id=$1", [ID]);
+      await db.query("insert into public.podcast_studio_episodes(id,user_id,title,mode,spec,status,estimate,estimated_usd,authorized_usd,authorized_at,run_started_at,error,cost_usd,created_at,updated_at) values ($1,$2,$3,'dialogo',$4,'failed','{}',20.22,40,now()-interval '20 minutes',now()-interval '19 minutes',$5,0,now()-interval '20 minutes',now()-interval '19 minutes')", [ID, OWNER.id, `Anunnaki c23${dt}`, JSON.stringify(SPEC23), ERR]);
+      const row = async () => (await db.query("select * from public.podcast_studio_episodes where id=$1", [ID])).rows[0];
+      const nEps = async () => (await db.query("select count(*)::int n from public.podcast_studio_episodes where user_id=$1", [OWNER.id])).rows[0].n;
+      const r0 = await row(), e0 = await nEps(), d0 = nDisp();
+      const S = await session(OWNER, `c23${dt}`, device), P = S.p, card = () => P.getByTestId(`studio-episode-${ID}`);
+      const consoleLog = []; P.on("console", (m) => consoleLog.push(`${new Date().toISOString()} ${m.type()} ${m.text().slice(0, 200)}`)); P.on("framenavigated", (f) => { if (f === P.mainFrame()) consoleLog.push(`${new Date().toISOString()} NAV ${f.url()}`); });
+      // Bloqueo preventivo intacto: pedir el inicio sin adaptar no despacha nada.
+      // Llamadas directas a la API con la sesión del navegador (cliente HTTP del contexto: no depende de la navegación).
+      const post = async (ctx, body) => { const r = await ctx.request.post(`${BASE}/api/podcast/v3/${ID}`, { data: body }); return { status: r.status(), body: await r.json().catch(() => ({})) }; };
+      const direct = await post(S.ctx, { confirm: true, authorizedUsd: 40 });
+      ok(`c23: ${dt} · sin adaptar, el inicio sigue bloqueado antes de despachar (48 > 40)`, direct.status === 409 && direct.body.code === "PROVEEDOR_NO_LISTO" && /48 llamadas y el límite diario de la plataforma es 40/.test(direct.body.error) && nDisp() === d0 && (await row()).status === "failed", `${direct.status} ${String(direct.body.error).slice(0, 140)}`);
+      // `next dev` compila bajo demanda y recarga la página (Fast Refresh) la primera vez: se precalienta la ruta con una
+      // vista previa por API (sin cambios) y se espera a que no haya más recargas antes de la parte visual.
+      const warm = await post(S.ctx, { action: "adaptar", preview: true });
+      ok(`c23: ${dt} · la vista previa por API responde y no cambia nada`, warm.status === 200 && warm.body.proposal?.callsAfter === 40 && (await row()).status === "failed" && nDisp() === d0, `${warm.status}`);
+      let navs = 0; P.on("framenavigated", (f) => { if (f === P.mainFrame()) navs++; });
+      await P.goto(`${BASE}/dashboard/podcast?vista=archivados`); await P.getByTestId("biblioteca-vistas").waitFor();
+      for (let quiet = 0, last = navs; quiet < 8; ) { await P.waitForTimeout(1000); if (navs === last) quiet++; else { quiet = 0; last = navs; } }
+      await P.getByTestId("biblioteca-vistas").waitFor();
+      const openCard = async () => { if (await card().getByTestId(`studio-abrir-${ID}`).count()) await card().getByTestId(`studio-abrir-${ID}`).click(); };
+      await openCard();
+      const open = card().getByTestId(`adaptar-abrir-${ID}`);
+      await open.waitFor({ timeout: 30000 }).catch(() => {});
+      ok(`c23: ${dt} · el episodio fallido muestra el motivo y «Adaptar producción al límite disponible»`, await open.count() === 1 && /cuota diaria de llamadas/.test(await card().innerText()), (await card().innerText()).slice(0, 200));
+      await shot(P, `c23${dt}-01-fallido`);
+      const respP = P.waitForResponse((r) => r.request().method() === "POST" && r.url().endsWith(`/api/podcast/v3/${ID}`), { timeout: 60000 }).catch(() => null);
+      await open.click();
+      const resp1 = await respP; const body1 = resp1 ? await resp1.text().catch(() => "") : "sin respuesta";
+      const prop = card().getByTestId(`adaptar-propuesta-${ID}`); await prop.waitFor({ timeout: 30000 }).catch(() => {});
+      if (await prop.count() !== 1) { fs.writeFileSync(path.join(OUT, `c23${dt}-diag-preview.txt`), `${resp1?.status()} ${body1.slice(0, 3000)}\n---\n${await card().innerText()}`); await shot(P, `c23${dt}-diag-preview`); }
+      const txt = await prop.innerText();
+      ok(`c23: ${dt} · vista previa: 40 apariciones en lugar de 48; 8 pasan a ilustraciones del mismo momento`, /aparecerá 40 veces en lugar de 48: 8 apariciones pasan a ilustraciones o imágenes del mismo momento/.test(txt), txt.slice(0, 220));
+      ok(`c23: ${dt} · vista previa: llamadas 40 (antes 48), disponibles hoy 40 de 40`, /Llamadas del avatar: 40 \(antes 48\); disponibles hoy: 40 de 40/.test(txt));
+      ok(`c23: ${dt} · vista previa: guion, voces, participantes y duración se conservan`, /Se conservan el guion, las voces, los participantes y la duración/.test(txt));
+      const cost = /Costo estimado: USD ([\d.]+) \(antes USD ([\d.]+)\); tu tope sigue en USD 40\.00/.exec(txt);
+      ok(`c23: ${dt} · vista previa: presupuesto actualizado (menor que antes) y tope intacto`, !!cost && Number(cost[1]) < Number(cost[2]), cost ? `${cost[2]} → ${cost[1]}` : txt.slice(-160));
+      const r1 = await row();
+      ok(`c23: ${dt} · la vista previa no cambia nada (estado, spec, ningún despacho)`, r1.status === "failed" && JSON.stringify(r1.spec) === JSON.stringify(r0.spec) && nDisp() === d0);
+      const ov = await P.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      ok(`c23: ${dt} · sin desbordamiento horizontal con la propuesta abierta`, ov <= 1, `${ov}px`);
+      await shot(P, `c23${dt}-02-propuesta`);
+      await card().getByTestId(`adaptar-cancelar-${ID}`).click();
+      ok(`c23: ${dt} · cancelar cierra la propuesta sin cambios`, await prop.count() === 0 && JSON.stringify((await row()).spec) === JSON.stringify(r0.spec) && nDisp() === d0);
+      await openCard(); await open.click();
+      await prop.or(card().getByTestId(`adaptar-nota-${ID}`)).first().waitFor({ timeout: 60000 }).catch(() => {});
+      if (await prop.count() !== 1) { await shot(P, `c23${dt}-diag-reabrir`); fs.writeFileSync(path.join(OUT, `c23${dt}-diag-console.txt`), consoleLog.join("\n")); }
+      ok(`c23: ${dt} · volver a abrir la propuesta tras cancelar la muestra de nuevo`, await prop.count() === 1, (await card().innerText()).slice(-300));
+      await card().getByTestId(`adaptar-confirmar-${ID}`).click();
+      let r2; for (let i = 0; i < 120; i++) { r2 = await row(); if (r2.status !== "failed") break; await P.waitForTimeout(250); }
+      await card().getByTestId(`adaptar-nota-${ID}`).waitFor({ timeout: 30000 }).catch(() => {});
+      await shot(P, `c23${dt}-03-confirmado`);
+      ok(`c23: ${dt} · confirmar reintenta el MISMO episodio (autorizado, un despacho, ningún episodio nuevo)`, ["authorized", "generating"].includes(r2.status) && nDisp() === d0 + 1 && await nEps() === e0, `${r2.status} disp+${nDisp() - d0}`);
+      const { adaptation: ad2, visual: v2, ...rest2 } = r2.spec, { visual: v0, ...rest0 } = r0.spec;
+      const sameRest = JSON.stringify(rest2) === JSON.stringify(rest0), sameVisual = JSON.stringify({ ...v2, avatar_max_calls: undefined }) === JSON.stringify({ ...v0, avatar_max_calls: undefined });
+      ok(`c23: ${dt} · se guarda solo el tope aceptado y su registro (guion, participantes, voces y el resto idénticos)`, sameRest && sameVisual && v2.avatar_max_calls === 40 && ad2?.calls_before === 48 && ad2?.calls_after === 40, `resto=${sameRest} visual=${sameVisual} ${JSON.stringify(ad2)}`);
+      ok(`c23: ${dt} · la estimación guardada baja y queda dentro del tope`, Number(r2.estimated_usd) < 20.22 && Number(r2.estimated_usd) <= Number(r2.authorized_usd), `${r2.estimated_usd} / ${r2.authorized_usd}`);
+      const twice = (await post(S.ctx, { action: "adaptar", confirm: true, maxCalls: 40 })).status;
+      const again = (await post(S.ctx, { confirm: true, authorizedUsd: 40 })).status;
+      // Repetir la confirmación de la adaptación: 409, sin otro despacho. «Volver a pedir el inicio» de un autorizado que
+      // ningún runner tomó SÍ vuelve a despachar (comportamiento existente); el guard del worker impide un segundo trabajo:
+      // se comprueba abajo ejecutando un segundo runner tras el primero.
+      ok(`c23: ${dt} · repetir la confirmación de la adaptación no despacha otra vez (409)`, twice === 409, `${twice} disp+${nDisp() - d0}`);
+      ok(`c23: ${dt} · «volver a pedir el inicio» no crea otro episodio ni cambia lo autorizado`, [200, 409].includes(again) && await nEps() === e0 && Number((await row()).authorized_usd) === Number(r2.authorized_usd), `${again}`);
+      // Otra cuenta no puede ver ni adaptar este episodio.
+      const X = await session(OTHER, `c23${dt}-otra`, device);
+      const foreign = (await post(X.ctx, { action: "adaptar", preview: true })).status;
+      ok(`c23: ${dt} · otra cuenta no puede adaptar el episodio (404)`, foreign === 404, String(foreign)); await X.ctx.close();
+      const w = await worker(ID, "studio");
+      const r3 = await row();
+      const ops = (await db.query("select op, state, count(*)::int n from public.podcast_studio_operations where episode_id=$1 group by 1,2 order by 1,2", [ID])).rows;
+      const clips = ops.filter((o) => o.op === "avatar_clip").reduce((a, o) => a + o.n, 0);
+      ok(`c23: ${dt} · el worker entrega el episodio adaptado (proveedores SIMULADOS)`, w.code === 0 && r3.status === "ready" && /STUDIO_PROVIDERS mock/.test(w.out), `${r3.status} ${r3.error ?? ""}`);
+      ok(`c23: ${dt} · 40 clips de avatar en el libro (no 48), todo liquidado una vez`, clips === 40 && ops.every((o) => o.state === "settled"), JSON.stringify(ops));
+      // Segundo runner (el despacho repetido): no genera ni cobra nada más.
+      const w2 = await worker(ID, "studio"); const r4 = await row();
+      const ops2 = (await db.query("select op, state, count(*)::int n from public.podcast_studio_operations where episode_id=$1 group by 1,2 order by 1,2", [ID])).rows;
+      ok(`c23: ${dt} · un segundo runner no duplica trabajo ni cobro (libro, costo y entrega iguales)`, JSON.stringify(ops2) === JSON.stringify(ops) && Number(r4.cost_usd) === Number(r3.cost_usd) && r4.status === "ready" && r4.video_path === r3.video_path, `exit ${w2.code} ${w2.out.split("\n").filter((l) => /STUDIO_|Duplicate|ya/.test(l)).slice(-2).join(" | ").slice(0, 200)}`);
+      // Narración intacta: una operación de voz liquidada por turno del guion (96), ninguna recortada ni repetida.
+      const tts = ops.filter((o) => o.op === "tts").reduce((a, o) => a + o.n, 0);
+      ok(`c23: ${dt} · narración íntegra: ${tts} turnos de voz liquidados (guion de 96), sin recortes`, tts === 96 && ops.filter((o) => o.op === "tts").every((o) => o.state === "settled"), JSON.stringify(ops.filter((o) => o.op === "tts")));
+      ok(`c23: ${dt} · costo liquidado ≤ lo autorizado`, Number(r3.cost_usd) <= Number(r3.authorized_usd) + 1e-6, `${r3.cost_usd} / ${r3.authorized_usd}`);
+      const shotsK = (r3.result?.shots ?? r3.result?.plan?.shots ?? []);
+      const cam = shotsK.filter((x) => ["avatar_a", "avatar_b", "two_shot", "over_shoulder"].includes(x.kind)).length, lastEnd = shotsK.length ? shotsK[shotsK.length - 1].end : 0;
+      ok(`c23: ${dt} · el video entregado tiene 40 apariciones del avatar y cubre toda la voz (sin huecos ni recortes)`, cam === 40 && Math.abs(Number(r3.result?.duration) - lastEnd) <= 1.5 && shotsK.every((x, i) => i === 0 || Math.abs(x.start - shotsK[i - 1].end) < 0.01), `cam=${cam} dur=${r3.result?.duration} fin=${lastEnd}`);
+      await P.goto(`${BASE}/dashboard/podcast`); await P.getByTestId("biblioteca-vistas").waitFor();
+      await card().getByTestId("studio-player").waitFor({ timeout: 30000 }).catch(() => {});
+      ok(`c23: ${dt} · el episodio recuperado se reproduce y descarga desde «Tus episodios»`, await card().getByTestId("studio-player").count() === 1 && await card().getByTestId("studio-download-mp4").count() === 1, String(shotsK.length));
+      await shot(P, `c23${dt}-04-listo`);
+      await S.ctx.close();
+    }
+  }
   await s.ctx.close(); await browser.close(); await db.end();
   // Sin omisiones silenciosas: cada caso pedido debe haber ejecutado comprobaciones (mínimos por caso).
-  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 14: 32, 15: 5, 16: 24, 17: 17, 18: 9, 19: 18, 20: 17 };
+  const MIN = { 1: 4, 2: 7, 3: 3, 4: 4, 5: 5, 6: 6, 7: 16, 8: 13, 9: 10, 10: 45, 11: 40, 12: 40, 13: 34, 14: 32, 15: 5, 16: 24, 17: 17, 18: 9, 19: 18, 20: 17, 21: 36, 22: 60, 23: 48 };
   const perCase = Object.fromEntries(cases.map((c) => [c, results.filter((r) => r.name.startsWith(`c${c}:`) || r.name.startsWith(`c${c}-`) || (c === "10" && /^c10[a-d]:/.test(r.name)) || (c === "11" && /^c11-/.test(r.name)) || (c === "12" && /^c12-/.test(r.name))).length]));
   for (const c of cases) if ((perCase[c] ?? 0) < (MIN[c] ?? 1)) results.push({ name: `c${c}: ejecutó al menos ${MIN[c]} comprobaciones`, pass: false, detail: `solo ${perCase[c] ?? 0}` });
   fs.writeFileSync(path.join(OUT, "summary.json"), JSON.stringify({ results, summary, perCase, cases }, null, 1));

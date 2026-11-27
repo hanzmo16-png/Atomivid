@@ -15,7 +15,7 @@ import { HOST_CATALOG } from "@/lib/podcast/v3/catalog";
 import { StudioEpisodeCard } from "./StudioEpisodeList";
 import { voiceAvailability } from "@/lib/podcast/v3/spec";
 import { listStudioEpisodes } from "@/lib/podcast/v3/store";
-import { AUTO_GROUPED, incompleteLibraryNotice, libraryView, listClassicEpisodes, shownCount, VIEW_STEP, type OwnerRowsClient } from "@/lib/podcast/library";
+import { AUTO_GROUPED, incompleteLibraryNotice, libraryView, listClassicEpisodes, restoreNote, shownCount, VIEW_STEP, type OwnerRowsClient } from "@/lib/podcast/library";
 import { LibraryArchiveButton } from "./LibraryArchiveButton";
 import { studioFlagFor, studioGenerationEnabled, visualProviders } from "@/lib/podcast/v3/studio";
 import { studioRecraftBlocker } from "@/lib/podcast/v3/readiness";
@@ -125,13 +125,13 @@ export default async function PodcastPage({ searchParams }: { searchParams: Prom
       {!empty && (
         <ul className="mt-2 grid min-w-0 gap-2" data-testid="studio-episodes">
           {library.map((e) => e.kind === "studio" ? (
-            <StudioEpisodeCard key={e.id} canArchive={archiveReady} episode={{ id: e.id, title: e.title, status: e.status, mode: e.mode, cost_usd: e.cost_usd, archived: e.bucket === "archivado", autoNote: AUTO_GROUPED[e.bucket] ?? null }} />
+            <StudioEpisodeCard key={e.id} canArchive={archiveReady} episode={{ id: e.id, title: e.title, status: e.status, mode: e.mode, cost_usd: e.cost_usd, archived: e.bucket === "archivado", autoNote: AUTO_GROUPED[e.bucket] ?? null, restoreNote: restoreNote(e) }} />
           ) : (
             <li key={e.id} className="min-w-0 rounded-lg border border-border p-3 text-sm" data-testid={`episodio-v2-${e.id}`}>
               <Link href={`/dashboard/podcast/${e.id}`} className="font-medium text-ink underline">{e.title}</Link>
               <span className="ml-2 text-ink-muted">{STATUS[e.status]}{e.video_status && e.video_status !== "none" ? ` · video: ${VIDEO[e.video_status] ?? e.video_status}${e.video_status === "ready" ? (e.review_status === "approved" ? " (aprobado)" : e.review_status === "rejected" ? " (rechazado)" : " (por revisar)") : ""}` : ""} · {e.source === "upload" ? "grabación propia" : "voz sintética"}{e.duration_seconds ? ` · ${Math.round(Number(e.duration_seconds) / 60)} min` : ""}</span>
               {AUTO_GROUPED[e.bucket] && <p className="mt-1 text-xs text-ink-muted">{AUTO_GROUPED[e.bucket]}</p>}
-              {archiveReady && !AUTO_GROUPED[e.bucket] && e.bucket !== "en_curso" && <LibraryArchiveButton kind="v2" id={e.id} title={e.title} archived={e.bucket === "archivado"} />}
+              {archiveReady && !AUTO_GROUPED[e.bucket] && e.bucket !== "en_curso" && <LibraryArchiveButton kind="v2" id={e.id} title={e.title} archived={e.bucket === "archivado"} restoreNote={restoreNote(e)} />}
             </li>
           ))}
         </ul>

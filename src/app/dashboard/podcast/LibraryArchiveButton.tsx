@@ -11,7 +11,7 @@ import type { LibraryKind } from "@/lib/podcast/library";
  * Archivar / restaurar un episodio (biblioteca limpia). Archivar pide confirmación en el mismo lugar: se oculta de «Mis
  * episodios» y queda en «Archivados»; nada se borra (video, audio, enlaces y costos siguen igual).
  */
-export function LibraryArchiveButton({ kind, id, title, archived }: { kind: LibraryKind; id: string; title: string; archived: boolean }) {
+export function LibraryArchiveButton({ kind, id, title, archived, restoreNote = null }: { kind: LibraryKind; id: string; title: string; archived: boolean; restoreNote?: string | null }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -29,7 +29,13 @@ export function LibraryArchiveButton({ kind, id, title, archived }: { kind: Libr
   }
   return (
     <div className="mt-2 text-xs" data-testid={`biblioteca-${archived ? "restaurar" : "archivar"}-${id}`}>
-      {archived ? (
+      {archived && restoreNote ? (
+        // Seguirá en «Archivados» por su estado (fallido, prueba o borrador viejo): se dice antes y el botón no promete «Restaurar».
+        <div className="grid gap-2" data-testid={`biblioteca-quitar-archivo-${id}`}>
+          <p className="text-ink-muted">{restoreNote}</p>
+          <div><Button type="button" variant="secondary" size="sm" loading={busy} onClick={() => void send("restore")}>Quitar archivo manual</Button></div>
+        </div>
+      ) : archived ? (
         <Button type="button" variant="secondary" size="sm" loading={busy} onClick={() => void send("restore")}>Restaurar</Button>
       ) : confirming ? (
         <div role="alertdialog" aria-label={`Archivar «${title}»`} className="grid gap-2 rounded border border-border p-2">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -19,13 +19,17 @@ import { HostPicker, type HostCard } from "@/components/podcast/HostPicker";
 import { SavedAvatarPicker } from "@/components/podcast/SavedAvatarPicker";
 import { CONSENT_TEXT, INTENSITY_DB, MODALITIES, MODALITY_LABEL, SCREENS, SCREEN_SECTIONS, STEP, STUDIO_BUDGET_MAX_USD, screenErrors, screenOf, screenStart, withFormat, WIZARD_STORAGE_KEY, bindEpisode, defaultDraft, syncScriptNames, withOwnAvatar, withSavedAvatar, avatarSummary, draftToSpec, releaseEpisode, specKey, draftToV2, durationFit, estimateMinutes, shortScriptNotice, loadDraft, modalityToMode, voiceKindFor, withHost, withoutHost, withVoiceKinds, type Modality, type WizardDraft } from "@/lib/podcast/v3/wizard";
 import type { VisualProvider } from "@/lib/podcast/v3/studio";
+import { FreshEntryContext } from "./PodcastFreshEntry";
+import { AdaptLimitPanel, isAvatarQuotaError } from "./AdaptLimitPanel";
 
 export type WizardVoice = { voiceId: string; name: string; available: boolean; note: string | null; kind: "sintetica" | "clonada" };
 export type WizardAvatar = { id: string; name: string; photoUrl?: string | null };
 type LipSeg = { start: number; end: number; shot: string; speaker: "A" | "B" | null; lips: { A: string; B: string } };
 type Estimate = { lines: { concept: string; detail: string; usd: number; provider: string }[]; totalUsd: number; assumptions: string[]; turns: number; mood: string; shots: Record<string, number>; overBudget: boolean; byProvider?: Record<string, number>; lipTimeline?: LipSeg[]; coverage?: Record<string, boolean>; turnList?: { id: string; speaker: "A" | "B"; kind: string; text: string }[];
   /** Duración que da el guion frente a la pedida (incidente 8f05fc37); en un episodio largo muy corto, hay que aceptarla. */
-  duration?: { needsAcceptance: boolean; short: boolean; message: string | null; estimatedMinutes: number; targetMinutes: number } };
+  duration?: { needsAcceptance: boolean; short: boolean; message: string | null; estimatedMinutes: number; targetMinutes: number };
+  /** Disponibilidad real de los proveedores (cuota diaria, saldo, topes) antes de poder iniciar (incidente 4290175a). */
+  readiness?: { ready: boolean; message: string | null; provider?: string; waitHelps?: boolean } | null };
 type Status = { episode: { id?: string; title?: string; status: string; progress: unknown; updated_at?: string | null; error: string | null; cost_usd: number | null; output?: "audio" | "video"; audio_path?: string | null }; activity?: LedgerActivity | null; video_url: string | null; audio_url: string | null };
 /** Anfitrión del catálogo con lo que la página necesita: tarjeta (foto, muestra de voz) y recorte para la vista previa. */
 export type WizardHost = HostCard & { cutout: PreviewHost };
@@ -42,6 +46,8 @@ const KIND_LABEL: Record<string, string> = { pregunta: "pregunta", respuesta: "r
 
 export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generationEnabled = v3Enabled, providers = [], previewNotice = null, hosts = [] }: { voices: WizardVoice[]; avatars: WizardAvatar[]; v2Enabled: boolean; v3Enabled: boolean; generationEnabled?: boolean; providers?: VisualProvider[]; previewNotice?: string | null; hosts?: WizardHost[] }) {
   const router = useRouter();
+  // Valor del montaje (T-20261108-0415): el aviso de «retomado» se decide una vez, al leer el borrador.
+  const freshEntry = useRef(useContext(FreshEntryContext));
   const [raw, setRawState] = useState<WizardDraft>(defaultDraft);
   // Cualquier cambio del borrador mantiene el guion al día con los nombres de los participantes (syncScriptNames).
   const setRaw = (u: WizardDraft | ((x: WizardDraft) => WizardDraft)) => setRawState((x) => syncScriptNames(x, typeof u === "function" ? u(x) : u));
@@ -68,6 +74,8 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
   const [status, setStatus] = useState<Status | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const poll = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Reanuda la consulta de avance tras adaptar y reintentar el mismo episodio (antes se detenía en «failed»).
+  const [pollKey, setPollKey] = useState(0);
   const ownerRef = useRef<string | null>(null);
   // Borrador persistente: volver atrás o recargar no pierde nada.
   // Hidratación desde localStorage (solo existe en el cliente): un único setState al montar.
@@ -86,7 +94,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
         if (owner && other && other !== owner) { parkDraft(localStorage, raw); localStorage.removeItem(WIZARD_STORAGE_KEY); raw = null; }
       } catch { raw = null; }
       const draft = loadDraft(raw);
-      setRawState(draft); setLoaded(true); setResumed(resumedDraft(draft)); setRecoverable(hasParkedSafe(owner));
+      setRawState(draft); setLoaded(true); setResumed(entryResumeNotice(draft, freshEntry.current)); setRecoverable(hasParkedSafe(owner));
     })();
     return () => { cancelled = true; };
   }, []);
@@ -220,7 +228,13 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
       if (mustAcceptDuration && !acceptDuration) { setError(estimate?.duration?.message ?? "Acepta la duración real del episodio para continuar."); return; }
       const created = d.draftId ? { id: d.draftId } : await api("/api/podcast/v3", { action: "create", spec: draftToSpec(withVoiceKinds(d, voices)), ...(mustAcceptDuration ? { acceptDuration: true } : {}) });
       set({ draftId: String(created.id), boundSpec: specKey(d) });
-      const r = await api(`/api/podcast/v3/${String(created.id)}`, { confirm: true, authorizedUsd: d.budgetUsd });
+      let r: Record<string, unknown>;
+      try { r = await api(`/api/podcast/v3/${String(created.id)}`, { confirm: true, authorizedUsd: d.budgetUsd }); }
+      catch (e) {
+        // Proveedor no listo (409): el borrador queda intacto y el botón se desactiva con el motivo; nada se inició ni cobró.
+        if (isProviderNotReady(e)) { setEstimate((prev) => prev ? { ...prev, readiness: { ready: false, message: (e as Error).message, provider: "production" } } : prev); return; }
+        throw e;
+      }
       if (r.note) setNote(String(r.note));
       set({ step: STEP.generacion, episodeId: String(created.id) });
     });
@@ -251,7 +265,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
     };
     void tick(); poll.current = setInterval(tick, 4000);
     return () => { if (poll.current) clearInterval(poll.current); };
-  }, [d.episodeId, screen]);
+  }, [d.episodeId, screen, pollKey]);
 
   const input = "block w-full min-w-0 max-w-full rounded border border-border-strong bg-surface-raised px-3 py-2 text-base sm:text-sm";
   const choice = (on: boolean) => `rounded-lg border p-3 text-left text-sm ${on ? "border-accent bg-surface" : "border-border"}`;
@@ -529,7 +543,15 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
               checked={acceptDuration} onChange={setAcceptDuration} />}
             <p>Se generará «{d.title}» ({d.modality ? MODALITY_LABEL[d.modality] : MODE_LABEL[d.mode ?? "narracion"]}). Costo estimado: <b>{estimate ? USD(estimate.totalUsd) : "—"}</b>. Nunca se cobrará más de <b>{USD(d.budgetUsd)}</b>.</p>
             <label><input type="checkbox" aria-label="Autorizo el cargo" checked={d.authorized} onChange={(e) => set({ authorized: e.target.checked })} /> Autorizo generar este episodio con un cargo máximo de {USD(d.budgetUsd)}.</label>
-            <Button type="button" onClick={authorizeAndGenerate} loading={busy} disabled={!d.authorized || (estimate?.totalUsd ?? 0) > d.budgetUsd || (mustAcceptDuration && !acceptDuration)}>Generar episodio</Button>
+            {providerBlocked(estimate) && <p role="alert" className="rounded border border-danger p-2 text-danger" data-testid="proveedor-no-listo">{providerBlockText(estimate)}</p>}
+            {/* Límite diario del avatar: se adapta el plan del MISMO borrador (se guarda primero si aún no existe). */}
+            {providerBlocked(estimate) && isAvatarQuotaError(estimate?.readiness?.message) && (d.draftId
+              ? <AdaptLimitPanel episodeId={d.draftId} onStarted={() => { set({ step: STEP.generacion, episodeId: d.draftId }); setStatus(null); setPollKey((k) => k + 1); }} />
+              : <Button type="button" variant="secondary" size="sm" loading={busy} data-testid="adaptar-preparar" onClick={() => void run(async () => {
+                  const created = await api("/api/podcast/v3", { action: "create", spec: draftToSpec(withVoiceKinds(d, voices)), ...(mustAcceptDuration ? { acceptDuration: true } : {}) });
+                  set({ draftId: String(created.id), boundSpec: specKey(d) });
+                })}>Adaptar producción al límite disponible</Button>)}
+            <Button type="button" onClick={authorizeAndGenerate} loading={busy} disabled={!d.authorized || (estimate?.totalUsd ?? 0) > d.budgetUsd || (mustAcceptDuration && !acceptDuration) || providerBlocked(estimate)} data-testid="wizard-generar">Generar episodio</Button>
             {(!d.authorized || (estimate?.totalUsd ?? 0) > d.budgetUsd) && <p className="text-xs text-ink-muted" data-testid="motivo-generar">{(estimate?.totalUsd ?? 0) > d.budgetUsd ? "El costo estimado supera tu presupuesto máximo: súbelo o reduce las apariciones del avatar." : "Marca la casilla de autorización para poder generar."}</p>}
           </>))}
           {started && foreign && (
@@ -543,10 +565,12 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
               <AtomProgress view={cur ? progressView(cur.episode, undefined, cur.activity) : progressView({ status: "authorized" })} />
               {cur?.episode.status === "failed" && <p className="mt-2">No se pudo terminar. No se te cobra un episodio no entregado.</p>}
               {cur?.episode.error && <p className="mt-2 text-danger">{cur.episode.error}</p>}
+              {cur?.episode.status === "failed" && d.episodeId && isAvatarQuotaError(cur.episode.error) && <AdaptLimitPanel episodeId={d.episodeId} onStarted={() => { setStatus(null); setPollKey((k) => k + 1); }} />}
               {cur?.episode.status === "failed" && <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={() => { set({ draftId: d.episodeId, episodeId: null, authorized: false }); }}>Reintentar (no se cobra dos veces lo ya generado)</Button>}
               {cur?.episode.status === "authorized" && <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={() => void run(async () => { const again = await api(`/api/podcast/v3/${d.episodeId}`, { confirm: true }); if (again.note) setNote(String(again.note)); })}>Volver a pedir el inicio (no se cobra otra vez)</Button>}
               {statusError && <p role="alert" className="mt-2 text-danger" data-testid="wizard-estado-sin-respuesta">{statusError}</p>}
-              {cur?.episode.status !== "ready" && <p className="mt-2 text-xs text-ink-muted">Puedes cerrar esta página: el episodio sigue generándose y aparecerá en «Tus episodios».</p>}
+              {/* Solo mientras de verdad está en curso: un episodio fallido (p. ej. bloqueado antes de cobrar) no «sigue generándose». */}
+              {episodeInProgress(cur?.episode.status) && <p className="mt-2 text-xs text-ink-muted" data-testid="wizard-sigue-generando">Puedes cerrar esta página: el episodio sigue generándose y aparecerá en «Tus episodios».</p>}
               {cur?.episode.status === "ready" && <Button type="button" variant="secondary" size="sm" className="mt-2" data-testid="wizard-crear-otro" onClick={() => { set({ ...releaseEpisode(d), step: STEP.modalidad }); setStatus(null); }}>Crear otro episodio</Button>}
             </div>
           )}
@@ -625,6 +649,15 @@ export function resumedDraft(x: { title?: string; topic?: string; script?: strin
   const label = (String(x.title ?? "").trim() || String(x.topic ?? "").trim() || "sin título").slice(0, 70);
   return { label, minutes: script.trim() ? estimateMinutes(script) : 0 };
 }
+/**
+ * Aviso al montar (T-20261108-0415): una entrada nueva de «Personalizado» que solo trae la idea (`topic`) no es un borrador
+ * retomado, así que no se anuncia ni ofrece «Empezar uno nuevo». Con contenido propio (título, guion o guion con IA) o
+ * fuera de una entrada nueva, se avisa como siempre.
+ */
+export function entryResumeNotice(x: { title?: string; topic?: string; script?: string; scriptJob?: unknown }, freshEntry: boolean): ReturnType<typeof resumedDraft> {
+  if (freshEntry && !String(x.title ?? "").trim() && !String(x.script ?? "").trim() && !x.scriptJob) return null;
+  return resumedDraft(x);
+}
 /** ¿Hay un guion con IA a medias que NO corresponde a la configuración actual (tema, duración o participantes)? */
 export function staleJob(job: unknown, ask: Parameters<typeof pendingJob>[1]): boolean {
   return pendingJob(job) !== null && pendingJob(job, ask) === null;
@@ -666,6 +699,18 @@ export function LongScriptStatus({ status: s }: { status: LongStatus | null }) {
     </div>
   );
 }
+export const isProviderNotReady = (e: unknown) => e instanceof Error && (e as Error & { status?: number }).status === 409 && /^(Proveedor no listo:|No pudimos confirmar ahora la disponibilidad)/.test(e.message);
+/** P0 4290175a: un proveedor indispensable no está listo → no se puede iniciar (sin despacho ni cargo). */
+export const providerBlocked = (e: { readiness?: { ready: boolean } | null } | null | undefined) => e?.readiness?.ready === false;
+export function providerBlockText(e: { readiness?: { message: string | null; provider?: string; waitHelps?: boolean } | null } | null | undefined): string {
+  const r = e?.readiness;
+  if (!r) return "";
+  if (r.provider === "production") return r.message ?? "";
+  const tail = r.waitHelps === false ? "" : " Puedes volver a calcular el costo más tarde para comprobarlo.";
+  return `Ahora no se puede iniciar: ${r.message ?? "un proveedor no está disponible."} No se hará ningún cargo y tu configuración se conserva.${tail}`;
+}
+/** ¿El episodio está realmente en curso? Solo «authorized» (en cola) y «generating»; «failed» y «ready» son finales. */
+export const episodeInProgress = (status: unknown) => status === "authorized" || status === "generating";
 /** Lo ya escrito y guardado del guion con IA (o nada si no hay bloques). */
 export function SavedProgressPanel({ saved }: { saved: ReturnType<typeof savedProgress> }) {
   if (!saved) return null;

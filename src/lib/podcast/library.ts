@@ -53,6 +53,22 @@ export const AUTO_GROUPED: Partial<Record<LibraryBucket, string>> = {
   antiguo: "Sin terminar desde hace más de 7 días.",
 };
 
+/** Motivo corto de cada grupo automático, para decir por qué un episodio sigue en «Archivados» tras quitar el archivo manual. */
+const STAYS_BECAUSE: Partial<Record<LibraryBucket, string>> = {
+  fallido: "tiene un error", prueba: "es un episodio de prueba", antiguo: "lleva más de 7 días sin terminar",
+};
+
+/**
+ * Archivado a mano cuyo estado actual lo agruparía solo (fallido, prueba o borrador viejo): quitar el archivo manual NO lo
+ * devuelve a «Mis episodios» (T-20261107-2314). Devuelve el aviso que se muestra ANTES de actuar, o `null` si al restaurar
+ * vuelve a la vista principal (p. ej. un episodio listo). No cambia estado, costos ni archivos: solo explica el resultado.
+ */
+export function restoreNote(i: LibraryItem, now = Date.now()): string | null {
+  if (!i.archived_at || inProgress(i)) return null;
+  const reason = STAYS_BECAUSE[bucketOf({ ...i, archived_at: null }, now)];
+  return reason ? `Quitar el archivo manual no lo devuelve a «Mis episodios»: seguirá en «Archivados» porque ${reason}. Puedes abrirlo cuando quieras; no se borra nada.` : null;
+}
+
 /**
  * Lo que muestra cada vista como UNA sola secuencia (estudio y clásico mezclados), ordenada: en curso, luego lo
  * terminado, luego borradores recientes; dentro de cada grupo, la actividad más reciente arriba.
