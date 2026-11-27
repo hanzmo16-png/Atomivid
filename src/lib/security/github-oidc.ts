@@ -44,16 +44,19 @@ export async function verifyGithubOidc(jwt: string, policy: OidcPolicy, jwks: ()
   // orchestrator.yml and drive-oauth.yml run ordinary jobs (steps, no `uses:` of a reusable workflow). GitHub's OIDC
   // reference: `workflow_ref` = "the ref path to the workflow" (<owner>/<repo>/.github/workflows/<file>@<ref>);
   // `job_workflow_ref` exists "for jobs using a reusable workflow". So the allowed file is checked on workflow_ref.
-  const wr = typeof claims.workflow_ref === "string" ? claims.workflow_ref : "";
+  // GitHub repository names are case-insensitive; Git file names and refs are not.
+  const repositoryPrefix = `${policy.repository}/`;
+  const canonicalWorkflowRef = (value: string) => value.slice(0, repositoryPrefix.length).toLowerCase() === repositoryPrefix.toLowerCase()
+    ? repositoryPrefix + value.slice(repositoryPrefix.length) : value;
+  const wr = typeof claims.workflow_ref === "string" ? canonicalWorkflowRef(claims.workflow_ref) : "";
   const workflow = policy.workflows.find((w) => {
     const prefix = `${policy.repository}/.github/workflows/${w}@`;
-    return wr.toLowerCase() === `${prefix}${ref}`.toLowerCase()
-      || (pinnedDeployment && wr.toLowerCase() === `${prefix}${pin}`.toLowerCase());
+    return wr === `${prefix}${ref}` || (pinnedDeployment && wr === `${prefix}${pin}`);
   });
   if (!workflow) return { ok: false, reason: "workflow no permitido" };
   // No reusable workflows: if a job_workflow_ref is present it must be that same workflow. A job of an allowed workflow
   // that calls a reusable workflow (here or in another repository) runs code that is not one of the two files: refused.
-  if (claims.job_workflow_ref !== undefined && (typeof claims.job_workflow_ref !== "string" || claims.job_workflow_ref.toLowerCase() !== wr.toLowerCase())) return { ok: false, reason: "workflow reutilizable no permitido" };
+  if (claims.job_workflow_ref !== undefined && (typeof claims.job_workflow_ref !== "string" || canonicalWorkflowRef(claims.job_workflow_ref) !== wr)) return { ok: false, reason: "workflow reutilizable no permitido" };
   return { ok: true, workflow, runId: String(claims.run_id ?? "") };
 }
 

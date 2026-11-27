@@ -38,7 +38,7 @@ test("detached support rejects other refs, types, events, workflows and reusable
   for (const event_name of ["workflow_dispatch", "schedule", "pull_request", "pull_request_target", "repository_dispatch", undefined]) {
     assert.equal((await verify({ event_name })).ok, false);
   }
-  for (const workflow_ref of [workflow(otherSha), workflow(sha) + "/extra", workflow("refs/heads/other"), workflow(sha).replace("mystery-shopper.yml", "other.yml"), workflow(sha).replace(strict.repository, "other/repo"), [workflow(sha)], null]) {
+  for (const workflow_ref of [workflow(otherSha), workflow(sha.toUpperCase()), workflow(ref.toUpperCase()), workflow(sha) + "/extra", workflow("refs/heads/other"), workflow(sha).replace("mystery-shopper.yml", "other.yml"), workflow(sha).replace(strict.repository, "other/repo"), [workflow(sha)], null]) {
     assert.equal((await verify({ workflow_ref })).ok, false);
   }
   for (const job_workflow_ref of [workflow(otherSha), "other", [workflow(sha)], null]) {
@@ -72,5 +72,17 @@ test("invalid direct pins fail closed and normal branch observers remain valid w
   for (const event_name of ["workflow_dispatch", "schedule"]) {
     assert.equal((await verify({ event_name, ref, workflow_ref: workflow(ref) }, pinned)).ok, true);
     assert.equal((await verify({ event_name, ref, workflow_ref: workflow(sha) }, pinned)).ok, false);
+  }
+});
+
+test("repository casing is normalized but workflow files and reusable references remain case-sensitive", async () => {
+  assert.equal((await verify({ repository: strict.repository.toLowerCase(), workflow_ref: workflow(sha).replace(strict.repository, strict.repository.toLowerCase()) })).ok, true);
+  assert.equal((await verify({ job_workflow_ref: workflow(sha).replace(strict.repository, strict.repository.toLowerCase()) })).ok, true);
+  for (const p of [pinned, strict]) {
+    const version = p === strict ? ref : sha;
+    const claims = { ref, workflow_ref: workflow(version), sha };
+    const wrongCase = workflow(version).replace("mystery-shopper.yml", "MYSTERY-SHOPPER.yml");
+    assert.equal((await verify({ ...claims, workflow_ref: wrongCase }, p)).ok, false);
+    assert.equal((await verify({ ...claims, job_workflow_ref: wrongCase }, p)).ok, false);
   }
 });
