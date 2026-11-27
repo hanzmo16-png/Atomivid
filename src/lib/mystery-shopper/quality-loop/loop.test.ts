@@ -60,7 +60,7 @@ test('wrong owner, expired claim, invalid transition and paid cycle are refused'
 });
 test('admin view reports blockers, not healthy merely because a runner finished',()=>{
  const q=initialQueue(at);assert.equal(publicView(q,end).operational,'STALE');
- add(q,cycle('blocked',[{...check,state:'BLOCKED'}]));assert.equal(publicView(q,end).operational,'BLOCKED');assert.equal(publicView(q,end).nextEvaluation,'2026-11-26T20:17:00.000Z');
+ add(q,cycle('blocked',[{...check,state:'BLOCKED'}]));assert.equal(publicView(q,end).operational,'BLOCKED');assert.equal(publicView(q,end).nextEvaluation,'2026-11-26T20:23:00.000Z');
 });
 
 test('one green provider or a stale/unreconciled wallet cannot green-light a whole product',()=>{
