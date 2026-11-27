@@ -9,7 +9,7 @@ import { LogoMark } from "./Logo";
  */
 export function AuthCard({ subtitle, children }: { subtitle: string; children: ReactNode }) {
   return (
-    <div className="bg-atomivid-glow relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-12">
+    <main className="bg-atomivid-glow relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-12">
       <div
         className="pointer-events-none absolute -bottom-24 -right-16 size-80 rounded-full bg-[#3b82f6] opacity-[0.16] blur-[80px]"
         aria-hidden="true"
@@ -20,14 +20,14 @@ export function AuthCard({ subtitle, children }: { subtitle: string; children: R
             <LogoMark size={22} />
           </span>
           <div>
-            <Link href="/" className="inline-block">
+            <Link href="/" className="inline-flex min-h-11 items-center">
               <span className="text-base font-semibold tracking-tight text-ink">Atomicvid</span>
             </Link>
-            <p className="mt-0.5 text-sm text-ink-muted">{subtitle}</p>
+            <h1 className="mt-0.5 text-sm font-normal text-ink-muted">{subtitle}</h1>
           </div>
         </div>
         <div className="p-8">{children}</div>
       </Card>
-    </div>
+    </main>
   );
 }

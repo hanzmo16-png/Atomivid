@@ -81,7 +81,7 @@ export function RequestCard({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <Link href={detailHref} className="block truncate font-medium text-ink hover:text-accent">
+            <Link href={detailHref} className="block truncate py-2.5 font-medium text-ink hover:text-accent">
               {request.topic}
             </Link>
             {(request.mode === "avatar" || isLongForm) && <ModeBadge mode={request.mode as "avatar" | "long_form"} />}
@@ -163,14 +163,14 @@ export function RequestCard({
               // que Long Form sigue sin una pantalla de revisión por beats.
               <Link
                 href={`/dashboard/long-form/configure/${request.id}`}
-                className="inline-flex items-center justify-center rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:bg-accent-hover"
+                className="inline-flex min-h-11 items-center justify-center rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:bg-accent-hover"
               >
                 Configurar producción
               </Link>
             )) : (
               <Link
                 href={`/dashboard/review/${request.id}`}
-                className="inline-flex items-center justify-center rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:bg-accent-hover"
+                className="inline-flex min-h-11 items-center justify-center rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:bg-accent-hover"
               >
                 {/* Copy fix (RC QA 2026-09-25): un avatar con narración
                     propia/grabada o TTS-desde-texto (recorded_audio_path
@@ -187,7 +187,7 @@ export function RequestCard({
           {request.status === "processing" && isStaleProcessing && canRetry && (
             request.mode === "visual" ? (reelRetryReview ? (
               <Link href={`/dashboard/review/${request.id}`}
-                className="inline-flex items-center justify-center rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:bg-accent-hover">
+                className="inline-flex min-h-11 items-center justify-center rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:bg-accent-hover">
                 Revisar tope y reintentar
               </Link>
             ) : null) : <GenerateButton endpoint={`/api/generate/${request.id}/render`} label={retryLabel} />
@@ -212,7 +212,7 @@ export function RequestCard({
               Navigation only — opening the review generates nothing and calls no provider. */}
           {request.status === "failed" && Boolean(request.script_json) && !isLongForm && !reelRetryReview && (
             <Link href={`/dashboard/review/${request.id}`}
-              className="inline-flex items-center justify-center rounded-md border border-border px-3 py-1.5 text-xs font-medium text-ink hover:bg-surface-raised">
+              className="inline-flex min-h-11 items-center justify-center rounded-md border border-border px-3 py-1.5 text-xs font-medium text-ink hover:bg-surface-raised">
               {request.recorded_audio_path ? "Revisar grabación" : "Revisar guion"}
             </Link>
           )}
@@ -228,7 +228,7 @@ export function RequestCard({
               ) : canRetry && (
                 request.mode === "visual" ? (reelRetryReview ? (
                   <Link href={`/dashboard/review/${request.id}`}
-                    className="inline-flex items-center justify-center rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:bg-accent-hover">
+                    className="inline-flex min-h-11 items-center justify-center rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:bg-accent-hover">
                     Revisar tope y reintentar
                   </Link>
                 ) : <p role="status" className="max-w-[260px] text-xs text-ink-muted">Reintento bloqueado: revisa el estado de la solicitud.</p>)
@@ -295,14 +295,14 @@ export function RequestCard({
               download
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-md border border-border-strong px-3.5 py-2 text-sm font-medium text-ink transition-colors hover:border-accent-border hover:bg-surface-raised"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-border-strong px-3.5 text-sm font-medium text-ink transition-colors hover:border-accent-border hover:bg-surface-raised"
             >
               Descargar video
             </a>
             {!isLongForm && (
               <Link
                 href={detailHref}
-                className="inline-flex items-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-medium text-ink-muted transition-colors hover:text-ink"
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-3.5 text-sm font-medium text-ink-muted transition-colors hover:text-ink"
               >
                 Ver detalles
               </Link>

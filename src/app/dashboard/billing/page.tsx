@@ -46,8 +46,8 @@ export default async function BillingPage({
           </ul>
           <p className="mt-4 text-sm text-ink-muted">La generación necesita proveedores habilitados y saldo suficiente. El acceso al estudio de audio depende de los permisos de la cuenta; la publicación directa de podcasts todavía no está integrada.</p>
           <div className="mt-6 flex flex-wrap gap-4">
-            <Link className="font-medium text-accent underline" href="/dashboard/new">Crear contenido</Link>
-            <Link className="font-medium text-accent underline" href="/dashboard/command-center">Ver saldos y costos</Link>
+            <Link className="inline-flex min-h-11 items-center font-medium text-accent underline" href="/dashboard/new">Crear contenido</Link>
+            <Link className="inline-flex min-h-11 items-center font-medium text-accent underline" href="/dashboard/command-center">Ver saldos y costos</Link>
           </div>
         </Card>
       </div>

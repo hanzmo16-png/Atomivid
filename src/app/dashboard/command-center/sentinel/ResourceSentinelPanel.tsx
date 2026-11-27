@@ -1,5 +1,6 @@
 import type { SentinelCard, SentinelView, Tone } from "@/lib/command-center/sentinel/view";
 import type { AqlCard } from "@/lib/command-center/sentinel/aql";
+import { SentinelFreshness } from "./SentinelFreshness";
 
 const TEXT: Record<Tone, string> = { ok: "text-emerald-300", warn: "text-amber-300", danger: "text-red-300", muted: "text-zinc-400", info: "text-sky-300" };
 const DOT: Record<Tone, string> = { ok: "bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.7)]", warn: "bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.7)]", danger: "bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.8)]", muted: "bg-zinc-500", info: "bg-sky-400" };
@@ -35,14 +36,14 @@ function Card({ c }: { c: SentinelCard }) {
 
       <div className="mt-3">
         <p className="text-xs text-zinc-400">Consumo registrado <span className="text-zinc-500">(ledger PI, parcial)</span></p>
-        <dl className="mt-1 grid grid-cols-3 gap-2 text-sm">
-          {c.consumption.map((x) => <div key={x.label} className="rounded-xl border border-white/5 p-2 text-center"><dt className="text-[11px] text-zinc-500">{x.label}</dt><dd className="mt-0.5 font-medium tabular-nums text-zinc-100">{x.display}</dd></div>)}
+        <dl className="mt-1 grid grid-cols-3 gap-1.5 text-sm">
+          {c.consumption.map((x) => <div key={x.label} className="min-w-0 rounded-xl border border-white/5 px-1 py-2 text-center"><dt className="text-[11px] text-zinc-500">{x.label}</dt><dd className={`mt-0.5 font-medium tabular-nums leading-tight ${x.display === "Desconocido" ? "text-[10.5px] tracking-tight text-zinc-400" : "text-zinc-100"}`}>{x.display}</dd></div>)}
         </dl>
       </div>
 
-      <div className="mt-3 flex items-baseline justify-between gap-3 rounded-xl bg-white/5 p-3">
-        <div><p className="text-xs text-zinc-400">Autonomía estimada</p><p className="text-[11px] text-zinc-500">{c.autonomy.note}</p></div>
-        <p className={`shrink-0 text-lg font-semibold tabular-nums ${TEXT[c.autonomy.tone]}`}>{c.autonomy.display}</p>
+      <div className="mt-3 rounded-xl bg-white/5 p-3">
+        <div className="flex items-baseline justify-between gap-3"><p className="text-xs text-zinc-400">Autonomía estimada</p><p className={`shrink-0 text-lg font-semibold tabular-nums ${TEXT[c.autonomy.tone]}`}>{c.autonomy.display}</p></div>
+        <p className="mt-1 text-[11px] text-zinc-500">{c.autonomy.note}</p>
       </div>
 
       {c.alerts.length > 0 && (
@@ -89,6 +90,7 @@ export function ResourceSentinelPanel({ view, aql }: { view: SentinelView; aql?:
         <p className="text-xs text-zinc-500">Actualizado: <time dateTime={view.generatedAt || undefined}>{view.generatedDisplay}</time><br />Fuente: {view.source || "—"}</p>
       </div>
 
+      {view.generatedAt && <SentinelFreshness generatedAt={view.generatedAt} />}
       {aql && <AqlStatus a={aql} />}
 
       {view.counts.length > 0 && (
@@ -97,7 +99,7 @@ export function ResourceSentinelPanel({ view, aql }: { view: SentinelView; aql?:
         </ul>
       )}
       {view.attention > 0 && <p className="mt-3 text-sm text-amber-300" role="alert">{view.attention} proveedor{view.attention === 1 ? " requiere" : "es requieren"} recarga o revisión.</p>}
-      {view.errors.length > 0 && <p className="mt-3 text-xs text-amber-300" role="status">Fuentes sin leer: {view.errors.join(" · ")}. Sus valores aparecen como «Desconocido».</p>}
+      {view.errors.length > 0 && <div className="mt-3 text-xs text-amber-300" role="status" data-testid="sentinel-errors"><p>Limitaciones o errores de esta lectura (los valores afectados aparecen como «Desconocido»):</p><ul className="mt-1 list-disc space-y-0.5 pl-5">{view.errors.map((e) => <li key={e}>{e}</li>)}</ul></div>}
 
       {view.empty
         ? <p className="mt-4 text-sm text-amber-300" role="status">{view.empty}</p>

@@ -37,7 +37,7 @@ export function InterestForm({ action, registrado, error, consent }: {
         <input type="checkbox" name="consent" required className="mt-1" />
         <span>{consent}</span>
       </label>
-      <Button type="submit" className="w-full">Apuntarme a la lista</Button>
+      <Button type="submit" className="min-h-11 w-full">Apuntarme a la lista</Button>
     </form>
   );
 }

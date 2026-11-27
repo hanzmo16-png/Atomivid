@@ -54,7 +54,27 @@ const REASONS: [RegExp, string][] = [
   [/^YELLOW$|replenish/, "Saldo libre bajo (≤ 30 %), menos de 72 h de cobertura o proveedor degradado."],
   [/^GREEN$|covers/, "El saldo verificado cubre la previsión actual."],
 ];
-export const explainReason = (reason: string) => REASONS.find(([re]) => re.test(reason))?.[1] ?? reason;
+/** Códigos `auditStatus` del motor de Codex → explicación para el administrador (el código técnico nunca se muestra solo). */
+export const AUDIT: Record<string, string> = {
+  VERIFIED_LEDGER_ADJUSTMENT: "Saldo de la API ajustado con el ledger verificado.",
+  UNIT_CONSUMPTION_ESTIMATED: "Saldo verificado; el consumo en esta unidad es estimado.",
+  CROSS_PRODUCT_LEDGER_COVERAGE_UNVERIFIED: "Audio y Podcast llevan contabilidad propia: no se certifica saldo libre ni autonomía conjunta.",
+  POLICY_DISABLED_OR_UNVERIFIED: "Política de suministro deshabilitada o sin verificar.",
+  LEDGER_OR_POLICY_UNVERIFIED: "No se pudo verificar el ledger o la política de este proveedor.",
+  SIMULTANEOUS_SNAPSHOT_CONFLICT: "Dos lecturas simultáneas contradictorias: el saldo queda sin acreditar.",
+  BALANCE_UNVERIFIED_OR_STALE: "No hay una lectura de saldo verificada y vigente para autorizar gasto.",
+  UNRESOLVED_CHARGES: "Hay cargos sin conciliar: el saldo libre no se puede certificar.",
+  INVALID_SNAPSHOT_TIME: "La hora de la lectura no es válida: el saldo queda sin acreditar.",
+  MIXED_OR_UNVERIFIED_POLICY_TIMEZONES: "Las políticas usan zonas horarias distintas o sin verificar: el consumo diario y mensual queda sin acreditar.",
+  SENTINEL_POLICIES_UNVERIFIED: "No se pudieron verificar las políticas del motor.",
+  SENTINEL_HISTORY_UNVERIFIED: "No se pudo verificar el historial de lecturas.",
+  SENTINEL_HISTORY_TRUNCATED: "Historial de lecturas incompleto.",
+  SENTINEL_HISTORY_CHANGED: "El historial cambió durante la lectura.",
+  SENTINEL_HISTORY_BOUND_EXCEEDED: "Historial de lecturas fuera del límite revisable.",
+  SENTINEL_CLOCK_UNVERIFIED: "El reloj del motor no está verificado.",
+  INVALID_SENTINEL_CONFIGURATION: "Configuración del motor inválida.",
+};
+export const explainReason = (reason: string) => AUDIT[reason] ?? REASONS.find(([re]) => re.test(reason))?.[1] ?? reason;
 
 const nf = (max: number) => new Intl.NumberFormat("es-MX", { maximumFractionDigits: max, minimumFractionDigits: 0 });
 export const usd = (v: number) => `${new Intl.NumberFormat("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v)} USD`;
@@ -85,8 +105,10 @@ export function cardOf(p: SentinelProvider, now: number, tz: string): SentinelCa
   const dir = PROVIDER_DIRECTORY[p.provider] ?? { name: p.provider, consoleUrl: null, role: "Proveedor" };
   const ALIAS: Record<string, string> = { flux: "FLUX", recraft: "Recraft" };
   const sharedBy = p.aliases.length > 1 ? p.aliases.map((a) => ALIAS[a] ?? a).join(" · ") : null;
-  const light = { level: p.level, ...LIGHT[p.level], explanation: explainReason(p.reason) };
   const b = p.balance;
+  // Defensa de la vista: nunca verde sin un saldo REAL leído de la API, aunque el origen dijera GREEN.
+  const level: SentinelLevel = p.level === "GREEN" && !(b.status === "REAL" && b.value !== null) ? "UNKNOWN" : p.level;
+  const light = { level, ...LIGHT[level], explanation: level !== p.level ? "Sin saldo real verificado: no se muestra en verde." : explainReason(p.reason) };
   const when = b.checkedAt ? ago(b.checkedAt, now) : "";
   const balance = b.status === "REAL" && b.value !== null
     ? { status: b.status, display: amount(b.value, p.unit), note: `Saldo real: API del proveedor ${when} (vigente 5 min).` }
@@ -106,14 +128,14 @@ export function cardOf(p: SentinelProvider, now: number, tz: string): SentinelCa
         note: "Calculada por el control de suministro.",
         tone: (days <= 3 ? "danger" : days <= 7 ? "warn" : "ok") as Tone };
   const lim = p.limits;
-  const limits = !lim ? "Sin política configurada" : `${lim.enabled ? "Gasto habilitado" : "Gasto deshabilitado"} · tope diario ${lim.dailyUsd === null ? "sin definir" : usd(lim.dailyUsd)} · mensual ${lim.monthlyUsd === null ? "sin definir" : usd(lim.monthlyUsd)}`;
+  const limits = !lim ? "Topes de gasto: no incluidos en esta lectura (consúltalos en el control de suministro)." : `${lim.enabled ? "Gasto habilitado" : "Gasto deshabilitado"} · tope diario ${lim.dailyUsd === null ? "sin definir" : usd(lim.dailyUsd)} · mensual ${lim.monthlyUsd === null ? "sin definir" : usd(lim.monthlyUsd)}`;
 
   // Alertas preventivas: nunca proponen recargar desde aquí; dicen qué revisar y enlazan a la consola.
   const alerts: SentinelAlert[] = [];
   if (b.health === "DOWN") alerts.push({ tone: "danger", text: "El proveedor reporta caída: las generaciones que dependen de él quedan en espera." });
-  if (p.level === "RED") alerts.push({ tone: "danger", text: "Recarga urgente: el saldo libre no garantiza la producción de las próximas 24 h." });
-  else if (p.level === "YELLOW") alerts.push({ tone: "warn", text: "Recarga preventiva recomendada antes de quedar por debajo del 15 % o de 24 h de cobertura." });
-  if (days !== null && p.level !== "RED" && days <= 7) alerts.push({ tone: days <= 3 ? "danger" : "warn", text: `Autonomía estimada de ${autonomy.display}: programa la recarga.` });
+  if (level === "RED") alerts.push({ tone: "danger", text: "Recarga urgente: el saldo libre no garantiza la producción de las próximas 24 h." });
+  else if (level === "YELLOW") alerts.push({ tone: "warn", text: "Recarga preventiva recomendada antes de quedar por debajo del 15 % o de 24 h de cobertura." });
+  if (days !== null && level !== "RED" && days <= 7) alerts.push({ tone: days <= 3 ? "danger" : "warn", text: `Autonomía estimada de ${autonomy.display}: programa la recarga.` });
   if (b.status === "STALE") alerts.push({ tone: "warn", text: "Saldo no vigente: el gasto queda en espera hasta una lectura de la API de menos de 5 minutos." });
   else if (b.status === "UNKNOWN") alerts.push({ tone: "warn", text: "Saldo desconocido: no se autoriza gasto con este proveedor hasta verificarlo." });
   else if (b.status === "ESTIMATED") alerts.push({ tone: "info", text: "Saldo estimado (registro manual): confírmalo en la consola del proveedor." });
@@ -137,7 +159,7 @@ export function buildSentinelView(s: SentinelSnapshot | null): SentinelView {
     generatedAt: s.generatedAt, generatedDisplay: stamp(s.generatedAt, s.timezone), timezone: s.timezone,
     source: s.source === "sentinel-engine" ? "Motor Sentinel" : "Control de suministro existente (solo lectura)",
     counts, attention: cards.filter((c) => c.light.level === "RED" || c.light.level === "YELLOW").length,
-    cards, errors: s.errors,
+    cards, errors: s.errors.map((e) => AUDIT[e] ?? e),
     empty: cards.length ? null : s.errors.length ? "No se pudo leer el estado de los recursos. No se autoriza gasto con datos desconocidos." : "Aún no hay proveedores con política de suministro.",
   };
 }
