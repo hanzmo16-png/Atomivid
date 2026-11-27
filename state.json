@@ -1,8 +1,12 @@
 {
   "version": "quality-loop/1",
   "enabled": true,
-  "updatedAt": "2026-11-27T14:07:51.606424Z",
-  "lease": null,
+  "updatedAt": "2026-11-27T14:09:14.891Z",
+  "lease": {
+    "cycleId": "manual-46013161630",
+    "token": "29846f88-2f27-4eee-af0e-ff317683387c",
+    "expiresAt": "2026-11-27T14:29:14.891Z"
+  },
   "cycles": [
     {
       "id": "manual-45886485209",
@@ -44,67 +48,67 @@
           "detail": "Registro: HTTP 200"
         },
         {
-          "id": "anonymous-Panel sin sesi\u00f3n pide login",
+          "id": "anonymous-Panel sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Panel sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Panel sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Audio Studio sin sesi\u00f3n pide login",
+          "id": "anonymous-Audio Studio sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Audio Studio sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Audio Studio sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Podcast sin sesi\u00f3n pide login",
+          "id": "anonymous-Podcast sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Podcast sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Podcast sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Reels sin sesi\u00f3n pide login",
+          "id": "anonymous-Reels sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Reels sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Reels sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Long Form sin sesi\u00f3n pide login",
+          "id": "anonymous-Long Form sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Long Form sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Long Form sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Command Center sin sesi\u00f3n pide login",
+          "id": "anonymous-Command Center sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Command Center sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Command Center sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-API admin cerrada sin sesi\u00f3n",
+          "id": "anonymous-API admin cerrada sin sesión",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "API admin cerrada sin sesi\u00f3n: HTTP 401"
+          "detail": "API admin cerrada sin sesión: HTTP 401"
         },
         {
           "id": "qa-auth",
@@ -833,67 +837,67 @@
           "detail": "Registro: HTTP 200"
         },
         {
-          "id": "anonymous-Panel sin sesi\u00f3n pide login",
+          "id": "anonymous-Panel sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Panel sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Panel sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Audio Studio sin sesi\u00f3n pide login",
+          "id": "anonymous-Audio Studio sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Audio Studio sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Audio Studio sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Podcast sin sesi\u00f3n pide login",
+          "id": "anonymous-Podcast sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Podcast sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Podcast sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Reels sin sesi\u00f3n pide login",
+          "id": "anonymous-Reels sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Reels sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Reels sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Long Form sin sesi\u00f3n pide login",
+          "id": "anonymous-Long Form sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Long Form sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Long Form sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Command Center sin sesi\u00f3n pide login",
+          "id": "anonymous-Command Center sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Command Center sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Command Center sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-API admin cerrada sin sesi\u00f3n",
+          "id": "anonymous-API admin cerrada sin sesión",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "API admin cerrada sin sesi\u00f3n: HTTP 401"
+          "detail": "API admin cerrada sin sesión: HTTP 401"
         },
         {
           "id": "qa-auth",
@@ -1037,7 +1041,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duraci\u00f3n deseada=present"
+          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duración deseada=present"
         },
         {
           "id": "player-visible-reels-412",
@@ -1127,7 +1131,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narraci\u00f3n con im\u00e1genes=present; Presentador con avatar=present; Conversaci\u00f3n con avatares=present; Pasos=present"
+          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narración con imágenes=present; Presentador con avatar=present; Conversación con avatares=present; Pasos=present"
         },
         {
           "id": "player-visible-video-podcast-412",
@@ -1271,7 +1275,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duraci\u00f3n deseada=present"
+          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duración deseada=present"
         },
         {
           "id": "player-visible-reels-1440",
@@ -1361,7 +1365,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narraci\u00f3n con im\u00e1genes=present; Presentador con avatar=present; Conversaci\u00f3n con avatares=present; Pasos=present"
+          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narración con imágenes=present; Presentador con avatar=present; Conversación con avatares=present; Pasos=present"
         },
         {
           "id": "player-visible-video-podcast-1440",
@@ -1622,67 +1626,67 @@
           "detail": "Registro: HTTP 200"
         },
         {
-          "id": "anonymous-Panel sin sesi\u00f3n pide login",
+          "id": "anonymous-Panel sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Panel sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Panel sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Audio Studio sin sesi\u00f3n pide login",
+          "id": "anonymous-Audio Studio sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Audio Studio sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Audio Studio sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Podcast sin sesi\u00f3n pide login",
+          "id": "anonymous-Podcast sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Podcast sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Podcast sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Reels sin sesi\u00f3n pide login",
+          "id": "anonymous-Reels sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Reels sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Reels sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Long Form sin sesi\u00f3n pide login",
+          "id": "anonymous-Long Form sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Long Form sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Long Form sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Command Center sin sesi\u00f3n pide login",
+          "id": "anonymous-Command Center sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Command Center sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Command Center sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-API admin cerrada sin sesi\u00f3n",
+          "id": "anonymous-API admin cerrada sin sesión",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "API admin cerrada sin sesi\u00f3n: HTTP 401"
+          "detail": "API admin cerrada sin sesión: HTTP 401"
         },
         {
           "id": "qa-auth",
@@ -1826,7 +1830,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duraci\u00f3n deseada=present"
+          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duración deseada=present"
         },
         {
           "id": "player-visible-reels-412",
@@ -1916,7 +1920,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narraci\u00f3n con im\u00e1genes=present; Presentador con avatar=present; Conversaci\u00f3n con avatares=present; Pasos=present"
+          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narración con imágenes=present; Presentador con avatar=present; Conversación con avatares=present; Pasos=present"
         },
         {
           "id": "player-visible-video-podcast-412",
@@ -2060,7 +2064,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duraci\u00f3n deseada=present"
+          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duración deseada=present"
         },
         {
           "id": "player-visible-reels-1440",
@@ -2150,7 +2154,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narraci\u00f3n con im\u00e1genes=present; Presentador con avatar=present; Conversaci\u00f3n con avatares=present; Pasos=present"
+          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narración con imágenes=present; Presentador con avatar=present; Conversación con avatares=present; Pasos=present"
         },
         {
           "id": "player-visible-video-podcast-1440",
@@ -2411,67 +2415,67 @@
           "detail": "Registro: HTTP 200"
         },
         {
-          "id": "anonymous-Panel sin sesi\u00f3n pide login",
+          "id": "anonymous-Panel sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Panel sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Panel sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Audio Studio sin sesi\u00f3n pide login",
+          "id": "anonymous-Audio Studio sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Audio Studio sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Audio Studio sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Podcast sin sesi\u00f3n pide login",
+          "id": "anonymous-Podcast sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Podcast sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Podcast sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Reels sin sesi\u00f3n pide login",
+          "id": "anonymous-Reels sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Reels sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Reels sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Long Form sin sesi\u00f3n pide login",
+          "id": "anonymous-Long Form sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Long Form sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Long Form sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Command Center sin sesi\u00f3n pide login",
+          "id": "anonymous-Command Center sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Command Center sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Command Center sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-API admin cerrada sin sesi\u00f3n",
+          "id": "anonymous-API admin cerrada sin sesión",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "API admin cerrada sin sesi\u00f3n: HTTP 401"
+          "detail": "API admin cerrada sin sesión: HTTP 401"
         },
         {
           "id": "qa-auth",
@@ -2615,7 +2619,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duraci\u00f3n deseada=present"
+          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duración deseada=present"
         },
         {
           "id": "player-visible-reels-412",
@@ -2705,7 +2709,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narraci\u00f3n con im\u00e1genes=present; Presentador con avatar=present; Conversaci\u00f3n con avatares=present; Pasos=present"
+          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narración con imágenes=present; Presentador con avatar=present; Conversación con avatares=present; Pasos=present"
         },
         {
           "id": "player-visible-video-podcast-412",
@@ -2849,7 +2853,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duraci\u00f3n deseada=present"
+          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duración deseada=present"
         },
         {
           "id": "player-visible-reels-1440",
@@ -2939,7 +2943,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narraci\u00f3n con im\u00e1genes=present; Presentador con avatar=present; Conversaci\u00f3n con avatares=present; Pasos=present"
+          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narración con imágenes=present; Presentador con avatar=present; Conversación con avatares=present; Pasos=present"
         },
         {
           "id": "player-visible-video-podcast-1440",
@@ -3218,67 +3222,67 @@
           "detail": "Registro: HTTP 200"
         },
         {
-          "id": "anonymous-Panel sin sesi\u00f3n pide login",
+          "id": "anonymous-Panel sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Panel sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Panel sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Audio Studio sin sesi\u00f3n pide login",
+          "id": "anonymous-Audio Studio sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Audio Studio sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Audio Studio sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Podcast sin sesi\u00f3n pide login",
+          "id": "anonymous-Podcast sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Podcast sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Podcast sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Reels sin sesi\u00f3n pide login",
+          "id": "anonymous-Reels sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Reels sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Reels sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Long Form sin sesi\u00f3n pide login",
+          "id": "anonymous-Long Form sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Long Form sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Long Form sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Command Center sin sesi\u00f3n pide login",
+          "id": "anonymous-Command Center sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Command Center sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Command Center sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-API admin cerrada sin sesi\u00f3n",
+          "id": "anonymous-API admin cerrada sin sesión",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "API admin cerrada sin sesi\u00f3n: HTTP 401"
+          "detail": "API admin cerrada sin sesión: HTTP 401"
         },
         {
           "id": "qa-auth",
@@ -3422,7 +3426,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duraci\u00f3n deseada=present"
+          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duración deseada=present"
         },
         {
           "id": "player-visible-reels-412",
@@ -3512,7 +3516,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narraci\u00f3n con im\u00e1genes=present; Presentador con avatar=present; Conversaci\u00f3n con avatares=present; Pasos=present"
+          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narración con imágenes=present; Presentador con avatar=present; Conversación con avatares=present; Pasos=present"
         },
         {
           "id": "player-visible-video-podcast-412",
@@ -3656,7 +3660,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duraci\u00f3n deseada=present"
+          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duración deseada=present"
         },
         {
           "id": "player-visible-reels-1440",
@@ -3746,7 +3750,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narraci\u00f3n con im\u00e1genes=present; Presentador con avatar=present; Conversaci\u00f3n con avatares=present; Pasos=present"
+          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narración con imágenes=present; Presentador con avatar=present; Conversación con avatares=present; Pasos=present"
         },
         {
           "id": "player-visible-video-podcast-1440",
@@ -4007,67 +4011,67 @@
           "detail": "Registro: HTTP 200"
         },
         {
-          "id": "anonymous-Panel sin sesi\u00f3n pide login",
+          "id": "anonymous-Panel sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Panel sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Panel sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Audio Studio sin sesi\u00f3n pide login",
+          "id": "anonymous-Audio Studio sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Audio Studio sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Audio Studio sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Podcast sin sesi\u00f3n pide login",
+          "id": "anonymous-Podcast sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Podcast sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Podcast sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Reels sin sesi\u00f3n pide login",
+          "id": "anonymous-Reels sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Reels sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Reels sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Long Form sin sesi\u00f3n pide login",
+          "id": "anonymous-Long Form sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Long Form sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Long Form sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Command Center sin sesi\u00f3n pide login",
+          "id": "anonymous-Command Center sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Command Center sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Command Center sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-API admin cerrada sin sesi\u00f3n",
+          "id": "anonymous-API admin cerrada sin sesión",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "API admin cerrada sin sesi\u00f3n: HTTP 401"
+          "detail": "API admin cerrada sin sesión: HTTP 401"
         },
         {
           "id": "qa-auth",
@@ -4238,7 +4242,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duraci\u00f3n deseada=present"
+          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duración deseada=present"
         },
         {
           "id": "player-visible-reels-412",
@@ -4328,7 +4332,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narraci\u00f3n con im\u00e1genes=present; Presentador con avatar=present; Conversaci\u00f3n con avatares=present; Pasos=present"
+          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narración con imágenes=present; Presentador con avatar=present; Conversación con avatares=present; Pasos=present"
         },
         {
           "id": "player-visible-video-podcast-412",
@@ -4472,7 +4476,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duraci\u00f3n deseada=present"
+          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duración deseada=present"
         },
         {
           "id": "player-visible-reels-1440",
@@ -4562,7 +4566,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narraci\u00f3n con im\u00e1genes=present; Presentador con avatar=present; Conversaci\u00f3n con avatares=present; Pasos=present"
+          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narración con imágenes=present; Presentador con avatar=present; Conversación con avatares=present; Pasos=present"
         },
         {
           "id": "player-visible-video-podcast-1440",
@@ -4823,67 +4827,67 @@
           "detail": "Registro: HTTP 200"
         },
         {
-          "id": "anonymous-Panel sin sesi\u00f3n pide login",
+          "id": "anonymous-Panel sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Panel sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Panel sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Audio Studio sin sesi\u00f3n pide login",
+          "id": "anonymous-Audio Studio sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Audio Studio sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Audio Studio sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Podcast sin sesi\u00f3n pide login",
+          "id": "anonymous-Podcast sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Podcast sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Podcast sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Reels sin sesi\u00f3n pide login",
+          "id": "anonymous-Reels sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Reels sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Reels sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Long Form sin sesi\u00f3n pide login",
+          "id": "anonymous-Long Form sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Long Form sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Long Form sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Command Center sin sesi\u00f3n pide login",
+          "id": "anonymous-Command Center sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Command Center sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Command Center sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-API admin cerrada sin sesi\u00f3n",
+          "id": "anonymous-API admin cerrada sin sesión",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "API admin cerrada sin sesi\u00f3n: HTTP 401"
+          "detail": "API admin cerrada sin sesión: HTTP 401"
         },
         {
           "id": "qa-auth",
@@ -5054,7 +5058,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duraci\u00f3n deseada=present"
+          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duración deseada=present"
         },
         {
           "id": "player-visible-reels-412",
@@ -5144,7 +5148,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narraci\u00f3n con im\u00e1genes=present; Presentador con avatar=present; Conversaci\u00f3n con avatares=present; Pasos=present"
+          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narración con imágenes=present; Presentador con avatar=present; Conversación con avatares=present; Pasos=present"
         },
         {
           "id": "player-visible-video-podcast-412",
@@ -5288,7 +5292,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duraci\u00f3n deseada=present"
+          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duración deseada=present"
         },
         {
           "id": "player-visible-reels-1440",
@@ -5378,7 +5382,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narraci\u00f3n con im\u00e1genes=present; Presentador con avatar=present; Conversaci\u00f3n con avatares=present; Pasos=present"
+          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narración con imágenes=present; Presentador con avatar=present; Conversación con avatares=present; Pasos=present"
         },
         {
           "id": "player-visible-video-podcast-1440",
@@ -5639,67 +5643,67 @@
           "detail": "Registro: HTTP 200"
         },
         {
-          "id": "anonymous-Panel sin sesi\u00f3n pide login",
+          "id": "anonymous-Panel sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Panel sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Panel sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Audio Studio sin sesi\u00f3n pide login",
+          "id": "anonymous-Audio Studio sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Audio Studio sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Audio Studio sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Podcast sin sesi\u00f3n pide login",
+          "id": "anonymous-Podcast sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Podcast sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Podcast sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Reels sin sesi\u00f3n pide login",
+          "id": "anonymous-Reels sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Reels sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Reels sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Long Form sin sesi\u00f3n pide login",
+          "id": "anonymous-Long Form sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Long Form sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Long Form sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Command Center sin sesi\u00f3n pide login",
+          "id": "anonymous-Command Center sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Command Center sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Command Center sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-API admin cerrada sin sesi\u00f3n",
+          "id": "anonymous-API admin cerrada sin sesión",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "API admin cerrada sin sesi\u00f3n: HTTP 401"
+          "detail": "API admin cerrada sin sesión: HTTP 401"
         },
         {
           "id": "qa-auth",
@@ -5843,7 +5847,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duraci\u00f3n deseada=present"
+          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duración deseada=present"
         },
         {
           "id": "player-visible-reels-412",
@@ -5933,7 +5937,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narraci\u00f3n con im\u00e1genes=present; Presentador con avatar=present; Conversaci\u00f3n con avatares=present; Pasos=present"
+          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narración con imágenes=present; Presentador con avatar=present; Conversación con avatares=present; Pasos=present"
         },
         {
           "id": "player-visible-video-podcast-412",
@@ -6077,7 +6081,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duraci\u00f3n deseada=present"
+          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duración deseada=present"
         },
         {
           "id": "player-visible-reels-1440",
@@ -6167,7 +6171,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narraci\u00f3n con im\u00e1genes=present; Presentador con avatar=present; Conversaci\u00f3n con avatares=present; Pasos=present"
+          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narración con imágenes=present; Presentador con avatar=present; Conversación con avatares=present; Pasos=present"
         },
         {
           "id": "player-visible-video-podcast-1440",
@@ -6446,67 +6450,67 @@
           "detail": "Registro: HTTP 200"
         },
         {
-          "id": "anonymous-Panel sin sesi\u00f3n pide login",
+          "id": "anonymous-Panel sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Panel sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Panel sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Audio Studio sin sesi\u00f3n pide login",
+          "id": "anonymous-Audio Studio sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Audio Studio sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Audio Studio sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Podcast sin sesi\u00f3n pide login",
+          "id": "anonymous-Podcast sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Podcast sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Podcast sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Reels sin sesi\u00f3n pide login",
+          "id": "anonymous-Reels sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Reels sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Reels sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Long Form sin sesi\u00f3n pide login",
+          "id": "anonymous-Long Form sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Long Form sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Long Form sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-Command Center sin sesi\u00f3n pide login",
+          "id": "anonymous-Command Center sin sesión pide login",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "Command Center sin sesi\u00f3n pide login: HTTP 307"
+          "detail": "Command Center sin sesión pide login: HTTP 307"
         },
         {
-          "id": "anonymous-API admin cerrada sin sesi\u00f3n",
+          "id": "anonymous-API admin cerrada sin sesión",
           "product": "account-nav",
           "state": "PASS",
           "severity": "P1",
           "owner": "codex",
           "module": "permissions",
-          "detail": "API admin cerrada sin sesi\u00f3n: HTTP 401"
+          "detail": "API admin cerrada sin sesión: HTTP 401"
         },
         {
           "id": "qa-auth",
@@ -6650,7 +6654,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duraci\u00f3n deseada=present"
+          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duración deseada=present"
         },
         {
           "id": "player-visible-reels-412",
@@ -6740,7 +6744,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narraci\u00f3n con im\u00e1genes=present; Presentador con avatar=present; Conversaci\u00f3n con avatares=present; Pasos=present"
+          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narración con imágenes=present; Presentador con avatar=present; Conversación con avatares=present; Pasos=present"
         },
         {
           "id": "player-visible-video-podcast-412",
@@ -6884,7 +6888,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duraci\u00f3n deseada=present"
+          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duración deseada=present"
         },
         {
           "id": "player-visible-reels-1440",
@@ -6974,7 +6978,7 @@
           "severity": "P1",
           "owner": "claude",
           "module": "ui",
-          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narraci\u00f3n con im\u00e1genes=present; Presentador con avatar=present; Conversaci\u00f3n con avatares=present; Pasos=present"
+          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narración con imágenes=present; Presentador con avatar=present; Conversación con avatares=present; Pasos=present"
         },
         {
           "id": "player-visible-video-podcast-1440",
@@ -7393,6 +7397,10 @@
     {
       "at": "2026-11-27T14:07:51.606424Z",
       "text": "Controlled RESUME after production db3be and read-only inspection capability v1 verified; histories preserved; paid generation remains prohibited."
+    },
+    {
+      "at": "2026-11-27T14:09:14.891Z",
+      "text": "Cycle manual-46013161630 claimed"
     }
   ],
   "lastAlert": "47a33b04655e5fedaf4796d87608988519b8ca16ea6bd83aff9dabc8d3d621d0",
