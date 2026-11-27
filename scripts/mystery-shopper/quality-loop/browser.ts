@@ -1,3 +1,4 @@
+import { readOnlyInspectionLoginPath, readOnlyInspectionUrl, supportsReadOnlyInspection } from "../../../src/lib/mystery-shopper/quality-loop/readonly-inspection";
 /** Reuses Mystery Shopper observation and detection. No jobStore, service role, ledger, or paid runner. */
 import { findingsFrom, technicalTerms, type PageMetrics } from '../../../src/lib/mystery-shopper/live';
 import { inspectCampaign320SurfaceReadOnly } from '../../../src/lib/mystery-shopper/v3/campaign-320-readonly-preflight';
@@ -15,6 +16,15 @@ export async function observe(env: Record<string,string|undefined>, input: Pick<
   const add=(c:Check)=>checks.push(c);
   let authenticated=false, sha:string|null=null, sentinel:Cycle['sentinel']='BLOCKED';
   const finish=():Cycle=>({...input,scope:fixture?'fixture':'authenticated-readonly',startedAt,finishedAt:new Date().toISOString(),sha,authenticated,sentinel,checks,spendUsd:0});
+  // Legacy pages may perform housekeeping during GET. Capability must be known BEFORE
+  // even the anonymous smoke visits dashboard, and before any login redirect/prefetch.
+  let capability:{status:number;data:unknown}={status:0,data:null};
+  try { const r=await fetch(`${origin}/api/build-info`,{cache:'no-store',redirect:'error',signal:AbortSignal.timeout(15000)});capability={status:r.status,data:await r.json().catch(()=>null)}; } catch { /* Unknown never becomes permission to navigate. */ }
+  if(!supportsReadOnlyInspection(capability.status,capability.data)) {
+    add({id:'inspection-readonly-capability',product:'account-nav',state:'BLOCKED',severity:'P0',owner:'codex',module:'safety',detail:'Backend read-only inspection capability unavailable; no login or dashboard traversal attempted'});
+    return finish();
+  }
+  add({id:'inspection-readonly-capability',product:'account-nav',state:'PASS',severity:'P0',owner:'codex',module:'safety',detail:'Backend advertises audited housekeeping opt-out; existing authentication and ownership remain required'});
   const anonymous=await smoke(origin);
   for(const c of anonymous.checks)add({id:`anonymous-${c.name}`,product:'account-nav',state:c.pass?'PASS':'FAIL',severity:'P1',owner:'codex',module:'permissions',detail:`${c.name}: HTTP ${c.status}`});
   if(!env.MYSTERY_SHOPPER_QA_EMAIL||!env.MYSTERY_SHOPPER_QA_PASSWORD){
@@ -32,12 +42,13 @@ export async function observe(env: Record<string,string|undefined>, input: Pick<
     await context.route('**/*',async(route:any)=>{
       const r=route.request();
       if(!allowBrowserRequest({url:r.url(),method:r.method(),origin,authenticated,resourceType:r.resourceType(),adminReadback})){blockedRequests++;return route.abort();}
-      if(!fixture && r.method()==='POST' && r.url()===`${origin}/login` && await stopped())return route.abort();
-      return route.continue();
+      if(!fixture && r.method()==='POST' && new URL(r.url()).pathname==='/login' && await stopped())return route.abort();
+      const inspected=readOnlyInspectionUrl(r.url(),origin,r.method());
+      return inspected ? route.continue({url:inspected}) : route.continue();
     });
     // Kill switch is reread between products by the runner callback, never supplied by page content.
     const page=await context.newPage();page.setDefaultTimeout(10000);
-    await page.goto('/login',{waitUntil:'domcontentloaded',timeout:30000});
+    await page.goto(readOnlyInspectionLoginPath(),{waitUntil:'domcontentloaded',timeout:30000});
     await page.getByLabel('Correo electrónico').fill(env.MYSTERY_SHOPPER_QA_EMAIL);
     await page.getByLabel('Contraseña').fill(env.MYSTERY_SHOPPER_QA_PASSWORD);
     await page.getByRole('button',{name:'Iniciar sesión',exact:true}).click();
@@ -147,7 +158,7 @@ export async function observe(env: Record<string,string|undefined>, input: Pick<
     const stable=sha!==null&&finalBuild.status===200&&finalBuild.data?.sha===sha;
     add({id:'deployment-sha-stability',product:'account-nav',state:stable?'PASS':'BLOCKED',severity:'P1',owner:'codex',module:'deployment',detail:stable?'Application SHA stable before and after the traversal':'Unknown or changing deployment; no defect can be revalidated from mixed builds'});
     if(!stable)sha=null;
-    add({id:'read-only-boundary',product:'account-nav',state:'PASS',severity:'P0',owner:'codex',module:'safety',detail:`Default-deny request guard active; ${blockedRequests} requests blocked; zero generation/checkout dispatches`});
+    add({id:'read-only-boundary',product:'account-nav',state:'PASS',severity:'P0',owner:'codex',module:'safety',detail:`Default-deny request guard active; ${blockedRequests} requests blocked; zero generation/checkout dispatches; audited dashboard/result housekeeping opt-out requested`});
     // No screenshots, DOM dumps, emails, media URLs, financial values or cookies are emitted.
   }finally{await browser.close();}
   return finish();

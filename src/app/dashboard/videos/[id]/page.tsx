@@ -1,3 +1,4 @@
+import { runPageMaintenance } from "@/lib/mystery-shopper/quality-loop/readonly-inspection";
 import { StartErrorNotice, StartOutcomeProvider } from "@/components/video/StartErrorNotice";
 import { describeStoredFailure } from "@/lib/video/job-error";
 import { MAX_RENDER_ATTEMPTS } from "@/lib/video/limits";
@@ -24,9 +25,10 @@ import { parseYoutubeMetadata, youtubeMetadataPath, type YoutubeMetadata } from 
 import { YoutubeMetadataPanel } from "@/components/video/YoutubeMetadataPanel";
 
 export default async function VideoResultPage({
-  params,
+  params, searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ inspection?: string | string[] }>;
 }) {
   const { id } = await params;
   const supabase = await createClient();
@@ -77,8 +79,8 @@ export default async function VideoResultPage({
     notFound();
   }
   // Intento colgado: estado final aquí mismo (antes quedaba «processing» para siempre); mismo cierre que el Historial.
-  const stale = await closeStaleAttempt(createServiceClient(), request).catch(() => ({ outcome: "changed" as const, errorMessage: null }));
-  if (stale.outcome === "closed") {
+  const stale = await runPageMaintenance((await searchParams)?.inspection, () => closeStaleAttempt(createServiceClient(), request).catch(() => ({ outcome: "changed" as const, errorMessage: null })));
+  if (stale?.outcome === "closed") {
     Object.assign(request, { status: "failed", progress_stage: null, long_form_stage: null, long_form_progress: null, error_message: stale.errorMessage });
   }
 

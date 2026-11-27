@@ -4,7 +4,7 @@ This extends Mystery Shopper; it does not replace the engine, create a financial
 
 ## Components and boundaries
 
-- `.github/workflows/mystery-shopper.yml`: every 30 minutes at :17/:47, successful production deployment events, and explicit `quality-loop` dispatch. Standard Linux public-repository runners only; the public-repository condition is checked before allocating the periodic job. GitHub scheduling is best effort, not a 24/7 uptime guarantee.
+- `.github/workflows/mystery-shopper.yml`: every 30 minutes at :23/:53, successful production deployment events, and explicit `quality-loop` dispatch. Standard Linux public-repository runners only; the public-repository condition is checked before allocating the periodic job. GitHub scheduling is best effort, not a 24/7 uptime guarantee.
 - `scripts/mystery-shopper/quality-loop/browser.ts` reuses the existing authenticated surface inspector, `findingsFrom`, auth classifier and anonymous smoke. A fresh QA browser runs mobile and desktop. Only login POST is allowed; application APIs default-deny, third-party providers and streaming are blocked. No production Storage job creation, service-role secret, reservations, ledger resets, generations, retries, subscription changes or checkout charges.
 - A build identity endpoint returns only `VERCEL_GIT_COMMIT_SHA`. SHA is read before and after the traversal; unavailable/changing SHA cannot revalidate defects. Runner SHA is separate.
 - Existing Sentinel #338 endpoint is read, not rebuilt. Account/worker/financial unknowns remain BLOCKED. No balances or authenticated content enter public reports. #337 UI and #338 supply files remain untouched.
@@ -53,3 +53,15 @@ Stop through the admin API/panel (or set the existing repo variable to `0`); dis
 ## First authentic branch run and correction
 
 Manual run `45886485209` (not cron) confirmed QA authentication, with50PASS/2FAIL/22BLOCKED/12SKIP. Both FAIL were the same stale test selector: `modalidad-video` does not exist in the production wizard's `visual/avatar/dialogo` contract. The inspector was corrected, with a browser regression covering all three actual choices, and the two viewport findings were consolidated/claimed in the persistent queue by the active Codex session. The original run and state remain preserved. A subsequent PASS must not be called production integration while this PR is only a branch. Build identity and Resource Sentinel were unavailable in that production version; those blockers were retained.
+
+## Schedule registration experiment — 2026-11-27
+
+The workflow is active on the default branch, the application queue is enabled with no live lease, and Actions had only one authentic schedule event (45938752780). No code/configuration root cause was established. Retiming the same half-hour cadence from :17/:47 to :23/:53 re-registers its cron without increasing executions, adding a scheduler or enabling the native corrector. This is an operational experiment, not evidence of a fix. Manual/deployment events never qualify as schedule evidence.
+
+Acceptance requires two consecutive new `event=schedule` runs after this change reaches the default branch, each pinned to the deployed source and retaining all FAIL/BLOCKED. Until then scheduling remains NOT ACCREDITED. If no event arrives, preserve API evidence and escalate to GitHub Actions support; do not repeatedly change cron or invent a successful heartbeat. Rollback restores the previous cron and nominal-time calculation together; it does not erase the queue, ledger or evidence.
+
+## Audited GET inspection and legacy-backend gate
+
+GET alone is not a no-write guarantee: dashboard/history previously reconciled stale jobs and closed stale attempts. The explicit `inspection=read-only` mode skips only those maintenance callbacks; normal recovery, authentication and ownership are unchanged. The observer checks build-info capability before login and uses the existing safe `redirectedFrom` form contract so the Server Action's internal redirect also carries the mode. Same-origin audited GET/RSC navigation preserves that flag. A backend without the capability is BLOCKED before traversal, not treated as safe because a client blocks POST.
+
+Controlled Chromium and maintenance-callback tests verify this behavior, not genuine production authentication. The mode does not certify atomic routing across a mid-run rollback or zero internal provider HTTP (some server components list voices with official GETs). Storage metadata reads remain bounded and full-media/egress evidence remains blocked until separately verified. The native code corrector stays HOLD; this interactive correction does not activate or replace it.
