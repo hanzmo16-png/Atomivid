@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync, sign } from "node:crypto";
-import { qualityReadinessResponse, SENTINEL_READINESS_POLICY as policy } from "./quality-readiness";
+import { qualityReadinessResponse, SENTINEL_READINESS_POLICY as policy, sentinelReadinessPolicy } from "./quality-readiness";
 import { sentinelStatus, providerReadiness } from "../mystery-shopper/quality-loop/policy";
 const {privateKey,publicKey}=generateKeyPairSync("rsa",{modulusLength:2048});
 const nowS=Math.floor(Date.now()/1000);
@@ -33,4 +33,28 @@ test("authenticated machine DTO omits every amount, private operation and identi
 test("reader errors disclose no credentials or financial payload",async()=>{
  const response=await qualityReadinessResponse(request(jwt()),{read:async()=>{throw Error("SECRET balance=999");},jwks,nowS});
  assert.equal(response.status,503);assert.doesNotMatch(await response.text(),/SECRET|999/);
+});
+test("only trusted Production deployment metadata opts readiness into a valid exact commit pin",()=>{
+ const sha="5d059bc13a27a3902f05f9e22fa09014b0d2adee";
+ assert.equal(sentinelReadinessPolicy({VERCEL_ENV:"production",VERCEL_GIT_COMMIT_SHA:sha}).detachedDeploymentSha,sha);
+ for(const env of [{},{VERCEL_ENV:"preview",VERCEL_GIT_COMMIT_SHA:sha},{VERCEL_ENV:"development",VERCEL_GIT_COMMIT_SHA:sha},{VERCEL_ENV:"production"},{VERCEL_ENV:"production",VERCEL_GIT_COMMIT_SHA:"bad"},{VERCEL_ENV:"production",VERCEL_GIT_COMMIT_SHA:sha.toUpperCase()}])
+  assert.equal(sentinelReadinessPolicy(env).detachedDeploymentSha,undefined);
+ assert.equal(policy.detachedDeploymentSha,undefined);
+});
+test("Production route validates the exact deployed commit before constructing its private reader",async()=>{
+ const sha="5d059bc13a27a3902f05f9e22fa09014b0d2adee";
+ const previous={environment:process.env.VERCEL_ENV,sha:process.env.VERCEL_GIT_COMMIT_SHA};let reads=0;
+ process.env.VERCEL_ENV="production";process.env.VERCEL_GIT_COMMIT_SHA=sha;
+ try{
+  const read=async()=>{reads++;return {observedAt:new Date().toISOString(),sentinel:{accounts:[],resources:[]}} as never;};
+  const claims={event_name:"deployment_status",ref:"",sha,workflow_ref:`${policy.repository}/.github/workflows/mystery-shopper.yml@${sha}`};
+  const response=await qualityReadinessResponse(request(jwt(claims)),{read,jwks,nowS});
+  assert.equal(response.status,200);assert.equal(reads,1);
+  assert.equal((await response.json()).scope,"READ_ONLY_NOT_ATOMIC_ADMISSION");
+  assert.equal((await qualityReadinessResponse(request(jwt({...claims,sha:"a".repeat(40)})),{read,jwks,nowS})).status,403);
+  assert.equal(reads,1);
+ }finally{
+  if(previous.environment===undefined)delete process.env.VERCEL_ENV;else process.env.VERCEL_ENV=previous.environment;
+  if(previous.sha===undefined)delete process.env.VERCEL_GIT_COMMIT_SHA;else process.env.VERCEL_GIT_COMMIT_SHA=previous.sha;
+ }
 });

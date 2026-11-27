@@ -4,7 +4,7 @@ import { findingsFrom, technicalTerms, type PageMetrics } from '../../../src/lib
 import { inspectCampaign320SurfaceReadOnly } from '../../../src/lib/mystery-shopper/v3/campaign-320-readonly-preflight';
 import { classifyAuth } from '../../../src/lib/mystery-shopper/v3/auth-outcome';
 import { allowBrowserRequest, sentinelStatus, targetOrigin, providerReadiness, allowMediaProbe } from '../../../src/lib/mystery-shopper/quality-loop/policy';
-import { sampleMedia } from './media';
+import { sampleMedia, mediaURL } from './media';
 import { readSentinelReadiness } from './sentinel-readiness';
 import { smoke } from '../smoke';
 import { PRODUCTS, type Cycle, type Check } from '../../../src/lib/mystery-shopper/quality-loop/model';
@@ -37,12 +37,12 @@ export async function observe(env: Record<string,string|undefined>, input: Pick<
   const browser=await pw.chromium.launch({headless:true,executablePath:env.MS_CHROME||undefined});
   try {
     const context=await browser.newContext({baseURL:origin,viewport:{width:412,height:915},isMobile:true,hasTouch:true,locale:'es-MX',serviceWorkers:'block'});
-    let blockedRequests=0;
+    let blockedRequests=0,existingEpisodePath:string|null=null;
     await context.routeWebSocket('**/*',(ws:{close():void})=>ws.close());
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await context.route('**/*',async(route:any)=>{
       const r=route.request();
-      if(!allowBrowserRequest({url:r.url(),method:r.method(),origin,authenticated,resourceType:r.resourceType(),adminReadback})){blockedRequests++;return route.abort();}
+      if(!allowBrowserRequest({url:r.url(),method:r.method(),origin,authenticated,resourceType:r.resourceType(),adminReadback,existingEpisodePath})){blockedRequests++;return route.abort();}
       if(!fixture && r.method()==='POST' && new URL(r.url()).pathname==='/login' && await stopped())return route.abort();
       const inspected=readOnlyInspectionUrl(r.url(),origin,r.method());
       return inspected ? route.continue({url:inspected}) : route.continue();
@@ -64,7 +64,7 @@ export async function observe(env: Record<string,string|undefined>, input: Pick<
     add({id:'deployed-sha',product:'account-nav',state:sha?'PASS':'BLOCKED',severity:'P1',owner:'codex',module:'deployment',detail:sha?'SHA returned by the evaluated application':'Evaluated application SHA unavailable; runner SHA is not production identity'});
     if(env.AQL_EXPECTED_SHA && sha!==env.AQL_EXPECTED_SHA)add({id:'deployment-sha-match',product:'account-nav',state:'FAIL',severity:'P1',owner:'codex',module:'deployment',detail:'Deployment event SHA does not match evaluated application'});
     const sent=fixture ? await getJSON('/api/command-center/resource-sentinel') : await readSentinelReadiness(env);sentinel=sentinelStatus(sent.status,sent.data);
-    add({id:'sentinel-read',product:'command-center',state:sentinel==='READ'?'PASS':'BLOCKED',severity:'P1',owner:'codex',module:'sentinel',detail:sentinel==='READ'?'Existing Resource Sentinel read successfully; private balances omitted':`Sentinel HTTP ${sent.status}; ${sent.status===401||sent.status===403?'QA not authorized':sent.status===404?'backend route absent':sent.status===200?'contract incomplete/stale':'unavailable'}; provider-dependent checks blocked`});
+    add({id:'sentinel-read',product:'command-center',state:sentinel==='READ'?'PASS':'BLOCKED',severity:'P1',owner:'codex',module:'sentinel',detail:sentinel==='READ'?'Existing Resource Sentinel read successfully; private balances omitted':`Sentinel HTTP ${sent.status}; ${sent.status===401||sent.status===403?'observer authorization denied':sent.status===404?'backend route absent':sent.status===200?'contract incomplete/stale':'unavailable'}; provider-dependent checks blocked`});
     if(adminReadback){
       const admin=await getJSON('/api/command-center/quality-loop');
       const readable=admin.status===200&&admin.data?.version==='quality-loop/1'&&typeof admin.data.operational==='string';
@@ -141,7 +141,12 @@ export async function observe(env: Record<string,string|undefined>, input: Pick<
       if(!assetPage){add({id:'existing-asset',product,state:'BLOCKED',severity:'P1',owner:'codex',module:'delivery',detail:'No existing QA asset for this product; never manufactured'});continue;}
       try{
         await page.goto(assetPage,{waitUntil:'domcontentloaded'});
-        const src=await page.locator(product==='audio-podcast'?'audio[src]':'video[src]').first().getAttribute('src',{timeout:5000});
+        let src:string|null;
+        if(product==='video-podcast'){
+          const found=await existingVideoEpisodeSource(page,origin,sha===input.runnerSha,stopped,path=>{existingEpisodePath=path;});
+          if(!found.src){add({id:'existing-asset',product,state:'BLOCKED',severity:'P1',owner:'codex',module:'delivery',detail:`Existing episode inspection ${found.reason}; no archive, generation or retry requested`});continue;}
+          src=found.src;
+        }else src=await page.locator(product==='audio-podcast'?'audio[src]':'video[src]').first().getAttribute('src',{timeout:5000});
         if(!src)throw new Error('NO_MEDIA');
         const cookie=(await context.cookies(origin)).map((c:{name:string,value:string})=>`${c.name}=${c.value}`).join('; ');
         const sample=await sampleMedia(src,origin,cookie);
@@ -152,7 +157,7 @@ export async function observe(env: Record<string,string|undefined>, input: Pick<
         },{base64:sample.base64,mime:sample.mime});
         add({id:'playback-sample',product,state:playable?'PASS':'BLOCKED',severity:'P1',owner:'codex',module:'delivery',detail:playable?'Browser decoded/played the bounded sample':'Sample insufficient to establish playback; full file not downloaded automatically'});
         add({id:'full-file-integrity',product,state:'BLOCKED',severity:'P1',owner:'codex',module:'delivery',detail:'Full decode and content/lip-sync quality require isolated acceptance; periodic sample does not certify them'});
-      }catch{add({id:'existing-asset',product,state:'BLOCKED',severity:'P1',owner:'codex',module:'delivery',detail:'Existing asset unavailable or not authorized for bounded read; no generation/retry'});}
+      }catch(error){if(error instanceof Error&&error.message==='STOPPED')throw error;add({id:'existing-asset',product,state:'BLOCKED',severity:'P1',owner:'codex',module:'delivery',detail:'Existing asset unavailable or not authorized for bounded read; no generation/retry'});}
     }
     for(const id of ['registration-confirmation','checkout-test','subscription-mutation','job-recovery','logout-action'])add({id,product:id==='checkout-test'||id==='subscription-mutation'?'commercial':'account-nav',state:'BLOCKED',severity:'P1',owner:'codex',module:'isolated-fixture',detail:'Mutating flow restricted to isolated environment; periodic production run does not execute it'});
     const finalBuild=await getJSON('/api/build-info');
@@ -163,4 +168,45 @@ export async function observe(env: Record<string,string|undefined>, input: Pick<
     // No screenshots, DOM dumps, emails, media URLs, financial values or cookies are emitted.
   }finally{await browser.close();}
   return finish();
+}
+
+/** Existing owner cards only, bounded metadata and local "Ver episodio" click. Never unarchives.
+ * Caller permits this only for an authorized manual media probe (or isolated fixture).
+ * A matched runner/app SHA prevents a new GET capability being used against different backend code.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function existingVideoEpisodeSource(page:any,origin:string,matchedBuild:boolean,stopped:()=>Promise<boolean>,pin:(path:string|null)=>void):Promise<{src:string|null;reason:string}> {
+  let reason='NO_READY_VIDEO_IN_BOUNDED_SEARCH',examined=0;const seen=new Set<string>();
+  const stop=async()=>{if(await stopped())throw new Error('STOPPED');};
+  try {
+    if(!matchedBuild)return {src:null,reason:'DEPLOYMENT_UNVERIFIED'};
+    for(const view of ['/dashboard/podcast','/dashboard/podcast?vista=archivados#episodios']){
+      await stop();pin(null);await page.goto(new URL(view,origin).href,{waitUntil:'domcontentloaded',timeout:30000});
+      const candidates:string[]=await page.evaluate(()=>[...document.querySelectorAll<HTMLElement>('li[data-testid^="studio-episode-"]')]
+        .map(card=>({id:card.dataset.testid?.slice('studio-episode-'.length)||'',hint:/\bListo\b/i.test(card.textContent||'')}))
+        .filter(c=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(c.id))
+        .sort((a,b)=>Number(b.hint)-Number(a.hint)).map(c=>c.id));
+      // Always leave room for archived QA productions instead of consuming the budget on active drafts.
+      for(const id of (view.includes('vista=archivados')?candidates:candidates.slice(0,1))){
+        if(seen.has(id))continue;if(examined>=3)return {src:null,reason};seen.add(id);examined++;
+        await stop();const path=`/api/podcast/v3/${id}`;pin(path);
+        try {
+          const metadata=await page.evaluate(async({path,id}:{path:string;id:string})=>{
+            try {const r=await fetch(path,{cache:'no-store',redirect:'error',signal:AbortSignal.timeout(10000)});const d=await r.json().catch(()=>null);
+              return {status:r.status,ready:r.status===200&&d?.episode?.id===id&&d?.episode?.status==='ready'&&d?.episode?.output==='video'&&typeof d?.video_url==='string'&&d.video_url.length>0};
+            }catch{return {status:0,ready:false};}
+          },{path,id});
+          if(!metadata.ready){reason=metadata.status===403?'ACCESS_DENIED':metadata.status===404?'NOT_FOUND':metadata.status===200?'NOT_READY_VIDEO':'METADATA_UNAVAILABLE';continue;}
+          await stop();const card=page.getByTestId(`studio-episode-${id}`),open=card.getByTestId(`studio-abrir-${id}`);
+          if(await open.count())await open.click();else await page.reload({waitUntil:'domcontentloaded',timeout:30000});
+          const selected=page.getByTestId(`studio-episode-${id}`),player=selected.getByTestId('studio-player');
+          await player.waitFor({state:'attached',timeout:5000});await stop();
+          const src=await player.getAttribute('src'),href=await selected.getByTestId('studio-download-mp4').getAttribute('href');
+          if(!src||src!==href){reason='PLAYER_DOWNLOAD_MISMATCH';continue;}
+          mediaURL(src,origin);return {src,reason:'OWNER_READY_VIDEO_OPENED_READ_ONLY'};
+        }finally{pin(null);}
+      }
+    }
+    return {src:null,reason};
+  }finally{pin(null);}
 }
