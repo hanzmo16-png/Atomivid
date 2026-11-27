@@ -15,6 +15,8 @@ import type { Mood } from "@/lib/podcast/v3/spec";
 import { musicPlan, scriptLines, type AudioProject, type AudioResult, type Generation, type MusicMood } from "./model";
 import { assertBlobPath, projectDir, type BlobStore, type ProjectStore } from "./store";
 import { segmentKey, settingsFor, type StudioVoice } from "./voice";
+import { assertAudioSegmentSupplyAdmission, AudioPaidSupplyBlockedError } from "./paid-supply-adapter";
+import { audioDemand, audioSegmentIdentity, type AudioPaidSupply } from "./paid-supply-port";
 
 /** Ambiente del estudio → pista CC0 de la biblioteca propia. */
 export const MOOD_TRACK: Record<MusicMood, Mood> = { calma: "relajante", reflexiva: "nostalgico", inspiradora: "inspirador", intensa: "tension" };
@@ -23,8 +25,19 @@ export const PAUSE = { sameVoice: 0.5, voiceChange: 0.35, section: 1.2 } as cons
 
 export class RenderError extends Error { constructor(m: string) { super(m); this.name = "RenderError"; } }
 
+/** A resumed worker must never publish over a newer authorization or revision. */
+export function sameRenderAuthorization(a: AudioProject, b: AudioProject): boolean {
+  return a.ownerId === b.ownerId && a.id === b.id && a.revision === b.revision
+    && a.script === b.script && a.ttsModel === b.ttsModel && a.language === b.language
+    && a.voiceCount === b.voiceCount && JSON.stringify(a.voices) === JSON.stringify(b.voices)
+    && JSON.stringify(a.music) === JSON.stringify(b.music)
+    && a.generation.kind === b.generation.kind
+    && JSON.stringify(a.generation.authorization) === JSON.stringify(b.generation.authorization);
+}
+
 export type RenderDeps = {
   store: ProjectStore & BlobStore; voice: StudioVoice; now?: () => string;
+  paidSupply?: AudioPaidSupply;
   /** Carpeta de la biblioteca musical generada (se reutiliza entre renders). */
   musicDir?: string;
   /** Pruebas: corta el render después de N intervenciones nuevas (simula una interrupción del proceso). */
@@ -49,7 +62,7 @@ export async function renderProject(deps: RenderDeps, ownerId: string, id: strin
   // Escritura de estado sin tocar el contenido ni la revisión (el editor está bloqueado mientras se genera).
   const patch = async (fn: (p: AudioProject) => Partial<AudioProject>) => {
     const cur = await store.get(ownerId, id);
-    if (!cur) return;
+    if (!cur || !sameRenderAuthorization(snap, cur)) throw new RenderError("El proyecto o la autorización cambiaron. Este proceso no puede sobrescribir la versión nueva.");
     await store.put({ ...cur, ...fn(cur) });
   };
   const gen = (g: Partial<Generation>) => patch((p) => ({ generation: { ...p.generation, ...g, heartbeatAt: now() } }));
@@ -67,6 +80,24 @@ export async function renderProject(deps: RenderDeps, ownerId: string, id: strin
     const lines = scriptLines(snap.script, snap.voiceCount);
     if (!lines.length) throw new RenderError("El guion no tiene texto para narrar.");
     const dir = projectDir(ownerId, id);
+    const paid = voice.mode === "elevenlabs" && provider.name === "elevenlabs" ? deps.paidSupply : undefined;
+    const syncUsage = async () => {
+      const usage = await paid!.usage(snap);
+      if (!usage) throw new RenderError("No se pudo verificar el consumo del episodio. La voz guardada se conserva.");
+      await patch(p => ({ spentUsd: Math.max(p.spentUsd, usage.spentUsd), generation: { ...p.generation,
+        providerCalls: Math.max(p.generation.providerCalls, usage.calls), charsSynthesized: Math.max(p.generation.charsSynthesized, usage.characters) } }));
+    };
+    if (paid && allowSynth) {
+      const missing = new Map<string, ReturnType<typeof audioDemand>>();
+      for (const line of lines) {
+        const voiceId = voice.voiceIdFor(snap.voices[line.voice]);
+        if (!voiceId) throw new RenderError("La voz elegida no está configurada.");
+        const key = segmentKey(provider.name, snap.ttsModel, voiceId, line.text, settings);
+        if (!await store.hasBlob(assertBlobPath(`${dir}/tts/${key}.mp3`, ownerId, id)))
+          missing.set(key, audioDemand(snap, key, line.text.length, provider.usdFor(line.text.length)));
+      }
+      if (missing.size) await paid.reserve(snap, [...missing.values()]);
+    }
     const turns: TurnAudio[] = [];
     let reused = 0, fresh = 0;
     for (const [i, line] of lines.entries()) {
@@ -76,22 +107,43 @@ export async function renderProject(deps: RenderDeps, ownerId: string, id: strin
       const blob = assertBlobPath(`${dir}/tts/${key}.mp3`, ownerId, id);
       const local = path.join(work, `seg-${String(i).padStart(4, "0")}.mp3`);
       const cached = await store.getBlob(blob);
-      if (cached) { await writeFile(local, cached); reused++; }
+      if (cached) {
+        if (paid && allowSynth && await paid.recover(snap, audioSegmentIdentity(snap, key), cached)) await syncUsage();
+        await writeFile(local, cached); reused++;
+      }
       else {
         if (!allowSynth) throw new RenderError("La remezcla usa solo voz ya generada y falta una intervención (el guion o las voces cambiaron). Genera de nuevo para incluirla.");
+        // Real speech requires the same durable ledger and a whole-authorization envelope.
+        if (!paid) assertAudioSegmentSupplyAdmission(voice.mode, provider.name);
         const cost = provider.usdFor(line.text.length);
         const before = auth!.spentBefore;
         const current = (await store.get(ownerId, id))?.spentUsd ?? snap.spentUsd;
         if (current - before + cost > auth!.usd + 1e-9) throw new RenderError(`Se alcanzó el gasto autorizado (USD ${auth!.usd.toFixed(2)}). No se hizo el cargo siguiente.`);
+        const latest = await store.get(ownerId, id);
+        if (!latest || !sameRenderAuthorization(snap, latest)) throw new RenderError("La autorización cambió antes del envío. No se hizo el cargo siguiente.");
         const raw = path.join(work, `raw-${i}.wav`);
         let actual = 0;
-        try { actual = (await provider.synth(line.text, voiceId, raw)).actualUsd; }
-        catch (e) { throw new RenderError(`El proveedor de voz falló en la intervención ${i + 1}: ${(e as Error).message.slice(0, 160)} Lo ya generado queda guardado y no se volverá a cobrar.`); }
-        await ffmpeg(["-y", "-v", "error", "-i", raw, "-ac", "1", "-ar", "48000", "-c:a", "libmp3lame", "-b:a", "128k", local]);
-        // Primero se guarda la voz y luego se suma el gasto: un reintento la encuentra en caché y no paga de nuevo.
-        await store.putBlob(blob, await readFile(local), "audio/mpeg");
+        const produce = async () => {
+          try { actual = (await provider.synth(line.text, voiceId, raw)).actualUsd; }
+          catch (error) {
+            if (paid) throw error;
+            throw new RenderError(`El proveedor de voz falló en la intervención ${i + 1}: ${(error as Error).message.slice(0, 160)} Lo ya generado queda guardado y no se volverá a cobrar.`);
+          }
+          await ffmpeg(["-y", "-v", "error", "-i", raw, "-ac", "1", "-ar", "48000", "-c:a", "libmp3lame", "-b:a", "128k", local]);
+          return readFile(local);
+        };
+        if (paid) {
+          const bytes = await paid.synth(snap, audioDemand(snap, key, line.text.length, cost), blob, store, produce);
+          await writeFile(local, bytes);
+          await syncUsage();
+        } else {
+          const bytes = await produce();
+          await store.putBlob(blob, bytes, "audio/mpeg");
+          await patch(p => ({ spentUsd: Math.round((p.spentUsd + actual) * 1e4) / 1e4, generation: { ...p.generation,
+            providerCalls: p.generation.providerCalls + 1, charsSynthesized: p.generation.charsSynthesized + line.text.length } }));
+        }
         fresh++;
-        await patch((p) => ({ spentUsd: Math.round((p.spentUsd + actual) * 1e4) / 1e4, generation: { ...p.generation, providerCalls: p.generation.providerCalls + 1, charsSynthesized: p.generation.charsSynthesized + line.text.length, progress: { done: i + 1, total: lines.length }, heartbeatAt: now() } }));
+        await gen({ progress: { done: i + 1, total: lines.length } });
         if (deps.interruptAfter !== undefined && fresh >= deps.interruptAfter) throw new Error("INTERRUPCION_SIMULADA");
       }
       const next = lines[i + 1];
@@ -163,10 +215,11 @@ export async function renderProject(deps: RenderDeps, ownerId: string, id: strin
     await patch((p) => ({ audio, generation: { ...p.generation, status: "terminada", finishedAt: now(), heartbeatAt: now(), error: null, progress: { done: lines.length, total: lines.length } } }));
     return "terminada";
   } catch (e) {
-    const message = e instanceof RenderError ? e.message
+    const message = e instanceof RenderError || e instanceof AudioPaidSupplyBlockedError ? e.message
       : (e as Error).message === "INTERRUPCION_SIMULADA" ? "La generación se interrumpió. Pulsa «Reanudar»: lo ya generado no se vuelve a cobrar."
+      : voice.mode === "elevenlabs" && deps.paidSupply ? "No se completó la voz con recursos verificados. Lo guardado se conserva. Un envío incierto requiere conciliación antes de reanudar; no se repetirá automáticamente."
       : "La generación falló por un error técnico. Pulsa «Reanudar»: lo ya generado no se vuelve a cobrar.";
-    if (!(e instanceof RenderError)) console.error("[audio-studio] render falló", (e as Error).message?.slice(0, 300));
+    if (!(e instanceof RenderError) && !(e instanceof AudioPaidSupplyBlockedError)) console.error("[audio-studio] render falló", (e as Error).message?.slice(0, 300));
     await gen({ status: "fallida", error: message, finishedAt: now() }).catch(() => {});
     return "fallida";
   } finally {
