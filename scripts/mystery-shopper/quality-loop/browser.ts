@@ -5,6 +5,7 @@ import { inspectCampaign320SurfaceReadOnly } from '../../../src/lib/mystery-shop
 import { classifyAuth } from '../../../src/lib/mystery-shopper/v3/auth-outcome';
 import { allowBrowserRequest, sentinelStatus, targetOrigin, providerReadiness, allowMediaProbe } from '../../../src/lib/mystery-shopper/quality-loop/policy';
 import { sampleMedia } from './media';
+import { readSentinelReadiness } from './sentinel-readiness';
 import { smoke } from '../smoke';
 import { PRODUCTS, type Cycle, type Check } from '../../../src/lib/mystery-shopper/quality-loop/model';
 // Playwright remains a worker-only dependency, just like the existing Mystery Shopper worker.
@@ -62,7 +63,7 @@ export async function observe(env: Record<string,string|undefined>, input: Pick<
     if(build.status===200&&/^[a-f0-9]{40}$/.test(build.data?.sha))sha=build.data.sha;
     add({id:'deployed-sha',product:'account-nav',state:sha?'PASS':'BLOCKED',severity:'P1',owner:'codex',module:'deployment',detail:sha?'SHA returned by the evaluated application':'Evaluated application SHA unavailable; runner SHA is not production identity'});
     if(env.AQL_EXPECTED_SHA && sha!==env.AQL_EXPECTED_SHA)add({id:'deployment-sha-match',product:'account-nav',state:'FAIL',severity:'P1',owner:'codex',module:'deployment',detail:'Deployment event SHA does not match evaluated application'});
-    const sent=await getJSON('/api/command-center/resource-sentinel');sentinel=sentinelStatus(sent.status,sent.data);
+    const sent=fixture ? await getJSON('/api/command-center/resource-sentinel') : await readSentinelReadiness(env);sentinel=sentinelStatus(sent.status,sent.data);
     add({id:'sentinel-read',product:'command-center',state:sentinel==='READ'?'PASS':'BLOCKED',severity:'P1',owner:'codex',module:'sentinel',detail:sentinel==='READ'?'Existing Resource Sentinel read successfully; private balances omitted':`Sentinel HTTP ${sent.status}; ${sent.status===401||sent.status===403?'QA not authorized':sent.status===404?'backend route absent':sent.status===200?'contract incomplete/stale':'unavailable'}; provider-dependent checks blocked`});
     if(adminReadback){
       const admin=await getJSON('/api/command-center/quality-loop');

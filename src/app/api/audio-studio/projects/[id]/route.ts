@@ -70,6 +70,6 @@ export async function POST(request: Request, { params }: Ctx) {
     : b?.action === "reanudar" ? await resumeGeneration(d, user.id, id)
     : b?.action === "respaldo" ? await switchToFallbackModel(d, user.id, id, b.revision)
     : { ok: false, status: 400, body: { error: "Acción desconocida." } };
-  if (out.ok && out.status === 202) await startWorker(d.store, d.voice, user.id, id);
+  if (out.ok && out.status === 202) await startWorker(d.store, d.voice, user.id, id, process.env, fetch, d.paidSupply);
   return NextResponse.json(out.body, { status: out.status });
 }

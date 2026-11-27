@@ -20,7 +20,8 @@
     "test:simulator": "node --experimental-test-module-mocks --import tsx --test scripts/simulator/lib/subtitles.test.ts scripts/simulator/ui-server.test.ts scripts/simulator/avatar-duration-journey.test.ts scripts/simulator/row-version.test.ts",
     "podcast:sim": "tsx scripts/podcast-2-0/render.ts",
     "test:rescate": "node --import tsx --test src/lib/video/long-form/editorial-rescue.test.ts src/lib/video/long-form/editorial-rescue-audit.test.ts src/lib/video/long-form/editorial-rescue-real-jobs.test.ts src/lib/video/long-form/editorial-rescue-repro.test.ts src/lib/video/long-form/editorial-opening-repair.test.ts",
-    "test:mystery-shopper": "node --import tsx --test --test-concurrency=1 src/lib/mystery-shopper/*.test.ts src/lib/mystery-shopper/v3/*.test.ts src/app/dashboard/command-center/mystery-shopper/*.test.tsx"
+    "test:mystery-shopper": "node --import tsx --test --test-concurrency=1 src/lib/mystery-shopper/*.test.ts src/lib/mystery-shopper/v3/*.test.ts src/app/dashboard/command-center/mystery-shopper/*.test.tsx",
+    "test:resource-sentinel": "node --experimental-test-module-mocks --import tsx --test src/lib/supply/sentinel.test.ts src/lib/supply/sentinel-monitor.test.ts src/lib/supply/sentinel-server.test.ts src/lib/supply/shared-account-guard.test.ts src/lib/supply/queue-timeout.test.ts src/lib/supply/monitor.test.ts src/lib/supply/supply.test.ts src/lib/paid-calls/gate.test.ts src/lib/paid-calls/capacity-hold.test.ts src/lib/audio-studio/paid-supply-adapter.test.ts src/lib/supply/command-center-source.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

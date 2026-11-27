@@ -40,7 +40,30 @@ test("fal billing: no admin key means no request and nothing stored; FAL_KEY alo
 
 test("refreshProviderSnapshot('recraft') persists exactly one GET-only observation, timestamped before the request", async () => {
   const inserted: Record<string, unknown>[] = [];
-  const service = { from: () => ({ insert: async (row: Record<string, unknown>) => { inserted.push(row); return { error: null }; } }) };
+  type StoreRow = Record<string, unknown>;
+  const alerts: StoreRow[] = [];
+  const service = { from(table: string) {
+    if (!["pi_capacity_snapshots", "pi_supply_alerts"].includes(table)) throw new Error(`unexpected supply table ${table}`);
+    let columns = "*", maximum = Infinity, ordering: { key: string; ascending: boolean } | null = null;
+    const filters: ((row: StoreRow) => boolean)[] = [];
+    const chain = {
+      select(value = "*") { columns = value; return chain; },
+      in(key: string, values: unknown[]) { filters.push(row => values.includes(row[key])); return chain; },
+      eq(key: string, value: unknown) { filters.push(row => row[key] === value); return chain; },
+      order(key: string, options?: { ascending?: boolean }) { ordering = { key, ascending: options?.ascending ?? true }; return chain; },
+      limit(value: number) { maximum = value; return chain; },
+      async insert(row: StoreRow) { if (table !== "pi_capacity_snapshots") throw Error("unexpected insert"); inserted.push({ ...row }); return { error: null }; },
+      async upsert(row: StoreRow) { if (table !== "pi_supply_alerts") throw Error("unexpected upsert"); if (!alerts.some(existing => existing.id === row.id)) alerts.push({ created_at: at, ...row }); return { error: null }; },
+      then(resolve: (value: { data: StoreRow[]; error: null }) => unknown) {
+        const source = table === "pi_capacity_snapshots" ? inserted : table === "pi_supply_alerts" ? alerts : [];
+        const selected = source.filter(row => filters.every(filter => filter(row)));
+        if (ordering) { const { key, ascending } = ordering; selected.sort((a, b) => String(a[key]).localeCompare(String(b[key])) * (ascending ? 1 : -1)); }
+        const data = selected.slice(0, maximum).map(row => columns === "*" ? { ...row } : Object.fromEntries(columns.split(",").map(key => [key, row[key]])));
+        return Promise.resolve({ data, error: null }).then(resolve);
+      },
+    };
+    return chain;
+  } };
   const methods: string[] = [];
   const fetchImpl = (async (_u: string, init: RequestInit) => { methods.push(String(init.method)); return new Response(JSON.stringify({ credits: { current_balance: 4.2, currency: "USD" } })); }) as unknown as typeof fetch;
   assert.equal(await refreshProviderSnapshot(service as never, "recraft", { env: { FAL_ADMIN_KEY: "a" }, fetchImpl, now: () => Date.parse(at) }), true);

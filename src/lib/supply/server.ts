@@ -6,6 +6,7 @@ import { isRecoveryBudgetRefusal, RecoveryBudgetExceededError } from "./recovery
 import { REFRESHABLE_PROVIDERS, refreshProviderSnapshot, type RefreshableProvider } from "./monitor";
 import { JobEnvelopeExhaustedError } from "./job";
 import { isReelBudgetRefusal, ReelBudgetExceededError } from "./reel-budget";
+import { assertSharedAccountAdmission } from "./shared-account-guard";
 
 /** Explicit opt-in locally; mandatory in production. There is no production bypass flag. */
 export function supplyGuardRequired(): boolean {
@@ -21,6 +22,7 @@ export async function submitWithSupply(service: SupabaseClient, op: PaidOperatio
     && !(Number.isFinite(op.capacityUnits) && (op.capacityUnits ?? 0) > 0))
     throw new SupplyUnavailableError(op.provider, "paid cost and units unverified");
   const submit = async () => {
+    await assertSharedAccountAdmission(service, op.provider);
     const { data, error } = await service.rpc("pi_submit_with_supply", { p_key: op.idempotencyKey, p_units: op.capacityUnits ?? null });
     if (error || !data || typeof data !== "object") throw new SupplyUnavailableError(op.provider, "control unavailable");
     return data as { submitted?: boolean; reason?: string; capUsd?: unknown; committedUsd?: unknown; pendingUsd?: unknown; requestedUsd?: unknown };

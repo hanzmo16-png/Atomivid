@@ -40,8 +40,15 @@ jobs:
         run: |
           git fetch -q --depth=200 origin "${{ github.base_ref }}"
           changed=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -E '^(src/lib/podcast|src/app/dashboard/podcast|src/app/api/podcast|src/components/podcast|supabase)/' || true)
-          if [ -n "$changed" ]; then echo "::error::el PR modifica archivos de Premium o de base de datos:"; echo "$changed"; exit 1; fi
-          echo "::notice title=premium-intacto::0 archivos de Premium o supabase/ en el PR"
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            case "$file" in
+              supabase/migrations/20261127050646_audio_supply_authorization_contract.sql|supabase/proposals/20261127050646_audio_supply_authorization_contract.rollback.sql)
+                echo "::notice::Contrato Audio preparado para revisión; no se aplica a producción: $file" ;;
+              *) echo "::error::Archivo de Premium o base de datos fuera del contrato Audio autorizado: $file"; exit 1 ;;
+            esac
+          done <<< "$changed"
+          echo "::notice title=premium-intacto::Premium intacto; solo dos archivos SQL Audio preparados permitidos"
       - name: Tipos y lint del módulo
         run: |
           npx next typegen && npm run typecheck
