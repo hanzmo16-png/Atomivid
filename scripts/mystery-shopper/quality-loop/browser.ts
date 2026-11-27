@@ -125,12 +125,16 @@ export async function observe(env: Record<string,string|undefined>, input: Pick<
         }catch{add({id:`route-${route.product}-${viewport.width}-error`,product,state:'FAIL',severity:'P1',owner:'codex',module:'navigation',detail:'Navigation/observation failed; raw authenticated body omitted'});}
       }
     }
-    // One bounded sample per product per cycle: <=1MiB total payload, no provider or SDK request.
+    // Result-page DOM inspection is independent of a media transfer allowance.
+    // Only an explicit fixture event grants fixture payload permission; schedule
+    // fixtures exercise the same no-payload boundary as production schedules.
+    const mediaProbeAllowed=allowMediaProbe(input.trigger,fixture&&input.trigger==='fixture');
+    // One bounded sample per product per eligible cycle; no provider or SDK request.
     for(const product of PRODUCTS){
       if(await stopped())throw new Error('STOPPED');
-      if(!allowMediaProbe(input.trigger,fixture)){
+      if(!mediaProbeAllowed){
         for(const id of ['download-sample','playback-sample','full-file-integrity'])add({id,product,state:'BLOCKED',severity:'P1',owner:'codex',module:'delivery',detail:'Recurring production media payload read not executed: free egress quota unverified; isolated fixtures remain available'});
-        continue;
+        if(product!=='youtube'&&product!=='reels')continue;
       }
       let assetPage=product==='audio-podcast'?'/dashboard/audio-studio':product==='video-podcast'?'/dashboard/podcast':null;
       if(!assetPage){
@@ -147,6 +151,9 @@ export async function observe(env: Record<string,string|undefined>, input: Pick<
       try{
         await page.goto(assetPage,{waitUntil:'domcontentloaded'});
         if(product==='youtube'||product==='reels')checks.push(...await existingResultPlayerChecks(page,origin,product,stopped));
+        // Never read cookies, sample media, play or inspect episode payloads when
+        // transfers are not permitted. Browser request guards still deny media.
+        if(!mediaProbeAllowed)continue;
         let src:string|null;
         if(product==='video-podcast'){
           const found=await existingVideoEpisodeSource(page,origin,sha===input.runnerSha,stopped,path=>{existingEpisodePath=path;});
