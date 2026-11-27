@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync, sign } from "node:crypto";
-import { qualityReadinessResponse, SENTINEL_READINESS_POLICY as policy, sentinelReadinessPolicy } from "./quality-readiness";
-import { sentinelStatus, providerReadiness } from "../mystery-shopper/quality-loop/policy";
+import { qualityReadiness, qualityReadinessResponse, SENTINEL_READINESS_POLICY as policy, sentinelReadinessPolicy } from "./quality-readiness";
+import { PRODUCT_PROVIDER_IMPACT, sentinelStatus, providerReadiness } from "../mystery-shopper/quality-loop/policy";
 const {privateKey,publicKey}=generateKeyPairSync("rsa",{modulusLength:2048});
 const nowS=Math.floor(Date.now()/1000);
 const jwks=async()=>({keys:[{...publicKey.export({format:"jwk"}),kid:"test",kty:"RSA"}]});
@@ -33,6 +33,49 @@ test("authenticated machine DTO omits every amount, private operation and identi
 test("reader errors disclose no credentials or financial payload",async()=>{
  const response=await qualityReadinessResponse(request(jwt()),{read:async()=>{throw Error("SECRET balance=999");},jwks,nowS});
  assert.equal(response.status,503);assert.doesNotMatch(await response.text(),/SECRET|999/);
+});
+test("diagnostic codes preserve the exact existing readiness predicate for every product and anomalous observation",()=>{
+ const providers=[...new Set(Object.values(PRODUCT_PROVIDER_IMPACT).flat())];
+ const complete={observedAt:new Date().toISOString(),sentinel:{accounts:providers.map(provider=>({providers:[provider],operationalLevel:"GREEN",balanceStatus:"REAL",free:23.456,auditStatus:"VERIFIED_LEDGER_ADJUSTMENT"})),resources:[{resource:"workers",state:"VERIFIED",used:0,limit:2}]},coverage:{workers:"all verified"}};
+ const products=Object.keys(PRODUCT_PROVIDER_IMPACT) as (keyof typeof PRODUCT_PROVIDER_IMPACT)[];
+ for(const patch of [undefined,{balanceStatus:"UNKNOWN"},{balanceStatus:"STALE"},{balanceStatus:"ESTIMATED"},{free:null},{free:NaN},{free:Infinity},{free:-1},{free:0},{operationalLevel:"GRAY",auditStatus:"CROSS_PRODUCT_LEDGER_COVERAGE_UNVERIFIED"}]) {
+  const observation={...complete,sentinel:{...complete.sentinel,accounts:complete.sentinel.accounts.map(a=>({...a,...patch}))}};
+  const dto=qualityReadiness(observation as never);
+  for(const product of products) {
+   assert.equal(dto.products[product].ready,providerReadiness(product,observation));
+   if(dto.products[product].ready)assert.deepEqual(dto.products[product].blockers,[]);
+   else assert.ok(dto.products[product].blockers.length>0);
+  }
+  const wire=JSON.stringify(dto);
+  for(const provider of providers)assert.ok(!wire.includes(provider),"provider identity must not leave diagnostics");
+  assert.doesNotMatch(wire,/23\.456|auditStatus|accounts|operationalLevel/);
+ }
+});
+test("missing observations and distinct balance, ledger and worker limitations remain explicit without leaking inputs",()=>{
+ const observe=(patch:Record<string,unknown>)=>({observedAt:new Date().toISOString(),sentinel:{accounts:[{providers:["elevenlabs"],operationalLevel:"GRAY",balanceStatus:"UNKNOWN",free:null,auditStatus:"CROSS_PRODUCT_LEDGER_COVERAGE_UNVERIFIED",privateId:"DO_NOT_EXPORT",...patch}],resources:[]},coverage:{workers:"video_requests only; excludes separate Audio/Podcast workers"}});
+ const codes=qualityReadiness(observe({}) as never).products["audio-podcast"].blockers;
+ for(const code of ["OBSERVATION_MISSING","BALANCE_UNKNOWN","FREE_CAPACITY_UNKNOWN","CROSS_PRODUCT_LEDGER_UNVERIFIED","WORKER_CAPACITY_UNVERIFIED_OR_UNAVAILABLE","WORKER_COVERAGE_UNVERIFIED"])assert.ok(codes.includes(code),code);
+ for(const [patch,code] of [[{balanceStatus:"STALE"},"BALANCE_STALE"],[{balanceStatus:"ESTIMATED"},"BALANCE_ESTIMATED"],[{free:0},"FREE_CAPACITY_NOT_POSITIVE"]] as const)assert.ok(qualityReadiness(observe(patch) as never).products["audio-podcast"].blockers.includes(code));
+ const dto=qualityReadiness(observe({auditStatus:"private upstream text 999 https://private.test"}) as never);
+ assert.doesNotMatch(JSON.stringify(dto),/DO_NOT_EXPORT|999|private\.test|upstream|elevenlabs/);
+ assert.deepEqual(qualityReadiness(observe({}) as never).products["audio-podcast"].blockers,codes,"stable ordering");
+});
+test("known partial worker coverage and invalid worker telemetry never produce a ready DTO",()=>{
+ const providers=[...new Set(Object.values(PRODUCT_PROVIDER_IMPACT).flat())];
+ const observation={observedAt:new Date().toISOString(),sentinel:{accounts:providers.map(provider=>({providers:[provider],operationalLevel:"GREEN",balanceStatus:"REAL",free:1})),resources:[{resource:"workers",state:"VERIFIED",used:0,limit:2}]},coverage:{workers:"video_requests only; excludes separate Audio/Podcast workers"}};
+ const dto=qualityReadiness(observation as never);
+ for(const product of ["audio-podcast","video-podcast"]) {
+  assert.equal(dto.products[product].ready,false);
+  assert.deepEqual(dto.products[product].blockers,["WORKER_COVERAGE_UNVERIFIED"]);
+ }
+ for(const telemetry of [{used:NaN,limit:2},{used:Infinity,limit:2},{used:-1,limit:2},{used:0.5,limit:2},{used:0,limit:Infinity},{used:0,limit:-1},{used:0,limit:1.5},{used:0,limit:0}]) {
+  const invalid={...observation,coverage:{workers:"all verified"},sentinel:{...observation.sentinel,resources:[{resource:"workers",state:"VERIFIED",...telemetry}]}};
+  const result=qualityReadiness(invalid as never);
+  for(const product of Object.keys(PRODUCT_PROVIDER_IMPACT)) {
+   assert.equal(result.products[product].ready,false);
+   assert.deepEqual(result.products[product].blockers,["WORKER_CAPACITY_UNVERIFIED_OR_UNAVAILABLE"]);
+  }
+ }
 });
 test("only trusted Production deployment metadata opts readiness into a valid exact commit pin",()=>{
  const sha="5d059bc13a27a3902f05f9e22fa09014b0d2adee";
