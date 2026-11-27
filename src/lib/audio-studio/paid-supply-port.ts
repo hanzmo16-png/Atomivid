@@ -19,23 +19,28 @@ export function audioContract(p: AudioProject) {
   fingerprint:hash(JSON.stringify({script:p.script,voices:p.voices,voiceCount:p.voiceCount,language:p.language,model:p.ttsModel,spentBefore:a.spentBefore}))};
  const ref=hash(JSON.stringify(facts));return {root,facts,ref};
 }
+export function audioSegmentIdentity(p: AudioProject, segment: string) {
+ const c=audioContract(p);
+ if(!/^[a-f0-9]{64}$/.test(segment))throw Error("AUDIO_SEGMENT_INVALID");
+ return {segment,key:`audio_${hash(`${c.root}:${c.ref}:${segment}`)}`};
+}
 export function audioDemand(p: AudioProject, segment: string, characters: number, usd: number): AudioSegmentDemand {
  const c=audioContract(p);
  if(!/^[a-f0-9]{64}$/.test(segment)||!Number.isSafeInteger(characters)||characters<=0||!Number.isFinite(usd)||usd<=0||usd>c.facts.usd||Math.abs(usd*10000-Math.round(usd*10000))>1e-7)throw Error("AUDIO_DEMAND_INVALID");
- return {segment,characters,usd,provider:"elevenlabs",model:p.ttsModel,key:`audio_${hash(`${c.root}:${c.ref}:${segment}`)}`};
+ return {segment,characters,usd,provider:"elevenlabs",model:p.ttsModel,key:audioSegmentIdentity(p,segment).key};
 }
 export interface AudioPaidSupply {
  reserve(p: AudioProject, demands: AudioSegmentDemand[]): Promise<void>;
- recover(p: AudioProject, d: AudioSegmentDemand, bytes: Buffer): Promise<boolean>;
+ recover(p: AudioProject, d: Pick<AudioSegmentDemand,"key"|"segment">, bytes: Buffer): Promise<boolean>;
  synth(p: AudioProject, d: AudioSegmentDemand, blob: string, store: BlobStore, produce: () => Promise<Buffer>): Promise<Buffer>;
  usage(p: AudioProject): Promise<AudioUsage | null>;
 }
 type Rpc = (name: string,args: Record<string,unknown>) => Promise<{data: unknown;error: unknown}>;
 export function audioPaidSupply(deps: { ledger: LedgerStore; rpc: Rpc; now?: () => string }): AudioPaidSupply {
  const {ledger,rpc}=deps, now=deps.now??(()=>new Date().toISOString());
- async function settle(p: AudioProject,d: AudioSegmentDemand,bytes: Buffer) {
+ async function settle(p: AudioProject,d: Pick<AudioSegmentDemand,"key"|"segment">,bytes: Buffer) {
   const row=await ledger.get(d.key);if(!row)return false;
-  if(row.projectId!==audioContract(p).root||row.shotId!==d.segment||row.reservedUsd!==d.usd||row.method!==AUDIO_TARIFF_METHOD)throw Error("AUDIO_JOURNAL_MISMATCH");
+  if(row.projectId!==audioContract(p).root||row.shotId!==d.segment||row.provider!=="elevenlabs"||row.model!==p.ttsModel||row.method!==AUDIO_TARIFF_METHOD)throw Error("AUDIO_JOURNAL_MISMATCH");
   let receipt: {sha256?:string;costBasis?:string};try{receipt=JSON.parse(row.resultRef??"");}catch{throw Error("AUDIO_RECONCILIATION_REQUIRED");}
   if(receipt.sha256!==hash(bytes)||receipt.costBasis!=="ESTIMATED_TARIFF")throw Error("AUDIO_CACHE_RESTORATION_REQUIRED");
   if(row.status==="COMMITTED")return true;

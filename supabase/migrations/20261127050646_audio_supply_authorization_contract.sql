@@ -109,6 +109,13 @@ begin
  if not found then return jsonb_build_object('reserved',false,'reason','global policy absent'); end if;
  if p_ref is null or p_ref !~ '^[0-9a-f]{64}$' or p_facts is null or jsonb_typeof(p_facts)<>'object'
  or p_manifest is null or jsonb_typeof(p_manifest)<>'array' or jsonb_array_length(p_manifest)>4000 then raise exception 'invalid audio contract'; end if;
+ if p_legacy is null or jsonb_typeof(p_legacy)<>'object'
+ or jsonb_typeof(p_legacy->'spentUsd') is distinct from 'number'
+ or jsonb_typeof(p_legacy->'calls') is distinct from 'number'
+ or jsonb_typeof(p_legacy->'characters') is distinct from 'number'
+ or (p_legacy->>'spentUsd')::numeric<0 or (p_legacy->>'calls')::numeric<0 or (p_legacy->>'characters')::numeric<0
+ or (p_legacy->>'calls')::numeric<>trunc((p_legacy->>'calls')::numeric)
+ or (p_legacy->>'characters')::numeric<>trunc((p_legacy->>'characters')::numeric) then raise exception 'invalid legacy baseline'; end if;
  root:='audio:'||(p_facts->>'ownerId')::uuid::text||':'||(p_facts->>'projectId')::uuid::text;
  cap:=(p_facts->>'usd')::numeric;
  if cap is null or cap<=0 or cap>20 or cap='NaN'::numeric
@@ -172,8 +179,9 @@ alter function public.pi_submit_with_supply(text,numeric) set schema pi_internal
 alter function pi_internal.pi_submit_with_supply(text,numeric) rename to submit_before_audio;
 revoke all on function pi_internal.submit_before_audio(text,numeric) from public,anon,authenticated;
 grant execute on function pi_internal.submit_before_audio(text,numeric) to service_role;
+-- Preserve the established public SECURITY DEFINER contract; ACL remains service_role only.
 create function public.pi_submit_with_supply(p_key text,p_units numeric default null) returns jsonb
-language plpgsql security invoker set search_path='' as $$
+language plpgsql security definer set search_path='' as $$
 declare o public.pi_paid_operations%rowtype; a public.pi_audio_supply_authorizations%rowtype; item jsonb;
 begin
  perform 1 from public.pi_supply_policies where provider='__global__' for update;

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { audioContract, audioDemand, audioPaidSupply } from "./paid-supply-port";
+import { audioContract, audioDemand, audioSegmentIdentity, audioPaidSupply } from "./paid-supply-port";
 import { memoryLedgerStore } from "../production-intelligence/ledger";
 import { memoryStore, projectDir } from "./store";
 import { newProject, applyInput, scriptLines } from "./model";
@@ -67,4 +67,10 @@ test("real-mode Audio adapter renders fresh playable MP3 through financial port 
  await store.put({...result,spentUsd:0,generation:{...result.generation,status:"en_cola",providerCalls:0,charsSynthesized:0}});
  assert.equal(await renderProject({store,voice,paidSupply:port,musicDir:"/tmp/audio-studio-test-music"},ownerId,id),"terminada");
  const recovered=(await store.get(ownerId,id))!;assert.equal(sends,1);assert.equal(recovered.spentUsd,.01);assert.equal(recovered.generation.providerCalls,1);assert.equal(recovered.generation.charsSynthesized,scriptLines(p.script,1)[0].text.length);
+});
+
+test("stored voice settlement never needs the current tariff or a newly invented cost",async()=>{
+ const {p,port,d,store,blob}=setup();const bytes=Buffer.from("stored speech");
+ await port.synth(p,d,blob,store,async()=>bytes);
+ assert.equal(await port.recover(p,audioSegmentIdentity(p,d.segment),bytes),true);
 });

@@ -1,5 +1,5 @@
 /** Machine-only, amount-free projection. QA keeps its existing account permissions. */
-import { bearer, GITHUB_OIDC_JWKS, verifyGithubOidc, type OidcPolicy } from "../orchestrator/github-oidc";
+import { bearer, GITHUB_OIDC_JWKS, verifyGithubOidc, type OidcPolicy } from "../security/github-oidc";
 import { PRODUCT_PROVIDER_IMPACT, providerReadiness } from "../mystery-shopper/quality-loop/policy";
 import type { readResourceSentinel } from "./sentinel-server";
 export const SENTINEL_READINESS_AUDIENCE = "atomivid-sentinel-readiness";

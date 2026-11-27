@@ -27,6 +27,9 @@ try {
   assert.equal((await reserve('f'.repeat(64),{...c.facts,projectId:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'},[{...d,usd:.06},{...e,usd:.06}])).reserved,false);
   await assert.rejects(reserve('f'.repeat(64),{...c.facts,usd:NaN} as typeof c.facts),/invalid/);
  });
+ await check("missing legacy baseline cannot reset recorded spend or counters",async()=>{
+  await assert.rejects(db.query('select public.pi_reserve_audio_supply($1,$2,$3,$4)',['f'.repeat(64),c.facts,JSON.stringify([d]),{}]),/legacy baseline/);
+ });
  await check("two different Audio projects race against one global funded ceiling",async()=>{
   await db.query("update public.pi_supply_policies set daily_cap_usd=.035 where provider='__global__'");
   const a=new Client(),b=new Client();await Promise.all([a.connect(),b.connect()]);

@@ -16,7 +16,7 @@ import { musicPlan, scriptLines, type AudioProject, type AudioResult, type Gener
 import { assertBlobPath, projectDir, type BlobStore, type ProjectStore } from "./store";
 import { segmentKey, settingsFor, type StudioVoice } from "./voice";
 import { assertAudioSegmentSupplyAdmission, AudioPaidSupplyBlockedError } from "./paid-supply-adapter";
-import { audioDemand, type AudioPaidSupply } from "./paid-supply-port";
+import { audioDemand, audioSegmentIdentity, type AudioPaidSupply } from "./paid-supply-port";
 
 /** Ambiente del estudio → pista CC0 de la biblioteca propia. */
 export const MOOD_TRACK: Record<MusicMood, Mood> = { calma: "relajante", reflexiva: "nostalgico", inspiradora: "inspirador", intensa: "tension" };
@@ -108,7 +108,7 @@ export async function renderProject(deps: RenderDeps, ownerId: string, id: strin
       const local = path.join(work, `seg-${String(i).padStart(4, "0")}.mp3`);
       const cached = await store.getBlob(blob);
       if (cached) {
-        if (paid && allowSynth && await paid.recover(snap, audioDemand(snap, key, line.text.length, provider.usdFor(line.text.length)), cached)) await syncUsage();
+        if (paid && allowSynth && await paid.recover(snap, audioSegmentIdentity(snap, key), cached)) await syncUsage();
         await writeFile(local, cached); reused++;
       }
       else {
