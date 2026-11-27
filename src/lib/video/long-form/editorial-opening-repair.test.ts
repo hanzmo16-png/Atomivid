@@ -41,3 +41,16 @@ test('resume produces same request key and reuses cached repair',async()=>{
  const send=async(p:{model:string;max_tokens:number}&Record<string,unknown>)=>{const k=stableHash(p,16);if(!cache.has(k)){paid++;cache.set(k,response({delivered:true,evidence:{excerptId:openingEvidence(script.beats)[0].id},explanation:'Early answer'}));}return cache.get(k)!;};
  await validateOrRepairOpeningReview({rawReview:raw,script,model:'test',send});await validateOrRepairOpeningReview({rawReview:raw,script,model:'test',send});assert.equal(paid,1);
 });
+// Incidente real 1091fe88 (2026-11-25, cuenta QA en producción): la comprobación de apertura devolvió una clave extra
+// dentro de firstAnswer.evidence y el log solo decía «unrecognized_keys@firstAnswer.evidence». Se mantiene el rechazo
+// técnico (allow-list por contrato), pero el log nombra la clave y el prompt pide evidence = {excerptId} exacto.
+test('1091fe88: extra key inside evidence stays technical and the issue names the key (never its value)',async()=>{
+ const {script,raw}=fixture(), ev=openingEvidence(script.beats)[0];
+ const err=await validateOrRepairOpeningReview({rawReview:raw,script,model:'test',send:async()=>response({delivered:true,evidence:{excerptId:ev.id,note:'secret-ish value'},explanation:'x'})}).then(()=>null,e=>e);
+ assert(err,'debe rechazar');assert.deepEqual(err.issues,['unrecognized_keys@firstAnswer.evidence[note]']);assert(!JSON.stringify(err.issues).includes('secret-ish'));
+});
+test('1091fe88: the repair prompt asks for evidence with excerptId only',async()=>{
+ const {script,raw}=fixture(), ev=openingEvidence(script.beats)[0];let system='';
+ await validateOrRepairOpeningReview({rawReview:raw,script,model:'test',send:async p=>{system=JSON.stringify(p.system);return response({delivered:true,evidence:{excerptId:ev.id},explanation:'ok'});}});
+ assert.match(system,/evidence es EXACTAMENTE/);
+});
