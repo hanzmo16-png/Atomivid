@@ -4,7 +4,14 @@ on:
     paths:
       - 'src/lib/supply/**'
       - 'src/lib/audio-studio/render.ts'
-      - 'src/lib/audio-studio/paid-supply-adapter*'
+      - 'src/lib/audio-studio/paid-supply*'
+      - 'src/lib/audio-studio/render-fence.test.ts'
+      - 'scripts/audio-studio/worker.ts'
+      - 'scripts/qa/audio-supply*'
+      - 'supabase/migrations/*audio_supply*'
+      - 'src/app/api/mystery-shopper/resource-readiness/**'
+      - 'scripts/mystery-shopper/quality-loop/**'
+      - 'src/lib/mystery-shopper/quality-loop/policy.ts'
       - 'src/app/api/command-center/resource-sentinel/**'
       - 'scripts/supply/**'
       - '.github/workflows/resource-sentinel.yml'
@@ -23,10 +30,15 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Local media tools for cached-audio regression; no provider credentials
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg espeak-ng
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg espeak-ng postgresql
       - run: npm run test:resource-sentinel
+      - name: Audio financial contract, scoped OIDC and stale-worker regressions (offline)
+        run: node --import tsx --test src/lib/audio-studio/paid-supply-port.test.ts src/lib/audio-studio/render-fence.test.ts src/lib/supply/quality-readiness.test.ts scripts/mystery-shopper/quality-loop/sentinel-readiness.test.ts
+      - name: Genuine PostgreSQL atomic admission and concurrent connections (disposable only)
+        run: PG_BIN="$(pg_config --bindir)" bash scripts/qa/audio-supply-db.sh "$RUNNER_TEMP/audio-supply-db" 55633
       - name: Existing Audio regressions with genuine local fixture tools and clean runner disk
         run: node --import tsx --test src/lib/audio-studio/render.test.ts src/lib/audio-studio/transporte.test.ts src/lib/audio-studio/v4-turbo.test.ts
       - run: npx next typegen && npx tsc --noEmit --incremental false
       - run: npx eslint src/lib/supply/command-center-source*.ts src/lib/supply/billing-account.ts src/lib/supply/sentinel*.ts src/lib/supply/shared-account-guard*.ts src/lib/supply/queue-timeout.test.ts src/lib/audio-studio/paid-supply-adapter*.ts src/app/api/command-center/resource-sentinel/route.ts
-      - run: npx eslint --no-ignore scripts/supply/monitor.ts
+      - run: npx eslint src/lib/audio-studio/paid-supply-port*.ts src/lib/audio-studio/render-fence.test.ts src/lib/supply/quality-readiness*.ts src/app/api/mystery-shopper/resource-readiness/route.ts
+      - run: npx eslint --no-ignore scripts/supply/monitor.ts scripts/qa/audio-supply-postgres.ts scripts/audio-studio/worker.ts scripts/mystery-shopper/quality-loop/sentinel-readiness*.ts

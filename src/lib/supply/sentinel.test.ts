@@ -175,3 +175,14 @@ test("balance evidence explicitly separates live API, stale API, derived estimat
  const derived=account({snapshots:[{...s,available:null,reliability:"derived_from_ledger",derived_estimate:75}]});assert.equal(derived.balanceStatus,"ESTIMATED");assert.equal(derived.estimatedAvailable,75);assert.equal(derived.available,null);assert.equal(derived.free,null);
  assert.equal(account({snapshots:[]}).balanceStatus,"UNKNOWN");
 });
+
+
+test("settled Audio tariff estimates never become invoice costs or high-confidence forecast samples", () => {
+  const r = account({ operations: [op("audio", 0, { method: "audio_studio_tts_tariff_estimate", committed_usd: 7, reserved_usd: 7, updated_at: new Date(now - 1000).toISOString() })] });
+  assert.equal(r.consumption.daily.actualUsd, 0);
+  assert.equal(r.consumption.daily.estimatedUsd, 7);
+  assert.equal(r.consumedSinceSnapshot, 7);
+  assert.equal(r.forecast.samples, 0);
+  assert.equal(r.forecast.target14Units, null);
+  assert.equal(r.auditStatus, "UNRESOLVED_CHARGES");
+});

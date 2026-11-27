@@ -1,3 +1,4 @@
+import type { AudioPaidSupply } from "./paid-supply-port";
 import { renderProject } from "./render";
 import type { BlobStore, ProjectStore } from "./store";
 import { isUuid } from "./model";
@@ -38,12 +39,12 @@ export function dispatchPayload(ownerId: string, id: string): { event_type: stri
  */
 export async function startWorker(
   store: ProjectStore & BlobStore, voice: VoiceAvailability, ownerId: string, id: string,
-  env: Record<string, string | undefined> = process.env, fetchImpl: typeof fetch = fetch,
+  env: Record<string, string | undefined> = process.env, fetchImpl: typeof fetch = fetch, paidSupply?: AudioPaidSupply,
 ): Promise<WorkerMode> {
   const mode = workerMode(env);
   if (!voice.ok || mode === "apagado") return "apagado";
   if (mode === "inline") {
-    setTimeout(() => { renderProject({ store, voice: voice.voice, musicDir: env.AUDIO_STUDIO_MUSIC_DIR || undefined }, ownerId, id).catch((e) => console.error("[audio-studio] worker", (e as Error).message)); }, 0);
+    setTimeout(() => { renderProject({ store, voice: voice.voice, paidSupply, musicDir: env.AUDIO_STUDIO_MUSIC_DIR || undefined }, ownerId, id).catch((e) => console.error("[audio-studio] worker", (e as Error).message)); }, 0);
     return "inline";
   }
   const token = env.GH_WORKER_TOKEN, repo = env.GH_WORKER_REPO;

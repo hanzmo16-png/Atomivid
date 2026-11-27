@@ -18,6 +18,12 @@ export function allowBrowserRequest(input: { url: string; method: string; origin
 export function sentinelStatus(status: number, data: unknown): 'READ' | 'BLOCKED' {
   if(status!==200 || !data || typeof data!=='object')return 'BLOCKED';
   const d=data as Record<string,unknown>;
+  if(d.version === 'resource-sentinel-readiness/1') {
+    const age=Date.now()-Date.parse(String(d.observedAt));
+    const products=d.products as Record<string, {ready?:unknown;reason?:unknown}>|undefined;
+    return d.scope==='READ_ONLY_NOT_ATOMIC_ADMISSION' && Number.isFinite(age) && age>=0 && age<=300000
+      && !!products && Object.keys(PRODUCT_PROVIDER_IMPACT).every(p=>typeof products[p]?.ready==='boolean' && typeof products[p]?.reason==='string') ? 'READ' : 'BLOCKED';
+  }
   // Versioned Resource Sentinel backend contract; unknown remains unknown.
   const sentinel = d.sentinel as { accounts?: unknown[]; accountingScope?: string } | undefined;
   return sentinel?.accountingScope === 'READ_ONLY_NOT_ATOMIC_ADMISSION' && Array.isArray(sentinel.accounts) && Array.isArray(d.admission) && typeof d.observedAt === 'string' && Number.isFinite(Date.parse(d.observedAt)) && Date.now()-Date.parse(d.observedAt)<600000 && Date.parse(d.observedAt)<=Date.now()+60000 ? 'READ' : 'BLOCKED';
@@ -30,6 +36,8 @@ export const PRODUCT_PROVIDER_IMPACT = {
 /** A partial green account list never establishes whole-product readiness. No balances leave this function. */
 export function providerReadiness(product: keyof typeof PRODUCT_PROVIDER_IMPACT, data: unknown): boolean {
  if(!data || typeof data!=='object')return false;
+ const minimal=data as {version?:string;products?:Record<string,{ready?:unknown}>};
+ if(minimal.version==='resource-sentinel-readiness/1')return sentinelStatus(200,data)==='READ'&&minimal.products?.[product]?.ready===true;
  const d=data as {sentinel?:{accounts?:{providers?:string[];operationalLevel?:string;balanceStatus?:string;free?:number|null}[];resources?:{resource?:string;state?:string;used?:number|null;limit?:number|null}[]}};
  const accounts=d.sentinel?.accounts||[];
  const providers=PRODUCT_PROVIDER_IMPACT[product];

@@ -15,6 +15,7 @@ export interface SentinelAccount { account: string; providers: string[]; enabled
 export interface SentinelOverview { accounts: SentinelAccount[]; totalsByUnit: { unit: string; verifiedAvailable: number | null; free: number | null }[]; resources: { resource: SentinelTelemetry["resource"]; state: "VERIFIED" | "UNKNOWN"; used: number | null; limit: number | null; unit: string | null }[]; accountingScope: "READ_ONLY_NOT_ATOMIC_ADMISSION" }
 
 // Implementation below is pure: caller supplies existing table rows, never credentials or payloads.
+const invoiceCost = (r: SentinelOperation) => r.status === "COMMITTED" && number(r.committed_usd) !== null && r.method !== "audio_studio_tts_tariff_estimate";
 const DAY = 86_400_000;
 const DEFAULTS: SentinelThresholds = { redDays: 1, amberDays: 3, minimumSamples: 3, minimumActiveDays: 3, minimumHistoryDays: 7, bufferRatio: .15 };
 const OFFICIAL: Record<string, string> = { fal: "https://fal.ai/dashboard/billing", elevenlabs: "https://elevenlabs.io/app/subscription", heygen: "https://app.heygen.com/", runway: "https://app.runwayml.com/", anthropic: "https://console.anthropic.com/settings/billing", openai: "https://platform.openai.com/settings/organization/billing/overview" };
@@ -74,7 +75,7 @@ export function buildSentinelOverview(input: SentinelInput): SentinelOverview {
     for (const r of rows) {
       const legacy = r.method === "capacity_hold", closed = r.status === "COMMITTED" && !legacy && number(r.committed_usd) !== null;
       if (r.status === "REFUNDED" && r.supply_reconciled) continue;
-      if (closed) { if (date(r.updated_at) >= newest) consumed.push(amount(r, true)); continue; }
+      if (closed) { if (r.method === "audio_studio_tts_tariff_estimate") unresolved = true; if (date(r.updated_at) >= newest) consumed.push(amount(r, true)); continue; }
       if (r.status === "COMMITTED" && legacy && date(r.updated_at) < newest) continue;
       if (!["RESERVED", "SUBMITTED", "PROVIDER_JOB_RECORDED", "RECONCILIATION_REQUIRED", "REFUNDED", "COMMITTED"].includes(r.status)) { bad = true; continue; }
       const related = jobs.filter(j => r.supply_job_key ? j.id === r.supply_job_key : !!r.project_id && j.project_id === r.project_id && j.provider === r.provider);
@@ -92,14 +93,14 @@ export function buildSentinelOverview(input: SentinelInput): SentinelOverview {
     const period = (accept: (ms: number) => boolean, start: number): SentinelConsumption => {
       if (bad || !historyValid || history > start) return { actualUsd: null, estimatedUsd: null, actualUnits: null, estimatedUnits: null };
       const eligible = rows.filter(r => r.method !== "capacity_hold" && accept(date(r.updated_at)) && !(r.status === "REFUNDED" && r.supply_reconciled));
-      const actual = eligible.filter(r => r.status === "COMMITTED" && number(r.committed_usd) !== null), estimates = eligible.filter(r => !actual.includes(r) && r.status !== "RESERVED");
+      const actual = eligible.filter(invoiceCost), estimates = eligible.filter(r => !actual.includes(r) && r.status !== "RESERVED");
       const usd = total(actual.map(r => number(r.committed_usd)));
       return { actualUsd: usd, estimatedUsd: total(estimates.map(reservedCash)), actualUnits: unit === "usd" ? usd : null, estimatedUnits: unit === "usd" ? total(estimates.map(reservedCash)) : total([...actual, ...estimates].map(r => amount(r, r.status === "COMMITTED" && number(r.committed_usd) !== null))) };
     };
     const consumption = { daily: period(ms => calendar(ms) === today, boundary(false)), rolling7d: period(ms => ms >= now - 7 * DAY && ms <= now, now - 7 * DAY), monthly: period(ms => calendar(ms).slice(0, 7) === month, boundary(true)) };
     const earliest = Math.min(...rows.flatMap(r => [date(r.created_at), date(r.updated_at)]).filter(Number.isFinite));
     const observedSince = Math.max(history, earliest), coveredDays = !bad && historyValid && Number.isFinite(observedSince) ? Math.min(14, Math.floor((now - observedSince) / DAY)) : 0;
-    const samples = bad ? [] : rows.filter(r => r.method !== "capacity_hold" && r.status === "COMMITTED" && number(r.committed_usd) !== null && date(r.updated_at) >= Math.max(history, now - 14 * DAY) && date(r.updated_at) <= now);
+    const samples = bad ? [] : rows.filter(r => r.method !== "capacity_hold" && invoiceCost(r) && date(r.updated_at) >= Math.max(history, now - 14 * DAY) && date(r.updated_at) <= now);
     const activeDays = new Set(samples.map(r => calendar(date(r.updated_at)))).size, sum = total(samples.map(r => number(r.committed_usd)));
     const confidence = samples.length >= t.minimumSamples && activeDays >= t.minimumActiveDays && coveredDays >= t.minimumHistoryDays ? "HIGH" : samples.length ? "LOW" : "NONE";
     const daily = !bad && coveredDays > 0 && sum !== null ? sum / coveredDays : null, dailyUnits = unit === "usd" ? daily : daily !== null && price !== null ? number(daily / price) : null;

@@ -4,7 +4,8 @@ import type { StudioVoiceMode } from "./voice";
  * Audio projects are Storage documents, not video_requests rows. The existing atomic
  * pi_reserve_job_supply RPC cannot reserve an Audio job. A per-segment ledger alone
  * would not protect the whole authorization, nor make spentUsd replay atomic.
- * Until that common contract exists, never submit uncached real TTS. Do not create
+ * The new paid-supply-port contract is required for uncached real TTS.
+ * Without its verified atomic reservation, never submit uncached real TTS. Do not create
  * a synthetic video request, another ledger, or a production/environment bypass.
  */
 export const AUDIO_WHOLE_JOB_SUPPLY = "BLOCKED_AUDIO_JOB_RESERVATION_UNAVAILABLE" as const;

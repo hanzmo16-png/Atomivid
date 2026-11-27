@@ -73,7 +73,7 @@ export async function readResourceSentinel(service: SupabaseClient, now = Date.n
     coverage: { ledger: "pi_paid_operations + pi_supply_job_reservations", uncoveredProviders,
       workers: "video_requests only; excludes separate Audio/Podcast workers", gpu: "UNVERIFIED_NO_GPU_QUERY", storage: "UNVERIFIED_NO_QUOTA_QUERY", rateLimits: "provider Retry-After enforced by monitor; remaining request quota unverified" },
     protection: { longForm: "EXISTING_ATOMIC_RPC_WITH_SAFE_WAITS", reels: "EXISTING_ATOMIC_RPC_WITH_SAFE_WAITS",
-      audio: "UNCACHED_PAID_AUDIO_PAUSED_PENDING_COMMON_RESERVATION", audiovisual: "EXISTING_PRIVATE_STUDIO_GUARDS_NOT_CERTIFIED_AS_SHARED_PI_POOL" },
+      audio: "AUDIO_COMMON_PI_CONTRACT_REQUIRES_APPROVED_MIGRATION_AND_RECONCILIATION", audiovisual: "EXISTING_PRIVATE_STUDIO_GUARDS_NOT_CERTIFIED_AS_SHARED_PI_POOL" },
     alternativeProviderPolicy: "NO_AUTOMATIC_SUBSTITUTION_WITHOUT_EXISTING_AUTHORIZATION_AND_EQUIVALENCE",
     purchases: "NEVER_AUTOMATIC",
   };

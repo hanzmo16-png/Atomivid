@@ -11,6 +11,7 @@
  */
 import { createClient } from "@supabase/supabase-js";
 import { AUDIO_STUDIO_BUCKET, storageStore } from "../../src/lib/audio-studio/store";
+import { supabaseAudioPaidSupply } from "../../src/lib/audio-studio/paid-supply-port";
 import { renderProject } from "../../src/lib/audio-studio/render";
 import { workerOwnerIsInternal, workerPreflight } from "../../src/lib/audio-studio/worker";
 import { voiceAvailability } from "../../src/lib/audio-studio/voice";
@@ -24,11 +25,12 @@ async function main() {
   const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) { console.log("RESULTADO ERROR falta configuración de Storage"); process.exit(2); }
-  const store = storageStore(createClient(url, key, { auth: { persistSession: false } }).storage.from(AUDIO_STUDIO_BUCKET) as never);
+  const service = createClient(url, key, { auth: { persistSession: false } });
+  const store = storageStore(service.storage.from(AUDIO_STUDIO_BUCKET) as never);
   // No se confía en el payload: proyecto, dueño, estado y autorización se comprueban antes de tocar nada.
   const reject = await workerPreflight(store, ownerId, projectId, { demo: voice.voice.mode === "demo" });
   if (reject) { console.log(`RESULTADO RECHAZADO ${reject} (no se leyó voz, no se sintetizó ni se escribió nada; USD 0)`); return; }
-  const out = await renderProject({ store, voice: voice.voice, musicDir: process.env.AUDIO_STUDIO_MUSIC_DIR || undefined }, ownerId, projectId);
+  const out = await renderProject({ store, voice: voice.voice, paidSupply: voice.voice.mode === "elevenlabs" ? supabaseAudioPaidSupply(service) : undefined, musicDir: process.env.AUDIO_STUDIO_MUSIC_DIR || undefined }, ownerId, projectId);
   console.log(`RESULTADO ${out.toUpperCase()}${voice.voice.mode === "demo" ? " (voz de demostración, USD 0)" : ""}`);
   if (out === "fallida") process.exit(1);
 }
