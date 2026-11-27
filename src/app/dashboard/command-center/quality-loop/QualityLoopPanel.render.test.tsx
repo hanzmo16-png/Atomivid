@@ -23,6 +23,7 @@ test("panel AQL: origen de cada ejecución, kill switch, próxima nominal honest
   assert.match(html, /Reels<\/h3><p[^>]*>1 PASS · 0 FAIL · 0 BLOCKED · 0 SKIP/);
   assert.match(html, /Audio Podcast<\/h3><p[^>]*>0 PASS · 0 FAIL · 1 BLOCKED/);
   assert.doesNotMatch(html, />Activo</, "nunca «Activo» a secas");
+  assert.doesNotMatch(html, /<main/, "el layout ya aporta el único <main>");
 });
 
 test("panel AQL sin datos: no afirma que el motor esté operativo", () => {

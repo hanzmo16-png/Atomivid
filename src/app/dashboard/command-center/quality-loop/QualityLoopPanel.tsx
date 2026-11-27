@@ -22,7 +22,7 @@ export function QualityLoopPanel({initial=null}:{initial?:View|null}={}){
   ['Corregidos y revalidados',data?String(data.fixed):'—'],
   ['Copia en Drive',data?({VERIFIED:'Verificada',PENDING:'Pendiente',BLOCKED:'Bloqueada'}[data.mirror.state]):'Sin evidencia',data?.mirror.at?when(data.mirror.at):undefined],
  ];
- return <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-8 text-ink">
+ return <div className="mx-auto w-full max-w-7xl space-y-6 py-4 text-ink" data-testid="quality-loop-panel">
   <Link href="/dashboard/command-center" className="inline-flex min-h-11 items-center text-accent">← Command Center</Link>
   <header className="rounded-2xl border border-accent/30 bg-surface p-6"><p className="text-sm uppercase tracking-widest text-accent">Administración · Mystery Shopper + Resource Sentinel</p><h1 className="mt-2 text-2xl font-semibold sm:text-4xl">AUTONOMOUS QUALITY LOOP</h1><p className="mt-3 text-ink-muted">Probar · detectar · corregir · integrar · revalidar. Sin generaciones ni cargos automáticos.</p>
    <div className="mt-5 flex flex-wrap items-center gap-3"><button disabled={busy||!data} onClick={()=>void act(data?.enabled?'stop':'start')} className={`min-h-11 rounded-xl border px-5 py-3 font-semibold disabled:opacity-50 ${data?.enabled?'border-red-500 text-red-200':'border-accent'}`}>{!data?'Control no disponible':data.enabled?'Parada de emergencia':'Reactivar ciclo'}</button><button disabled={busy} onClick={()=>void load()} className="min-h-11 rounded-xl border border-white/20 px-5 py-3">Actualizar</button><span className="text-sm text-ink-muted" aria-live="polite">{busy?'Procesando…':error&&!loadedAt?'Sin lectura válida':loadedAt?`Leído ${when(loadedAt)} · se actualiza cada 30 s`:'Leyendo…'}</span></div>
@@ -39,5 +39,5 @@ export function QualityLoopPanel({initial=null}:{initial?:View|null}={}){
   </article>)}{data&&!open.length&&<p>No hay defectos pendientes. Esto no sustituye una evaluación pendiente.</p>}</section>
   {closed.length>0&&<section className="space-y-2"><h2 className="text-xl font-semibold">Revalidaciones</h2><ul className="space-y-2">{closed.slice(-20).reverse().map(d=><li key={d.id} data-testid="aql-revalidated" className="break-words rounded-lg bg-surface p-3 text-sm">{PRODUCT[d.product]??d.product} · {d.checkId} · corregido en <code>{shortSha(d.fixSha)??'—'}</code> · revalidado {when(d.closedAt)}{d.closedAt?` · ${Math.round((Date.parse(d.closedAt)-Date.parse(d.firstSeen))/60000)} min desde la detección`:''}</li>)}</ul></section>}
   <section><h2 className="text-xl font-semibold">Historial de incidencias y actividad</h2><ol className="mt-3 space-y-2">{data?.activity.slice(-20).reverse().map((a,i)=><li key={`${a.at}-${i}`} className="break-words rounded-lg bg-surface p-3 text-sm">{when(a.at)} · {a.text}</li>)}</ol></section>
- </main>;
+ </div>;
 }
