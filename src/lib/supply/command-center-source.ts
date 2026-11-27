@@ -14,7 +14,7 @@ export function commandCenterSentinelSnapshot(data: EngineObservation) {
     source: "sentinel-engine" as const,
     providers: data.sentinel.accounts.map(a => ({
       provider: a.account, aliases: a.providers, unit: a.unit,
-      balance: { status: a.balanceStatus, value: a.available, estimated: a.estimatedAvailable, staleValue: a.staleAvailable, checkedAt: a.checkedAt, source: a.balanceStatus === "REAL" || a.balanceStatus === "STALE" ? "provider_api" as const : a.balanceStatus === "ESTIMATED" ? "manual_entry" as const : null,
+      balance: { status: a.balanceStatus, value: a.available, estimated: a.estimatedAvailable, staleValue: a.staleAvailable, checkedAt: a.checkedAt, source: a.balanceStatus === "REAL" || a.balanceStatus === "STALE" ? "provider_api" as const : null,
         health: null },
       committedUsd: a.unit === "usd" ? a.held : null, openOperations: null,
       free: a.free,
