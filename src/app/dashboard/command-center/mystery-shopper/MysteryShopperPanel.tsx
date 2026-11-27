@@ -99,6 +99,7 @@ export function MysteryShopperPanel({ catalog, sha, environment }: { catalog: Ca
 
   return (
     <section id="mystery-shopper" aria-labelledby="mystery-shopper-title" className="min-w-0 rounded-2xl border border-border bg-surface p-4 sm:p-5">
+      <a href="/dashboard/command-center/quality-loop" className="mb-3 inline-flex min-h-11 items-center text-accent underline">AUTONOMOUS QUALITY LOOP →</a>
       <h2 id="mystery-shopper-title" className="text-xl font-semibold text-ink">Cliente misterioso</h2>
       <p className="mt-1 text-sm text-ink-muted">Un navegador nuevo entra a ATOMIVID como un cliente, recorre la misión y te dice qué funcionó, qué falló y qué simplificar.</p>
 
