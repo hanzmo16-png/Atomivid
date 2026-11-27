@@ -269,7 +269,7 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
       <ol className="flex min-w-0 max-w-full gap-1 overflow-x-auto pb-1 text-xs" aria-label="Pasos">
         {SCREENS.map((s, i) => (
           <li key={s} className="shrink-0"><button type="button" onClick={() => i <= screen && !(started && busy) && go(i)} disabled={i > screen} aria-current={i === screen ? "step" : undefined}
-            className={`inline-flex min-h-11 items-center rounded px-2 ${i === screen ? "bg-accent text-accent-ink" : i < screen ? "bg-surface text-ink" : "text-ink-muted"}`}>{i + 1}. {s}</button></li>
+            className={`rounded px-2 py-1 ${i === screen ? "bg-accent text-accent-ink" : i < screen ? "bg-surface text-ink" : "text-ink-muted"}`}>{i + 1}. {s}</button></li>
         ))}
       </ol>
       <h2 className="mt-3 text-lg font-semibold text-ink" data-testid="wizard-step-title">Paso {screen + 1} de {SCREENS.length}: {SCREENS[screen]}</h2>
@@ -572,11 +572,11 @@ export function PodcastWizard({ voices, avatars, v2Enabled, v3Enabled, generatio
       )}
       {note && <p className="mt-3 text-sm text-ink-muted">{note}</p>}
       {error && <p role="alert" className="mt-3 text-sm text-danger">{error}</p>}
-      <div className="sticky bottom-0 z-10 mt-4 flex justify-between gap-2 bg-canvas/95 py-2">
-        <Button type="button" variant="ghost" size="sm" className="min-h-11" onClick={() => go(Math.max(0, screen - 1))} disabled={screen === 0 || busy}>Atrás</Button>
+      <div className="sticky bottom-0 mt-4 flex justify-between gap-2 bg-canvas/95 py-2">
+        <Button type="button" variant="ghost" size="sm" onClick={() => go(Math.max(0, screen - 1))} disabled={screen === 0 || busy}>Atrás</Button>
         <div className="flex gap-2">
-          <Button type="button" variant="ghost" size="sm" className="min-h-11" onClick={startOver} data-testid="empezar-de-nuevo">Empezar de nuevo</Button>
-          {screen < SCREENS.length - 1 && <Button type="button" size="sm" className="min-h-11" onClick={next} disabled={busy}>Siguiente</Button>}
+          <Button type="button" variant="ghost" size="sm" onClick={startOver} data-testid="empezar-de-nuevo">Empezar de nuevo</Button>
+          {screen < SCREENS.length - 1 && <Button type="button" size="sm" onClick={next} disabled={busy}>Siguiente</Button>}
         </div>
       </div>
     </Card>

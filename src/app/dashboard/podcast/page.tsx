@@ -89,7 +89,7 @@ export default async function PodcastPage({ searchParams }: { searchParams: Prom
     <div className="mx-auto w-full min-w-0 max-w-2xl">
       <h1 className="text-2xl font-bold text-ink">Podcast</h1>
       <p className="mt-1 text-sm text-ink-muted">Crea tu episodio paso a paso: narración, un avatar presentador o una conversación entre dos. En cada episodio fijas el presupuesto, produces el video (ahora o programado) y lo revisas. Nada se publica sin tu aprobación.</p>
-      <p className="mt-2 text-sm"><Link href="/dashboard/podcast/editor" className="inline-flex min-h-11 items-center text-accent underline">Ver entregas del editor externo</Link></p>
+      <p className="mt-2 text-sm"><Link href="/dashboard/podcast/editor" className="text-accent underline">Ver entregas del editor externo</Link></p>
       {notices.length > 0 && (
         <section aria-label="Avisos" className="mt-4 rounded-lg border border-border p-3 text-sm">
           <h2 className="font-semibold text-ink">Avisos recientes</h2>
@@ -113,8 +113,8 @@ export default async function PodcastPage({ searchParams }: { searchParams: Prom
       </details>
       <h2 id="episodios" className="mt-8 text-lg font-semibold text-ink">Tus episodios</h2>
       <nav aria-label="Vista de episodios" className="mt-2 flex flex-wrap gap-2 text-sm" data-testid="biblioteca-vistas">
-        <Link href="/dashboard/podcast#episodios" aria-current={view === "principal" ? "page" : undefined} className={`inline-flex min-h-11 items-center rounded px-3 ${view === "principal" ? "bg-accent text-accent-ink" : "border border-border text-ink"}`}>Mis episodios</Link>
-        <Link href="/dashboard/podcast?vista=archivados#episodios" aria-current={view === "archivados" ? "page" : undefined} className={`inline-flex min-h-11 items-center rounded px-3 ${view === "archivados" ? "bg-accent text-accent-ink" : "border border-border text-ink"}`} data-testid="biblioteca-archivados">Archivados ({archivedCount})</Link>
+        <Link href="/dashboard/podcast#episodios" aria-current={view === "principal" ? "page" : undefined} className={`rounded px-3 py-1 ${view === "principal" ? "bg-accent text-accent-ink" : "border border-border text-ink"}`}>Mis episodios</Link>
+        <Link href="/dashboard/podcast?vista=archivados#episodios" aria-current={view === "archivados" ? "page" : undefined} className={`rounded px-3 py-1 ${view === "archivados" ? "bg-accent text-accent-ink" : "border border-border text-ink"}`} data-testid="biblioteca-archivados">Archivados ({archivedCount})</Link>
       </nav>
       {incompleteNotice && <p role="status" className="mt-2 rounded border border-border p-2 text-sm text-ink" data-testid="biblioteca-incompleta">{incompleteNotice}</p>}
       {view === "principal" && archivedCount > 0 && <p className="mt-2 text-xs text-ink-muted" data-testid="biblioteca-ocultos">Los episodios con error, los de prueba, los borradores de hace más de 7 días y lo que archives están en «Archivados» ({archivedCount}). No se borra nada.</p>}
