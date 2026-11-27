@@ -1,7 +1,7 @@
 {
   "version": "quality-loop/1",
-  "enabled": false,
-  "updatedAt": "2026-11-27T13:45:34.792619Z",
+  "enabled": true,
+  "updatedAt": "2026-11-27T14:07:51.606424Z",
   "lease": null,
   "cycles": [
     {
@@ -7389,6 +7389,10 @@
     {
       "at": "2026-11-27T13:45:34.792619Z",
       "text": "Owner-authorized controlled STOP for final integration337/338/341 and Audio migration; preserve all history, no paid generations."
+    },
+    {
+      "at": "2026-11-27T14:07:51.606424Z",
+      "text": "Controlled RESUME after production db3be and read-only inspection capability v1 verified; histories preserved; paid generation remains prohibited."
     }
   ],
   "lastAlert": "47a33b04655e5fedaf4796d87608988519b8ca16ea6bd83aff9dabc8d3d621d0",
