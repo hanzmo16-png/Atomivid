@@ -23,3 +23,14 @@ test("Chromium fixture: audiovisual rollout warning stays BLOCKED", async () => 
     assert.equal((await inspectCampaign320SurfaceReadOnly(await c.newPage(), "video-podcast")).verdict.state, "BLOCKED");
   } finally { await b.close(); }
 });
+test("Chromium fixture: audiovisual inspector follows the actual visual/avatar/dialogo modality contract", async () => {
+  const pw=await load();const b=await pw.chromium.launch({headless:true,executablePath:process.env.E2E_CHROME});
+  try{
+    const c=await b.newContext({baseURL:'http://fixture.invalid'});
+    await c.route('**/*',(r:{fulfill(v:object):Promise<void>})=>r.fulfill({contentType:'text/html; charset=utf-8',body:'<div data-testid="podcast-wizard" data-hydrated="1"><ol aria-label="Pasos"><li>Inicio</li></ol><button data-testid="modalidad-visual">Narración con imágenes</button><button data-testid="modalidad-avatar">Presentador</button><button data-testid="modalidad-dialogo">Conversación</button></div>'}));
+    const result=await inspectCampaign320SurfaceReadOnly(await c.newPage(),'video-podcast');
+    assert.equal(result.verdict.state,'PASS',JSON.stringify(result));
+    assert.equal(result.observation.requiredVisible['Narración con imágenes'],true);
+    assert.equal(result.observation.requiredVisible['Conversación con avatares'],true);
+  }finally{await b.close();}
+});
