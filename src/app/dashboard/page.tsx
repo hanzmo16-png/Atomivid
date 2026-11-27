@@ -1,3 +1,4 @@
+import { runPageMaintenance } from "@/lib/mystery-shopper/quality-loop/readonly-inspection";
 import { ScriptJobCard } from "@/components/video/ScriptJobCard";
 import { scriptJobView, SCRIPT_JOB_COLUMNS, type ScriptJobSummary } from "@/lib/video/long-form/script-job-types";
 import { reconcileStaleScriptJobs } from "@/lib/video/long-form/script-jobs";
@@ -35,9 +36,9 @@ import { VideoBackground } from "@/components/dashboard/VideoBackground";
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ created?: string; draft?: string; existing?: string; script_job?: string }>;
+  searchParams: Promise<{ created?: string; draft?: string; existing?: string; script_job?: string; inspection?: string | string[] }>;
 }) {
-  const { created, draft, existing, script_job } = await searchParams;
+  const { created, draft, existing, script_job, inspection } = await searchParams;
   // Simple UX 1.0: la pantalla empieza por «¿Qué quieres crear hoy?»; si se vuelve aquí a mitad de un flujo (solicitud
   // recién creada, guion en preparación), el historial va primero para no esconder la acción pendiente.
   const mid = midFlow({ created, draft, existing, script_job });
@@ -56,14 +57,17 @@ export default async function DashboardPage({
     .order("created_at", { ascending: false })
     .returns<VideoRequestSummary[]>();
 
-  if (user) await reconcileStaleScriptJobs(user.id).catch(() => {});
-  // Intentos colgados: estado final aquí mismo (antes quedaban «processing» para siempre). Sin intentos restantes,
-  // fallo terminal; Long Form con intentos, fallo recuperable con «Reintentar» (reutiliza lo ya pagado).
-  for (const r of requests ?? []) {
-    if (!isExhaustedStaleAttempt(r) && !isStaleLongFormAttempt(r)) continue;
-    const { outcome, errorMessage } = await closeStaleAttempt(createServiceClient(), r).catch(() => ({ outcome: "changed" as const, errorMessage: null }));
-    if (outcome === "closed") Object.assign(r, { status: "failed", progress_stage: null, long_form_stage: null, long_form_progress: null, error_message: errorMessage });
-  }
+  // Audited observation opts out of maintenance only; auth/RLS and normal recovery stay unchanged.
+  await runPageMaintenance(inspection, async () => {
+    if (user) await reconcileStaleScriptJobs(user.id).catch(() => {});
+    // Intentos colgados: estado final aquí mismo (antes quedaban «processing» para siempre). Sin intentos restantes,
+    // fallo terminal; Long Form con intentos, fallo recuperable con «Reintentar» (reutiliza lo ya pagado).
+    for (const r of requests ?? []) {
+      if (!isExhaustedStaleAttempt(r) && !isStaleLongFormAttempt(r)) continue;
+      const { outcome, errorMessage } = await closeStaleAttempt(createServiceClient(), r).catch(() => ({ outcome: "changed" as const, errorMessage: null }));
+      if (outcome === "closed") Object.assign(r, { status: "failed", progress_stage: null, long_form_stage: null, long_form_progress: null, error_message: errorMessage });
+    }
+  });
   const { data: scriptJobs, error: scriptJobsError } = await supabase.from("documentary_script_jobs")
     .select(SCRIPT_JOB_COLUMNS)
     .eq("user_id", user?.id ?? "").neq("status","completed").order("created_at",{ascending:false}).limit(30)
