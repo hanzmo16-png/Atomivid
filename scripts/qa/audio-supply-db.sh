@@ -10,8 +10,12 @@ trap '"$PB/pg_ctl" -D "$W/pg" -m fast stop >/dev/null 2>&1 || true' EXIT
 PS=("$PB/psql" -h "$W/run" -p "$P" -U postgres -d postgres -v ON_ERROR_STOP=1 -q)
 "${PS[@]}" -f "$R/scripts/harness/e2e/infra/stubs.sql" >/dev/null
 PIN=9dccd68c3b06bffab2dc91ab415de6c2a73062bd
-git -C "$R" cat-file -e "$PIN" 2>/dev/null || git -C "$R" fetch -q origin "$PIN"
-git -C "$R" show "$PIN:supabase/migrations/0023_production_intelligence.sql" > "$W/run/0023.sql"
+if [[ -n "${AUDIO_SUPPLY_PI_BASELINE_SQL:-}" ]]; then
+ cp "$AUDIO_SUPPLY_PI_BASELINE_SQL" "$W/run/0023.sql"
+else
+ git -C "$R" cat-file -e "$PIN" 2>/dev/null || git -C "$R" fetch -q origin "$PIN"
+ git -C "$R" show "$PIN:supabase/migrations/0023_production_intelligence.sql" > "$W/run/0023.sql"
+fi
 echo "0b49d9a4752d19c1b6f6f24df6c3f0c6fbdbd39136a41832f5a6189aa7fa8131  $W/run/0023.sql" | sha256sum -c --quiet
 inserted=0
 for f in "$R"/supabase/migrations/*.sql; do
