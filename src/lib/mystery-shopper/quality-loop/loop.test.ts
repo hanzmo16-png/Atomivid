@@ -6,6 +6,18 @@ import { update, Conflict, type QueueStore } from './github-store';
 const at='2026-11-26T20:00:00.000Z', end='2026-11-26T20:01:00.000Z', sha='a'.repeat(40);
 const check:Check={id:'download',product:'reels',state:'FAIL',severity:'P1',owner:'codex',module:'delivery',detail:'controlled failure'};
 const cycle=(id:string,checks:Check[]=[check]):Cycle=>({id,trigger:'schedule',scope:'authenticated-readonly',startedAt:at,finishedAt:end,sha,runnerSha:sha,url:'https://github.com/example/repo/actions/runs/1',authenticated:true,sentinel:'BLOCKED',checks,spendUsd:0});
+test('episode detail GET is default-denied and grants only one exact authenticated owner-card path',()=>{
+ const origin='https://atomivid.vercel.app',path='/api/podcast/v3/11111111-1111-4111-8111-111111111111';
+ const request={url:origin+path,origin,method:'GET',authenticated:true,resourceType:'fetch'};
+ assert.equal(allowBrowserRequest(request),false);
+ assert.equal(allowBrowserRequest({...request,existingEpisodePath:path}),true);
+ for(const method of ['POST','PUT','PATCH','DELETE','HEAD','OPTIONS'])assert.equal(allowBrowserRequest({...request,method,existingEpisodePath:path}),false);
+ for(const resourceType of ['media','document','websocket','eventsource','xhr'])assert.equal(allowBrowserRequest({...request,resourceType,existingEpisodePath:path}),false);
+ assert.equal(allowBrowserRequest({...request,authenticated:false,existingEpisodePath:path}),false);
+ for(const suffix of ['?action=retry','#x','/retry','/render','/archive'])assert.equal(allowBrowserRequest({...request,url:origin+path+suffix,existingEpisodePath:path}),false);
+ for(const url of [origin+path.replace('11111111-','22222222-'),'https://other.example'+path,'https://user:pass@atomivid.vercel.app'+path])assert.equal(allowBrowserRequest({...request,url,existingEpisodePath:path}),false);
+ for(const existingEpisodePath of [null,undefined,'/api/podcast/v3/not-a-uuid','/api/podcast/v3/../render','/api/render'])assert.equal(allowBrowserRequest({...request,existingEpisodePath}),false);
+});
 test('admin readback is default-denied, manual GET only, authenticated and exact same origin',()=>{
  const r={url:'https://atomivid.vercel.app/api/command-center/quality-loop',method:'GET',origin:'https://atomivid.vercel.app',authenticated:true,resourceType:'fetch'};
  assert.equal(allowBrowserRequest(r),false);

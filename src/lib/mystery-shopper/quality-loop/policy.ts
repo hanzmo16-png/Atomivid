@@ -5,12 +5,17 @@ export function targetOrigin(value: string, fixture = false): string {
   if(fixture && !['127.0.0.1','localhost'].includes(u.hostname))throw new Error('FIXTURE_MUST_BE_LOCAL');
   return u.origin;
 }
-export function allowBrowserRequest(input: { url: string; method: string; origin: string; authenticated: boolean; resourceType: string; adminReadback?: boolean }): boolean {
+export function allowBrowserRequest(input: { url: string; method: string; origin: string; authenticated: boolean; resourceType: string; adminReadback?: boolean; existingEpisodePath?: string | null }): boolean {
   const u=new URL(input.url);
   if(u.origin!==input.origin)return false;
   if(!['GET','HEAD','OPTIONS'].includes(input.method)) return !input.authenticated && input.method === 'POST' && u.pathname === '/login';
   // Never let a navigation replay a render/retry/delete through a mutating GET.
   if(u.pathname==='/api/command-center/quality-loop')return input.adminReadback===true&&input.authenticated&&input.method==='GET';
+  // A manually selected, owner-rendered episode only. The worker revokes this pin in finally.
+  // GET has been audited as SELECT + owner-scoped signed URLs; POST authorizes paid work and is always denied.
+  if(u.pathname.startsWith('/api/podcast/v3/'))return input.authenticated&&input.method==='GET'&&input.resourceType==='fetch'&&!u.username&&!u.password&&!u.search&&!u.hash
+    &&typeof input.existingEpisodePath==='string'&&input.existingEpisodePath===u.pathname
+    &&/^\/api\/podcast\/v3\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(input.existingEpisodePath);
   if(/^\/api\//.test(u.pathname))return /^\/api\/(build-info|audio-studio\/voices|podcast\/v3|command-center\/resource-sentinel)$/.test(u.pathname);
   if(/\/auth\/|\/logout|\/signout|\/retry|\/render|\/generate|\/checkout/.test(u.pathname))return false;
   return !['media','websocket','eventsource'].includes(input.resourceType);

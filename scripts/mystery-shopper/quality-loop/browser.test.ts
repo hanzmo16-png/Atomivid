@@ -2,7 +2,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { observe } from './browser';
+import { observe, existingVideoEpisodeSource } from './browser';
+import { allowBrowserRequest } from '../../../src/lib/mystery-shopper/quality-loop/policy';
 import { sampleMedia, mediaURL } from './media';
 import { safeRedirectTarget } from '../../../src/lib/auth/errors';
 import { runPageMaintenance } from '../../../src/lib/mystery-shopper/quality-loop/readonly-inspection';
@@ -73,4 +74,69 @@ test('missing read-only backend capability blocks before login or any dashboard 
   const out=await observe({AQL_FIXTURE:'1',MS_TARGET_URL:`http://127.0.0.1:${port}`,MYSTERY_SHOPPER_QA_EMAIL:'fixture@example.test',MYSTERY_SHOPPER_QA_PASSWORD:'fixture-only'}, {id:'unsupported-backend',trigger:'fixture',runnerSha:sha,url:'http://local/unsupported'});
   assert.equal(out.authenticated,false);assert.deepEqual(seen,['/api/build-info']);assert.equal(unexpected,0);assert.equal(out.checks.find(c=>c.id==='inspection-readonly-capability')?.state,'BLOCKED');
  } finally {await new Promise<void>(r=>server.close(()=>r()));}
+});
+
+test('real Chromium fixture opens an archived ready owner episode with a revocable exact GET pin, never a background video or mutation',async()=>{
+ const active='22222222-2222-4222-8222-222222222222',ready='11111111-1111-4111-8111-111111111111',other='33333333-3333-4333-8333-333333333333';
+ const signed='https://fixture.supabase.co/storage/v1/object/sign/videos/owner/episode.mp4?token=fixture-only';
+ const reads:string[]=[],writes:string[]=[];let mode='ok';
+ const server=createServer((req,res)=>{
+  const url=new URL(req.url!,'http://localhost'),p=url.pathname;
+  if(req.method!=='GET'){writes.push(p);res.writeHead(500);return res.end();}
+  if(p.startsWith('/api/podcast/v3/')){
+   reads.push(p);res.setHeader('content-type','application/json');
+   if(p.endsWith(active))return res.end(JSON.stringify({episode:{id:active,status:'generating',output:'video'},video_url:null}));
+   if(p.endsWith(ready)){
+    if(mode==='forbidden'){res.writeHead(403);return res.end('{}');}
+    if(mode==='missing'){res.writeHead(404);return res.end('{}');}
+    return res.end(JSON.stringify({episode:{id:mode==='wrong-id'?other:ready,status:'ready',output:'video'},video_url:signed}));
+   }
+   res.writeHead(404);return res.end('{}');
+  }
+  const archived=url.searchParams.get('vista')==='archivados',principal=mode==='principal',id=archived||principal?ready:active;
+  res.setHeader('content-type','text/html');
+  res.end(`<h1>Controlled owner library</h1><video src="/cover.mp4"></video><li data-testid="studio-episode-${id}"><span>${archived||principal?'Listo':'Generando'}</span>${principal?'':`<button data-testid="studio-abrir-${id}" type="button">Ver episodio</button>`}</li><script>
+   window.opened=[];async function readEpisode(){
+    const r=await fetch('/api/podcast/v3/${id}');const d=await r.json();
+    if(d.episode?.status==='ready'){
+     const card=document.querySelector('li');const v=document.createElement('video');v.dataset.testid='studio-player';v.src=d.video_url;v.preload='none';card.append(v);
+     const a=document.createElement('a');a.dataset.testid='studio-download-mp4';a.href=d.video_url;card.append(a);
+    }
+    fetch('/api/podcast/v3/${id}',{method:'POST'}).catch(()=>{});
+    fetch('/api/podcast/v3/${other}').catch(()=>{});
+   };const open=document.querySelector('button');if(open)open.onclick=()=>{window.opened.push('${id}');void readEpisode().catch(()=>{});};else void readEpisode().catch(()=>{});</script>`);
+ });
+ await new Promise<void>(r=>server.listen(0,'127.0.0.1',r));const origin=`http://127.0.0.1:${(server.address() as {port:number}).port}`;
+ const pw=await import(process.env.PLAYWRIGHT_MODULE||'playwright');const browser=await pw.chromium.launch({headless:true,executablePath:process.env.E2E_CHROME});
+ try{
+  for(const current of ['ok','principal','forbidden','missing','wrong-id']){
+   mode=current;reads.length=0;let pin:string|null=null;const pins:(string|null)[]=[];
+   const context=await browser.newContext({serviceWorkers:'block'});
+   await context.route('**/*',async(route:{request():{url():string;method():string;resourceType():string};abort():Promise<void>;continue():Promise<void>})=>{
+    const r=route.request();return allowBrowserRequest({url:r.url(),method:r.method(),origin,authenticated:true,resourceType:r.resourceType(),existingEpisodePath:pin})?route.continue():route.abort();
+   });
+   const page=await context.newPage();
+   const result=await existingVideoEpisodeSource(page,origin,true,async()=>false,p=>{pin=p;pins.push(p);});
+   assert.equal(pin,null);assert.equal(pins.at(-1),null);assert.equal(writes.length,0);
+   assert.equal(reads.some(p=>p.endsWith(other)),false);assert.equal(reads.filter(p=>p.endsWith(active)).length,current==='principal'?0:1);
+   if(current==='ok'||current==='principal'){
+    assert.equal(result.src,signed);assert.equal(result.reason,'OWNER_READY_VIDEO_OPENED_READ_ONLY');
+    assert.equal(reads.filter(p=>p.endsWith(ready)).length,2,'metadata followed by the real card detail GET');
+    assert.deepEqual(await page.evaluate(()=>Reflect.get(window,'opened')),current==='principal'?[]:[ready],'no active job card opened; main ready card needs no archive click');
+    const count=reads.length;
+    assert.equal(await page.evaluate(async(path:string)=>{try{await fetch(path);return true;}catch{return false;}},`/api/podcast/v3/${ready}`),false,'pin revoked after discovery');
+    assert.equal(reads.length,count);
+   }else assert.equal(result.src,null,'denied/missing/mismatched episode metadata never produces a media PASS; not a native RLS test');
+   await context.close();
+  }
+ }finally{await browser.close();await new Promise<void>(r=>server.close(()=>r()));}
+});
+
+test('episode discovery refuses a mixed deployment and stops before navigation without leaving a GET pin',async()=>{
+ let navigations=0,pin:string|null='/old';
+ const page={goto:async()=>{navigations++;}};
+ const noBuild=await existingVideoEpisodeSource(page,'https://atomivid.vercel.app',false,async()=>false,p=>{pin=p;});
+ assert.equal(noBuild.src,null);assert.equal(noBuild.reason,'DEPLOYMENT_UNVERIFIED');assert.equal(navigations,0);assert.equal(pin,null);
+ await assert.rejects(existingVideoEpisodeSource(page,'https://atomivid.vercel.app',true,async()=>true,p=>{pin=p;}),/STOPPED/);
+ assert.equal(navigations,0);assert.equal(pin,null);
 });
