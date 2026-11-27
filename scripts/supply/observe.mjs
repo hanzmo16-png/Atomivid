@@ -95,7 +95,6 @@ export async function observe(env, request = fetch, now = () => new Date().toISO
   return results;
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  observe(process.env).then(results => console.log(JSON.stringify({ ok: true, providers: results }))).catch(() => {
-    console.error('Atomivid balance observation incomplete; inspect private monitoring records.'); process.exitCode = 1;
-  });
+  console.error('Legacy observer retired. Use node --import tsx scripts/supply/monitor.ts; no provider request made.');
+  process.exitCode = 2;
 }

@@ -3,9 +3,12 @@ import { supplyGuardRequired } from "./server";
 import { reserveJobSupply, jobSupplyDemands, JobEnvelopeMismatchError } from "./job";
 import { getVoiceProvider } from "@/lib/providers/voice";
 import { SupplyUnavailableError } from "./policy";
+import { longFormRenderTimeout } from "@/lib/video/long-form/render-timeout";
+
+type ResumeInput = { requestId: string; renderAttempt: number; mode: string; longFormJobTimeoutMin?: number };
 
 /** Only previously user-started work. Same attempt; no new permission, quota or paid retry. */
-export async function resumeSupplyQueue(service: SupabaseClient, trigger: (input: { requestId: string; renderAttempt: number; mode: string }) => Promise<void>, now = Date.now()): Promise<number> {
+export async function resumeSupplyQueue(service: SupabaseClient, trigger: (input: ResumeInput) => Promise<void>, now = Date.now()): Promise<number> {
   if (supplyGuardRequired()) {
     const { data: slots, error: slotError } = await service.rpc("pi_worker_supply_slots");
     if (slotError || !slots?.configured || !(slots.free > 0)) return 0;
@@ -29,16 +32,19 @@ export async function resumeSupplyQueue(service: SupabaseClient, trigger: (input
   return dispatched;
 }
 
-type QueuedRow = { id: string; mode: string | null; render_attempts: number; supply_wait_started_at: string; script_json: unknown; recorded_audio_path: string | null; long_form_production_plan: unknown };
+type QueuedRow = { id: string; mode: string | null; duration_seconds: number | null; render_attempts: number; supply_wait_started_at: string; script_json: unknown; recorded_audio_path: string | null; long_form_production_plan: unknown };
 export type ResumeOutcome = "dispatched" | "frozen" | "uncertain_paid_call" | "supply_unavailable" | "already_claimed";
-const QUEUED_COLUMNS = "id,mode,render_attempts,supply_wait_started_at,script_json,recorded_audio_path,long_form_production_plan";
+const QUEUED_COLUMNS = "id,mode,duration_seconds,render_attempts,supply_wait_started_at,script_json,recorded_audio_path,long_form_production_plan";
 
 /**
  * One previously user-started request waiting for supply: same attempt, same envelope, no new permission,
  * quota or paid retry. The claim (supply_not_before pushed 10 min ahead, compare-and-set on the read row)
  * makes the cron and the owner's "Reanudar" button mutually exclusive: only one dispatch per window.
  */
-async function resumeRow(service: SupabaseClient, row: QueuedRow, trigger: (input: { requestId: string; renderAttempt: number; mode: string }) => Promise<void>, now: number): Promise<ResumeOutcome> {
+async function resumeRow(service: SupabaseClient, row: QueuedRow, trigger: (input: ResumeInput) => Promise<void>, now: number): Promise<ResumeOutcome> {
+  // A resumed documentary must carry its original duration-derived quote. Unknown duration cannot use legacy 330.
+  const longForm = row.mode === "long_form";
+  if (longForm && (typeof row.duration_seconds !== "number" || !Number.isFinite(row.duration_seconds) || row.duration_seconds < 180 || row.duration_seconds > 1800)) return "supply_unavailable";
   // Private one-request grants are frozen; the general queue must never replay them.
   const { data: ops, error: opError } = await service.from("pi_paid_operations").select("idempotency_key,status")
     .eq("project_id", row.id);
@@ -57,7 +63,8 @@ async function resumeRow(service: SupabaseClient, row: QueuedRow, trigger: (inpu
     .lte("supply_not_before", new Date(now).toISOString()).select("id").maybeSingle();
   if (claimError) throw new Error("SUPPLY_QUEUE_CLAIM_UNAVAILABLE");
   if (!claimed) return "already_claimed";
-  await trigger({ requestId: row.id, renderAttempt: row.render_attempts, mode: row.mode ?? "visual" });
+  await trigger({ requestId: row.id, renderAttempt: row.render_attempts, mode: row.mode ?? "visual",
+    ...(longForm ? { longFormJobTimeoutMin: longFormRenderTimeout(row.duration_seconds).jobMinutes } : {}) });
   return "dispatched";
 }
 
@@ -66,7 +73,7 @@ async function resumeRow(service: SupabaseClient, row: QueuedRow, trigger: (inpu
  * caller; this only acts on a row that is still waiting for supply and whose retry window has opened.
  */
 export async function resumeSupplyRequest(service: SupabaseClient, requestId: string, userId: string,
-  trigger: (input: { requestId: string; renderAttempt: number; mode: string }) => Promise<void>, now = Date.now()): Promise<ResumeOutcome | "not_waiting" | "too_soon"> {
+  trigger: (input: ResumeInput) => Promise<void>, now = Date.now()): Promise<ResumeOutcome | "not_waiting" | "too_soon"> {
   const { data, error } = await service.from("video_requests").select(`${QUEUED_COLUMNS},status,progress_stage,supply_not_before`)
     .eq("id", requestId).eq("user_id", userId).maybeSingle();
   if (error) throw new Error("SUPPLY_QUEUE_UNAVAILABLE");

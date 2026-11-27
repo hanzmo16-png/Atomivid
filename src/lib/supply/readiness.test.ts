@@ -7,7 +7,8 @@ import { getFeatureFlags } from "@/lib/video/feature-flags";
 
 const NOW = Date.parse("2026-10-07T14:40:00Z");
 const BILLING = new Set(["https://api.elevenlabs.io/v1/user/subscription", "https://api.dev.runwayml.com/v1/organization"]);
-type Snap = { provider: string; available: number | null; reliability: string; checked_at: string };
+type StoreRow = Record<string, unknown>;
+type Snap = StoreRow & { provider: string; available: number | null; reliability: string; checked_at: string };
 
 /** In-memory supply store. pi_supply_state applies the production freshness rule:
  * provider_api readings older than 5 minutes (or unverified) are UNKNOWN; manual_entry does not expire. */
@@ -19,13 +20,30 @@ function fakeSupply(snaps: Snap[], opts: { spentToday?: Record<string, number>; 
     { provider: "runway", enabled: true, unit: "credit", unit_cost_usd: 0.01, daily_cap_usd: 20, monthly_cap_usd: 150, timezone: "America/Cancun" },
   ];
   const writes: string[] = [];
+  const alerts: StoreRow[] = [];
   const service = {
     snaps, writes,
     from(table: string) {
-      return {
-        select() { return { in: async (_k: string, values: string[]) => ({ data: policies.filter(p => values.includes(p.provider)), error: null }) }; },
-        async insert(row: Snap) { writes.push(`${table}:${row.provider}`); if (table === "pi_capacity_snapshots") snaps.push(row); return { error: null }; },
+      if (!["pi_supply_policies", "pi_capacity_snapshots", "pi_supply_alerts"].includes(table)) throw new Error(`unexpected supply table ${table}`);
+      let columns = "*", maximum = Infinity, ordering: { key: string; ascending: boolean } | null = null;
+      const filters: ((row: StoreRow) => boolean)[] = [];
+      const chain = {
+        select(value = "*") { columns = value; return chain; },
+        in(key: string, values: unknown[]) { filters.push(row => values.includes(row[key])); return chain; },
+        eq(key: string, value: unknown) { filters.push(row => row[key] === value); return chain; },
+        order(key: string, options?: { ascending?: boolean }) { ordering = { key, ascending: options?.ascending ?? true }; return chain; },
+        limit(value: number) { maximum = value; return chain; },
+        async insert(row: Snap) { writes.push(`${table}:${row.provider}`); if (table === "pi_capacity_snapshots") snaps.push({ ...row }); return { data: null, error: null }; },
+        async upsert(row: StoreRow) { if (!alerts.some(existing => existing.id === row.id)) alerts.push({ created_at: new Date(NOW).toISOString(), ...row }); return { data: null, error: null }; },
+        then(resolve: (value: { data: StoreRow[]; error: null }) => unknown) {
+          const source: StoreRow[] = table === "pi_supply_policies" ? policies : table === "pi_capacity_snapshots" ? snaps : table === "pi_supply_alerts" ? alerts : [];
+          const selected = source.filter(row => filters.every(filter => filter(row)));
+          if (ordering) { const { key, ascending } = ordering; selected.sort((a, b) => String(a[key]).localeCompare(String(b[key])) * (ascending ? 1 : -1)); }
+          const data = selected.slice(0, maximum).map(row => columns === "*" ? { ...row } : Object.fromEntries(columns.split(",").map(key => [key, row[key]])));
+          return Promise.resolve({ data, error: null }).then(resolve);
+        },
       };
+      return chain;
     },
     async rpc(name: string, args: { p_provider: string | null }) {
       if (name === "pi_supply_spend") return { data: args.p_provider ? (opts.spentToday?.[args.p_provider] ?? 0) : Object.values(opts.spentToday ?? {}).reduce((a, b) => a + b, 0), error: null };
@@ -127,7 +145,7 @@ test("D: billing API down or no credential → fail closed, UNKNOWN never become
   }
 });
 
-test("E: two productions checking concurrently refresh independently and never reserve", async () => {
+test("E: concurrent productions coalesce billing reads, independently check readiness and never reserve", async () => {
   const s = fakeSupply([{ provider: "elevenlabs", available: 17456, reliability: "provider_api", checked_at: at(358) }, { provider: "openai", available: 12.97, reliability: "manual_entry", checked_at: at(2000) },
     { provider: "runway", available: 5250, reliability: "provider_api", checked_at: at(358) }]);
   const [a, b] = await Promise.all([1, 2].map(() => ensureJobSupplyReady(s as unknown as SupabaseClient, gucciDemands(), { env, fetchImpl: billingFetch(BALANCES), now: () => NOW })));

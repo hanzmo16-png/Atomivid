@@ -3,7 +3,7 @@ on:
   workflow_dispatch: {}
   # Activates only when this workflow is merged into the default branch.
   schedule:
-    - cron: "17 * * * *"
+    - cron: "*/5 * * * *"
 permissions:
   contents: read
 concurrency:
@@ -12,14 +12,16 @@ concurrency:
 jobs:
   observe:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 4
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
       - name: Read billing endpoints and persist private monitoring evidence
-        run: node scripts/supply/observe.mjs
+        run: node --import tsx scripts/supply/monitor.ts
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
