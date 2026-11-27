@@ -5,7 +5,7 @@ export const GITHUB_OIDC_ISSUER = "https://token.actions.githubusercontent.com";
 export const GITHUB_OIDC_JWKS = `${GITHUB_OIDC_ISSUER}/.well-known/jwks`;
 const SKEW_S = 60;
 
-export type OidcPolicy = { repository: string; defaultBranch: string; environment: string; audience: string; workflows: readonly string[] };
+export type OidcPolicy = { repository: string; defaultBranch: string; environment: string; audience: string; workflows: readonly string[]; detachedDeploymentSha?: string };
 export type OidcResult = { ok: true; workflow: string; runId: string } | { ok: false; reason: string };
 type Jwk = JsonWebKey & { kid?: string; kty?: string; alg?: string };
 
@@ -32,18 +32,28 @@ export async function verifyGithubOidc(jwt: string, policy: OidcPolicy, jwks: ()
   if (!Number.isFinite(nbf) || nbf - SKEW_S > nowS || !Number.isFinite(iat) || iat - SKEW_S > nowS) return { ok: false, reason: "token aún no válido" };
   if (String(claims.repository ?? "").toLowerCase() !== policy.repository.toLowerCase()) return { ok: false, reason: "repositorio no permitido" };
   const ref = `refs/heads/${policy.defaultBranch}`;
-  if (claims.ref !== ref) return { ok: false, reason: "rama no permitida" };
+  // Opt-in only: a deployment event can execute the exact deployed commit without a branch ref.
+  // The caller must obtain this pin from trusted deployment configuration, never the request/JWT.
+  // Apply the pin even when the token also carries the ordinary default-branch reference.
+  const pinnedDeployment = claims.event_name === "deployment_status" && policy.detachedDeploymentSha !== undefined;
+  const pin = policy.detachedDeploymentSha;
+  if (pinnedDeployment && (typeof pin !== "string" || !/^[a-f0-9]{40}$/.test(pin) || claims.sha !== pin)) return { ok: false, reason: "commit de despliegue no permitido" };
+  if (claims.ref !== ref && !(pinnedDeployment && (claims.ref === undefined || claims.ref === "" || claims.ref === pin))) return { ok: false, reason: "rama no permitida" };
   if (claims.environment !== policy.environment) return { ok: false, reason: "el job no corre en el entorno protegido" };
   if (claims.event_name === "pull_request" || claims.event_name === "pull_request_target") return { ok: false, reason: "evento no permitido" };
   // orchestrator.yml and drive-oauth.yml run ordinary jobs (steps, no `uses:` of a reusable workflow). GitHub's OIDC
   // reference: `workflow_ref` = "the ref path to the workflow" (<owner>/<repo>/.github/workflows/<file>@<ref>);
   // `job_workflow_ref` exists "for jobs using a reusable workflow". So the allowed file is checked on workflow_ref.
-  const wr = String(claims.workflow_ref ?? "");
-  const workflow = policy.workflows.find((w) => wr.toLowerCase() === `${policy.repository}/.github/workflows/${w}@${ref}`.toLowerCase());
+  const wr = typeof claims.workflow_ref === "string" ? claims.workflow_ref : "";
+  const workflow = policy.workflows.find((w) => {
+    const prefix = `${policy.repository}/.github/workflows/${w}@`;
+    return wr.toLowerCase() === `${prefix}${ref}`.toLowerCase()
+      || (pinnedDeployment && wr.toLowerCase() === `${prefix}${pin}`.toLowerCase());
+  });
   if (!workflow) return { ok: false, reason: "workflow no permitido" };
   // No reusable workflows: if a job_workflow_ref is present it must be that same workflow. A job of an allowed workflow
   // that calls a reusable workflow (here or in another repository) runs code that is not one of the two files: refused.
-  if (claims.job_workflow_ref !== undefined && String(claims.job_workflow_ref).toLowerCase() !== wr.toLowerCase()) return { ok: false, reason: "workflow reutilizable no permitido" };
+  if (claims.job_workflow_ref !== undefined && (typeof claims.job_workflow_ref !== "string" || claims.job_workflow_ref.toLowerCase() !== wr.toLowerCase())) return { ok: false, reason: "workflow reutilizable no permitido" };
   return { ok: true, workflow, runId: String(claims.run_id ?? "") };
 }
 

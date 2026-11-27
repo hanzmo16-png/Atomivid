@@ -7,6 +7,14 @@ export const SENTINEL_READINESS_POLICY: OidcPolicy = {
   repository: "hanzmo16-png/Atomivid", defaultBranch: "claude/atomivid-mvp-setup-0079jv",
   environment: "Preview", audience: SENTINEL_READINESS_AUDIENCE, workflows: ["mystery-shopper.yml"],
 };
+/** Only the amount-free observer opts in. Drive and other callers keep strict branch checks.
+ * Both values are Vercel's server deployment metadata, not caller-supplied claims/headers. */
+export function sentinelReadinessPolicy(env: Record<string, string | undefined>): OidcPolicy {
+  const sha = env.VERCEL_GIT_COMMIT_SHA;
+  return env.VERCEL_ENV === "production" && typeof sha === "string" && /^[a-f0-9]{40}$/.test(sha)
+    ? { ...SENTINEL_READINESS_POLICY, detachedDeploymentSha: sha }
+    : SENTINEL_READINESS_POLICY;
+}
 type Observation = Awaited<ReturnType<typeof readResourceSentinel>>;
 export function qualityReadiness(data: Observation) {
   return { version: "resource-sentinel-readiness/1", observedAt: data.observedAt,
@@ -26,7 +34,7 @@ export async function qualityReadinessResponse(request: Request, deps: {
   const headers = { "Cache-Control": "private, no-store, max-age=0", Vary: "Authorization" };
   const jwt = bearer(request.headers.get("authorization"));
   if (!jwt) return Response.json({ error: "unauthenticated" }, { status: 401, headers });
-  const verified = await verifyGithubOidc(jwt, SENTINEL_READINESS_POLICY,
+  const verified = await verifyGithubOidc(jwt, sentinelReadinessPolicy(process.env),
     deps.jwks ?? (async () => (await fetch(GITHUB_OIDC_JWKS, { cache: "no-store", signal: AbortSignal.timeout(5000) })).json()), deps.nowS);
   if (!verified.ok) return Response.json({ error: "forbidden" }, { status: 403, headers });
   try { return Response.json(qualityReadiness(await deps.read()), { headers }); }
