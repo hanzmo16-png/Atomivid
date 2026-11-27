@@ -17,7 +17,7 @@ import { CommandCenterView } from "./CommandCenterView";
 import { SupplyAlertsView } from "./SupplyAlertsView";
 import { loadSupplyInbox } from "@/lib/command-center/supply-alerts";
 import { ConnectDrivePanel } from "./ConnectDrivePanel";
-import { readSentinelSnapshot, type SentinelDb } from "@/lib/command-center/sentinel/read";
+import { commandCenterSentinelSource } from "@/lib/supply/command-center-source";
 import { buildSentinelView, stamp } from "@/lib/command-center/sentinel/view";
 import { aqlCard, aqlSummaryOf } from "@/lib/command-center/sentinel/aql";
 import { GitHubQueueStore } from "@/lib/mystery-shopper/quality-loop/github-store";
@@ -46,7 +46,8 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
     service.section(user, "overview", window), loadSupplyInbox(user, client),
     readSupplyOverview(client).catch(() => null), readObligationOverview(client).catch(() => null),
     driveConnectionStatus(supabaseDriveConnectionStore(client)),
-    readSentinelSnapshot(client as unknown as SentinelDb).catch(() => null),
+    // Fuente única: el motor de Codex (#338). Si la lectura falla, el panel muestra «No se pudo leer…» y no autoriza gasto.
+    commandCenterSentinelSource({ user, service: () => client }).read().catch(() => null),
     // Estado del bucle de calidad: solo lectura en el servidor (sin tokens de reclamo); si falla, «Desconocido».
     new GitHubQueueStore("hanzmo16-png/Atomivid", process.env.GH_WORKER_TOKEN).read().then((r) => aqlSummaryOf(r.state, new Date().toISOString())).catch(() => null),
   ]);
