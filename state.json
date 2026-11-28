@@ -1,12 +1,8 @@
 {
   "version": "quality-loop/1",
   "enabled": true,
-  "updatedAt": "2026-11-28T05:55:44.127Z",
-  "lease": {
-    "cycleId": "deployment-8125300712-3a6c286bd7853283ef1229996949f8223ab591b9",
-    "token": "c28422a7-8601-48b9-bb42-2bee4baee830",
-    "expiresAt": "2026-11-28T06:15:44.127Z"
-  },
+  "updatedAt": "2026-11-28T05:56:29.611Z",
+  "lease": null,
   "cycles": [
     {
       "id": "manual-45886485209",
@@ -22012,6 +22008,822 @@
         }
       ],
       "spendUsd": 0
+    },
+    {
+      "id": "deployment-8125300712-3a6c286bd7853283ef1229996949f8223ab591b9",
+      "trigger": "deployment_status",
+      "runnerSha": "3a6c286bd7853283ef1229996949f8223ab591b9",
+      "url": "https://github.com/hanzmo16-png/Atomivid/actions/runs/46114198283",
+      "scope": "authenticated-readonly",
+      "startedAt": "2026-11-28T05:55:45.630Z",
+      "finishedAt": "2026-11-28T05:56:29.611Z",
+      "sha": "3a6c286bd7853283ef1229996949f8223ab591b9",
+      "authenticated": true,
+      "sentinel": "READ",
+      "checks": [
+        {
+          "id": "inspection-readonly-capability",
+          "product": "account-nav",
+          "state": "PASS",
+          "severity": "P0",
+          "owner": "codex",
+          "module": "safety",
+          "detail": "Backend advertises audited housekeeping opt-out; existing authentication and ownership remain required"
+        },
+        {
+          "id": "anonymous-Portada",
+          "product": "account-nav",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "permissions",
+          "detail": "Portada: HTTP 200"
+        },
+        {
+          "id": "anonymous-Login",
+          "product": "account-nav",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "permissions",
+          "detail": "Login: HTTP 200"
+        },
+        {
+          "id": "anonymous-Registro",
+          "product": "account-nav",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "permissions",
+          "detail": "Registro: HTTP 200"
+        },
+        {
+          "id": "anonymous-Panel sin sesión pide login",
+          "product": "account-nav",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "permissions",
+          "detail": "Panel sin sesión pide login: HTTP 307"
+        },
+        {
+          "id": "anonymous-Audio Studio sin sesión pide login",
+          "product": "account-nav",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "permissions",
+          "detail": "Audio Studio sin sesión pide login: HTTP 307"
+        },
+        {
+          "id": "anonymous-Podcast sin sesión pide login",
+          "product": "account-nav",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "permissions",
+          "detail": "Podcast sin sesión pide login: HTTP 307"
+        },
+        {
+          "id": "anonymous-Reels sin sesión pide login",
+          "product": "account-nav",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "permissions",
+          "detail": "Reels sin sesión pide login: HTTP 307"
+        },
+        {
+          "id": "anonymous-Long Form sin sesión pide login",
+          "product": "account-nav",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "permissions",
+          "detail": "Long Form sin sesión pide login: HTTP 307"
+        },
+        {
+          "id": "anonymous-Command Center sin sesión pide login",
+          "product": "account-nav",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "permissions",
+          "detail": "Command Center sin sesión pide login: HTTP 307"
+        },
+        {
+          "id": "anonymous-API admin cerrada sin sesión",
+          "product": "account-nav",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "permissions",
+          "detail": "API admin cerrada sin sesión: HTTP 401"
+        },
+        {
+          "id": "qa-auth",
+          "product": "account-nav",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "auth",
+          "detail": "Fresh QA browser login confirmed"
+        },
+        {
+          "id": "deployed-sha",
+          "product": "account-nav",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "deployment",
+          "detail": "SHA returned by the evaluated application"
+        },
+        {
+          "id": "sentinel-read",
+          "product": "command-center",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "sentinel",
+          "detail": "Existing Resource Sentinel read successfully; private balances omitted"
+        },
+        {
+          "id": "provider-readiness",
+          "product": "youtube",
+          "state": "BLOCKED",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "sentinel",
+          "detail": "Resource evidence unverified: ADMISSION_UNVERIFIED_OR_REFUSED, BALANCE_ESTIMATED, BALANCE_STALE, CROSS_PRODUCT_LEDGER_UNVERIFIED, FREE_CAPACITY_UNKNOWN, OBSERVATION_MISSING, WORKER_CAPACITY_UNVERIFIED_OR_UNAVAILABLE; no provider calls made"
+        },
+        {
+          "id": "provider-readiness",
+          "product": "reels",
+          "state": "BLOCKED",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "sentinel",
+          "detail": "Resource evidence unverified: ADMISSION_UNVERIFIED_OR_REFUSED, BALANCE_ESTIMATED, BALANCE_STALE, CROSS_PRODUCT_LEDGER_UNVERIFIED, FREE_CAPACITY_UNKNOWN, OBSERVATION_MISSING, WORKER_CAPACITY_UNVERIFIED_OR_UNAVAILABLE; no provider calls made"
+        },
+        {
+          "id": "provider-readiness",
+          "product": "audio-podcast",
+          "state": "BLOCKED",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "sentinel",
+          "detail": "Resource evidence unverified: ADMISSION_UNVERIFIED_OR_REFUSED, BALANCE_ESTIMATED, BALANCE_STALE, CROSS_PRODUCT_LEDGER_UNVERIFIED, FREE_CAPACITY_UNKNOWN, OBSERVATION_MISSING, WORKER_CAPACITY_UNVERIFIED_OR_UNAVAILABLE, WORKER_COVERAGE_UNVERIFIED; no provider calls made"
+        },
+        {
+          "id": "provider-readiness",
+          "product": "video-podcast",
+          "state": "BLOCKED",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "sentinel",
+          "detail": "Resource evidence unverified: ADMISSION_UNVERIFIED_OR_REFUSED, BALANCE_STALE, CROSS_PRODUCT_LEDGER_UNVERIFIED, FREE_CAPACITY_UNKNOWN, OBSERVATION_MISSING, WORKER_CAPACITY_UNVERIFIED_OR_UNAVAILABLE, WORKER_COVERAGE_UNVERIFIED; no provider calls made"
+        },
+        {
+          "id": "route-youtube-412",
+          "product": "youtube",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "navigation",
+          "detail": "Route /dashboard/long-form/new: HTTP 200; authenticated=true"
+        },
+        {
+          "id": "layout-youtube-412",
+          "product": "youtube",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "claude",
+          "module": "ui",
+          "detail": "overflow=0px; unlabeled=0; targets<44=0"
+        },
+        {
+          "id": "progress-youtube-412",
+          "product": "youtube",
+          "state": "SKIP",
+          "severity": "P2",
+          "owner": "codex",
+          "module": "progress",
+          "detail": "No active job shown; no generation or recovery started"
+        },
+        {
+          "id": "configuration-youtube-412",
+          "product": "youtube",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "claude",
+          "module": "ui",
+          "detail": "Configuration controls visible; language/voice changes that persist are reserved for isolated tests"
+        },
+        {
+          "id": "route-reels-412",
+          "product": "reels",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "navigation",
+          "detail": "Route /dashboard/new: HTTP 200; authenticated=true"
+        },
+        {
+          "id": "layout-reels-412",
+          "product": "reels",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "claude",
+          "module": "ui",
+          "detail": "overflow=0px; unlabeled=0; targets<44=2"
+        },
+        {
+          "id": "progress-reels-412",
+          "product": "reels",
+          "state": "SKIP",
+          "severity": "P2",
+          "owner": "codex",
+          "module": "progress",
+          "detail": "No active job shown; no generation or recovery started"
+        },
+        {
+          "id": "controls-reels-412",
+          "product": "reels",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "claude",
+          "module": "ui",
+          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duración deseada=present"
+        },
+        {
+          "id": "route-audio-podcast-412",
+          "product": "audio-podcast",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "navigation",
+          "detail": "Route /dashboard/audio-studio: HTTP 200; authenticated=true"
+        },
+        {
+          "id": "layout-audio-podcast-412",
+          "product": "audio-podcast",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "claude",
+          "module": "ui",
+          "detail": "overflow=0px; unlabeled=0; targets<44=2"
+        },
+        {
+          "id": "progress-audio-podcast-412",
+          "product": "audio-podcast",
+          "state": "SKIP",
+          "severity": "P2",
+          "owner": "codex",
+          "module": "progress",
+          "detail": "No active job shown; no generation or recovery started"
+        },
+        {
+          "id": "configuration-audio-podcast-412",
+          "product": "audio-podcast",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "claude",
+          "module": "ui",
+          "detail": "Configuration controls visible; language/voice changes that persist are reserved for isolated tests"
+        },
+        {
+          "id": "player-visible-audio-podcast-412",
+          "product": "audio-podcast",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "delivery",
+          "detail": "Existing media element observed; no new production"
+        },
+        {
+          "id": "route-video-podcast-412",
+          "product": "video-podcast",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "navigation",
+          "detail": "Route /dashboard/podcast: HTTP 200; authenticated=true"
+        },
+        {
+          "id": "layout-video-podcast-412",
+          "product": "video-podcast",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "claude",
+          "module": "ui",
+          "detail": "overflow=0px; unlabeled=0; targets<44=9"
+        },
+        {
+          "id": "progress-video-podcast-412",
+          "product": "video-podcast",
+          "state": "SKIP",
+          "severity": "P2",
+          "owner": "codex",
+          "module": "progress",
+          "detail": "No active job shown; no generation or recovery started"
+        },
+        {
+          "id": "controls-video-podcast-412",
+          "product": "video-podcast",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "claude",
+          "module": "ui",
+          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narración con imágenes=present; Presentador con avatar=present; Conversación con avatares=present; Pasos=present"
+        },
+        {
+          "id": "player-visible-video-podcast-412",
+          "product": "video-podcast",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "delivery",
+          "detail": "Existing media element observed; no new production"
+        },
+        {
+          "id": "route-library-412",
+          "product": "account-nav",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "navigation",
+          "detail": "Route /dashboard: HTTP 200; authenticated=true"
+        },
+        {
+          "id": "layout-library-412",
+          "product": "account-nav",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "claude",
+          "module": "ui",
+          "detail": "overflow=0px; unlabeled=0; targets<44=5"
+        },
+        {
+          "id": "progress-library-412",
+          "product": "account-nav",
+          "state": "SKIP",
+          "severity": "P2",
+          "owner": "codex",
+          "module": "progress",
+          "detail": "No active job shown; no generation or recovery started"
+        },
+        {
+          "id": "route-commercial-412",
+          "product": "commercial",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "navigation",
+          "detail": "Route /dashboard/billing: HTTP 200; authenticated=true"
+        },
+        {
+          "id": "layout-commercial-412",
+          "product": "commercial",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "claude",
+          "module": "ui",
+          "detail": "overflow=0px; unlabeled=0; targets<44=1"
+        },
+        {
+          "id": "progress-commercial-412",
+          "product": "commercial",
+          "state": "SKIP",
+          "severity": "P2",
+          "owner": "codex",
+          "module": "progress",
+          "detail": "No active job shown; no generation or recovery started"
+        },
+        {
+          "id": "route-youtube-1440",
+          "product": "youtube",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "navigation",
+          "detail": "Route /dashboard/long-form/new: HTTP 200; authenticated=true"
+        },
+        {
+          "id": "layout-youtube-1440",
+          "product": "youtube",
+          "state": "PASS",
+          "severity": "P2",
+          "owner": "claude",
+          "module": "ui",
+          "detail": "overflow=0px; unlabeled=0; targets<44=7"
+        },
+        {
+          "id": "progress-youtube-1440",
+          "product": "youtube",
+          "state": "SKIP",
+          "severity": "P2",
+          "owner": "codex",
+          "module": "progress",
+          "detail": "No active job shown; no generation or recovery started"
+        },
+        {
+          "id": "configuration-youtube-1440",
+          "product": "youtube",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "claude",
+          "module": "ui",
+          "detail": "Configuration controls visible; language/voice changes that persist are reserved for isolated tests"
+        },
+        {
+          "id": "route-reels-1440",
+          "product": "reels",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "navigation",
+          "detail": "Route /dashboard/new: HTTP 200; authenticated=true"
+        },
+        {
+          "id": "layout-reels-1440",
+          "product": "reels",
+          "state": "PASS",
+          "severity": "P2",
+          "owner": "claude",
+          "module": "ui",
+          "detail": "overflow=0px; unlabeled=0; targets<44=9"
+        },
+        {
+          "id": "progress-reels-1440",
+          "product": "reels",
+          "state": "SKIP",
+          "severity": "P2",
+          "owner": "codex",
+          "module": "progress",
+          "detail": "No active job shown; no generation or recovery started"
+        },
+        {
+          "id": "controls-reels-1440",
+          "product": "reels",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "claude",
+          "module": "ui",
+          "detail": "Readonly controls: Generar nuevo video=present; Reel=present; Tema o instrucciones=present; Duración deseada=present"
+        },
+        {
+          "id": "route-audio-podcast-1440",
+          "product": "audio-podcast",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "navigation",
+          "detail": "Route /dashboard/audio-studio: HTTP 200; authenticated=true"
+        },
+        {
+          "id": "layout-audio-podcast-1440",
+          "product": "audio-podcast",
+          "state": "PASS",
+          "severity": "P2",
+          "owner": "claude",
+          "module": "ui",
+          "detail": "overflow=0px; unlabeled=0; targets<44=8"
+        },
+        {
+          "id": "progress-audio-podcast-1440",
+          "product": "audio-podcast",
+          "state": "SKIP",
+          "severity": "P2",
+          "owner": "codex",
+          "module": "progress",
+          "detail": "No active job shown; no generation or recovery started"
+        },
+        {
+          "id": "configuration-audio-podcast-1440",
+          "product": "audio-podcast",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "claude",
+          "module": "ui",
+          "detail": "Configuration controls visible; language/voice changes that persist are reserved for isolated tests"
+        },
+        {
+          "id": "player-visible-audio-podcast-1440",
+          "product": "audio-podcast",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "delivery",
+          "detail": "Existing media element observed; no new production"
+        },
+        {
+          "id": "route-video-podcast-1440",
+          "product": "video-podcast",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "navigation",
+          "detail": "Route /dashboard/podcast: HTTP 200; authenticated=true"
+        },
+        {
+          "id": "layout-video-podcast-1440",
+          "product": "video-podcast",
+          "state": "PASS",
+          "severity": "P2",
+          "owner": "claude",
+          "module": "ui",
+          "detail": "overflow=0px; unlabeled=0; targets<44=20"
+        },
+        {
+          "id": "progress-video-podcast-1440",
+          "product": "video-podcast",
+          "state": "SKIP",
+          "severity": "P2",
+          "owner": "codex",
+          "module": "progress",
+          "detail": "No active job shown; no generation or recovery started"
+        },
+        {
+          "id": "controls-video-podcast-1440",
+          "product": "video-podcast",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "claude",
+          "module": "ui",
+          "detail": "Readonly controls: Podcast Studio=present; Asistente hidratado=present; Narración con imágenes=present; Presentador con avatar=present; Conversación con avatares=present; Pasos=present"
+        },
+        {
+          "id": "player-visible-video-podcast-1440",
+          "product": "video-podcast",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "delivery",
+          "detail": "Existing media element observed; no new production"
+        },
+        {
+          "id": "route-library-1440",
+          "product": "account-nav",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "navigation",
+          "detail": "Route /dashboard: HTTP 200; authenticated=true"
+        },
+        {
+          "id": "layout-library-1440",
+          "product": "account-nav",
+          "state": "PASS",
+          "severity": "P2",
+          "owner": "claude",
+          "module": "ui",
+          "detail": "overflow=0px; unlabeled=0; targets<44=10"
+        },
+        {
+          "id": "progress-library-1440",
+          "product": "account-nav",
+          "state": "SKIP",
+          "severity": "P2",
+          "owner": "codex",
+          "module": "progress",
+          "detail": "No active job shown; no generation or recovery started"
+        },
+        {
+          "id": "route-commercial-1440",
+          "product": "commercial",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "navigation",
+          "detail": "Route /dashboard/billing: HTTP 200; authenticated=true"
+        },
+        {
+          "id": "layout-commercial-1440",
+          "product": "commercial",
+          "state": "PASS",
+          "severity": "P2",
+          "owner": "claude",
+          "module": "ui",
+          "detail": "overflow=0px; unlabeled=0; targets<44=5"
+        },
+        {
+          "id": "progress-commercial-1440",
+          "product": "commercial",
+          "state": "SKIP",
+          "severity": "P2",
+          "owner": "codex",
+          "module": "progress",
+          "detail": "No active job shown; no generation or recovery started"
+        },
+        {
+          "id": "download-sample",
+          "product": "youtube",
+          "state": "BLOCKED",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "delivery",
+          "detail": "Recurring production media payload read not executed: free egress quota unverified; isolated fixtures remain available"
+        },
+        {
+          "id": "playback-sample",
+          "product": "youtube",
+          "state": "BLOCKED",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "delivery",
+          "detail": "Recurring production media payload read not executed: free egress quota unverified; isolated fixtures remain available"
+        },
+        {
+          "id": "full-file-integrity",
+          "product": "youtube",
+          "state": "BLOCKED",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "delivery",
+          "detail": "Recurring production media payload read not executed: free egress quota unverified; isolated fixtures remain available"
+        },
+        {
+          "id": "player-visible-youtube-412",
+          "product": "youtube",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "delivery",
+          "detail": "Visible delivered player on existing owner result page; no media payload read"
+        },
+        {
+          "id": "player-visible-youtube-1440",
+          "product": "youtube",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "delivery",
+          "detail": "Visible delivered player on existing owner result page; no media payload read"
+        },
+        {
+          "id": "download-sample",
+          "product": "reels",
+          "state": "BLOCKED",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "delivery",
+          "detail": "Recurring production media payload read not executed: free egress quota unverified; isolated fixtures remain available"
+        },
+        {
+          "id": "playback-sample",
+          "product": "reels",
+          "state": "BLOCKED",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "delivery",
+          "detail": "Recurring production media payload read not executed: free egress quota unverified; isolated fixtures remain available"
+        },
+        {
+          "id": "full-file-integrity",
+          "product": "reels",
+          "state": "BLOCKED",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "delivery",
+          "detail": "Recurring production media payload read not executed: free egress quota unverified; isolated fixtures remain available"
+        },
+        {
+          "id": "player-visible-reels-412",
+          "product": "reels",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "delivery",
+          "detail": "Visible delivered player on existing owner result page; no media payload read"
+        },
+        {
+          "id": "player-visible-reels-1440",
+          "product": "reels",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "delivery",
+          "detail": "Visible delivered player on existing owner result page; no media payload read"
+        },
+        {
+          "id": "download-sample",
+          "product": "audio-podcast",
+          "state": "BLOCKED",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "delivery",
+          "detail": "Recurring production media payload read not executed: free egress quota unverified; isolated fixtures remain available"
+        },
+        {
+          "id": "playback-sample",
+          "product": "audio-podcast",
+          "state": "BLOCKED",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "delivery",
+          "detail": "Recurring production media payload read not executed: free egress quota unverified; isolated fixtures remain available"
+        },
+        {
+          "id": "full-file-integrity",
+          "product": "audio-podcast",
+          "state": "BLOCKED",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "delivery",
+          "detail": "Recurring production media payload read not executed: free egress quota unverified; isolated fixtures remain available"
+        },
+        {
+          "id": "download-sample",
+          "product": "video-podcast",
+          "state": "BLOCKED",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "delivery",
+          "detail": "Recurring production media payload read not executed: free egress quota unverified; isolated fixtures remain available"
+        },
+        {
+          "id": "playback-sample",
+          "product": "video-podcast",
+          "state": "BLOCKED",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "delivery",
+          "detail": "Recurring production media payload read not executed: free egress quota unverified; isolated fixtures remain available"
+        },
+        {
+          "id": "full-file-integrity",
+          "product": "video-podcast",
+          "state": "BLOCKED",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "delivery",
+          "detail": "Recurring production media payload read not executed: free egress quota unverified; isolated fixtures remain available"
+        },
+        {
+          "id": "registration-confirmation",
+          "product": "account-nav",
+          "state": "BLOCKED",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "isolated-fixture",
+          "detail": "Mutating flow restricted to isolated environment; periodic production run does not execute it"
+        },
+        {
+          "id": "checkout-test",
+          "product": "commercial",
+          "state": "BLOCKED",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "isolated-fixture",
+          "detail": "Mutating flow restricted to isolated environment; periodic production run does not execute it"
+        },
+        {
+          "id": "subscription-mutation",
+          "product": "commercial",
+          "state": "BLOCKED",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "isolated-fixture",
+          "detail": "Mutating flow restricted to isolated environment; periodic production run does not execute it"
+        },
+        {
+          "id": "job-recovery",
+          "product": "account-nav",
+          "state": "BLOCKED",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "isolated-fixture",
+          "detail": "Mutating flow restricted to isolated environment; periodic production run does not execute it"
+        },
+        {
+          "id": "logout-action",
+          "product": "account-nav",
+          "state": "BLOCKED",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "isolated-fixture",
+          "detail": "Mutating flow restricted to isolated environment; periodic production run does not execute it"
+        },
+        {
+          "id": "deployment-sha-stability",
+          "product": "account-nav",
+          "state": "PASS",
+          "severity": "P1",
+          "owner": "codex",
+          "module": "deployment",
+          "detail": "Application SHA stable before and after the traversal"
+        },
+        {
+          "id": "read-only-boundary",
+          "product": "account-nav",
+          "state": "PASS",
+          "severity": "P0",
+          "owner": "codex",
+          "module": "safety",
+          "detail": "Default-deny request guard active; 99 requests blocked; zero generation/checkout dispatches; audited dashboard/result housekeeping opt-out requested"
+        }
+      ],
+      "spendUsd": 0
     }
   ],
   "defects": [
@@ -22341,6 +23153,10 @@
     {
       "at": "2026-11-28T05:55:44.127Z",
       "text": "Cycle deployment-8125300712-3a6c286bd7853283ef1229996949f8223ab591b9 claimed"
+    },
+    {
+      "at": "2026-11-28T05:56:29.611Z",
+      "text": "Completed deployment-8125300712-3a6c286bd7853283ef1229996949f8223ab591b9"
     }
   ],
   "lastAlert": "b240db1c4b491037edfe372c78b988be06dbc8f2720cfe0ed637b46d2e2e8f58",
