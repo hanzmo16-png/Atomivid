@@ -168,13 +168,13 @@ function PlanCard({ plan }: { plan: PlanConfig }) {
 
         {isPlanPurchasable(plan.id) ? (
           <form action={createCheckoutSessionForPlan} className="mt-6">
-            <Button type="submit" className="w-full">
+            <Button type="submit" className="min-h-11 w-full">
               Elegir {plan.name}
             </Button>
           </form>
         ) : (
           <div className="mt-6">
-            <Button type="button" className="w-full" disabled>
+            <Button type="button" className="min-h-11 w-full" disabled>
               Pagos aún no habilitados
             </Button>
             <p className="mt-2 text-xs text-ink-faint">Todavía no aceptamos pagos para este plan. No se te cobrará nada.</p>

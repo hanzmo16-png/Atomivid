@@ -214,7 +214,7 @@ export default async function DashboardPage({
             }
             title="Todavía no has creado ningún contenido"
             description="Crea tu primera solicitud y podrás seguir su progreso desde aquí."
-            action={<LinkButton href="/dashboard#crear">Crear contenido</LinkButton>}
+            action={<LinkButton href="/dashboard#crear" className="min-h-11">Crear contenido</LinkButton>}
           />
         </div>
       )) : (() => {
