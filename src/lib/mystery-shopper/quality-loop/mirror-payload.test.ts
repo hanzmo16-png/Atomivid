@@ -34,6 +34,15 @@ test('legacy raw mirror leaks claim fields; explicit report excludes them withou
   assert.equal(dto.schema, 'quality-loop-private-report/2'); assert.equal(dto.notFullQueueBackup, true);
   assert.equal(dto.sourceStamp, mirrorSource(q));
 });
+test('short or empty private claim metadata refuses export before sanitizer minimum-length exemptions', () => {
+  for (const field of ['actor', 'token'] as const) for (const value of ['', 'Q', 'QA', 'ops']) {
+    const q = fixture(); q.defects[0].claim![field] = value;
+    q.cycles[0].checks[0].detail = `Private metadata ${value}`;
+    const before = JSON.stringify(q);
+    assert.throws(() => mirrorReport(q, SHA, AT), /MIRROR_EXPORT_INVALID/);
+    assert.equal(JSON.stringify(q), before);
+  }
+});
 test('all retained completions and original negative counts survive, not just the latest cycle', () => {
   const q = fixture(), dto = JSON.parse(mirrorReport(q, SHA, AT));
   assert.deepEqual(dto.cycles, q.cycles); assert.equal(dto.cycles.length, 2);

@@ -27,6 +27,13 @@ export const isMirrorSourceChanged = (error: unknown): boolean =>
  * Explicit DTO fields prevent future Queue additions from leaking capabilities. */
 export function mirrorReport(q: Queue, revision: string | null, at: string): string {
   const sourceStamp = mirrorSource(q);
+  // The shared sanitizer intentionally ignores secrets shorter than four chars.
+  // Do not export an ambiguous report for claim metadata it cannot redact.
+  for (const d of q.defects) if (d.claim) {
+    for (const value of [d.claim.token, d.claim.actor]) {
+      if (typeof value !== 'string' || value.length < 4) throw new Error('MIRROR_EXPORT_INVALID');
+    }
+  }
   const secrets = [q.lease?.token, ...q.defects.map(d => d.claim?.token)].filter((v): v is string => typeof v === 'string');
   const diagnosticSecrets = [...secrets, ...q.defects.map(d => d.claim?.actor)].filter((v): v is string => typeof v === 'string');
   const text = (value: string): string => {
