@@ -8,6 +8,7 @@ export function mirrorSource(q: Queue): string {
   if (q.lease) throw new Error('MIRROR_SOURCE_CHANGED');
   return createHash('sha256').update(JSON.stringify({
     enabled: q.enabled, updatedAt: q.updatedAt, cycle: q.cycles.at(-1) ?? null,
+    activity: q.activity, lastAlert: q.lastAlert,
   })).digest('hex');
 }
 

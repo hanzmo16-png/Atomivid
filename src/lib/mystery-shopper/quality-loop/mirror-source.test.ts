@@ -53,3 +53,13 @@ test('own handoff driveId receipt does not invalidate the unchanged completed so
  await update(s,q=>{assertMirrorSource(q,source);q.defects[0].driveId='synthetic-drive-receipt';});
  await mark(s,source);assert.equal(s.state.mirror.state,'VERIFIED');assert.equal(s.state.defects[0].driveId,'synthetic-drive-receipt');
 });
+test('STOP and restart cannot hide behind an unchanged wall-clock timestamp',async()=>{
+ const s=new Memory(),source=mirrorSource(s.state);
+ s.state.enabled=false;event(s.state,AT,'STOP');s.state.enabled=true;event(s.state,AT,'START');s.revision++;
+ await assert.rejects(mark(s,source),/MIRROR_SOURCE_CHANGED/);
+});
+test('alert deduplication changes without a new cycle also fence the receipt',async()=>{
+ const s=new Memory();s.state.lastAlert='previous-signature';const source=mirrorSource(s.state);
+ s.state.lastAlert='new-signature';s.revision++;const before=structuredClone(s.state);
+ await assert.rejects(mark(s,source),/MIRROR_SOURCE_CHANGED/);assert.deepEqual(s.state,before);
+});
