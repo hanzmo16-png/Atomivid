@@ -208,8 +208,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           OUT: ${{ runner.temp }}/quality-loop
+          AQL_TRIGGER: ${{ github.event_name }}
+          AQL_EXPECTED_SHA: ${{ github.event.deployment.sha }}
+          AQL_DEPLOYMENT_ID: ${{ github.event.deployment.id }}
         run: |
-          if [[ ! -f "$OUT/cycle.json" ]]; then
+          alert_status=0
+          node scripts/mystery-shopper/quality-loop/interruption-alert.mjs || alert_status=$?
+          if [[ "$alert_status" != 10 ]]; then
             gh api --method POST "repos/$GITHUB_REPOSITORY/issues/320/comments" -f "body=Quality Loop: ejecución interrumpida o preflight bloqueado. Revisar $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID. No se declara evaluación completada ni activación de agente externo."
           fi
       # Periodic results persist in the CAS state branch and private Drive, without recurring artifact storage.
@@ -278,6 +283,7 @@ jobs:
           AQL_EVIDENCE_DIR: ${{ runner.temp }}/quality-loop-fixtures
         run: |
           node scripts/mystery-shopper/quality-loop/workflow-mirror.test.mjs
+          node --test scripts/mystery-shopper/quality-loop/interruption-alert.test.mjs
           node --import tsx --test src/lib/mystery-shopper/quality-loop/*.test.ts
           npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.49.1
           npx playwright install --with-deps chromium
