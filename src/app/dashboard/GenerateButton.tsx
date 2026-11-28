@@ -76,7 +76,7 @@ export function GenerateButton({
   return (
     <div className="flex flex-col items-end gap-1.5">
       {!supportHold && (
-        <Button type="button" size="sm" onClick={handleClick} loading={loading}>
+        <Button type="button" size="sm" className="min-h-11" onClick={handleClick} loading={loading}>
           {loading ? "Generando…" : label}
         </Button>
       )}
@@ -97,7 +97,7 @@ export function GenerateButton({
       )}
       {error && <p className="max-w-[220px] text-right text-xs text-danger">{error}</p>}
       {needsSubscription && (
-        <Link href="/dashboard/billing" className="text-right text-xs font-medium text-accent hover:text-accent-hover">
+        <Link href="/dashboard/billing" className="inline-flex min-h-11 items-center justify-end text-right text-xs font-medium text-accent hover:text-accent-hover">
           Ver planes
         </Link>
       )}
