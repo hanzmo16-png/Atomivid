@@ -41,12 +41,12 @@ export function CancelReelButton({ requestId }: { requestId: string }) {
         <>
           <p className="text-xs text-ink-muted">¿Cancelar? No se envía ningún cobro nuevo; podrás reintentar después.</p>
           <div className="flex gap-2">
-            <Button type="button" size="sm" variant="danger" onClick={cancel} loading={loading}>Sí, cancelar</Button>
-            <Button type="button" size="sm" variant="ghost" onClick={() => setConfirming(false)} disabled={loading}>Seguir produciendo</Button>
+            <Button type="button" size="sm" variant="danger" className="min-h-11" onClick={cancel} loading={loading}>Sí, cancelar</Button>
+            <Button type="button" size="sm" variant="ghost" className="min-h-11" onClick={() => setConfirming(false)} disabled={loading}>Seguir produciendo</Button>
           </div>
         </>
       ) : (
-        <Button type="button" size="sm" variant="secondary" onClick={() => setConfirming(true)}>Cancelar producción</Button>
+        <Button type="button" size="sm" variant="secondary" className="min-h-11" onClick={() => setConfirming(true)}>Cancelar producción</Button>
       )}
       {error && <p className="max-w-[260px] text-center text-xs text-danger">{error}</p>}
     </div>
