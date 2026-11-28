@@ -31,6 +31,7 @@ from podcast_editor import storage as stg  # noqa: E402
 from podcast_editor.storage import sha256_file, episode_prefix  # noqa: E402
 from podcast_editor.schema import validate_manifest  # noqa: E402
 from podcast_editor.subs import SubtitleTrack, header as ass_header, ass_time, ass_escape  # noqa: E402
+from podcast_editor import overlays  # noqa: E402
 
 EDITOR_VERSION = "0.3.0"
 SCHEMA = "podcast-editor/montaje@2"
@@ -330,6 +331,8 @@ class Plan:
             if self.subs_cfg.get("mode", "burn") not in ("burn", "mux", "sidecar"):
                 self.err("subtitles.mode must be burn|mux|sidecar")
         self.chapters = m.get("chapters") or []
+        for e in overlays.cfg_errors(m.get("labels"), self.segments):
+            self.err(e)
         if self.premixed:
             src = self.audio.get("source")
             if need_file(src, "audio.source") and self.files[src].get("role") not in (None, "mezcla_final", "premix"):
@@ -608,6 +611,10 @@ class Editor:
         self.subs = None
         if plan.subs_cfg:
             self.subs = SubtitleTrack(plan.subs_cfg, plan.path_of(plan.subs_cfg["source"]))
+            # SRT/verification cues never outlast the programme (e.g. a +0.1 s word tail past the last frame).
+            self.subs.cues = overlays.clip_cues(self.subs.cues, plan.m.get("expected_total_seconds"))
+        # labels._modo = temporal: brief labels at the start of each same-label group (overlays.py).
+        self.label_windows = overlays.label_windows(plan.segments, plan.m.get("labels"))
 
     def save_state(self):
         self.state["updated_at"] = now()
@@ -638,8 +645,16 @@ class Editor:
         if self.subs and mode == "burn":
             ev += self.subs.events(start, end)
         lab = [x for x in (s.get("label"), s.get("credit")) if x]
-        if lab:
-            style = (p.m.get("labels") or {}).get("style", "Source")
+        labels_cfg = p.m.get("labels") or {}
+        style = labels_cfg.get("style", "Source")
+        if lab and overlays.is_temporal(labels_cfg):
+            cfg = {**overlays.DEFAULTS, **labels_cfg}
+            window = overlays.group_window_for(p.segments, self.label_windows, p.segments.index(s))
+            e = overlays.temporal_label_event(start, s["dur"], window, chr(10).join(lab), style,
+                                              cfg["_fade_in_ms"], cfg["_fade_out_ms"], ass_time, ass_escape)
+            if e:
+                ev.append(e)
+        elif lab:
             ev.append(f"Dialogue: 1,0:00:00.00,{ass_time(s['dur'])},{style},,0,0,0,,{ass_escape(chr(10).join(lab))}")
         tc = p.m.get("title_card")
         if tc and tc.get("text"):

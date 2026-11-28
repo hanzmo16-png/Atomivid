@@ -56,6 +56,8 @@ jobs:
         run: npm run test:spend
       - name: Verify editorial gate without provider calls
         run: npm run test:editorial
+      - name: Verify podcast editor v3 temporary labels (Python stdlib, no media render)
+        run: python3 -m unittest discover -s scripts/podcast-editor-v3/tests -p 'test_*.py' -v
       - name: Use installed ffmpeg or the lockfile-pinned bundled executable
         run: |
           if ! command -v ffmpeg >/dev/null 2>&1; then
