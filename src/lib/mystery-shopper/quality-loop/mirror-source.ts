@@ -3,14 +3,16 @@ import { publicView, type Queue } from './model';
 import { sanitize } from '../v3/detect';
 
 /** Bind a mirror receipt to the completed source, never to a newer CAS revision.
- * Handoff driveId receipts may change without changing this source. No token is
- * included in the stamp, and an active inspection is never certifiable. */
+ * Handoff driveId receipts may change without changing this source. Private
+ * control metadata affects only the digest, never plaintext report fields;
+ * an active inspection is never certifiable. */
 export function mirrorSource(q: Queue): string {
   if (q.lease) throw new Error('MIRROR_SOURCE_CHANGED');
-  return createHash('sha256').update(JSON.stringify({
-    enabled: q.enabled, updatedAt: q.updatedAt, cycle: q.cycles.at(-1) ?? null,
-    activity: q.activity, lastAlert: q.lastAlert,
-  })).digest('hex');
+  // Cover every retained completion and source field, including corruption that
+  // did not emit an event. Only this mirror's own receipts may change its source.
+  const source: Record<string, unknown> = Object.fromEntries(Object.entries(q).filter(([key]) => key !== 'mirror'));
+  source.defects = q.defects.map(d => Object.fromEntries(Object.entries(d).filter(([key]) => key !== 'driveId')));
+  return createHash('sha256').update(JSON.stringify(source)).digest('hex');
 }
 
 /** Call inside update's mutation so every CAS retry checks the newest state. */
@@ -24,6 +26,7 @@ export const isMirrorSourceChanged = (error: unknown): boolean =>
 /** Private diagnostic report, never a raw Queue or authority for restoring claims.
  * Explicit DTO fields prevent future Queue additions from leaking capabilities. */
 export function mirrorReport(q: Queue, revision: string | null, at: string): string {
+  const sourceStamp = mirrorSource(q);
   const secrets = [q.lease?.token, ...q.defects.map(d => d.claim?.token)].filter((v): v is string => typeof v === 'string');
   const diagnosticSecrets = [...secrets, ...q.defects.map(d => d.claim?.actor)].filter((v): v is string => typeof v === 'string');
   const text = (value: string): string => {
@@ -52,7 +55,7 @@ export function mirrorReport(q: Queue, revision: string | null, at: string): str
   return JSON.stringify({
     schema: 'quality-loop-private-report/2', notFullQueueBackup: true,
     redactionPolicy: 'Explicit DTO; no lease, claim, actor, activity or alert metadata; diagnostic text sanitized',
-    sourceQueueVersion: q.version, sourceRevision: nullable(revision), snapshotAt: text(at),
+    sourceQueueVersion: q.version, sourceRevision: nullable(revision), sourceStamp, snapshotAt: text(at),
     enabled: q.enabled, updatedAt: text(q.updatedAt), operational: view.operational,
     lastEvaluation: view.lastEvaluation, nextEvaluation: view.nextEvaluation, schedule: view.schedule,
     pending: view.pending, critical: view.critical, fixed: view.fixed, stale: view.stale,

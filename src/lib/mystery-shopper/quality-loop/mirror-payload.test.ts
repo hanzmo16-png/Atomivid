@@ -32,6 +32,7 @@ test('legacy raw mirror leaks claim fields; explicit report excludes them withou
   for (const forbidden of ['lease', 'claim', 'actor', 'token', 'activity', 'lastAlert', 'driveId']) assert.ok(!allKeys(dto).includes(forbidden));
   assert.ok(!output.includes(secret) && !output.includes(actor) && !output.includes('private-drive-id'));
   assert.equal(dto.schema, 'quality-loop-private-report/2'); assert.equal(dto.notFullQueueBackup, true);
+  assert.equal(dto.sourceStamp, mirrorSource(q));
 });
 test('all retained completions and original negative counts survive, not just the latest cycle', () => {
   const q = fixture(), dto = JSON.parse(mirrorReport(q, SHA, AT));
@@ -50,9 +51,9 @@ test('unknown queue, defect, cycle and check properties cannot become exported c
   Object.assign(q.cycles[0].checks[0], { unexpected: { access: secret } });
   assert.ok(!mirrorReport(q, SHA, AT).includes(secret));
 });
-test('a lease capability is never serialized even by the pure projector; the separate transfer fence still rejects it', () => {
+test('an active lease is refused by both the report and its before-transfer fence', () => {
   const q = fixture(); q.lease = { cycleId: 'active', token: 'synthetic-lease-capability', expiresAt: AT };
-  const out = mirrorReport(q, SHA, AT); assert.ok(!out.includes('synthetic-lease-capability'));
+  assert.throws(() => mirrorReport(q, SHA, AT), /MIRROR_SOURCE_CHANGED/);
   assert.throws(() => mirrorSource(q), /MIRROR_SOURCE_CHANGED/);
 });
 test('capabilities accidentally repeated in diagnostic text are redacted using the existing sanitizer', () => {
