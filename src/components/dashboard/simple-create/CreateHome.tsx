@@ -76,7 +76,7 @@ export function CreateHome({ formats, subscriptionNeeded = false }: { formats: F
       {subscriptionNeeded && (
         <p className={`mt-3 rounded-2xl px-3 py-2 text-sm text-white ${GLASS}`} data-testid="crear-aviso-suscripcion">
           Para generar necesitas una suscripción activa. Puedes preparar tu idea ahora.{" "}
-          <Link href="/dashboard/billing" className="font-medium text-accent underline">Ver planes</Link>
+          <Link href="/dashboard/billing" className="inline-flex min-h-11 items-center font-medium text-accent underline">Ver planes</Link>
         </p>
       )}
       <p className="mt-3 text-xs text-white/90">Nada se crea ni se cobra hasta que lo autorices.</p>
