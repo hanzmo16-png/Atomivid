@@ -127,7 +127,20 @@ test("D. a failed attempt keeps a visible «Revisar guion» (navigation only) an
   assert.match(card, /request\.status === "failed" && Boolean\(request\.script_json\) && !isLongForm && !reelRetryReview && \(\s*<Link href=\{`\/dashboard\/review\/\$\{request\.id\}`\}/);
   assert.match(card, /reelRetryReview \? \(\s*<Link href=\{`\/dashboard\/review\/\$\{request\.id\}`\}[\s\S]{0,300}Revisar tope y reintentar/);
   const view = src("src/components/video/ResultView.tsx");
-  assert.match(view, /request\.status === "failed" && Boolean\(request\.script_json\) && !isLongForm && \(\s*<div className="mt-4 flex justify-center">\s*<LinkButton href=\{`\/dashboard\/review\/\$\{request\.id\}`\}>/);
+  const failedReviewNavigation = /request\.status === "failed" && Boolean\(request\.script_json\) && !isLongForm && \(\s*<div className="mt-4 flex justify-center">\s*<LinkButton href=\{`\/dashboard\/review\/\$\{request\.id\}`\}(?: className="min-h-11")?>/;
+  assert.match(view, failedReviewNavigation);
+  // Only the reviewed touch-target class is optional; navigation may not gain an action or handler.
+  const navigation = 'request.status === "failed" && Boolean(request.script_json) && !isLongForm && (\n<div className="mt-4 flex justify-center">\n<LinkButton href={`/dashboard/review/${request.id}`}';
+  for (const presentation of ["", ' className="min-h-11"'])
+    assert.match(`${navigation}${presentation}>`, failedReviewNavigation);
+  for (const unsafe of [
+    ' onClick={() => generateFinalVideo()}',
+    ' className="min-h-11" onClick={() => generateFinalVideo()}',
+    ' action="/api/render"',
+    ' className="min-h-11" action="/api/render"',
+    ' className="min-h-9"',
+  ]) assert.doesNotMatch(`${navigation}${unsafe}>`, failedReviewNavigation);
+  assert.doesNotMatch(`${navigation.replace("/dashboard/review/", "/dashboard/checkout/")} className="min-h-11">`, failedReviewNavigation);
   // ROJO: the raw `[[action:…]]`-tagged text reached the review screen.
   const page = src("src/app/dashboard/review/[id]/page.tsx");
   assert.doesNotMatch(page, /errorMessage=\{data\.error_message\}/);
