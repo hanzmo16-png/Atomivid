@@ -39,7 +39,7 @@ export async function readResourceSentinel(service: SupabaseClient, now = Date.n
     allRows<SentinelReservation>((start, end) => service.from("pi_supply_job_reservations")
       .select("id,project_id,provider,status,reserved_units,consumed_units,reserved_usd,consumed_usd", { count: "exact" })
       .eq("status", "OPEN").order("id").range(start, end)).catch(() => { complete = false; return []; }),
-    service.rpc("pi_worker_supply_slots"),
+    Promise.resolve().then(() => service.rpc("pi_worker_supply_slots")).catch(() => ({ data: null, error: true })),
   ]);
   const admission = await Promise.all(configured.map(async p => {
     const result = await service.rpc("pi_supply_state", { p_provider: p.provider });
@@ -48,11 +48,22 @@ export async function readResourceSentinel(service: SupabaseClient, now = Date.n
     return { provider: p.provider, enabled: p.enabled === true, level: valid ? state!.level! : "UNKNOWN",
       reason: valid && typeof state!.reason === "string" ? state!.reason.slice(0, 180) : "control unavailable" };
   }));
+  // The existing RPC measures video_requests occupancy against a configured ceiling.
+  // It does not prove a live worker or available CPU/GPU, so it is not capacity telemetry.
   const telemetry: SentinelTelemetry[] = [];
-  const maxWorkers = Number(policies.data.find(p => p.provider === "__global__")?.max_concurrent);
+  const configuredWorkerLimit = policies.data.find(p => p.provider === "__global__")?.max_concurrent;
+  const maxWorkers = typeof configuredWorkerLimit === "number"
+    || (typeof configuredWorkerLimit === "string" && configuredWorkerLimit.trim() !== "") ? Number(configuredWorkerLimit) : NaN;
   const active = slots.data?.active;
-  if (!slots.error && slots.data?.configured === true && Number.isSafeInteger(active) && active >= 0 && Number.isSafeInteger(maxWorkers) && maxWorkers > 0)
-    telemetry.push({ resource: "workers", verified: true, checked_at: new Date(now).toISOString(), used: active, limit: maxWorkers, unit: "workers" });
+  const accountingSlotsVerified = !slots.error && slots.data?.configured === true
+    && Number.isSafeInteger(active) && active >= 0 && Number.isSafeInteger(maxWorkers) && maxWorkers > 0;
+  const accountingSlots = {
+    state: accountingSlotsVerified ? "VERIFIED" as const : "UNKNOWN" as const,
+    used: accountingSlotsVerified ? active : null,
+    limit: accountingSlotsVerified ? maxWorkers : null,
+    checkedAt: accountingSlotsVerified ? new Date(now).toISOString() : null,
+    scope: "VIDEO_REQUESTS_ONLY_NOT_WORKER_LIVENESS" as const,
+  };
   // Existing Audio/Podcast ledgers are NOT silently counted as PI. Their cross-product
   // reservations/history need reconciliation; an API wallet can be real while free cash is unknown.
   const uncoveredProviders = ["elevenlabs", "heygen", "anthropic", "openai", "recraft", "flux"];
@@ -66,7 +77,7 @@ export async function readResourceSentinel(service: SupabaseClient, now = Date.n
     return { ...account, operationalLevel };
   });
   return {
-    sentinel: { ...model, accounts }, admission, timezones: [...new Set(configured.map(p => p.timezone ?? "UTC"))],
+    sentinel: { ...model, accounts }, admission, accountingSlots, timezones: [...new Set(configured.map(p => p.timezone ?? "UTC"))],
     recordedConsumption: { scope: "PI_LEDGER_ONLY_NOT_ALL_PRODUCTS_OR_PROVIDER_INVOICES", accounts:
       buildSentinelOverview({ ...input, uncoveredProviders: [] }).accounts.map(a => ({ account: a.account, unit: a.unit, consumption: a.consumption })) },
     refreshSeconds: 300, observedAt: new Date(now).toISOString(),
