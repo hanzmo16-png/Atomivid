@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/Button";
 export function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" className="w-full" loading={pending} disabled={pending}>
+    <Button type="submit" className="min-h-11 w-full" loading={pending} disabled={pending}>
       {pending ? "Guardando preparación…" : "Crear y revisar guion"}
     </Button>
   );

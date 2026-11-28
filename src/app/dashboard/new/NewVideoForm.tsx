@@ -265,7 +265,7 @@ export function NewVideoForm({
                 role="radio"
                 aria-checked={selectedDuration === d.value}
                 onClick={() => setDuration(d.value)}
-                className={`rounded-sm px-4 py-1.5 text-sm font-medium transition-colors ${
+                className={`inline-flex min-h-11 items-center rounded-sm px-4 text-sm font-medium transition-colors ${
                   selectedDuration === d.value ? "bg-accent text-accent-ink" : "text-ink-muted hover:text-ink"
                 }`}
               >
@@ -361,8 +361,8 @@ export function NewVideoForm({
       </section>
 
       {/* T46 D1: the server treats the same data as the same request. A second identical video is an explicit choice. */}
-      <label className="flex items-start gap-2 text-sm text-ink-muted">
-        <input type="checkbox" name="repeat_intent" className="mt-1" checked={repeatIntent} disabled={reconciliationBlocked || repeatBlockedByNewAvatarPhoto} onChange={e => { setRepeatIntent(e.target.checked); if (e.target.checked && !repeatToken) setRepeatToken(newKey()); }} />
+      <label className="flex min-h-11 items-start gap-2 py-1.5 text-sm text-ink-muted">
+        <input type="checkbox" name="repeat_intent" className="mt-1 size-4" checked={repeatIntent} disabled={reconciliationBlocked || repeatBlockedByNewAvatarPhoto} onChange={e => { setRepeatIntent(e.target.checked); if (e.target.checked && !repeatToken) setRepeatToken(newKey()); }} />
         <input type="hidden" name="repeat_request_token" value={repeatToken} disabled={!repeatIntent || !repeatToken} />
         <span>{repeatBlockedByNewAvatarPhoto
           ? "Para crear otro video igual, primero selecciona un avatar ya confirmado. Una fotografía nueva crea una intención distinta."

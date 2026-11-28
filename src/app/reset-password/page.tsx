@@ -76,7 +76,7 @@ export default async function ResetPasswordPage({
                 placeholder="••••••••••••"
               />
             </Field>
-            <Button type="submit" className="w-full">
+            <Button type="submit" className="min-h-11 w-full">
               Guardar nueva contraseña
             </Button>
           </form>

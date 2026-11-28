@@ -49,7 +49,7 @@ export default async function LoginPage({
             ¿Olvidaste tu contraseña?
           </Link>
         </p>
-        <Button type="submit" className="w-full">
+        <Button type="submit" className="min-h-11 w-full">
           Iniciar sesión
         </Button>
       </form>

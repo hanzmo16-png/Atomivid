@@ -75,6 +75,18 @@ test('real Chromium: four products, controlled defect detected then corrected/re
    assert.equal(matches.length,1,'same acceptance check executes exactly once on result, not creation');assert.equal(matches[0].state,'PASS');
   }
   assert.equal(syntheticSamples,4,'bounded synthetic payload only; not a valid media quality fixture');
+  const periodic=await observe(env,{id:'fixture-periodic',trigger:'schedule',runnerSha:sha,url:'http://local/fixture-periodic'});
+  assert.equal(periodic.authenticated,true);
+  for(const product of ['youtube','reels'])for(const width of [412,1440]){
+   const matches=periodic.checks.filter(c=>c.product===product&&c.id===`player-visible-${product}-${width}`);
+   assert.equal(matches.length,1,'periodic delivery checks are never omitted or duplicated');
+   assert.equal(matches[0].state,'PASS','DOM-only delivered-player inspection must not depend on a media transfer allowance');
+  }
+  for(const product of ['youtube','reels','audio-podcast','video-podcast'])for(const id of ['download-sample','playback-sample','full-file-integrity']){
+   assert.equal(periodic.checks.find(c=>c.product===product&&c.id===id)?.state,'BLOCKED','DOM visibility cannot certify playback, download or file integrity');
+  }
+  assert.equal(syntheticSamples,4,'periodic cycle must not request even a bounded media payload');
+  assert.equal(otherWrites,0);assert.equal(housekeeping,0);assert.equal(logins,3);
  }finally{globalThis.fetch=realFetch;await new Promise<void>(r=>server.close(()=>r()));}
 });
 test('media probe rejects providers, forwards no app cookie to storage, bounds payload even when Range ignored',async()=>{
