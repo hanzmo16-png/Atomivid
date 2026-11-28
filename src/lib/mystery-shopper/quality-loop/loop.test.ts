@@ -102,9 +102,9 @@ test('recurrence reopens same defect and creates one linked follow-up, not a dup
  const q=initialQueue(at);add(q,cycle('first'));const d=q.defects[0],root=d.taskId;d.driveId='prior-task-file';const t=claimDefect(q,d.id,'codex','active',end);transition(q,d.id,t,'FIXED_IN_BRANCH',sha,end);transition(q,d.id,t,'INTEGRATED',sha,end);add(q,cycle('good',[{...check,state:'PASS'}]));add(q,cycle('recur'));const follow=q.defects[0].taskId;assert.notEqual(follow,root);assert.equal(q.defects[0].rootTaskId,root);assert.equal(q.defects[0].driveId,null);add(q,cycle('same-fail'));assert.equal(q.defects.length,1);assert.equal(q.defects[0].taskId,follow);
 });
 
-test('unverified egress cannot be consumed by periodic/deployment media probes; fixture flag cannot target production',()=>{
- for(const trigger of ['schedule','deployment_status','unknown'])assert.equal(allowMediaProbe(trigger,false),false);
- assert.equal(allowMediaProbe('workflow_dispatch',false),true);assert.equal(allowMediaProbe('fixture',true),true);
+test('unverified egress cannot be consumed by manual, periodic or deployment probes; fixture flag cannot target production',()=>{
+ for(const trigger of ['workflow_dispatch','schedule','deployment_status','unknown'])assert.equal(allowMediaProbe(trigger,false),false);
+ assert.equal(allowMediaProbe('fixture',true),true);
  assert.throws(()=>targetOrigin('https://atomivid.vercel.app',true),/LOCAL/);
 });
 

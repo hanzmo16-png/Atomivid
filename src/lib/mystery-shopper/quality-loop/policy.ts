@@ -51,5 +51,6 @@ export function providerReadiness(product: keyof typeof PRODUCT_PROVIDER_IMPACT,
  return !!d.sentinel?.resources?.some(r=>r.resource==='workers'&&r.state==='VERIFIED'&&typeof r.used==='number'&&Number.isSafeInteger(r.used)&&r.used>=0&&typeof r.limit==='number'&&Number.isSafeInteger(r.limit)&&r.limit>0&&r.used<r.limit);
 }
 
-/** No recurring storage payload reads without verified free egress; explicit manual QA stays bounded. */
-export function allowMediaProbe(trigger: string, localFixture: boolean): boolean { return localFixture || trigger === 'workflow_dispatch'; }
+/** A manual dispatch is not proof of free egress. Remote probes remain closed
+ * until authoritative transfer admission exists; bounded local fixtures remain available. */
+export function allowMediaProbe(trigger: string, localFixture: boolean): boolean { return trigger === 'fixture' && localFixture; }
