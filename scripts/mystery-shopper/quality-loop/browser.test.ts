@@ -87,6 +87,13 @@ test('real Chromium: four products, controlled defect detected then corrected/re
   }
   assert.equal(syntheticSamples,4,'periodic cycle must not request even a bounded media payload');
   assert.equal(otherWrites,0);assert.equal(housekeeping,0);assert.equal(logins,3);
+  const manual=await observe(env,{id:'fixture-manual-no-egress',trigger:'workflow_dispatch',runnerSha:sha,url:'http://local/fixture-manual-no-egress'});
+  assert.equal(manual.authenticated,true);
+  for(const product of ['youtube','reels','audio-podcast','video-podcast'])for(const id of ['download-sample','playback-sample','full-file-integrity']){
+   assert.equal(manual.checks.find(c=>c.product===product&&c.id===id)?.state,'BLOCKED','manual dispatch cannot replace verified transfer admission');
+  }
+  assert.equal(syntheticSamples,4,'manual observation must not read media payload or cookies for a probe');
+  assert.equal(otherWrites,0);assert.equal(housekeeping,0);assert.equal(logins,4);
  }finally{globalThis.fetch=realFetch;await new Promise<void>(r=>server.close(()=>r()));}
 });
 test('media probe rejects providers, forwards no app cookie to storage, bounds payload even when Range ignored',async()=>{
