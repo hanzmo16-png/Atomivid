@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { GitHubQueueStore, update } from '../../../src/lib/mystery-shopper/quality-loop/github-store';
 import { claimCycle, finishCycle, event, publicView, PRODUCTS, type Cycle } from '../../../src/lib/mystery-shopper/quality-loop/model';
+import { completedReplayOutcome } from '../../../src/lib/mystery-shopper/quality-loop/replay-outcome';
 import { observe } from './browser';
 
 async function main(){
@@ -19,8 +20,20 @@ async function main(){
  const id=kind==='schedule'?`schedule-${e.GITHUB_RUN_ID}`:kind==='deployment_status'?`deployment-${e.AQL_DEPLOYMENT_ID}-${e.AQL_EXPECTED_SHA}`:`manual-${e.GITHUB_RUN_ID}`;
  const out=e.MS_OUT_DIR||path.join(process.cwd(),'.quality-loop-out');await mkdir(out,{recursive:true});
  let token:string;
- try{token=await update(store,q=>claimCycle(q,id,startedAt));}
- catch(err){const reason=err instanceof Error?err.message:'';if(['ALREADY_COMPLETED','LEASE_HELD','STOPPED'].includes(reason)){await writeFile(path.join(out,'skipped.json'),JSON.stringify({id,state:reason,spendUsd:0}));console.log(reason);return;}throw err;}
+ // Preserve the same read that rejected the claim: a later GET could replace a negative history.
+ let completedCycles:unknown;
+ try{token=await update(store,q=>{completedCycles=q.cycles;return claimCycle(q,id,startedAt);});}
+ catch(err){
+  const reason=err instanceof Error?err.message:'';
+  if(reason==='ALREADY_COMPLETED'){
+   const originalOutcome=completedReplayOutcome(completedCycles,id,kind as Cycle['trigger'],startedAt);
+   await writeFile(path.join(out,'skipped.json'),JSON.stringify({id,state:reason,validation:'NO_REVALIDATION',originalOutcome,spendUsd:0}));
+   console.log(`ALREADY_COMPLETED: NO_REVALIDATION; original cycle exit ${originalOutcome.exitCode}`);
+   process.exitCode=originalOutcome.exitCode;return;
+  }
+  if(['LEASE_HELD','STOPPED'].includes(reason)){await writeFile(path.join(out,'skipped.json'),JSON.stringify({id,state:reason,spendUsd:0}));console.log(reason);return;}
+  throw err;
+ }
  const stopped=async()=>{const q=(await store.read()).state;return !q.enabled||q.lease?.token!==token;};
  let cycle:Cycle;
  const input={id,trigger:kind as Cycle['trigger'],runnerSha:e.GITHUB_SHA!,url:`https://github.com/${repo}/actions/runs/${e.GITHUB_RUN_ID}`};
