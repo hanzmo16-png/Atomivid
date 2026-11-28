@@ -5,7 +5,7 @@ import { Logo } from "@/components/ui/Logo";
 export default function NotFound() {
   return (
     <div className="bg-atomivid-glow flex min-h-screen flex-col items-center justify-center gap-6 px-4 text-center">
-      <Link href="/">
+      <Link href="/" aria-label="Atomicvid, inicio" className="inline-flex min-h-11 items-center">
         <Logo />
       </Link>
       <div>
@@ -15,7 +15,7 @@ export default function NotFound() {
           Puede que el enlace esté roto o que la página se haya movido.
         </p>
       </div>
-      <LinkButton href="/">Volver al inicio</LinkButton>
+      <LinkButton href="/" className="min-h-11">Volver al inicio</LinkButton>
     </div>
   );
 }
