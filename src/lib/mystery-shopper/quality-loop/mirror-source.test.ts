@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { initialQueue, claimCycle, finishCycle, event, type Queue, type Cycle } from './model';
 import { update, Conflict, type QueueStore } from './github-store';
 import { mirrorSource, assertMirrorSource, isMirrorSourceChanged } from './mirror-source';
@@ -62,4 +63,22 @@ test('alert deduplication changes without a new cycle also fence the receipt',as
  const s=new Memory();s.state.lastAlert='previous-signature';const source=mirrorSource(s.state);
  s.state.lastAlert='new-signature';s.revision++;const before=structuredClone(s.state);
  await assert.rejects(mark(s,source),/MIRROR_SOURCE_CHANGED/);assert.deepEqual(s.state,before);
+});
+test('retained history changed without an event cannot receive an older full-history report receipt',async()=>{
+ const s=new Memory();s.complete('one',AT);s.complete('two',NEXT);
+ const legacy=(q:Queue)=>createHash('sha256').update(JSON.stringify({enabled:q.enabled,updatedAt:q.updatedAt,cycle:q.cycles.at(-1),activity:q.activity,lastAlert:q.lastAlert})).digest('hex');
+ const oldLegacy=legacy(s.state),source=mirrorSource(s.state);
+ s.state.cycles[0].sha='b'.repeat(40);s.revision++;const before=structuredClone(s.state);
+ assert.equal(legacy(s.state),oldLegacy,'negative control: the former latest-only stamp missed this retained-history edit');
+ await assert.rejects(mark(s,source),/MIRROR_SOURCE_CHANGED/);assert.deepEqual(s.state,before);
+});
+test('defect source edits without activity cannot inherit an earlier mirror receipt',async()=>{
+ const s=new Memory(),c=cycle('failure',AT);c.checks=[{id:'test',product:'reels',state:'FAIL',severity:'P1',owner:'codex',module:'fixture',detail:''}];
+ const token=claimCycle(s.state,c.id,AT);finishCycle(s.state,c,token);const source=mirrorSource(s.state);
+ s.state.defects[0].evidence='https://github.com/example/changed';s.revision++;const before=structuredClone(s.state);
+ await assert.rejects(mark(s,source),/MIRROR_SOURCE_CHANGED/);assert.deepEqual(s.state,before);
+});
+test('unknown source metadata changes are fenced, while only explicit own receipt fields remain excluded',()=>{
+ const q=initialQueue(AT) as Queue & {futureControl?:string};const source=mirrorSource(q);
+ q.futureControl='changed';assert.throws(()=>assertMirrorSource(q,source),/MIRROR_SOURCE_CHANGED/);
 });
