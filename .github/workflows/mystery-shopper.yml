@@ -19,7 +19,7 @@ on:
       operation:
         description: Evaluar gratis, diagnosticar QA o ejecutar campaña autorizada con topes
         type: choice
-        options: [evaluate, qa-preflight, observe-reel, campaign-real, quality-loop]
+        options: [evaluate, qa-preflight, observe-reel, campaign-real, quality-loop, quality-loop-mirror]
         default: evaluate
       audio_project_id:
         description: Episodio QA existente sin gasto para recuperar configuración sin duplicarlo
@@ -104,7 +104,7 @@ jobs:
   # Un único grupo serializa toda la campaña para impedir gasto paralelo del mismo ledger.
   evaluar:
     environment: Preview
-    if: github.event_name == 'repository_dispatch' || (github.event_name == 'workflow_dispatch' && inputs.operation != 'qa-preflight' && inputs.operation != 'observe-reel' && inputs.operation != 'quality-loop')
+    if: github.event_name == 'repository_dispatch' || (github.event_name == 'workflow_dispatch' && inputs.operation != 'qa-preflight' && inputs.operation != 'observe-reel' && inputs.operation != 'quality-loop' && inputs.operation != 'quality-loop-mirror')
     runs-on: ubuntu-24.04
     timeout-minutes: 100
     concurrency:
@@ -223,7 +223,13 @@ jobs:
 
   quality-loop-drive:
     needs: quality-loop
-    if: always() && needs.quality-loop.result != 'skipped' && github.ref_name == github.event.repository.default_branch
+    # A Production deployment may arrive with a detached SHA. Keep its Drive credentials
+    # default-branch-only; an explicit mirror-only dispatch can copy its persisted cycle
+    # without repeating inspection, media transfer, or the paid campaign evaluator.
+    if: >-
+      always() && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      (needs.quality-loop.result != 'skipped' ||
+       (github.event_name == 'workflow_dispatch' && inputs.operation == 'quality-loop-mirror'))
     environment: orchestrator
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -271,6 +277,7 @@ jobs:
         env:
           AQL_EVIDENCE_DIR: ${{ runner.temp }}/quality-loop-fixtures
         run: |
+          node scripts/mystery-shopper/quality-loop/workflow-mirror.test.mjs
           node --import tsx --test src/lib/mystery-shopper/quality-loop/*.test.ts
           npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.49.1
           npx playwright install --with-deps chromium
