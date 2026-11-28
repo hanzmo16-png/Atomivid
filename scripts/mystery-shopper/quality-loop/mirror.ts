@@ -2,7 +2,7 @@
 import { GitHubQueueStore, update } from '../../../src/lib/mystery-shopper/quality-loop/github-store';
 import { DriveRestChannel, oidcDriveTokenProvider } from '../../../src/lib/orchestrator/channel';
 import { renderHeader, taskDigest } from '../../../src/lib/orchestrator/protocol';
-import { mirrorSource, assertMirrorSource, isMirrorSourceChanged } from '../../../src/lib/mystery-shopper/quality-loop/mirror-source';
+import { mirrorSource, assertMirrorSource, isMirrorSourceChanged, mirrorReport } from '../../../src/lib/mystery-shopper/quality-loop/mirror-source';
 async function main(){
  const env=process.env,repo=env.GITHUB_REPOSITORY||'hanzmo16-png/Atomivid';
  if(env.GITHUB_REF_NAME!==env.AQL_DEFAULT_BRANCH)throw new Error('DEFAULT_BRANCH_ONLY');
@@ -12,7 +12,7 @@ async function main(){
  try{
   const snapshot=await store.read();const q=snapshot.state;
   source=mirrorSource(q); // Refuse an in-flight inspection before any Drive transfer.
-  const queueText=JSON.stringify({...q,cycles:q.cycles.slice(-1),activity:q.activity.slice(-30),sourceRevision:snapshot.revision},null,2);
+  const queueText=mirrorReport(q,snapshot.revision,new Date().toISOString());
   const name=`QUALITY-LOOP-${env.GITHUB_RUN_ID}-${snapshot.revision?.slice(0,12)||'initial'}__orquestador__ESTADO.md`;
   const saved=await channel.createIfAbsent('entregas',name,queueText);
   if(await channel.read(saved.id)!==queueText)throw new Error('DRIVE_READBACK_MISMATCH');
