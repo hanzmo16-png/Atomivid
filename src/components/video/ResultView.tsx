@@ -114,7 +114,7 @@ export function ResultView({
             configuring never starts production; confirmation is explicit there. */}
         {request.status === "script_ready" && (isLongForm ? (!request.long_form_confirmed_at ? (
           <div className="mt-4 flex justify-center">
-            <LinkButton href={`/dashboard/long-form/configure/${request.id}`}>Revisar y configurar producción</LinkButton>
+            <LinkButton href={`/dashboard/long-form/configure/${request.id}`} className="min-h-11">Revisar y configurar producción</LinkButton>
           </div>
         ) : (
           // Confirmed plan: the same explicit start the history card offers.
@@ -127,7 +127,7 @@ export function ResultView({
           </div>
         )) : (
           <div className="mt-4 flex justify-center">
-            <LinkButton href={`/dashboard/review/${request.id}`}>{request.recorded_audio_path ? "Revisar grabación" : "Revisar guion"}</LinkButton>
+            <LinkButton href={`/dashboard/review/${request.id}`} className="min-h-11">{request.recorded_audio_path ? "Revisar grabación" : "Revisar guion"}</LinkButton>
           </div>
         ))}
 
@@ -216,7 +216,7 @@ export function ResultView({
         {/* A recoverable Reel says what the review offers (the same «Reintentar» the history card links to). */}
         {request.status === "failed" && Boolean(request.script_json) && !isLongForm && (
           <div className="mt-4 flex justify-center">
-            <LinkButton href={`/dashboard/review/${request.id}`}>{request.recorded_audio_path ? "Revisar grabación"
+            <LinkButton href={`/dashboard/review/${request.id}`} className="min-h-11">{request.recorded_audio_path ? "Revisar grabación"
               : canReviewReelRetry(request, nowMs) ? "Revisar y reintentar" : "Revisar guion"}</LinkButton>
           </div>
         )}
@@ -276,7 +276,7 @@ export function ResultView({
               download
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-accent-ink hover:bg-accent-hover"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-accent-ink hover:bg-accent-hover"
             >
               Descargar video
             </a>
@@ -311,10 +311,10 @@ export function ResultView({
       </div>
 
       <div className="mt-8 flex flex-wrap gap-3 border-t border-border pt-6">
-        <LinkButton href="/dashboard" variant="secondary">
+        <LinkButton href="/dashboard" variant="secondary" className="min-h-11">
           Volver al historial
         </LinkButton>
-        <LinkButton href={isLongForm ? "/dashboard/long-form/new" : "/dashboard/new"}>Crear otro video</LinkButton>
+        <LinkButton href={isLongForm ? "/dashboard/long-form/new" : "/dashboard/new"} className="min-h-11">Crear otro video</LinkButton>
       </div>
     </div>
   );

@@ -328,7 +328,7 @@ export function ScriptReview({
               value={scene.visualQuery}
               onChange={(e) => updateScene(i, "visualQuery", e.target.value)}
               disabled={!editable}
-              className="mt-1 w-full rounded-md border border-border-strong bg-surface-raised px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none disabled:opacity-60"
+              className="mt-1 min-h-11 w-full rounded-md border border-border-strong bg-surface-raised px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none disabled:opacity-60"
             />
           </Card>
         ))}
@@ -413,7 +413,7 @@ export function ScriptReview({
       {status === "script_ready" && recoveryNotice && (
         <Alert tone="info">{recoveryNotice} Puedes ajustar el texto aquí y guardar los cambios antes de producirlo de nuevo.</Alert>
       )}
-          <LinkButton href="/dashboard">Volver al historial</LinkButton>
+          <LinkButton href="/dashboard" className="min-h-11">Volver al historial</LinkButton>
         </div>
       )}
     </div>
