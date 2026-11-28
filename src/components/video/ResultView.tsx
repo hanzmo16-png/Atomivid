@@ -100,7 +100,7 @@ export function ResultView({
       </div>
       <p className="mt-1 text-sm text-ink-muted">{meta.join(" · ")}</p>
 
-      <div className="mt-6">
+      <div className="mt-6 [&_a[href*=review]]:min-h-11">
         {(request.status === "pending" || request.status === "script_ready") && (
           <EmptyStage
             title="Todavía no se generó el video"
@@ -216,7 +216,7 @@ export function ResultView({
         {/* A recoverable Reel says what the review offers (the same «Reintentar» the history card links to). */}
         {request.status === "failed" && Boolean(request.script_json) && !isLongForm && (
           <div className="mt-4 flex justify-center">
-            <LinkButton href={`/dashboard/review/${request.id}`} className="min-h-11">{request.recorded_audio_path ? "Revisar grabación"
+            <LinkButton href={`/dashboard/review/${request.id}`}>{request.recorded_audio_path ? "Revisar grabación"
               : canReviewReelRetry(request, nowMs) ? "Revisar y reintentar" : "Revisar guion"}</LinkButton>
           </div>
         )}
